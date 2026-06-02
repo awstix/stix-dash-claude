@@ -3,6 +3,12 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getAsphaltOpenPositions } from "@/lib/asphalt-loads";
+import {
+  formatLiters,
+  getTackCoatOpenPositionsForRange,
+  getTackCoatPositionKey,
+  normalizeTackCoatUnit,
+} from "@/lib/tack-coat-loads";
 import { TruckDemandCalculator } from "./TruckDemandCalculator";
 import {
   copyAsphaltDispatchEntry,
@@ -212,6 +218,7 @@ export default async function AsphaltDispatchPage({
     tackCoatMaterials,
     asphaltDispatchCrews,
     payloadVehicles,
+    tackCoatOpenPositions,
   ] = await Promise.all([
     prisma.asphaltDispatchEntry.findMany({
       where: {
@@ -272,6 +279,11 @@ export default async function AsphaltDispatchPage({
       },
       orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
     }),
+
+    getTackCoatOpenPositionsForRange({
+      gte: weekStart,
+      lt: weekEnd,
+    }),
   ]);
 
   const asphaltOpenPositionsByDayEntries = await Promise.all(
@@ -292,6 +304,18 @@ export default async function AsphaltDispatchPage({
   const totalTons = entries.reduce((sum, entry) => sum + entry.quantityTons, 0);
   const totalTackCoatQuantity = entries.reduce(
     (sum, entry) => sum + (entry.tackCoatQuantity ?? 0),
+    0,
+  );
+  const totalTackCoatSpecialVehicleQuantity = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.specialVehicleLiters,
+    0,
+  );
+  const totalTackCoatShortHaulQuantity = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.shortHaulLiters,
+    0,
+  );
+  const totalTackCoatOpenQuantity = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.openLiters,
     0,
   );
 
@@ -317,6 +341,36 @@ export default async function AsphaltDispatchPage({
       const total = entries
         .filter((entry) => sameDate(entry.workDate, day.date))
         .reduce((sum, entry) => sum + (entry.tackCoatQuantity ?? 0), 0);
+
+      return [formatDateInput(day.date), total];
+    })
+  );
+
+  const dayTackCoatSpecialVehicleTotals = new Map(
+    days.map((day) => {
+      const total = tackCoatOpenPositions
+        .filter((position) => sameDate(position.workDate, day.date))
+        .reduce((sum, position) => sum + position.specialVehicleLiters, 0);
+
+      return [formatDateInput(day.date), total];
+    })
+  );
+
+  const dayTackCoatShortHaulTotals = new Map(
+    days.map((day) => {
+      const total = tackCoatOpenPositions
+        .filter((position) => sameDate(position.workDate, day.date))
+        .reduce((sum, position) => sum + position.shortHaulLiters, 0);
+
+      return [formatDateInput(day.date), total];
+    })
+  );
+
+  const dayTackCoatOpenTotals = new Map(
+    days.map((day) => {
+      const total = tackCoatOpenPositions
+        .filter((position) => sameDate(position.workDate, day.date))
+        .reduce((sum, position) => sum + position.openLiters, 0);
 
       return [formatDateInput(day.date), total];
     })
@@ -348,6 +402,10 @@ export default async function AsphaltDispatchPage({
 
   const tackCoatMaterialById = new Map(
     tackCoatMaterials.map((material) => [material.id, material]),
+  );
+
+  const tackCoatPositionByKey = new Map(
+    tackCoatOpenPositions.map((position) => [position.key, position]),
   );
 
   const mixSummaryMap = new Map<string, MixSummaryItem>();
@@ -478,11 +536,21 @@ export default async function AsphaltDispatchPage({
         </div>
       ) : null}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-6">
         <SummaryBox label="Einträge" value={String(entries.length)} hint="geplante Asphaltmaßnahmen" />
         <SummaryBox label="Kolonnen" value={String(crews.length)} hint="aktive Asphaltkolonnen aus Admin → Kolonnen" />
         <SummaryBox label="Mischgut gesamt" value={`${formatTons(totalTons)} t`} hint="Gesamtmenge im gewählten Zeitraum" />
-        <SummaryBox label="Anspritzmittel" value={`${formatTons(totalTackCoatQuantity)} l`} hint="geplante Liter aus Asphaltdisposition" />
+        <SummaryBox
+          label="Anspritzmittel"
+          value={`${formatLiters(totalTackCoatQuantity)} l`}
+          hint={`Spritzwagen ${formatLiters(totalTackCoatSpecialVehicleQuantity)} l · Kurzstrecke ${formatLiters(totalTackCoatShortHaulQuantity)} l`}
+        />
+        <SummaryBox
+          label="Anspritz offen"
+          value={`${formatLiters(totalTackCoatOpenQuantity)} l`}
+          hint="noch nicht durch Spritzwagen oder Kurzstrecke gedeckt"
+          tone="purple"
+        />
         <SummaryBox label="Offen" value={`${formatTons(totalOpenTons)} t`} hint="noch nicht auf LKW verteilt" tone="orange" />
       </div>
 
@@ -540,6 +608,11 @@ export default async function AsphaltDispatchPage({
             const dayTotal = dayTotals.get(dayKey) ?? 0;
             const dayOpenTotal = dayOpenTotals.get(dayKey) ?? 0;
             const dayTackCoatTotal = dayTackCoatTotals.get(dayKey) ?? 0;
+            const dayTackCoatSpecialVehicleTotal =
+              dayTackCoatSpecialVehicleTotals.get(dayKey) ?? 0;
+            const dayTackCoatShortHaulTotal =
+              dayTackCoatShortHaulTotals.get(dayKey) ?? 0;
+            const dayTackCoatOpenTotal = dayTackCoatOpenTotals.get(dayKey) ?? 0;
 
             return (
               <div
@@ -565,8 +638,19 @@ export default async function AsphaltDispatchPage({
                     offen {formatTons(dayOpenTotal)} t
                   </div>
                   {dayTackCoatTotal > 0 ? (
-                    <div className="mt-1 text-xs font-semibold text-purple-800">
-                      Anspritzmittel {formatTons(dayTackCoatTotal)} l
+                    <div className="mt-2 space-y-1 text-xs font-semibold text-purple-800">
+                      <div>
+                        Anspritzmittel Bedarf {formatLiters(dayTackCoatTotal)} l
+                      </div>
+                      <div>
+                        Spritzwagen {formatLiters(dayTackCoatSpecialVehicleTotal)} l
+                      </div>
+                      <div>
+                        Kurzstrecke {formatLiters(dayTackCoatShortHaulTotal)} l
+                      </div>
+                      <div className="text-purple-950">
+                        offen {formatLiters(dayTackCoatOpenTotal)} l
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -626,11 +710,26 @@ export default async function AsphaltDispatchPage({
                     </div>
 
                     <div className="space-y-3">
-                      {dayEntries.map((entry) => (
-                        <details
-                          key={entry.id}
-                          className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
-                        >
+                      {dayEntries.map((entry) => {
+                        const entryTackCoatQuantity = entry.tackCoatQuantity ?? 0;
+                        const tackCoatPosition =
+                          entry.tackCoatMaterialName && entryTackCoatQuantity > 0
+                            ? tackCoatPositionByKey.get(
+                                getTackCoatPositionKey({
+                                  workDate: entry.workDate,
+                                  projectId: entry.projectId,
+                                  projectNumber: entry.projectNumber,
+                                  materialName: entry.tackCoatMaterialName,
+                                  quantityUnit: normalizeTackCoatUnit(entry.tackCoatUnit),
+                                }),
+                              )
+                            : null;
+
+                        return (
+                          <details
+                            key={entry.id}
+                            className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+                          >
                           <summary className="cursor-pointer list-none">
                             <div className="flex items-start justify-between gap-2">
                               <div>
@@ -652,7 +751,27 @@ export default async function AsphaltDispatchPage({
                                 )}
                                 {(entry.tackCoatQuantity ?? 0) > 0 ? (
                                   <div className="mt-1 text-xs font-semibold text-purple-800">
-                                    Anspritzmittel: {formatTons(entry.tackCoatQuantity ?? 0)} {entry.tackCoatUnit ?? ""} {entry.tackCoatMaterialName ?? ""}
+                                    Anspritzmittel Bedarf: {formatLiters(entryTackCoatQuantity)} {entry.tackCoatUnit ?? "l"} {entry.tackCoatMaterialName ?? ""}
+                                  </div>
+                                ) : null}
+
+                                {tackCoatPosition ? (
+                                  <div className="mt-2 rounded-lg border border-purple-200 bg-purple-50 p-2 text-[11px] font-semibold text-purple-950">
+                                    <div>Aufteilung Anspritzmittel Baustelle/Mittel</div>
+                                    <div className="mt-1 grid grid-cols-2 gap-1">
+                                      <span>
+                                        Bedarf {formatLiters(tackCoatPosition.plannedLiters)} {tackCoatPosition.quantityUnit}
+                                      </span>
+                                      <span>
+                                        Spritzwagen {formatLiters(tackCoatPosition.specialVehicleLiters)} {tackCoatPosition.quantityUnit}
+                                      </span>
+                                      <span>
+                                        Kurzstrecke {formatLiters(tackCoatPosition.shortHaulLiters)} {tackCoatPosition.quantityUnit}
+                                      </span>
+                                      <span className="text-purple-900">
+                                        offen {formatLiters(tackCoatPosition.openLiters)} {tackCoatPosition.quantityUnit}
+                                      </span>
+                                    </div>
                                   </div>
                                 ) : null}
 
@@ -780,8 +899,9 @@ export default async function AsphaltDispatchPage({
                               </button>
                             </form>
                           </div>
-                        </details>
-                      ))}
+                          </details>
+                        );
+                      })}
                     </div>
 
                     <details className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
@@ -956,13 +1076,15 @@ function SummaryBox({
   label: string;
   value: string;
   hint: string;
-  tone?: "default" | "orange";
+  tone?: "default" | "orange" | "purple";
 }) {
   return (
     <div
       className={
         tone === "orange"
           ? "rounded-2xl border border-orange-200 bg-orange-50 p-6 shadow-sm"
+          : tone === "purple"
+            ? "rounded-2xl border border-purple-200 bg-purple-50 p-6 shadow-sm"
           : "rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
       }
     >
@@ -970,6 +1092,8 @@ function SummaryBox({
         className={
           tone === "orange"
             ? "text-sm font-medium text-orange-700"
+            : tone === "purple"
+              ? "text-sm font-medium text-purple-700"
             : "text-sm font-medium text-gray-500"
         }
       >
@@ -979,6 +1103,8 @@ function SummaryBox({
         className={
           tone === "orange"
             ? "mt-3 text-3xl font-bold text-orange-950"
+            : tone === "purple"
+              ? "mt-3 text-3xl font-bold text-purple-950"
             : "mt-3 text-3xl font-bold text-gray-900"
         }
       >
@@ -988,6 +1114,8 @@ function SummaryBox({
         className={
           tone === "orange"
             ? "mt-1 text-xs text-orange-800"
+            : tone === "purple"
+              ? "mt-1 text-xs text-purple-800"
             : "mt-1 text-xs text-gray-500"
         }
       >

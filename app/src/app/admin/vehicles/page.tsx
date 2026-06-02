@@ -11,6 +11,13 @@ function formatTons(value: number) {
   }).format(value);
 }
 
+function formatLiters(value: number) {
+  return new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function normalizeFilterValue(value: string | undefined) {
   return String(value ?? "").trim();
 }
@@ -38,6 +45,7 @@ function getVehicleSearchText(vehicle: {
   vehicleType: string;
   category: string;
   asphaltPayloadTons: number;
+  tackCoatTankLiters: number;
   isSpecialVehicle: boolean;
   isActive: boolean;
   notes: string | null;
@@ -48,6 +56,7 @@ function getVehicleSearchText(vehicle: {
     vehicle.vehicleType,
     vehicle.category,
     formatTons(vehicle.asphaltPayloadTons),
+    formatLiters(vehicle.tackCoatTankLiters),
     vehicle.isSpecialVehicle ? "Sonderfahrzeug" : "kein Sonderfahrzeug",
     vehicle.isSpecialVehicle ? "ja" : "nein",
     vehicle.isActive ? "aktiv" : "inaktiv",
@@ -182,7 +191,7 @@ export default async function VehiclesPage({
 
         <form
           action={createVehicle}
-          className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7"
+          className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-8"
         >
           <Input name="vehicleNumber" label="Fahrzeugnummer" required />
           <Input name="licensePlate" label="Kennzeichen" />
@@ -204,6 +213,15 @@ export default async function VehiclesPage({
             placeholder="z.B. 18"
           />
 
+          <Input
+            name="tackCoatTankLiters"
+            label="Tank l"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="z.B. 600"
+          />
+
           <Input name="notes" label="Bemerkung" />
 
           <label className="flex items-end gap-2 text-sm font-medium text-gray-800">
@@ -215,7 +233,7 @@ export default async function VehiclesPage({
             <span className="mb-2">Sonderfahrzeug</span>
           </label>
 
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-8">
             <button
               type="submit"
               className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
@@ -362,7 +380,7 @@ export default async function VehiclesPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[1290px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
                 <Th>Fahrzeugnr.</Th>
@@ -371,6 +389,9 @@ export default async function VehiclesPage({
                 <Th>Kategorie</Th>
                 <th className="w-[105px] whitespace-nowrap p-3 font-semibold">
                   Nutzlast
+                </th>
+                <th className="w-[105px] whitespace-nowrap p-3 font-semibold">
+                  Tank
                 </th>
                 <Th>Sonderfahrzeug</Th>
                 <Th>Aktiv</Th>
@@ -384,13 +405,13 @@ export default async function VehiclesPage({
             <tbody className="text-gray-900">
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={10} className="p-8 text-center text-gray-500">
                     Noch keine Fahrzeuge vorhanden.
                   </td>
                 </tr>
               ) : filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={10} className="p-8 text-center text-gray-500">
                     Keine Fahrzeuge passend zu den aktuellen Filtern gefunden.
                   </td>
                 </tr>
@@ -445,6 +466,21 @@ export default async function VehiclesPage({
                           />
                           <div className="whitespace-nowrap text-[11px] font-medium text-gray-500">
                             {formatTons(vehicle.asphaltPayloadTons ?? 0)} t
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="w-[105px] p-3 align-top">
+                        <div className="space-y-1">
+                          <SmallPayloadInput
+                            formId={formId}
+                            name="tackCoatTankLiters"
+                            defaultValue={String(
+                              vehicle.tackCoatTankLiters ?? 0,
+                            )}
+                          />
+                          <div className="whitespace-nowrap text-[11px] font-medium text-gray-500">
+                            {formatLiters(vehicle.tackCoatTankLiters ?? 0)} l
                           </div>
                         </div>
                       </td>

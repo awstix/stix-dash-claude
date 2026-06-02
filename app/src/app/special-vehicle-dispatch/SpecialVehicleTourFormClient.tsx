@@ -8,6 +8,13 @@ type VehicleOption = {
   licensePlate: string | null;
   vehicleType: string;
   category: string;
+  tackCoatTankLiters: number;
+};
+
+type DriverOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
 };
 
 type ProjectOption = {
@@ -38,6 +45,8 @@ type TackCoatNeed = {
   quantity: number;
   quantityUnit: string;
   plannedQuantity: number;
+  specialVehicleQuantity: number;
+  shortHaulQuantity: number;
   openQuantity: number;
   crewName: string;
 };
@@ -67,13 +76,19 @@ function formatNumber(value: number) {
   });
 }
 
-function getDefaultRows(needs: TackCoatNeed[], workDate: string) {
+function getSuggestedQuantity(openQuantity: number, tankLiters: number) {
+  if (tankLiters <= 0) return openQuantity;
+  return Math.min(openQuantity, tankLiters);
+}
+
+function getDefaultRows(needs: TackCoatNeed[], workDate: string, tankLiters = 0) {
   const needsForDay = needs.filter((need) => need.workDate === workDate && need.openQuantity > 0);
 
   if (needsForDay.length > 0) {
     return needsForDay.slice(0, 3).map((need, index): TourRow => {
       const startHour = 7 + index * 2;
       const endHour = startHour + 2;
+      const suggestedQuantity = getSuggestedQuantity(need.openQuantity, tankLiters);
 
       return {
         id: index,
@@ -82,9 +97,9 @@ function getDefaultRows(needs: TackCoatNeed[], workDate: string) {
         endTime: `${String(endHour).padStart(2, "0")}:00`,
         taskText: "Anspritzen",
         materialName: need.materialName,
-        quantity: String(need.openQuantity),
+        quantity: String(suggestedQuantity),
         quantityUnit: need.quantityUnit,
-        notes: `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}`,
+        notes: `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}${tankLiters > 0 ? ` · Tank ${formatNumber(tankLiters)} l` : ""}`,
       };
     });
   }
@@ -110,6 +125,8 @@ function getDefaultRows(needs: TackCoatNeed[], workDate: string) {
 export function SpecialVehicleTourFormClient({
   action,
   vehicles,
+  transportVehicles,
+  drivers,
   projects,
   crews,
   defaultVehicleId,
@@ -119,6 +136,8 @@ export function SpecialVehicleTourFormClient({
 }: {
   action: (formData: FormData) => Promise<void>;
   vehicles: VehicleOption[];
+  transportVehicles: VehicleOption[];
+  drivers: DriverOption[];
   projects: ProjectOption[];
   crews: CrewOption[];
   defaultVehicleId: string;
@@ -126,8 +145,17 @@ export function SpecialVehicleTourFormClient({
   tackCoatNeeds: TackCoatNeed[];
   tackCoatMaterials: TackCoatMaterialOption[];
 }) {
+  const initialVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
+  const [vehicleId, setVehicleId] = useState(defaultVehicleId);
   const [workDate, setWorkDate] = useState(defaultWorkDate);
-  const [rows, setRows] = useState<TourRow[]>(() => getDefaultRows(tackCoatNeeds, defaultWorkDate));
+  const [rows, setRows] = useState<TourRow[]>(() =>
+    getDefaultRows(tackCoatNeeds, defaultWorkDate, initialVehicle?.tackCoatTankLiters ?? 0),
+  );
+
+  const selectedVehicle = useMemo(
+    () => vehicles.find((vehicle) => vehicle.id === vehicleId),
+    [vehicleId, vehicles],
+  );
 
   const needsForSelectedDay = useMemo(
     () => tackCoatNeeds.filter((need) => need.workDate === workDate),
@@ -185,9 +213,16 @@ export function SpecialVehicleTourFormClient({
       projectId,
       taskText: row.taskText || "Anspritzen",
       materialName: need.materialName,
-      quantity: need.openQuantity > 0 ? String(need.openQuantity) : String(need.quantity),
+      quantity:
+        need.openQuantity > 0
+          ? String(getSuggestedQuantity(need.openQuantity, selectedVehicle?.tackCoatTankLiters ?? 0))
+          : String(need.quantity),
       quantityUnit: need.quantityUnit,
-      notes: row.notes || `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}`,
+      notes:
+        row.notes ||
+        `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}${
+          selectedVehicle?.tackCoatTankLiters ? ` · Tank ${formatNumber(selectedVehicle.tackCoatTankLiters)} l` : ""
+        }`,
     });
   }
 
@@ -224,13 +259,19 @@ export function SpecialVehicleTourFormClient({
 
   return (
     <form action={action} className="mt-4 space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <label className="text-xs font-semibold text-gray-700">
           Sonderfahrzeug
           <select
             name="vehicleId"
             required
-            defaultValue={defaultVehicleId}
+            value={vehicleId}
+            onChange={(event) => {
+              const nextVehicleId = event.currentTarget.value;
+              const nextVehicle = vehicles.find((vehicle) => vehicle.id === nextVehicleId);
+              setVehicleId(nextVehicleId);
+              setRows(getDefaultRows(tackCoatNeeds, workDate, nextVehicle?.tackCoatTankLiters ?? 0));
+            }}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="" disabled>
@@ -239,6 +280,47 @@ export function SpecialVehicleTourFormClient({
             {vehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
                 {getVehicleLabel(vehicle)}
+                {vehicle.tackCoatTankLiters > 0 ? ` · Tank ${formatNumber(vehicle.tackCoatTankLiters)} l` : ""}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] font-medium text-blue-700">
+            Tankinhalt:{" "}
+            {selectedVehicle
+              ? selectedVehicle.tackCoatTankLiters > 0
+                ? `${formatNumber(selectedVehicle.tackCoatTankLiters)} l`
+                : "nicht hinterlegt"
+              : "Spritzwagen wählen"}
+          </span>
+        </label>
+
+        <label className="text-xs font-semibold text-gray-700">
+          Transport-LKW optional
+          <select
+            name="transportVehicleId"
+            defaultValue=""
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            <option value="">Kein Transport-LKW</option>
+            {transportVehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>
+                {getVehicleLabel(vehicle)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs font-semibold text-gray-700">
+          Fahrer/Bediener optional
+          <select
+            name="operatorDriverId"
+            defaultValue=""
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            <option value="">Kein Fahrer/Bediener</option>
+            {drivers.map((driver) => (
+              <option key={driver.id} value={driver.id}>
+                {driver.lastName}, {driver.firstName}
               </option>
             ))}
           </select>
@@ -277,13 +359,25 @@ export function SpecialVehicleTourFormClient({
         </label>
       </div>
 
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-950">
+        Tankinhalt Anspritzmaschine aus Fahrzeugstamm:{" "}
+        {selectedVehicle
+          ? selectedVehicle.tackCoatTankLiters > 0
+            ? `${formatNumber(selectedVehicle.tackCoatTankLiters)} l`
+            : "nicht im Fahrzeugstamm hinterlegt"
+          : "bitte Spritzwagen wählen"}
+      </div>
+
       {needsForSelectedDay.length > 0 ? (
         <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-950">
           <div className="font-bold">Vorgeplante Anspritzmittel aus Asphaltdisposition</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {needsForSelectedDay.map((need) => (
               <span key={need.key} className="rounded-full bg-white px-3 py-1 font-semibold shadow-sm">
-                {need.projectNumber} · {formatNumber(need.openQuantity)} {need.quantityUnit} {need.materialName}
+                {need.projectNumber} · offen {formatNumber(need.openQuantity)} {need.quantityUnit} {need.materialName}
+                {need.specialVehicleQuantity || need.shortHaulQuantity
+                  ? ` · Spritzwagen ${formatNumber(need.specialVehicleQuantity)} · Kurzstrecke ${formatNumber(need.shortHaulQuantity)}`
+                  : ""}
               </span>
             ))}
           </div>
@@ -384,7 +478,7 @@ export function SpecialVehicleTourFormClient({
               </label>
 
               <label className="text-xs font-semibold text-gray-700">
-                Menge
+                Anspritzmenge dieser Tour
                 <input
                   name={`tourQuantity_${row.id}`}
                   type="number"

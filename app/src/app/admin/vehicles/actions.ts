@@ -29,12 +29,29 @@ function parsePayloadTons(value: FormDataEntryValue | null) {
   return Math.round(number * 100) / 100;
 }
 
+function parseTankLiters(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim().replace(",", ".");
+
+  if (!text) {
+    return 0;
+  }
+
+  const number = Number(text);
+
+  if (Number.isNaN(number) || number < 0) {
+    throw new Error("Das Tankvolumen muss eine Zahl größer oder gleich 0 sein.");
+  }
+
+  return Math.round(number * 100) / 100;
+}
+
 function revalidateVehicleConsumers() {
   revalidatePath("/admin/vehicles");
   revalidatePath("/asphalt-dispatch");
   revalidatePath("/truck-dispatch");
   revalidatePath("/truck-dispatch/short-haul");
   revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/special-vehicle-dispatch");
   revalidatePath("/orders");
 }
 
@@ -45,6 +62,9 @@ export async function createVehicle(formData: FormData) {
   const category = String(formData.get("category") ?? "").trim();
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
+  );
+  const tackCoatTankLiters = parseTankLiters(
+    formData.get("tackCoatTankLiters")
   );
 
   if (!vehicleNumber || !vehicleType || !category) {
@@ -82,6 +102,7 @@ export async function createVehicle(formData: FormData) {
       vehicleType,
       category,
       asphaltPayloadTons,
+      tackCoatTankLiters,
       isSpecialVehicle: formData.get("isSpecialVehicle") === "on",
       notes: optionalString(formData.get("notes")),
     },
@@ -98,6 +119,9 @@ export async function updateVehicle(formData: FormData) {
   const category = String(formData.get("category") ?? "").trim();
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
+  );
+  const tackCoatTankLiters = parseTankLiters(
+    formData.get("tackCoatTankLiters")
   );
 
   if (!id) {
@@ -142,6 +166,7 @@ export async function updateVehicle(formData: FormData) {
       vehicleType,
       category,
       asphaltPayloadTons,
+      tackCoatTankLiters,
       isSpecialVehicle: formData.get("isSpecialVehicle") === "on",
       isActive: formData.get("isActive") === "on",
       notes: optionalString(formData.get("notes")),

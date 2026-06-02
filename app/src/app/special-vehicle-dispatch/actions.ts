@@ -194,6 +194,52 @@ async function getCrewOrNull(crewId: string | null) {
   return crew;
 }
 
+async function getTransportVehicleOrNull(vehicleId: string | null) {
+  if (!vehicleId) return null;
+
+  const vehicle = await prisma.vehicle.findUnique({
+    where: {
+      id: vehicleId,
+    },
+  });
+
+  if (!vehicle) {
+    throw new Error("Transport-LKW wurde nicht gefunden.");
+  }
+
+  return vehicle;
+}
+
+async function getDriverOrNull(driverId: string | null) {
+  if (!driverId) return null;
+
+  const driver = await prisma.driver.findUnique({
+    where: {
+      id: driverId,
+    },
+  });
+
+  if (!driver) {
+    throw new Error("Fahrer/Bediener wurde nicht gefunden.");
+  }
+
+  return driver;
+}
+
+function getVehicleName(vehicle: {
+  vehicleNumber: string | null;
+  licensePlate: string | null;
+  vehicleType: string | null;
+}) {
+  return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getDriverName(driver: { lastName: string; firstName: string }) {
+  return `${driver.lastName}, ${driver.firstName}`;
+}
+
 async function assertSpecialVehicleTimeIsFree({
   vehicleId,
   workDate,
@@ -252,6 +298,8 @@ async function assertSpecialVehicleTimeIsFree({
 
 function getAssignmentInput(formData: FormData) {
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const transportVehicleId = optionalString(formData.get("transportVehicleId"));
+  const operatorDriverId = optionalString(formData.get("operatorDriverId"));
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const workDate = parseDate(formData.get("workDate"), "Datum");
@@ -270,6 +318,8 @@ function getAssignmentInput(formData: FormData) {
 
   return {
     vehicleId,
+    transportVehicleId,
+    operatorDriverId,
     projectId,
     crewId,
     workDate,
@@ -286,10 +336,12 @@ function getAssignmentInput(formData: FormData) {
 export async function createSpecialVehicleDispatchAssignment(formData: FormData) {
   const input = getAssignmentInput(formData);
 
-  const [vehicle, project, crew] = await Promise.all([
+  const [vehicle, project, crew, transportVehicle, operatorDriver] = await Promise.all([
     getVehicle(input.vehicleId),
     getProject(input.projectId),
     getCrewOrNull(input.crewId),
+    getTransportVehicleOrNull(input.transportVehicleId),
+    getDriverOrNull(input.operatorDriverId),
   ]);
 
   await assertSpecialVehicleTimeIsFree({
@@ -309,9 +361,27 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
-      vehicleName: [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
-        .filter(Boolean)
-        .join(" · "),
+      vehicleName: getVehicleName(vehicle),
+      ...(transportVehicle
+        ? {
+            transportVehicle: {
+              connect: {
+                id: transportVehicle.id,
+              },
+            },
+            transportVehicleName: getVehicleName(transportVehicle),
+          }
+        : {}),
+      ...(operatorDriver
+        ? {
+            operatorDriver: {
+              connect: {
+                id: operatorDriver.id,
+              },
+            },
+            operatorDriverName: getDriverName(operatorDriver),
+          }
+        : {}),
       project: {
         connect: {
           id: project.id,
@@ -342,6 +412,8 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
 
 export async function createSpecialVehicleDispatchTourAssignments(formData: FormData) {
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const transportVehicleId = optionalString(formData.get("transportVehicleId"));
+  const operatorDriverId = optionalString(formData.get("operatorDriverId"));
   const crewId = optionalString(formData.get("crewId"));
   const fallbackWorkDate = parseDate(formData.get("workDate"), "Datum");
 
@@ -349,8 +421,12 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
     throw new Error("Bitte ein Sonderfahrzeug wählen.");
   }
 
-  const vehicle = await getVehicle(vehicleId);
-  const crew = await getCrewOrNull(crewId);
+  const [vehicle, crew, transportVehicle, operatorDriver] = await Promise.all([
+    getVehicle(vehicleId),
+    getCrewOrNull(crewId),
+    getTransportVehicleOrNull(transportVehicleId),
+    getDriverOrNull(operatorDriverId),
+  ]);
 
   const indexes = getIndexesFromFormData(formData, [
     "tourProjectId",
@@ -438,9 +514,27 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
             id: vehicle.id,
           },
         },
-        vehicleName: [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
-          .filter(Boolean)
-          .join(" · "),
+        vehicleName: getVehicleName(vehicle),
+        ...(transportVehicle
+          ? {
+              transportVehicle: {
+                connect: {
+                  id: transportVehicle.id,
+                },
+              },
+              transportVehicleName: getVehicleName(transportVehicle),
+            }
+          : {}),
+        ...(operatorDriver
+          ? {
+              operatorDriver: {
+                connect: {
+                  id: operatorDriver.id,
+                },
+              },
+              operatorDriverName: getDriverName(operatorDriver),
+            }
+          : {}),
         project: {
           connect: {
             id: project.id,
@@ -479,10 +573,12 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
 
   const input = getAssignmentInput(formData);
 
-  const [vehicle, project, crew] = await Promise.all([
+  const [vehicle, project, crew, transportVehicle, operatorDriver] = await Promise.all([
     getVehicle(input.vehicleId),
     getProject(input.projectId),
     getCrewOrNull(input.crewId),
+    getTransportVehicleOrNull(input.transportVehicleId),
+    getDriverOrNull(input.operatorDriverId),
   ]);
 
   await assertSpecialVehicleTimeIsFree({
@@ -506,9 +602,27 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
-      vehicleName: [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
-        .filter(Boolean)
-        .join(" · "),
+      vehicleName: getVehicleName(vehicle),
+      transportVehicle: transportVehicle
+        ? {
+            connect: {
+              id: transportVehicle.id,
+            },
+          }
+        : {
+            disconnect: true,
+          },
+      transportVehicleName: transportVehicle ? getVehicleName(transportVehicle) : null,
+      operatorDriver: operatorDriver
+        ? {
+            connect: {
+              id: operatorDriver.id,
+            },
+          }
+        : {
+            disconnect: true,
+          },
+      operatorDriverName: operatorDriver ? getDriverName(operatorDriver) : null,
       project: {
         connect: {
           id: project.id,

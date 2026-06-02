@@ -37,6 +37,7 @@ model Project {
   shortHaulAssignments   ShortHaulAssignment[]
   shortHaulTours         ShortHaulTour[]
   asphaltLoadAllocations AsphaltLoadAllocation[]
+  tackCoatLoadAllocations TackCoatLoadAllocation[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
   crewPlanningRows       CrewPlanningRow[]
   equipmentDispatchAssignments EquipmentDispatchAssignment[]
@@ -58,6 +59,8 @@ model Driver {
   vehicleAssignments            DriverVehicleAssignment[]
   truckLongHaulTruckAssignments TruckLongHaulTruckAssignment[]
   asphaltLoadAllocations        AsphaltLoadAllocation[]
+  tackCoatLoadAllocations       TackCoatLoadAllocation[]
+  specialVehicleOperatorAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleOperatorDriver")
 
   employee Employee? @relation("EmployeeDriver")
 
@@ -75,15 +78,18 @@ model Vehicle {
   isActive         Boolean @default(true)
   notes            String?
 
-  asphaltPayloadTons Float @default(0)
+  asphaltPayloadTons  Float @default(0)
+  tackCoatTankLiters Float @default(0)
 
   shortHaulAssignments           ShortHaulAssignment[]
   driverAssignments              DriverVehicleAssignment[]
   truckLongHaulTruckAssignments  TruckLongHaulTruckAssignment[]
   specialVehicleTasks            SpecialVehicleTask[]
-  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
+  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchVehicle")
+  specialVehicleTransportAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleTransportVehicle")
   tours                          ShortHaulTour[]
   asphaltLoadAllocations         AsphaltLoadAllocation[]
+  tackCoatLoadAllocations        TackCoatLoadAllocation[]
   crewDefaultVehicles            CrewDefaultVehicle[]
   crewPlanningAssignmentVehicles CrewPlanningAssignmentVehicle[]
   equipmentDispatchAssignments    EquipmentDispatchAssignment[]
@@ -124,6 +130,7 @@ model MaterialType {
 
   truckLongHaulEntries TruckLongHaulEntry[]
   asphaltTackCoatEntries AsphaltDispatchEntry[]
+  tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -211,6 +218,7 @@ model AsphaltDispatchEntry {
 
   truckLongHaulEntries   TruckLongHaulEntry[]
   asphaltLoadAllocations AsphaltLoadAllocation[]
+  tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -340,6 +348,7 @@ model ShortHaulAssignment {
 
   tours                  ShortHaulTour[]
   asphaltLoadAllocations AsphaltLoadAllocation[]
+  tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -419,9 +428,17 @@ model SpecialVehicleDispatchAssignment {
   endTime   String   @default("17:00")
 
   vehicleId String?
-  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicle   Vehicle? @relation("SpecialVehicleDispatchVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
 
   vehicleName String @default("")
+
+  transportVehicleId String?
+  transportVehicle   Vehicle? @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
+  transportVehicleName String?
+
+  operatorDriverId String?
+  operatorDriver   Driver? @relation("SpecialVehicleOperatorDriver", fields: [operatorDriverId], references: [id], onDelete: SetNull)
+  operatorDriverName String?
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -447,6 +464,8 @@ model SpecialVehicleDispatchAssignment {
 
   @@index([workDate])
   @@index([vehicleId])
+  @@index([transportVehicleId])
+  @@index([operatorDriverId])
   @@index([projectId])
   @@index([crewId])
   @@index([startTime])
@@ -516,6 +535,63 @@ model AsphaltLoadAllocation {
   @@index([shortHaulAssignmentId])
   @@index([longHaulEntryId])
   @@index([longHaulTruckAssignmentId])
+  @@index([vehicleId])
+  @@index([driverId])
+}
+
+model TackCoatLoadAllocation {
+  id String @id @default(cuid())
+
+  workDate   DateTime
+  sourceType String   @default("SHORT")
+
+  asphaltDispatchEntryId String?
+  asphaltDispatchEntry   AsphaltDispatchEntry? @relation(fields: [asphaltDispatchEntryId], references: [id], onDelete: SetNull)
+
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectNumber String   @default("")
+  projectName   String   @default("")
+
+  tackCoatMaterialTypeId String?
+  tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  materialName           String   @default("")
+  quantityUnit           String   @default("l")
+
+  shortHaulAssignmentId String?
+  shortHaulAssignment   ShortHaulAssignment? @relation(fields: [shortHaulAssignmentId], references: [id], onDelete: Cascade)
+
+  ownerType String @default("OWN")
+
+  vehicleId       String?
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleNumber   String?
+  licensePlate    String?
+  vehicleType     String?
+  vehicleCategory String?
+
+  driverId   String?
+  driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  driverName String?
+
+  tourCount     Int   @default(1)
+  litersPerTour Float @default(0)
+  totalLiters   Float @default(0)
+
+  startTime String @default("06:30")
+  endTime   String @default("17:00")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([sourceType])
+  @@index([asphaltDispatchEntryId])
+  @@index([projectId])
+  @@index([tackCoatMaterialTypeId])
+  @@index([shortHaulAssignmentId])
   @@index([vehicleId])
   @@index([driverId])
 }

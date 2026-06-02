@@ -3,6 +3,10 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
+  formatLiters,
+  getTackCoatOpenPositionsForRange,
+} from "@/lib/tack-coat-loads";
+import {
   createSpecialVehicleDispatchTourAssignments,
   deleteSpecialVehicleDispatchAssignment,
   updateSpecialVehicleDispatchAssignment,
@@ -38,6 +42,10 @@ type AssignmentForPage = {
   endTime: string;
   vehicleId: string | null;
   vehicleName: string;
+  transportVehicleId: string | null;
+  transportVehicleName: string | null;
+  operatorDriverId: string | null;
+  operatorDriverName: string | null;
   projectId: string | null;
   projectNumber: string;
   projectName: string;
@@ -60,6 +68,8 @@ type TackCoatNeedForForm = {
   quantity: number;
   quantityUnit: string;
   plannedQuantity: number;
+  specialVehicleQuantity: number;
+  shortHaulQuantity: number;
   openQuantity: number;
   crewName: string;
 };
@@ -397,6 +407,8 @@ function assignmentMatchesQuery(assignment: AssignmentForPage, query: string) {
 
   const haystack = [
     assignment.vehicleName,
+    assignment.transportVehicleName,
+    assignment.operatorDriverName,
     assignment.projectNumber,
     assignment.projectName,
     assignment.crewName,
@@ -500,6 +512,12 @@ export default async function SpecialVehicleDispatchPage({
     timelineUnits[timelineUnits.length - 1]?.endDateExclusive ?? addDays(toDate, 1);
   const gridColumns = getTimelineGridColumns(view, unitCount);
   const timelineMinWidth = getTimelineMinWidth(view, unitCount);
+  const timelineFrameColumns = `${LEFT_COLUMN_WIDTH_PX}px ${
+    timelineMinWidth ? `${timelineMinWidth}px` : "minmax(0, 1fr)"
+  }`;
+  const timelineContentMinWidth = timelineMinWidth
+    ? LEFT_COLUMN_WIDTH_PX + timelineMinWidth
+    : undefined;
 
   const previousRange = shiftDateRange({
     fromDate,
@@ -519,13 +537,36 @@ export default async function SpecialVehicleDispatchPage({
   const todayStart = view === "months" ? startOfMonth(today) : startOfWeek(today);
   const todayEnd = view === "months" ? endOfMonthInclusive(addMonths(todayStart, 4)) : addDays(todayStart, 13);
 
-  const [vehicles, projects, crews, assignments, asphaltTackCoatEntries, tackCoatMaterials] = await Promise.all([
+  const [
+    vehicles,
+    transportVehicles,
+    drivers,
+    projects,
+    crews,
+    assignments,
+    tackCoatOpenPositions,
+    tackCoatMaterials,
+  ] = await Promise.all([
     prisma.vehicle.findMany({
       where: {
         isActive: true,
         isSpecialVehicle: true,
       },
       orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+    }),
+
+    prisma.vehicle.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+    }),
+
+    prisma.driver.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
 
     prisma.project.findMany({
@@ -554,17 +595,9 @@ export default async function SpecialVehicleDispatchPage({
       orderBy: [{ workDate: "asc" }, { startTime: "asc" }, { vehicleName: "asc" }],
     }),
 
-    prisma.asphaltDispatchEntry.findMany({
-      where: {
-        workDate: {
-          gte: periodStart,
-          lt: periodEndExclusive,
-        },
-        tackCoatQuantity: {
-          gt: 0,
-        },
-      },
-      orderBy: [{ workDate: "asc" }, { projectNumber: "asc" }, { createdAt: "asc" }],
+    getTackCoatOpenPositionsForRange({
+      gte: periodStart,
+      lt: periodEndExclusive,
     }),
 
     prisma.materialType.findMany({
@@ -583,6 +616,10 @@ export default async function SpecialVehicleDispatchPage({
     endTime: assignment.endTime,
     vehicleId: assignment.vehicleId,
     vehicleName: assignment.vehicleName,
+    transportVehicleId: assignment.transportVehicleId,
+    transportVehicleName: assignment.transportVehicleName,
+    operatorDriverId: assignment.operatorDriverId,
+    operatorDriverName: assignment.operatorDriverName,
     projectId: assignment.projectId,
     projectNumber: assignment.projectNumber,
     projectName: assignment.projectName,
@@ -595,69 +632,21 @@ export default async function SpecialVehicleDispatchPage({
     notes: assignment.notes,
   }));
 
-  const usedTackCoatByKey = new Map<string, number>();
-
-  for (const assignment of assignmentsForPage) {
-    const materialName = assignment.materialName?.trim().toLowerCase();
-
-    if (!assignment.projectId || !materialName || assignment.quantity === null) {
-      continue;
-    }
-
-    const key = [
-      formatDateInput(assignment.workDate),
-      assignment.projectId,
-      materialName,
-      assignment.quantityUnit ?? "",
-    ].join("|||");
-
-    usedTackCoatByKey.set(key, (usedTackCoatByKey.get(key) ?? 0) + assignment.quantity);
-  }
-
-  const tackCoatNeedsMap = new Map<string, TackCoatNeedForForm>();
-
-  for (const entry of asphaltTackCoatEntries) {
-    if (!entry.tackCoatMaterialName || !entry.tackCoatQuantity || entry.tackCoatQuantity <= 0) {
-      continue;
-    }
-
-    const dateKey = formatDateInput(entry.workDate);
-    const materialKey = entry.tackCoatMaterialName.trim().toLowerCase();
-    const unit = entry.tackCoatUnit ?? "";
-    const key = [dateKey, entry.projectId ?? entry.projectNumber, materialKey, unit].join("|||");
-    const existing = tackCoatNeedsMap.get(key) ?? {
-      key,
-      workDate: dateKey,
-      projectId: entry.projectId,
-      projectNumber: entry.projectNumber,
-      projectName: entry.projectName,
-      materialName: entry.tackCoatMaterialName,
-      quantity: 0,
-      quantityUnit: unit,
-      plannedQuantity: 0,
-      openQuantity: 0,
-      crewName: entry.crew,
-    };
-
-    existing.quantity += entry.tackCoatQuantity;
-    existing.plannedQuantity += entry.tackCoatQuantity;
-    tackCoatNeedsMap.set(key, existing);
-  }
-
-  const tackCoatNeedsForForm = Array.from(tackCoatNeedsMap.values()).map((need) => {
-    const usedKey = [
-      need.workDate,
-      need.projectId ?? need.projectNumber,
-      need.materialName.trim().toLowerCase(),
-      need.quantityUnit,
-    ].join("|||");
-    const usedQuantity = usedTackCoatByKey.get(usedKey) ?? 0;
-
-    return {
-      ...need,
-      openQuantity: Math.max(0, Math.round((need.quantity - usedQuantity) * 100) / 100),
-    };
-  });
+  const tackCoatNeedsForForm: TackCoatNeedForForm[] = tackCoatOpenPositions.map((position) => ({
+    key: position.key,
+    workDate: formatDateInput(position.workDate),
+    projectId: position.projectId,
+    projectNumber: position.projectNumber,
+    projectName: position.projectName,
+    materialName: position.materialName,
+    quantity: position.plannedLiters,
+    quantityUnit: position.quantityUnit,
+    plannedQuantity: position.plannedLiters,
+    specialVehicleQuantity: position.specialVehicleLiters,
+    shortHaulQuantity: position.shortHaulLiters,
+    openQuantity: position.openLiters,
+    crewName: position.crewNames.join(", "),
+  }));
 
   const q = filters.q.toLowerCase();
 
@@ -690,6 +679,11 @@ export default async function SpecialVehicleDispatchPage({
   const visibleVehicleIds = new Set(filteredVehicles.map((vehicle) => vehicle.id));
   const visibleAssignments = assignmentsForPage.filter(
     (assignment) => assignment.vehicleId && visibleVehicleIds.has(assignment.vehicleId),
+  );
+
+  const openTackCoatLiters = tackCoatNeedsForForm.reduce(
+    (sum, need) => sum + need.openQuantity,
+    0,
   );
 
   const vehicleNumberOptions = Array.from(new Set(vehicles.map((vehicle) => vehicle.vehicleNumber))).sort((a, b) => a.localeCompare(b, "de-DE"));
@@ -757,10 +751,11 @@ export default async function SpecialVehicleDispatchPage({
         </Link>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
         <SummaryCard label="Sonderfahrzeuge" value={`${filteredVehicles.length} / ${vehicles.length}`} />
         <SummaryCard label="Einsätze im Zeitraum" value={String(visibleAssignments.length)} />
         <SummaryCard label="Zeitraum" value={`${formatShortDate(fromDate)} – ${formatShortDate(toDate)}`} />
+        <SummaryCard label="Anspritzmittel offen" value={`${formatLiters(openTackCoatLiters)} l`} />
         <SummaryCard label="Aktive Filter" value={String(activeFilterCount)} />
       </div>
 
@@ -923,6 +918,8 @@ export default async function SpecialVehicleDispatchPage({
           key={`create-${quickVehicle?.id ?? "none"}-${quickDate}`}
           action={createSpecialVehicleDispatchTourAssignments}
           vehicles={vehicles}
+          transportVehicles={transportVehicles}
+          drivers={drivers}
           projects={projects}
           crews={crews}
           defaultVehicleId={quickVehicle?.id ?? ""}
@@ -944,23 +941,29 @@ export default async function SpecialVehicleDispatchPage({
               </p>
             </div>
             <div className="text-sm font-semibold text-gray-500">
-              Klick auf + = Einsatz für dieses Fahrzeug und Datum vorbereiten
+              Ein gemeinsamer horizontaler Zeitstrahl für alle Sonderfahrzeuge
             </div>
           </div>
 
-          <div className="mt-4 flex min-w-0">
-            <div style={{ width: LEFT_COLUMN_WIDTH_PX }} className="shrink-0 px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+          <div
+            className="mt-4 grid border-t border-gray-200 bg-white shadow-sm"
+            style={{ gridTemplateColumns: `${LEFT_COLUMN_WIDTH_PX}px minmax(0, 1fr)` }}
+          >
+            <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">
               Sonderfahrzeug
             </div>
-            <div data-special-vehicle-timeline-header-scroll className="min-w-0 flex-1 overflow-x-hidden">
+            <div
+              data-special-vehicle-timeline-header-scroll
+              className="min-w-0 overflow-hidden border-b border-gray-200 bg-gray-50"
+            >
               <div
-                className="grid border-t border-gray-200 bg-white"
+                className="grid"
                 style={{ gridTemplateColumns: gridColumns, minWidth: timelineMinWidth || undefined }}
               >
                 {timelineUnits.map((unit) => (
-                  <div key={unit.key} data-timeline-date={unit.defaultStartDate} className="border-r border-gray-200 px-3 py-3 text-center last:border-r-0">
-                    <div className="text-sm font-bold text-gray-900">{unit.label}</div>
-                    <div className="mt-1 text-xs font-medium text-gray-500">{unit.subLabel}</div>
+                  <div key={unit.key} data-timeline-date={unit.defaultStartDate} className="flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 px-3 py-3 text-center last:border-r-0">
+                    <div className="truncate text-sm font-bold text-gray-900" title={unit.label}>{unit.label}</div>
+                    <div className="mt-1 truncate text-xs font-medium text-gray-500" title={unit.subLabel}>{unit.subLabel}</div>
                   </div>
                 ))}
               </div>
@@ -973,21 +976,28 @@ export default async function SpecialVehicleDispatchPage({
             Keine Sonderfahrzeuge passend zum Filter gefunden.
           </div>
         ) : (
-          <div>
-            {filteredVehicles.map((vehicle) => (
-              <div key={vehicle.id} className="flex min-w-0 border-t border-gray-100">
-                <div style={{ width: LEFT_COLUMN_WIDTH_PX }} className="shrink-0 border-r border-gray-200 bg-white p-4">
-                  <div className="font-semibold text-gray-900">{vehicle.vehicleNumber}</div>
-                  <div className="mt-1 text-sm text-gray-600">{vehicle.licensePlate ?? "-"}</div>
-                  <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
-                    <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.vehicleType}</span>
+          <SpecialVehicleTimelineScroll focusDate={formatDateInput(focusDate)}>
+            <div
+              className="min-w-0"
+              style={{ minWidth: timelineContentMinWidth || undefined }}
+            >
+              {filteredVehicles.map((vehicle) => (
+                <div
+                  key={vehicle.id}
+                  className="grid border-t border-gray-100"
+                  style={{ gridTemplateColumns: timelineFrameColumns }}
+                >
+                  <div className="sticky left-0 z-20 border-r border-gray-200 bg-white p-4">
+                    <div className="font-semibold text-gray-900">{vehicle.vehicleNumber}</div>
+                    <div className="mt-1 text-sm text-gray-600">{vehicle.licensePlate ?? "-"}</div>
+                    <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
+                      <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.vehicleType}</span>
+                    </div>
                   </div>
-                </div>
 
-                <SpecialVehicleTimelineScroll focusDate={formatDateInput(focusDate)}>
-                  <div className="grid min-h-[108px]" style={{ gridTemplateColumns: gridColumns, minWidth: timelineMinWidth || undefined }}>
+                  <div className="grid min-h-[108px]" style={{ gridTemplateColumns: gridColumns }}>
                     {timelineUnits.map((unit) => {
                       const dateInput = unit.defaultStartDate;
                       const dayAssignments = getAssignmentsForVehicleAndDate({
@@ -1021,6 +1031,8 @@ export default async function SpecialVehicleDispatchPage({
                                 key={assignment.id}
                                 assignment={assignment}
                                 vehicles={vehicles}
+                                transportVehicles={transportVehicles}
+                                drivers={drivers}
                                 projects={projects}
                                 crews={crews}
                                 tackCoatMaterials={tackCoatMaterials}
@@ -1031,10 +1043,10 @@ export default async function SpecialVehicleDispatchPage({
                       );
                     })}
                   </div>
-                </SpecialVehicleTimelineScroll>
-              </div>
-            ))}
-          </div>
+                </div>
+              ))}
+            </div>
+          </SpecialVehicleTimelineScroll>
         )}
       </div>
     </AppShell>
@@ -1053,6 +1065,8 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function SpecialVehicleAssignmentCard({
   assignment,
   vehicles,
+  transportVehicles,
+  drivers,
   projects,
   crews,
   tackCoatMaterials,
@@ -1065,6 +1079,14 @@ function SpecialVehicleAssignmentCard({
     vehicleType: string;
     category: string;
   }[];
+  transportVehicles: {
+    id: string;
+    vehicleNumber: string;
+    licensePlate: string | null;
+    vehicleType: string;
+    category: string;
+  }[];
+  drivers: { id: string; firstName: string; lastName: string }[];
   projects: { id: string; projectNumber: string; name: string }[];
   crews: { id: string; name: string }[];
   tackCoatMaterials: {
@@ -1102,6 +1124,16 @@ function SpecialVehicleAssignmentCard({
               <strong>Kolonne:</strong> {assignment.crewName}
             </div>
           ) : null}
+          {assignment.transportVehicleName ? (
+            <div>
+              <strong>Transport-LKW:</strong> {assignment.transportVehicleName}
+            </div>
+          ) : null}
+          {assignment.operatorDriverName ? (
+            <div>
+              <strong>Fahrer/Bediener:</strong> {assignment.operatorDriverName}
+            </div>
+          ) : null}
           {assignment.notes ? <div>{assignment.notes}</div> : null}
         </div>
 
@@ -1109,9 +1141,13 @@ function SpecialVehicleAssignmentCard({
           action={updateSpecialVehicleDispatchAssignment}
           id={assignment.id}
           vehicles={vehicles}
+          transportVehicles={transportVehicles}
+          drivers={drivers}
           projects={projects}
           crews={crews}
           defaultVehicleId={assignment.vehicleId ?? ""}
+          defaultTransportVehicleId={assignment.transportVehicleId ?? ""}
+          defaultOperatorDriverId={assignment.operatorDriverId ?? ""}
           defaultProjectId={assignment.projectId ?? ""}
           defaultCrewId={assignment.crewId ?? ""}
           defaultWorkDate={formatDateInput(assignment.workDate)}
@@ -1141,9 +1177,13 @@ function SpecialVehicleAssignmentForm({
   action,
   id,
   vehicles,
+  transportVehicles,
+  drivers,
   projects,
   crews,
   defaultVehicleId = "",
+  defaultTransportVehicleId = "",
+  defaultOperatorDriverId = "",
   defaultProjectId = "",
   defaultCrewId = "",
   defaultWorkDate,
@@ -1166,9 +1206,19 @@ function SpecialVehicleAssignmentForm({
     vehicleType: string;
     category: string;
   }[];
+  transportVehicles: {
+    id: string;
+    vehicleNumber: string;
+    licensePlate: string | null;
+    vehicleType: string;
+    category: string;
+  }[];
+  drivers: { id: string; firstName: string; lastName: string }[];
   projects: { id: string; projectNumber: string; name: string }[];
   crews: { id: string; name: string }[];
   defaultVehicleId?: string;
+  defaultTransportVehicleId?: string;
+  defaultOperatorDriverId?: string;
   defaultProjectId?: string;
   defaultCrewId?: string;
   defaultWorkDate: string;
@@ -1198,6 +1248,30 @@ function SpecialVehicleAssignmentForm({
           {vehicles.map((vehicle) => (
             <option key={vehicle.id} value={vehicle.id}>
               {getVehicleLabel(vehicle)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Transport-LKW optional
+        <select name="transportVehicleId" defaultValue={defaultTransportVehicleId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+          <option value="">Kein Transport-LKW</option>
+          {transportVehicles.map((vehicle) => (
+            <option key={vehicle.id} value={vehicle.id}>
+              {getVehicleLabel(vehicle)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Fahrer/Bediener optional
+        <select name="operatorDriverId" defaultValue={defaultOperatorDriverId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+          <option value="">Kein Fahrer/Bediener</option>
+          {drivers.map((driver) => (
+            <option key={driver.id} value={driver.id}>
+              {driver.lastName}, {driver.firstName}
             </option>
           ))}
         </select>
@@ -1276,7 +1350,7 @@ function SpecialVehicleAssignmentForm({
       </label>
 
       <label className="text-xs font-semibold text-gray-700">
-        Menge
+        Anspritzmenge / Menge
         <input name="quantity" type="number" min="0" step="0.01" defaultValue={defaultQuantity} placeholder="z.B. 850" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" />
       </label>
 

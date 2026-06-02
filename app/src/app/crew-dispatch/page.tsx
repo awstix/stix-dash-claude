@@ -2371,6 +2371,8 @@ function buildCrewDispatchTruckMaps({
     startTime: string;
     endTime: string;
     vehicleName: string;
+    transportVehicleName: string | null;
+    operatorDriverName: string | null;
     projectId: string | null;
     projectNumber: string;
     projectName: string;
@@ -2586,6 +2588,8 @@ function buildCrewDispatchTruckMaps({
         `${assignment.startTime}–${assignment.endTime}`,
         assignment.taskText,
         assignment.crewName ? `Kolonne ${assignment.crewName}` : null,
+        assignment.transportVehicleName ? `Transport ${assignment.transportVehicleName}` : null,
+        assignment.operatorDriverName ? `Bediener ${assignment.operatorDriverName}` : null,
         assignment.notes,
       ]
         .filter(Boolean)
