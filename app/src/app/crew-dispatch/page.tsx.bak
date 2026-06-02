@@ -1,0 +1,2452 @@
+import Link from "next/link";
+import { ProjectStatus } from "@prisma/client";
+import { AppShell } from "@/components/AppShell";
+import { prisma } from "@/lib/prisma";
+import { createCrewPlanningRow, deleteCrewPlanningAssignment } from "./actions";
+import { CrewAssignmentBar } from "./CrewAssignmentBar";
+import { CrewPlanningAssignmentFormClient } from "./CrewPlanningAssignmentFormClient";
+import { CrewPopover } from "./CrewPopover";
+import { CrewTimelineFocusButton } from "./CrewTimelineFocusButton";
+import { CrewTimelineScroll } from "./CrewTimelineScroll";
+
+const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+type TimelineView = "days" | "weeks" | "months";
+type TimelineRange = "1w" | "2w" | "5w" | "5m" | "custom";
+type CustomUnit = "weeks" | "months";
+
+type TimelineUnit = {
+  key: string;
+  label: string;
+  subLabel: string;
+  startDate: Date;
+  endDateExclusive: Date;
+  defaultStartDate: string;
+  defaultEndDate: string;
+};
+
+type AsphaltDispatchEntryForTimeline = {
+  id: string;
+  workDate: Date;
+  crew: string;
+  projectNumber: string;
+  projectName: string;
+  constructionManager: string | null;
+  asphaltMixNumber: string | null;
+  asphaltMixName: string | null;
+  quantityTons: number;
+  isForeignMix: boolean;
+  notes: string | null;
+};
+
+type AsphaltTimelineBar = {
+  id: string;
+  crewName: string;
+  projectNumber: string;
+  projectName: string;
+  constructionManager: string | null;
+  startDate: Date;
+  endDate: Date;
+  quantityTons: number;
+  entryCount: number;
+  mixLabels: string[];
+  hasForeignMix: boolean;
+  notes: string[];
+};
+
+type CrewTimelineLaneLayout = {
+  laneCount: number;
+  rowHeight: number;
+  assignmentLanes: Map<string, number>;
+  asphaltLanes: Map<string, number>;
+};
+
+type CrewTimelineLaneItem = {
+  id: string;
+  kind: "assignment" | "asphalt";
+  startDate: Date;
+  endDate: Date;
+};
+
+function parseDateParam(value: string | undefined) {
+  if (!value) {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  return date;
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function addWeeks(date: Date, weeks: number) {
+  return addDays(date, weeks * 7);
+}
+
+function addMonths(date: Date, months: number) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1),
+  );
+}
+
+function startOfWeek(date: Date) {
+  const result = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+  const day = result.getUTCDay();
+  const diffToMonday = (day + 6) % 7;
+
+  result.setUTCDate(result.getUTCDate() - diffToMonday);
+  result.setUTCHours(0, 0, 0, 0);
+
+  return result;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function endOfMonthInclusive(date: Date) {
+  const nextMonth = addMonths(startOfMonth(date), 1);
+  return addDays(nextMonth, -1);
+}
+
+function formatDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatMonthShort(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    month: "short",
+  }).format(date);
+}
+
+function formatTons(value: number) {
+  return value.toLocaleString("de-DE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getCalendarWeek(date: Date) {
+  const target = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+  const dayNumber = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+
+  return Math.ceil(
+    ((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+}
+
+function getTimelineView(value: string | undefined): TimelineView {
+  if (value === "weeks" || value === "months" || value === "days") {
+    return value;
+  }
+
+  return "days";
+}
+
+function getTimelineRange(value: string | undefined, view: TimelineView) {
+  if (
+    value === "1w" ||
+    value === "2w" ||
+    value === "5w" ||
+    value === "5m" ||
+    value === "custom"
+  ) {
+    return value;
+  }
+
+  if (view === "weeks") return "5w";
+  if (view === "months") return "5m";
+
+  return "2w";
+}
+
+function getCustomUnit(
+  value: string | undefined,
+  view: TimelineView,
+): CustomUnit {
+  if (value === "months") return "months";
+  if (value === "weeks") return "weeks";
+
+  return view === "months" ? "months" : "weeks";
+}
+
+function getCustomCount(value: string | undefined, view: TimelineView) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return view === "months" ? 5 : 2;
+  }
+
+  return Math.max(1, Math.round(parsed));
+}
+
+function getBufferValue(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.round(parsed));
+}
+
+function getEffectiveWeekCount({
+  range,
+  customCount,
+  view,
+}: {
+  range: TimelineRange;
+  customCount: number;
+  view: TimelineView;
+}) {
+  if (range === "custom") {
+    if (view === "months") return 5;
+    return customCount;
+  }
+
+  if (range === "1w") return 1;
+  if (range === "5w") return 5;
+  return 2;
+}
+
+function getEffectiveMonthCount({
+  range,
+  customCount,
+}: {
+  range: TimelineRange;
+  customCount: number;
+}) {
+  if (range === "custom") {
+    return customCount;
+  }
+
+  return 5;
+}
+
+function getDateDiffInDays(startDate: Date, endDate: Date) {
+  const start = Date.UTC(
+    startDate.getUTCFullYear(),
+    startDate.getUTCMonth(),
+    startDate.getUTCDate(),
+  );
+  const end = Date.UTC(
+    endDate.getUTCFullYear(),
+    endDate.getUTCMonth(),
+    endDate.getUTCDate(),
+  );
+
+  return Math.round((end - start) / 86400000);
+}
+
+function getDefaultRangeEnd({
+  view,
+  range,
+  customCount,
+  anchorDate,
+  showWeekend,
+}: {
+  view: TimelineView;
+  range: TimelineRange;
+  customCount: number;
+  anchorDate: Date;
+  showWeekend: boolean;
+}) {
+  if (view === "months") {
+    const monthCount = getEffectiveMonthCount({
+      range,
+      customCount,
+    });
+
+    return endOfMonthInclusive(
+      addMonths(startOfMonth(anchorDate), monthCount - 1),
+    );
+  }
+
+  const weekCount = getEffectiveWeekCount({
+    range,
+    customCount,
+    view,
+  });
+
+  if (view === "days" && !showWeekend) {
+    return addDays(startOfWeek(anchorDate), weekCount * 7 - 3);
+  }
+
+  return addDays(startOfWeek(anchorDate), weekCount * 7 - 1);
+}
+
+function getSafeDateRange({
+  from,
+  to,
+  fallbackStart,
+  fallbackEnd,
+}: {
+  from?: string;
+  to?: string;
+  fallbackStart: Date;
+  fallbackEnd: Date;
+}) {
+  const fromDate = from ? parseDateParam(from) : fallbackStart;
+  const toDate = to ? parseDateParam(to) : fallbackEnd;
+
+  if (toDate < fromDate) {
+    return {
+      fromDate: toDate,
+      toDate: fromDate,
+      isCustomDateRange: Boolean(from || to),
+    };
+  }
+
+  return {
+    fromDate,
+    toDate,
+    isCustomDateRange: Boolean(from || to),
+  };
+}
+
+function getBufferedDateRange({
+  view,
+  fromDate,
+  toDate,
+  bufferBack,
+  bufferForward,
+}: {
+  view: TimelineView;
+  fromDate: Date;
+  toDate: Date;
+  bufferBack: number;
+  bufferForward: number;
+}) {
+  if (view === "months") {
+    return {
+      timelineFromDate: startOfMonth(addMonths(fromDate, -bufferBack)),
+      timelineToDate: endOfMonthInclusive(addMonths(toDate, bufferForward)),
+    };
+  }
+
+  return {
+    timelineFromDate: addWeeks(fromDate, -bufferBack),
+    timelineToDate: addWeeks(toDate, bufferForward),
+  };
+}
+
+function buildTimelineUnitsFromDateRange({
+  view,
+  fromDate,
+  toDate,
+  showWeekend,
+}: {
+  view: TimelineView;
+  fromDate: Date;
+  toDate: Date;
+  showWeekend: boolean;
+}) {
+  if (view === "months") {
+    const start = startOfMonth(fromDate);
+    const end = startOfMonth(toDate);
+
+    const units: TimelineUnit[] = [];
+    let current = start;
+
+    while (current <= end) {
+      const startDate = current;
+      const endDateExclusive = addMonths(current, 1);
+      const endDateInclusive = endOfMonthInclusive(startDate);
+
+      units.push({
+        key: formatDateInput(startDate),
+        label: formatMonthShort(startDate),
+        subLabel: String(startDate.getUTCFullYear()),
+        startDate,
+        endDateExclusive,
+        defaultStartDate: formatDateInput(startDate),
+        defaultEndDate: formatDateInput(endDateInclusive),
+      });
+
+      current = addMonths(current, 1);
+    }
+
+    return units;
+  }
+
+  if (view === "weeks") {
+    const start = startOfWeek(fromDate);
+    const end = startOfWeek(toDate);
+
+    const units: TimelineUnit[] = [];
+    let current = start;
+
+    while (current <= end) {
+      const startDate = current;
+      const endDateExclusive = addDays(current, 7);
+      const visibleEnd = addDays(current, showWeekend ? 6 : 4);
+
+      units.push({
+        key: formatDateInput(startDate),
+        label: `KW ${getCalendarWeek(startDate)}`,
+        subLabel: `${formatShortDate(startDate)} – ${formatShortDate(
+          visibleEnd,
+        )}`,
+        startDate,
+        endDateExclusive,
+        defaultStartDate: formatDateInput(startDate),
+        defaultEndDate: formatDateInput(visibleEnd),
+      });
+
+      current = addDays(current, 7);
+    }
+
+    return units;
+  }
+
+  const units: TimelineUnit[] = [];
+  let current = fromDate;
+
+  while (current <= toDate) {
+    if (showWeekend || ![0, 6].includes(current.getUTCDay())) {
+      const dateInput = formatDateInput(current);
+
+      units.push({
+        key: dateInput,
+        label: dayNames[current.getUTCDay()],
+        subLabel: formatShortDate(current),
+        startDate: current,
+        endDateExclusive: addDays(current, 1),
+        defaultStartDate: dateInput,
+        defaultEndDate: dateInput,
+      });
+    }
+
+    current = addDays(current, 1);
+  }
+
+  return units;
+}
+
+function getProjectRowTitle(row: {
+  projectNumber: string;
+  projectName: string;
+  rowTitle: string | null;
+}) {
+  if (row.rowTitle) {
+    return `${row.projectNumber} · ${row.projectName} · ${row.rowTitle}`;
+  }
+
+  return `${row.projectNumber} · ${row.projectName}`;
+}
+
+function getCrewBadgeClass(typeValue: string | null) {
+  if (!typeValue) {
+    return "border-gray-200 bg-gray-900 text-white";
+  }
+
+  if (typeValue.includes("asphalt")) {
+    return "border-orange-200 bg-orange-100 text-orange-950";
+  }
+
+  if (typeValue.includes("kanal")) {
+    return "border-cyan-200 bg-cyan-100 text-cyan-950";
+  }
+
+  if (typeValue.includes("wasser")) {
+    return "border-blue-200 bg-blue-100 text-blue-950";
+  }
+
+  if (typeValue.includes("strasse") || typeValue.includes("strassen")) {
+    return "border-gray-300 bg-gray-900 text-white";
+  }
+
+  return "border-gray-200 bg-gray-900 text-white";
+}
+
+function getAsphaltDispatchBarClass(unitCount: number) {
+  return `rounded-lg border border-orange-300 bg-orange-100 font-semibold text-orange-950 shadow-sm ring-1 ring-orange-200 ${getBarPaddingClass(
+    unitCount,
+  )} ${getBarTextClass(unitCount)}`;
+}
+
+function getVehicleLabel(vehicle: {
+  vehicleNumber: string;
+  licensePlate: string | null;
+  vehicleType: string;
+  category: string;
+}) {
+  return [
+    vehicle.vehicleNumber,
+    vehicle.licensePlate,
+    vehicle.category,
+    vehicle.vehicleType,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function normalizeTimeFieldValue(value: unknown) {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue.length) return null;
+
+    const timeMatch = trimmedValue.match(/^(\d{1,2}):(\d{2})/);
+
+    if (timeMatch) {
+      const hour = timeMatch[1].padStart(2, "0");
+      return `${hour}:${timeMatch[2]}`;
+    }
+
+    return trimmedValue;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(11, 16);
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const hour = Math.floor(value);
+    const minutes = Math.round((value - hour) * 60);
+
+    return `${String(hour).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0",
+    )}`;
+  }
+
+  return null;
+}
+
+function getOptionalTimeField(source: object, keys: string[]) {
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const normalizedValue = normalizeTimeFieldValue(record[key]);
+
+    if (normalizedValue) {
+      return normalizedValue;
+    }
+  }
+
+  return null;
+}
+
+function getProjectDefaultStartTime(project: object) {
+  return getOptionalTimeField(project, [
+    "defaultStartTime",
+    "workStartTime",
+    "workTimeStart",
+    "workingTimeStart",
+    "workingStartTime",
+    "workingHoursStart",
+    "workdayStartTime",
+    "constructionStartTime",
+    "siteStartTime",
+    "siteWorkStartTime",
+    "normalWorkStartTime",
+    "regularStartTime",
+    "normalStartTime",
+    "dailyStartTime",
+    "startTime",
+    "arbeitszeitVon",
+    "arbeitsbeginn",
+    "workStart",
+  ]);
+}
+
+function getProjectDefaultEndTime(project: object) {
+  return getOptionalTimeField(project, [
+    "defaultEndTime",
+    "workEndTime",
+    "workTimeEnd",
+    "workingTimeEnd",
+    "workingEndTime",
+    "workingHoursEnd",
+    "workdayEndTime",
+    "constructionEndTime",
+    "siteEndTime",
+    "siteWorkEndTime",
+    "normalWorkEndTime",
+    "regularEndTime",
+    "normalEndTime",
+    "dailyEndTime",
+    "endTime",
+    "arbeitszeitBis",
+    "arbeitsende",
+    "workEnd",
+  ]);
+}
+
+function normalizeDay(date: Date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+function normalizeCrewName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function rangesOverlapInclusive(
+  assignmentStart: Date,
+  assignmentEnd: Date,
+  unitStart: Date,
+  unitEndExclusive: Date,
+) {
+  const start = normalizeDay(assignmentStart).getTime();
+  const endInclusive = normalizeDay(assignmentEnd).getTime();
+  const unitStartTime = normalizeDay(unitStart).getTime();
+  const unitEndInclusive = addDays(
+    normalizeDay(unitEndExclusive),
+    -1,
+  ).getTime();
+
+  return start <= unitEndInclusive && endInclusive >= unitStartTime;
+}
+
+function buildCrewDispatchHref({
+  fromDate,
+  toDate,
+  view,
+  range,
+  customCount,
+  customUnit,
+  showWeekend,
+  bufferBack,
+  bufferForward,
+  showAsphaltDispatchCrews,
+  focusDate,
+  highlightCrewId,
+}: {
+  fromDate: Date;
+  toDate: Date;
+  view: TimelineView;
+  range: TimelineRange;
+  customCount: number;
+  customUnit: CustomUnit;
+  showWeekend: boolean;
+  bufferBack: number;
+  bufferForward: number;
+  showAsphaltDispatchCrews: boolean;
+  focusDate?: Date | string;
+  highlightCrewId?: string | null;
+}) {
+  const params = new URLSearchParams();
+
+  params.set("from", formatDateInput(fromDate));
+  params.set("to", formatDateInput(toDate));
+  params.set("view", view);
+  params.set("range", range);
+  params.set("bufferBack", String(bufferBack));
+  params.set("bufferForward", String(bufferForward));
+
+  if (range === "custom") {
+    params.set("customCount", String(customCount));
+    params.set("customUnit", customUnit);
+  }
+
+  if (showWeekend) {
+    params.set("showWeekend", "1");
+  }
+
+  if (showAsphaltDispatchCrews) {
+    params.set("showAsphaltDispatchCrews", "1");
+  }
+
+  if (focusDate) {
+    params.set(
+      "focus",
+      typeof focusDate === "string" ? focusDate : formatDateInput(focusDate),
+    );
+  }
+
+  if (highlightCrewId) {
+    params.set("highlightCrew", highlightCrewId);
+  }
+
+  return `/crew-dispatch?${params.toString()}`;
+}
+
+function shiftDateRange({
+  fromDate,
+  toDate,
+  view,
+  direction,
+}: {
+  fromDate: Date;
+  toDate: Date;
+  view: TimelineView;
+  direction: -1 | 1;
+}) {
+  if (view === "months") {
+    const monthDiff =
+      (toDate.getUTCFullYear() - fromDate.getUTCFullYear()) * 12 +
+      (toDate.getUTCMonth() - fromDate.getUTCMonth()) +
+      1;
+
+    const nextFrom = addMonths(startOfMonth(fromDate), monthDiff * direction);
+    const nextTo = endOfMonthInclusive(addMonths(nextFrom, monthDiff - 1));
+
+    return {
+      fromDate: nextFrom,
+      toDate: nextTo,
+    };
+  }
+
+  const dayDiff = getDateDiffInDays(fromDate, toDate) + 1;
+  const nextFrom = addDays(fromDate, dayDiff * direction);
+  const nextTo = addDays(toDate, dayDiff * direction);
+
+  return {
+    fromDate: nextFrom,
+    toDate: nextTo,
+  };
+}
+
+function getTodayRange(view: TimelineView) {
+  const today = parseDateParam(formatDateInput(new Date()));
+
+  if (view === "months") {
+    return {
+      fromDate: startOfMonth(today),
+      toDate: endOfMonthInclusive(addMonths(startOfMonth(today), 4)),
+      focusDate: startOfMonth(today),
+    };
+  }
+
+  const weekStart = startOfWeek(today);
+
+  return {
+    fromDate: weekStart,
+    toDate: addDays(weekStart, 13),
+    focusDate: weekStart,
+  };
+}
+
+function getTimelineTitle(units: TimelineUnit[], view: TimelineView) {
+  if (units.length === 0) return "";
+
+  const first = units[0];
+  const last = units[units.length - 1];
+
+  if (view === "months") {
+    return `${formatMonthYear(first.startDate)} – ${formatMonthYear(
+      last.startDate,
+    )}`;
+  }
+
+  const startKw = getCalendarWeek(first.startDate);
+  const endKw = getCalendarWeek(last.startDate);
+
+  if (startKw === endKw) {
+    return `${formatMonthYear(first.startDate)} · KW ${startKw}`;
+  }
+
+  return `${formatMonthYear(first.startDate)} · KW ${startKw}–${endKw}`;
+}
+
+function getTimelineSubtitle(units: TimelineUnit[]) {
+  if (units.length === 0) return "";
+
+  const first = units[0].startDate;
+  const lastUnit = units[units.length - 1];
+  const last = addDays(lastUnit.endDateExclusive, -1);
+
+  return `${formatShortDate(first)} – ${formatShortDate(last)}`;
+}
+
+function getLeftColumnWidth(unitCount: number) {
+  if (unitCount >= 30) return 280;
+  if (unitCount >= 20) return 300;
+  if (unitCount >= 12) return 320;
+  return 340;
+}
+
+function getTimelineColumnWidth(view: TimelineView, unitCount: number) {
+  if (view === "months") return 170;
+  if (view === "weeks") return 145;
+  if (unitCount >= 30) return 74;
+  if (unitCount >= 20) return 84;
+  if (unitCount >= 12) return 96;
+  return 112;
+}
+
+function getTimelineMinWidth(view: TimelineView, unitCount: number) {
+  return unitCount * getTimelineColumnWidth(view, unitCount);
+}
+
+function getTimelineGridColumns(view: TimelineView, unitCount: number) {
+  return `repeat(${unitCount}, minmax(${getTimelineColumnWidth(
+    view,
+    unitCount,
+  )}px, 1fr))`;
+}
+
+function getHeaderPaddingClass(unitCount: number) {
+  if (unitCount >= 30) return "px-1 py-2";
+  if (unitCount >= 20) return "px-1.5 py-2";
+  if (unitCount >= 12) return "px-2 py-2.5";
+  return "px-3 py-3";
+}
+
+function getHeaderTextClass(unitCount: number) {
+  if (unitCount >= 30) return "text-[10px]";
+  if (unitCount >= 20) return "text-[11px]";
+  return "text-sm";
+}
+
+function getHeaderSubTextClass(unitCount: number) {
+  if (unitCount >= 30) return "mt-0.5 text-[9px] leading-3";
+  if (unitCount >= 20) return "mt-0.5 text-[10px] leading-3";
+  return "mt-1 text-xs leading-4";
+}
+
+function getCellPaddingClass(unitCount: number) {
+  if (unitCount >= 30) return "p-0.5";
+  if (unitCount >= 20) return "p-1";
+  if (unitCount >= 12) return "p-1.5";
+  return "p-2";
+}
+
+function getPlusButtonClass(unitCount: number) {
+  if (unitCount >= 30) {
+    return "flex h-6 w-full cursor-pointer items-center justify-center rounded border border-dashed border-green-300 bg-green-50 text-[10px] font-semibold text-green-800 hover:bg-green-100";
+  }
+
+  if (unitCount >= 20) {
+    return "flex h-7 w-full cursor-pointer items-center justify-center rounded-md border border-dashed border-green-300 bg-green-50 text-[10px] font-semibold text-green-800 hover:bg-green-100";
+  }
+
+  return "flex h-8 w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-green-300 bg-green-50 text-xs font-semibold text-green-800 hover:bg-green-100";
+}
+
+function getBarPaddingClass(unitCount: number) {
+  if (unitCount >= 30) return "px-1 py-1";
+  if (unitCount >= 20) return "px-1.5 py-1";
+  return "px-3 py-2";
+}
+
+function getBarTextClass(unitCount: number) {
+  if (unitCount >= 30) return "text-[10px]";
+  if (unitCount >= 20) return "text-[11px]";
+  return "text-xs";
+}
+
+function getViewLabel(view: TimelineView) {
+  if (view === "weeks") return "Wochen";
+  if (view === "months") return "Monate";
+  return "Tage";
+}
+
+function getRangeLabel(range: TimelineRange) {
+  if (range === "1w") return "1W";
+  if (range === "2w") return "2W";
+  if (range === "5w") return "5W";
+  if (range === "5m") return "5M";
+  return "Eigener Wert";
+}
+
+function getCustomUnitLabel(view: TimelineView) {
+  if (view === "months") return "Monate";
+  return "Wochen";
+}
+
+const CREW_TIMELINE_ROW_MIN_HEIGHT_PX = 180;
+const CREW_TIMELINE_PLUS_ROW_HEIGHT_PX = 42;
+const CREW_TIMELINE_BAR_TOP_PX = CREW_TIMELINE_PLUS_ROW_HEIGHT_PX + 14;
+const CREW_TIMELINE_BAR_LANE_HEIGHT_PX = 72;
+const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 42;
+
+function getCrewTimelineRowHeight(laneCount: number) {
+  const safeLaneCount = Math.max(1, laneCount);
+
+  /*
+    Wichtig: Die Balken sind absolute Elemente und vergrößern die Zeile nicht
+    automatisch. Deshalb muss die Zeilenhöhe hier bewusst aus Plus-Zeile,
+    Balken-Lanes und Sicherheitsabstand berechnet werden.
+
+    Jede Baustelle bekommt eine eigene Lane. Bei 2, 3, 4, 5+ Baustellen wächst
+    die Kolonne dadurch sauber nach unten und der nächste Kolonnenblock beginnt
+    erst darunter.
+  */
+  return Math.max(
+    CREW_TIMELINE_ROW_MIN_HEIGHT_PX,
+    CREW_TIMELINE_BAR_TOP_PX +
+      safeLaneCount * CREW_TIMELINE_BAR_LANE_HEIGHT_PX +
+      CREW_TIMELINE_ROW_BOTTOM_PADDING_PX,
+  );
+}
+
+function buildCrewTimelineLaneLayout({
+  crewId,
+  crewName,
+  visibleAssignments,
+  asphaltTimelineBars,
+}: {
+  crewId: string;
+  crewName: string;
+  visibleAssignments: {
+    assignment: {
+      id: string;
+      crewId: string | null;
+      startDate: Date;
+      endDate: Date;
+    };
+  }[];
+  asphaltTimelineBars: AsphaltTimelineBar[];
+}): CrewTimelineLaneLayout {
+  const assignmentLanes = new Map<string, number>();
+  const asphaltLanes = new Map<string, number>();
+
+  const items: CrewTimelineLaneItem[] = [
+    ...visibleAssignments
+      .filter(({ assignment }) => assignment.crewId === crewId)
+      .map(({ assignment }) => ({
+        id: assignment.id,
+        kind: "assignment" as const,
+        startDate: assignment.startDate,
+        endDate: assignment.endDate,
+      })),
+
+    ...asphaltTimelineBars
+      .filter(
+        (bar) => normalizeCrewName(bar.crewName) === normalizeCrewName(crewName),
+      )
+      .map((bar) => ({
+        id: bar.id,
+        kind: "asphalt" as const,
+        startDate: bar.startDate,
+        endDate: bar.endDate,
+      })),
+  ].sort((a, b) => {
+    const startCompare =
+      normalizeDay(a.startDate).getTime() - normalizeDay(b.startDate).getTime();
+
+    if (startCompare !== 0) return startCompare;
+
+    const endCompare =
+      normalizeDay(a.endDate).getTime() - normalizeDay(b.endDate).getTime();
+
+    if (endCompare !== 0) return endCompare;
+
+    return a.kind.localeCompare(b.kind);
+  });
+
+  /*
+    Jede Baustelle / jeder Asphalt-Dispo-Balken bekommt eine eigene Lane.
+    Dadurch wächst die Kolonnenzeile automatisch nach unten, sobald eine
+    Kolonne 2, 3, 4, 5 oder mehr Baustellen hat. Nicht mehr nur bei zeitlicher
+    Überschneidung.
+  */
+  items.forEach((item, laneIndex) => {
+    if (item.kind === "assignment") {
+      assignmentLanes.set(item.id, laneIndex);
+    } else {
+      asphaltLanes.set(item.id, laneIndex);
+    }
+  });
+
+  const laneCount = Math.max(1, items.length);
+
+  return {
+    laneCount,
+    rowHeight: getCrewTimelineRowHeight(laneCount),
+    assignmentLanes,
+    asphaltLanes,
+  };
+}
+
+function buildAsphaltTimelineBars({
+  entries,
+  visibleCrewNames,
+}: {
+  entries: AsphaltDispatchEntryForTimeline[];
+  visibleCrewNames: Set<string>;
+}) {
+  const sortedEntries = entries
+    .filter((entry) => visibleCrewNames.has(normalizeCrewName(entry.crew)))
+    .sort((a, b) => {
+      const crewCompare = a.crew.localeCompare(b.crew, "de-DE");
+      if (crewCompare !== 0) return crewCompare;
+
+      const projectCompare =
+        `${a.projectNumber}-${a.projectName}`.localeCompare(
+          `${b.projectNumber}-${b.projectName}`,
+          "de-DE",
+        );
+      if (projectCompare !== 0) return projectCompare;
+
+      return a.workDate.getTime() - b.workDate.getTime();
+    });
+
+  const bars: AsphaltTimelineBar[] = [];
+
+  for (const entry of sortedEntries) {
+    const last = bars[bars.length - 1];
+    const entryDate = normalizeDay(entry.workDate);
+    const entryProjectKey = `${entry.crew}|||${entry.projectNumber}|||${entry.projectName}`;
+    const lastProjectKey = last
+      ? `${last.crewName}|||${last.projectNumber}|||${last.projectName}`
+      : "";
+
+    const canMerge =
+      last &&
+      lastProjectKey === entryProjectKey &&
+      getDateDiffInDays(last.endDate, entryDate) <= 1;
+
+    const mixLabel = [entry.asphaltMixNumber, entry.asphaltMixName]
+      .filter(Boolean)
+      .join(" · ");
+
+    if (canMerge) {
+      last.endDate = entryDate;
+      last.quantityTons += entry.quantityTons;
+      last.entryCount += 1;
+      last.hasForeignMix = last.hasForeignMix || entry.isForeignMix;
+
+      if (mixLabel && !last.mixLabels.includes(mixLabel)) {
+        last.mixLabels.push(mixLabel);
+      }
+
+      if (entry.notes && !last.notes.includes(entry.notes)) {
+        last.notes.push(entry.notes);
+      }
+
+      continue;
+    }
+
+    bars.push({
+      id: `asphalt-${entry.id}`,
+      crewName: entry.crew,
+      projectNumber: entry.projectNumber,
+      projectName: entry.projectName,
+      constructionManager: entry.constructionManager,
+      startDate: entryDate,
+      endDate: entryDate,
+      quantityTons: entry.quantityTons,
+      entryCount: 1,
+      mixLabels: mixLabel ? [mixLabel] : [],
+      hasForeignMix: entry.isForeignMix,
+      notes: entry.notes ? [entry.notes] : [],
+    });
+  }
+
+  return bars;
+}
+
+function getBestCrewFocusDate({
+  crewId,
+  crewName,
+  visibleAssignments,
+  asphaltTimelineBars,
+  today,
+}: {
+  crewId: string;
+  crewName: string;
+  visibleAssignments: {
+    assignment: {
+      crewId: string | null;
+      startDate: Date;
+      endDate: Date;
+    };
+  }[];
+  asphaltTimelineBars: AsphaltTimelineBar[];
+  today: Date;
+}) {
+  const todayTime = normalizeDay(today).getTime();
+
+  const normalRanges = visibleAssignments
+    .filter(({ assignment }) => assignment.crewId === crewId)
+    .map(({ assignment }) => ({
+      startDate: normalizeDay(assignment.startDate),
+      endDate: normalizeDay(assignment.endDate),
+    }));
+
+  const asphaltRanges = asphaltTimelineBars
+    .filter(
+      (bar) => normalizeCrewName(bar.crewName) === normalizeCrewName(crewName),
+    )
+    .map((bar) => ({
+      startDate: normalizeDay(bar.startDate),
+      endDate: normalizeDay(bar.endDate),
+    }));
+
+  const ranges = [...normalRanges, ...asphaltRanges].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  );
+
+  const activeToday = ranges.find(
+    (range) =>
+      range.startDate.getTime() <= todayTime &&
+      range.endDate.getTime() >= todayTime,
+  );
+
+  if (activeToday) {
+    return activeToday.startDate;
+  }
+
+  const nextRange = ranges.find(
+    (range) => range.startDate.getTime() > todayTime,
+  );
+
+  if (nextRange) {
+    return nextRange.startDate;
+  }
+
+  const previousRange = ranges
+    .filter((range) => range.endDate.getTime() < todayTime)
+    .sort((a, b) => b.endDate.getTime() - a.endDate.getTime())[0];
+
+  if (previousRange) {
+    return previousRange.startDate;
+  }
+
+  return today;
+}
+
+export default async function CrewDispatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    week?: string;
+    from?: string;
+    to?: string;
+    focus?: string;
+    highlightCrew?: string;
+    showWeekend?: string;
+    view?: string;
+    range?: string;
+    customCount?: string;
+    customUnit?: string;
+    bufferBack?: string;
+    bufferForward?: string;
+    showAsphaltDispatchCrews?: string;
+  }>;
+}) {
+  const params = await searchParams;
+
+  const view = getTimelineView(params.view);
+  const range = getTimelineRange(params.range, view);
+  const customUnit = getCustomUnit(params.customUnit, view);
+  const customCount = getCustomCount(params.customCount, view);
+  const showWeekend = params.showWeekend === "1";
+  const showAsphaltDispatchCrews = params.showAsphaltDispatchCrews === "1";
+  const highlightedCrewId = params.highlightCrew ?? null;
+
+  const defaultBufferBack = view === "months" ? 3 : 8;
+  const defaultBufferForward = view === "months" ? 6 : 12;
+  const bufferBack = getBufferValue(params.bufferBack, defaultBufferBack);
+  const bufferForward = getBufferValue(
+    params.bufferForward,
+    defaultBufferForward,
+  );
+
+  const selectedDate = parseDateParam(params.week);
+  const anchorDate =
+    view === "months" ? startOfMonth(selectedDate) : startOfWeek(selectedDate);
+
+  const fallbackStart =
+    view === "months" ? startOfMonth(anchorDate) : startOfWeek(anchorDate);
+
+  const fallbackEnd = getDefaultRangeEnd({
+    view,
+    range,
+    customCount,
+    anchorDate,
+    showWeekend,
+  });
+
+  const { fromDate, toDate, isCustomDateRange } = getSafeDateRange({
+    from: params.from,
+    to: params.to,
+    fallbackStart,
+    fallbackEnd,
+  });
+
+  const focusDateFromParams = params.focus
+    ? parseDateParam(params.focus)
+    : fromDate;
+
+  const { timelineFromDate, timelineToDate } = getBufferedDateRange({
+    view,
+    fromDate,
+    toDate,
+    bufferBack,
+    bufferForward,
+  });
+
+  const weekStartForNewRows = startOfWeek(fromDate);
+  const weekStartInput = formatDateInput(weekStartForNewRows);
+  const focusDate = formatDateInput(focusDateFromParams);
+
+  const timelineUnits = buildTimelineUnitsFromDateRange({
+    view,
+    fromDate: timelineFromDate,
+    toDate: timelineToDate,
+    showWeekend,
+  });
+
+  const timelineUnitsForClient = timelineUnits.map((unit) => ({
+    key: unit.key,
+    label: unit.label,
+    subLabel: unit.subLabel,
+    defaultStartDate: unit.defaultStartDate,
+    defaultEndDate: unit.defaultEndDate,
+  }));
+
+  const unitCount = timelineUnits.length;
+  const periodStart = timelineUnits[0]?.startDate ?? timelineFromDate;
+  const periodEndExclusive =
+    timelineUnits[timelineUnits.length - 1]?.endDateExclusive ??
+    addDays(timelineToDate, 1);
+
+  const previousRange = shiftDateRange({
+    fromDate,
+    toDate,
+    view,
+    direction: -1,
+  });
+
+  const nextRange = shiftDateRange({
+    fromDate,
+    toDate,
+    view,
+    direction: 1,
+  });
+
+  const todayRange = getTodayRange(view);
+  const today = parseDateParam(formatDateInput(new Date()));
+
+  const [planningRows, projects, allCrews, asphaltDispatchEntries] =
+    await Promise.all([
+      prisma.crewPlanningRow.findMany({
+        include: {
+          assignments: {
+            include: {
+              crew: {
+                include: {
+                  members: {
+                    where: {
+                      isActive: true,
+                    },
+                    include: {
+                      employee: true,
+                    },
+                    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                  },
+                  defaultVehicles: {
+                    where: {
+                      isActive: true,
+                    },
+                    include: {
+                      vehicle: true,
+                    },
+                    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                  },
+                },
+              },
+            },
+            orderBy: [{ startDate: "asc" }, { crewName: "asc" }],
+          },
+        },
+        orderBy: [
+          { weekStart: "asc" },
+          { sortOrder: "asc" },
+          { projectNumber: "asc" },
+          { rowTitle: "asc" },
+        ],
+      }),
+
+      prisma.project.findMany({
+        where: {
+          status: {
+            in: [
+              ProjectStatus.NOT_STARTED,
+              ProjectStatus.ACTIVE,
+              ProjectStatus.PAUSED,
+            ],
+          },
+        },
+        orderBy: [{ projectNumber: "asc" }],
+      }),
+
+      prisma.crew.findMany({
+        where: {
+          isActive: true,
+        },
+        include: {
+          members: {
+            where: {
+              isActive: true,
+            },
+            include: {
+              employee: true,
+            },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+          defaultVehicles: {
+            where: {
+              isActive: true,
+            },
+            include: {
+              vehicle: true,
+            },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+
+      showAsphaltDispatchCrews
+        ? prisma.asphaltDispatchEntry.findMany({
+            where: {
+              workDate: {
+                gte: periodStart,
+                lt: periodEndExclusive,
+              },
+            },
+            orderBy: [
+              { crew: "asc" },
+              { workDate: "asc" },
+              { createdAt: "asc" },
+            ],
+          })
+        : Promise.resolve([]),
+    ]);
+
+  const crews = showAsphaltDispatchCrews
+    ? allCrews
+    : allCrews.filter((crew) => !crew.isAsphaltDispatchCrew);
+
+  const asphaltDispatchCrewCount = allCrews.filter(
+    (crew) => crew.isAsphaltDispatchCrew,
+  ).length;
+
+  const visibleCrewNames = new Set(
+    crews.map((crew) => normalizeCrewName(crew.name)),
+  );
+
+  const asphaltTimelineBars = buildAsphaltTimelineBars({
+    entries: asphaltDispatchEntries,
+    visibleCrewNames,
+  });
+
+  const projectOptions = projects.map((project) => ({
+    id: project.id,
+    projectNumber: project.projectNumber,
+    name: project.name,
+    defaultStartTime: getProjectDefaultStartTime(project),
+    defaultEndTime: getProjectDefaultEndTime(project),
+  }));
+
+  const assignmentsWithRows = planningRows.flatMap((row) =>
+    row.assignments.map((assignment) => ({
+      row,
+      assignment,
+    })),
+  );
+
+  const visibleAssignments = assignmentsWithRows.filter(({ assignment }) =>
+    timelineUnits.some((unit) =>
+      rangesOverlapInclusive(
+        assignment.startDate,
+        assignment.endDate,
+        unit.startDate,
+        unit.endDateExclusive,
+      ),
+    ),
+  );
+
+  const conflictAssignmentsForClient = assignmentsWithRows
+    .filter(({ assignment }) => Boolean(assignment.crewId))
+    .map(({ row, assignment }) => ({
+      id: assignment.id,
+      crewId: assignment.crewId ?? "",
+      projectNumber: row.projectNumber,
+      projectName: row.projectName,
+      rowTitle: row.rowTitle,
+      startDate: formatDateInput(assignment.startDate),
+      endDate: formatDateInput(assignment.endDate),
+    }));
+
+  const leftColumnWidth = getLeftColumnWidth(unitCount);
+  const timelineGridColumns = getTimelineGridColumns(view, unitCount);
+  const timelineMinWidth = getTimelineMinWidth(view, unitCount);
+
+  const crewTimelineRows = new Map(
+    crews.map((crew) => [
+      crew.id,
+      buildCrewTimelineLaneLayout({
+        crewId: crew.id,
+        crewName: crew.name,
+        visibleAssignments,
+        asphaltTimelineBars,
+      }),
+    ] as const),
+  );
+
+  const hrefBase = {
+    view,
+    range,
+    customCount,
+    customUnit,
+    showWeekend,
+    bufferBack,
+    bufferForward,
+    showAsphaltDispatchCrews,
+  };
+
+  const previousHref = buildCrewDispatchHref({
+    fromDate: previousRange.fromDate,
+    toDate: previousRange.toDate,
+    focusDate: previousRange.fromDate,
+    ...hrefBase,
+  });
+
+  const todayHref = buildCrewDispatchHref({
+    fromDate: todayRange.fromDate,
+    toDate: todayRange.toDate,
+    focusDate: todayRange.focusDate,
+    ...hrefBase,
+  });
+
+  const nextHref = buildCrewDispatchHref({
+    fromDate: nextRange.fromDate,
+    toDate: nextRange.toDate,
+    focusDate: nextRange.fromDate,
+    ...hrefBase,
+  });
+
+  const weekendToggleHref = buildCrewDispatchHref({
+    fromDate,
+    toDate,
+    focusDate,
+    view,
+    range,
+    customCount,
+    customUnit,
+    showWeekend: !showWeekend,
+    bufferBack,
+    bufferForward,
+    showAsphaltDispatchCrews,
+    highlightCrewId: highlightedCrewId,
+  });
+
+  const asphaltDispatchCrewToggleHref = buildCrewDispatchHref({
+    fromDate,
+    toDate,
+    focusDate,
+    view,
+    range,
+    customCount,
+    customUnit,
+    showWeekend,
+    bufferBack,
+    bufferForward,
+    showAsphaltDispatchCrews: !showAsphaltDispatchCrews,
+    highlightCrewId: highlightedCrewId,
+  });
+
+  return (
+    <AppShell
+      title="Kolonneneinteilung"
+      description="Horizontale Zeitstrahlplanung: links Kolonnen, rechts Baustellen-Einsätze."
+    >
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <SummaryCard label="Kolonnen sichtbar" value={String(crews.length)} />
+        <SummaryCard
+          label="Einteilungen sichtbar"
+          value={String(visibleAssignments.length + asphaltTimelineBars.length)}
+        />
+        <SummaryCard
+          label="Asphalt-Dispo-Kolonnen"
+          value={String(asphaltDispatchCrewCount)}
+        />
+        <SummaryCard label="Aktive Projekte" value={String(projects.length)} />
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Link
+          href="/admin/crews"
+          className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+        >
+          Kolonnen verwalten →
+        </Link>
+
+        <Link
+          href="/asphalt-dispatch"
+          className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-900 hover:bg-orange-100"
+        >
+          Asphaltdisposition öffnen
+        </Link>
+
+        <Link
+          href="/projects"
+          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+        >
+          Projekte öffnen
+        </Link>
+
+        <Link
+          href="/admin/vehicles"
+          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+        >
+          Großgeräte/Fahrzeuge öffnen
+        </Link>
+      </div>
+
+      <details className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <summary className="cursor-pointer text-xl font-semibold text-gray-900">
+          + Baustellenzeile manuell hinzufügen
+        </summary>
+
+        <CrewPlanningRowForm
+          action={createCrewPlanningRow}
+          weekStart={weekStartInput}
+          projects={projects}
+        />
+      </details>
+
+      <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm font-semibold text-blue-900">
+        Beim Klick auf einen Kolonnennamen springt der Zeitstrahl zur aktuellen,
+        nächsten oder letzten Einteilung dieser Kolonne. Asphalt-Dispo-Einträge
+        werden dabei mit berücksichtigt.
+      </div>
+
+      <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Kolonnenplanung · {getViewLabel(view)} ·{" "}
+                {isCustomDateRange
+                  ? "freier Zeitraum"
+                  : range === "custom"
+                    ? `Eigener Wert ${customCount} ${getCustomUnitLabel(view)}`
+                    : getRangeLabel(range)}
+              </div>
+
+              <h2 className="mt-1 text-2xl font-bold text-gray-900">
+                {getTimelineTitle(timelineUnits, view)}
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-600">
+                Fokus: {formatShortDate(focusDateFromParams)} · Zeitraum:{" "}
+                {formatShortDate(fromDate)} – {formatShortDate(toDate)} ·
+                geladen: {getTimelineSubtitle(timelineUnits)}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={previousHref}
+                scroll={false}
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                ← Zeitraum zurück
+              </Link>
+
+              <CrewTimelineFocusButton
+                focusDate={formatDateInput(todayRange.focusDate)}
+                fallbackHref={todayHref}
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Heute
+              </CrewTimelineFocusButton>
+
+              <Link
+                href={nextHref}
+                scroll={false}
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Zeitraum weiter →
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+                {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
+                  <Link
+                    key={item}
+                    href={buildCrewDispatchHref({
+                      fromDate,
+                      toDate,
+                      view: item,
+                      range,
+                      customCount,
+                      customUnit,
+                      showWeekend,
+                      bufferBack,
+                      bufferForward,
+                      showAsphaltDispatchCrews,
+                      focusDate,
+                      highlightCrewId: highlightedCrewId,
+                    })}
+                    scroll={false}
+                    className={
+                      view === item
+                        ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                        : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                    }
+                  >
+                    {getViewLabel(item)}
+                  </Link>
+                ))}
+
+                {view !== "months" ? (
+                  <Link
+                    href={weekendToggleHref}
+                    scroll={false}
+                    className={
+                      showWeekend
+                        ? "ml-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
+                        : "ml-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                    }
+                  >
+                    {showWeekend ? "Sa/So ausblenden" : "Sa/So anzeigen"}
+                  </Link>
+                ) : null}
+
+                <Link
+                  href={asphaltDispatchCrewToggleHref}
+                  scroll={false}
+                  className={
+                    showAsphaltDispatchCrews
+                      ? "ml-1 rounded-lg bg-orange-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-800"
+                      : "ml-1 rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-900 hover:bg-orange-100"
+                  }
+                >
+                  {showAsphaltDispatchCrews
+                    ? "Asphalt-Dispo-Kolonnen ausblenden"
+                    : "Asphalt-Dispo-Kolonnen anzeigen"}
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+                {(["1w", "2w", "5w", "5m"] as TimelineRange[]).map((item) => {
+                  const disabled =
+                    (view === "months" && item !== "5m") ||
+                    (view !== "months" && item === "5m");
+
+                  if (disabled) {
+                    return null;
+                  }
+
+                  const presetStart =
+                    view === "months"
+                      ? startOfMonth(new Date())
+                      : startOfWeek(new Date());
+
+                  const presetEnd = getDefaultRangeEnd({
+                    view,
+                    range: item,
+                    customCount,
+                    anchorDate: presetStart,
+                    showWeekend,
+                  });
+
+                  return (
+                    <Link
+                      key={item}
+                      href={buildCrewDispatchHref({
+                        fromDate: presetStart,
+                        toDate: presetEnd,
+                        view,
+                        range: item,
+                        customCount,
+                        customUnit,
+                        showWeekend,
+                        bufferBack,
+                        bufferForward,
+                        showAsphaltDispatchCrews,
+                        focusDate: presetStart,
+                        highlightCrewId: highlightedCrewId,
+                      })}
+                      scroll={false}
+                      className={
+                        !isCustomDateRange && range === item
+                          ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                          : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                      }
+                    >
+                      {getRangeLabel(item)}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            <form
+              action="/crew-dispatch"
+              className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2"
+            >
+              <input type="hidden" name="view" value={view} />
+              <input type="hidden" name="range" value="custom" />
+
+              {showWeekend ? (
+                <input type="hidden" name="showWeekend" value="1" />
+              ) : null}
+
+              {showAsphaltDispatchCrews ? (
+                <input
+                  type="hidden"
+                  name="showAsphaltDispatchCrews"
+                  value="1"
+                />
+              ) : null}
+
+              {highlightedCrewId ? (
+                <input
+                  type="hidden"
+                  name="highlightCrew"
+                  value={highlightedCrewId}
+                />
+              ) : null}
+
+              <span className="whitespace-nowrap text-xs font-semibold text-blue-950">
+                Zeitraum frei wählen
+              </span>
+
+              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
+                Von
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={formatDateInput(fromDate)}
+                  className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
+                />
+              </label>
+
+              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
+                Bis
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={formatDateInput(toDate)}
+                  className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
+                />
+              </label>
+
+              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
+                Zurück
+                <input
+                  type="number"
+                  min="0"
+                  name="bufferBack"
+                  defaultValue={String(bufferBack)}
+                  className="w-16 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
+                />
+                {view === "months" ? "Mon." : "Wo."}
+              </label>
+
+              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
+                Voraus
+                <input
+                  type="number"
+                  min="0"
+                  name="bufferForward"
+                  defaultValue={String(bufferForward)}
+                  className="w-16 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
+                />
+                {view === "months" ? "Mon." : "Wo."}
+              </label>
+
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
+              >
+                Öffnen
+              </button>
+            </form>
+          </div>
+
+          <div
+            className="mt-4 grid border-t border-gray-200 bg-white shadow-sm"
+            style={{
+              gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
+            }}
+          >
+            <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Kolonne
+            </div>
+
+            <div
+              data-crew-timeline-header-scroll
+              className="min-w-0 overflow-hidden border-b border-gray-200 bg-gray-50"
+            >
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: timelineGridColumns,
+                  minWidth: `${timelineMinWidth}px`,
+                }}
+              >
+                {timelineUnits.map((unit) => (
+                  <div
+                    key={unit.key}
+                    data-timeline-date={unit.defaultStartDate}
+                    className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 text-center last:border-r-0 ${getHeaderPaddingClass(
+                      unitCount,
+                    )}`}
+                  >
+                    <div
+                      className={`truncate font-bold text-gray-900 ${getHeaderTextClass(
+                        unitCount,
+                      )}`}
+                      title={unit.label}
+                    >
+                      {unit.label}
+                    </div>
+                    <div
+                      className={`truncate text-gray-500 ${getHeaderSubTextClass(
+                        unitCount,
+                      )}`}
+                      title={unit.subLabel}
+                    >
+                      {unit.subLabel}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="grid w-full"
+          style={{
+            gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
+          }}
+        >
+          <div className="border-r border-gray-200 bg-white">
+            {crews.length === 0 ? (
+              <div className="p-10 text-center text-sm font-medium text-gray-500">
+                Keine Kolonnen sichtbar. Asphalt-Dispo-Kolonnen können oben
+                eingeblendet werden.
+              </div>
+            ) : (
+              crews.map((crew) => {
+                const crewFocusDate = getBestCrewFocusDate({
+                  crewId: crew.id,
+                  crewName: crew.name,
+                  visibleAssignments,
+                  asphaltTimelineBars,
+                  today,
+                });
+
+                const crewFocusHref = buildCrewDispatchHref({
+                  fromDate,
+                  toDate,
+                  view,
+                  range,
+                  customCount,
+                  customUnit,
+                  showWeekend,
+                  bufferBack,
+                  bufferForward,
+                  showAsphaltDispatchCrews,
+                  focusDate: crewFocusDate,
+                  highlightCrewId: crew.id,
+                });
+
+                const isHighlighted = highlightedCrewId === crew.id;
+                const rowLayout = crewTimelineRows.get(crew.id);
+                const rowHeight =
+                  rowLayout?.rowHeight ?? CREW_TIMELINE_ROW_MIN_HEIGHT_PX;
+
+                return (
+                  <div
+                    key={crew.id}
+                    data-crew-row-id={crew.id}
+                    className={
+                      isHighlighted
+                        ? "group relative z-0 overflow-visible border-b border-orange-200 bg-orange-50 p-3 hover:z-50"
+                        : "group relative z-0 overflow-visible border-b border-gray-200 bg-white p-3 hover:z-50"
+                    }
+                    style={{
+                      height: `${rowHeight}px`,
+                      minHeight: `${rowHeight}px`,
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <CrewTimelineFocusButton
+                        focusDate={formatDateInput(crewFocusDate)}
+                        crewId={crew.id}
+                        fallbackHref={crewFocusHref}
+                        className="block min-w-0 flex-1 truncate text-left text-sm font-bold text-gray-900 hover:underline"
+                        title="Zur aktuellen oder nächsten Einteilung dieser Kolonne springen"
+                      >
+                        {crew.name}
+                      </CrewTimelineFocusButton>
+
+                      <Link
+                        href={`/admin/crews#crew-${crew.id}`}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm hover:bg-gray-50"
+                        title="Kolonne direkt bearbeiten"
+                      >
+                        ⚙
+                      </Link>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {crew.typeLabel ? (
+                        <span className="inline-flex max-w-full rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                          <span className="truncate">{crew.typeLabel}</span>
+                        </span>
+                      ) : null}
+
+                      {crew.isAsphaltDispatchCrew ? (
+                        <span className="inline-flex rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-900">
+                          Asphaltdisposition
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-2 text-xs text-gray-500">
+                      {crew.members.length} MA · {crew.defaultVehicles.length}{" "}
+                      Geräte
+                    </div>
+
+                    {crew.members.length ? (
+                      <div className="mt-2 line-clamp-2 text-xs text-gray-500">
+                        {crew.members
+                          .map(
+                            (member) =>
+                              `${member.employee.lastName}, ${member.employee.firstName}`,
+                          )
+                          .join(" · ")}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-gray-400">
+                        Keine Mitarbeiter hinterlegt
+                      </div>
+                    )}
+
+                    <div className="pointer-events-none absolute left-3 top-12 z-[80] hidden w-[440px] max-w-[calc(100vw-3rem)] rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-2xl group-hover:block">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-gray-900">
+                            {crew.name}
+                          </div>
+
+                          <div className="mt-1 text-xs text-gray-500">
+                            {crew.members.length} MA ·{" "}
+                            {crew.defaultVehicles.length} Geräte
+                          </div>
+                        </div>
+
+                        <span className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-700">
+                          Details
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="rounded-xl bg-gray-50 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Mitarbeiter
+                          </div>
+
+                          <div className="mt-2 space-y-1 text-xs text-gray-700">
+                            {crew.members.length ? (
+                              crew.members.map((member) => (
+                                <div key={member.id}>
+                                  {member.employee.lastName},{" "}
+                                  {member.employee.firstName}
+                                  {member.roleText
+                                    ? ` · ${member.roleText}`
+                                    : ""}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-gray-400">
+                                Keine Mitarbeiter hinterlegt
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl bg-gray-50 p-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Geräte
+                          </div>
+
+                          <div className="mt-2 space-y-1 text-xs text-gray-700">
+                            {crew.defaultVehicles.length ? (
+                              crew.defaultVehicles.map((item) => (
+                                <div key={item.id}>
+                                  {getVehicleLabel(item.vehicle)}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-gray-400">
+                                Keine Geräte hinterlegt
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {crew.notes ? (
+                        <div className="mt-3 rounded-xl bg-orange-50 p-3 text-xs text-orange-950">
+                          <div className="font-semibold">Bemerkung</div>
+                          <div className="mt-1">{crew.notes}</div>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3 text-xs font-semibold text-gray-500">
+                        Klick auf den Kolonnennamen fokussiert den Zeitstrahl.
+                        Das Zahnrad öffnet die Kolonnenverwaltung.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <CrewTimelineScroll focusDate={focusDate}>
+            <div
+              className="grid"
+              style={{
+                gridTemplateColumns: timelineGridColumns,
+                minWidth: `${timelineMinWidth}px`,
+              }}
+            >
+              {crews.map((crew) => {
+                const crewAssignments = visibleAssignments.filter(
+                  ({ assignment }) => assignment.crewId === crew.id,
+                );
+
+                const crewAsphaltBars = asphaltTimelineBars.filter(
+                  (bar) =>
+                    normalizeCrewName(bar.crewName) ===
+                    normalizeCrewName(crew.name),
+                );
+
+                const isHighlighted = highlightedCrewId === crew.id;
+                const rowLayout = crewTimelineRows.get(crew.id);
+                const rowHeight =
+                  rowLayout?.rowHeight ?? CREW_TIMELINE_ROW_MIN_HEIGHT_PX;
+
+                return (
+                  <div
+                    key={crew.id}
+                    data-time-grid="true"
+                    data-crew-row-id={crew.id}
+                    className={
+                      isHighlighted
+                        ? "relative grid min-w-0 border-b border-orange-200 bg-orange-50/50"
+                        : "relative grid min-w-0 border-b border-gray-100 bg-white"
+                    }
+                    style={{
+                      gridColumn: `1 / span ${timelineUnits.length}`,
+                      gridTemplateColumns: timelineGridColumns,
+                      height: `${rowHeight}px`,
+                      minHeight: `${rowHeight}px`,
+                    }}
+                  >
+                    {timelineUnits.map((unit) => (
+                      <div
+                        key={`${crew.id}-${unit.key}`}
+                        className={`min-w-0 border-r border-gray-100 last:border-r-0 ${getCellPaddingClass(
+                          unitCount,
+                        )}`}
+                        style={{
+                          height: `${rowHeight}px`,
+                          minHeight: `${rowHeight}px`,
+                        }}
+                      >
+                        <CrewPopover
+                          trigger="+"
+                          triggerClassName={getPlusButtonClass(unitCount)}
+                          panelClassName="relative z-50 mt-2 w-[400px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+                        >
+                          <CrewPlanningAssignmentFormClient
+                            mode="create"
+                            projects={projectOptions}
+                            weekStart={weekStartInput}
+                            crews={crews}
+                            fixedCrewId={crew.id}
+                            fixedCrewName={crew.name}
+                            defaultCrewId={crew.id}
+                            defaultStartDate={unit.defaultStartDate}
+                            defaultEndDate={unit.defaultEndDate}
+                            conflictAssignments={conflictAssignmentsForClient}
+                          />
+                        </CrewPopover>
+                      </div>
+                    ))}
+
+                    <div
+                      className="pointer-events-none absolute inset-0 grid p-1"
+                      style={{
+                        gridTemplateColumns: timelineGridColumns,
+                      }}
+                    >
+                      {crewAssignments.map(
+                        ({ assignment, row }, assignmentIndex) => {
+                          const projectBarTitle = getProjectRowTitle(row);
+
+                          const barClassName = `rounded-lg border font-semibold shadow-sm ${getBarPaddingClass(
+                            unitCount,
+                          )} ${getBarTextClass(unitCount)} ${getCrewBadgeClass(
+                            crew.typeValue,
+                          )}`;
+
+                          return (
+                            <CrewAssignmentBar
+                              key={assignment.id}
+                              id={assignment.id}
+                              crewName={projectBarTitle}
+                              crewTypeValue={crew.typeValue}
+                              startDate={formatDateInput(assignment.startDate)}
+                              endDate={formatDateInput(assignment.endDate)}
+                              timelineUnits={timelineUnitsForClient}
+                              unitCount={unitCount}
+                              topOffsetPx={
+                                CREW_TIMELINE_BAR_TOP_PX +
+                                (rowLayout?.assignmentLanes.get(assignment.id) ??
+                                  assignmentIndex) *
+                                  CREW_TIMELINE_BAR_LANE_HEIGHT_PX
+                              }
+                              barClassName={barClassName}
+                            >
+                              <div className="absolute z-40 mt-2 w-[440px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl">
+                                <div className="text-sm font-bold text-gray-900">
+                                  {projectBarTitle}
+                                </div>
+
+                                <div className="mt-1 text-xs text-gray-500">
+                                  Kolonne: {crew.name}
+                                </div>
+
+                                <div className="mt-2 text-xs font-medium text-gray-600">
+                                  {formatShortDate(assignment.startDate)} –{" "}
+                                  {formatShortDate(assignment.endDate)}
+                                </div>
+
+                                {crew.members.length ? (
+                                  <div className="mt-3">
+                                    <div className="text-xs font-semibold text-gray-700">
+                                      Standardpersonen
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {crew.members.map((member) => (
+                                        <span
+                                          key={member.id}
+                                          className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700"
+                                        >
+                                          {member.employee.lastName},{" "}
+                                          {member.employee.firstName}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {crew.defaultVehicles.length ? (
+                                  <div className="mt-3">
+                                    <div className="text-xs font-semibold text-gray-700">
+                                      Standardgeräte
+                                    </div>
+                                    <div className="mt-1 space-y-1">
+                                      {crew.defaultVehicles.map((item) => (
+                                        <div
+                                          key={item.id}
+                                          className="rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-700"
+                                        >
+                                          {getVehicleLabel(item.vehicle)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                <CrewPlanningAssignmentFormClient
+                                  mode="update"
+                                  id={assignment.id}
+                                  rowId={row.id}
+                                  weekStart={formatDateInput(row.weekStart)}
+                                  crews={crews}
+                                  fixedCrewId={crew.id}
+                                  fixedCrewName={crew.name}
+                                  defaultCrewId={crew.id}
+                                  defaultStartDate={formatDateInput(
+                                    assignment.startDate,
+                                  )}
+                                  defaultEndDate={formatDateInput(
+                                    assignment.endDate,
+                                  )}
+                                  defaultStartTime={assignment.startTime}
+                                  defaultEndTime={assignment.endTime}
+                                  defaultNotes={assignment.notes ?? ""}
+                                  conflictAssignments={conflictAssignmentsForClient}
+                                  currentAssignmentId={assignment.id}
+                                />
+
+                                <form
+                                  action={deleteCrewPlanningAssignment}
+                                  className="mt-3"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="id"
+                                    value={assignment.id}
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                  >
+                                    Einteilung löschen
+                                  </button>
+                                </form>
+                              </div>
+                            </CrewAssignmentBar>
+                          );
+                        },
+                      )}
+
+                      {crewAsphaltBars.map((bar, asphaltIndex) => {
+                        const title = `${bar.projectNumber} · ${bar.projectName}`;
+
+                        return (
+                          <CrewAssignmentBar
+                            key={bar.id}
+                            id={bar.id}
+                            crewName={title}
+                            crewTypeValue="asphalt-dispatch"
+                            startDate={formatDateInput(bar.startDate)}
+                            endDate={formatDateInput(bar.endDate)}
+                            timelineUnits={timelineUnitsForClient}
+                            unitCount={unitCount}
+                            topOffsetPx={
+                              CREW_TIMELINE_BAR_TOP_PX +
+                              (rowLayout?.asphaltLanes.get(bar.id) ??
+                                crewAssignments.length + asphaltIndex) *
+                                CREW_TIMELINE_BAR_LANE_HEIGHT_PX
+                            }
+                            barClassName={getAsphaltDispatchBarClass(unitCount)}
+                          >
+                            <div className="absolute z-40 mt-2 w-[440px] max-w-[calc(100vw-3rem)] rounded-xl border border-orange-200 bg-white p-4 text-gray-900 shadow-xl">
+                              <div className="inline-flex rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-900">
+                                Asphaltdisposition
+                              </div>
+
+                              <div className="mt-3 text-sm font-bold text-gray-900">
+                                {title}
+                              </div>
+
+                              <div className="mt-1 text-xs text-gray-500">
+                                Kolonne: {crew.name}
+                              </div>
+
+                              <div className="mt-2 text-xs font-medium text-gray-600">
+                                {formatShortDate(bar.startDate)} –{" "}
+                                {formatShortDate(bar.endDate)}
+                              </div>
+
+                              {bar.constructionManager ? (
+                                <div className="mt-2 text-xs text-gray-600">
+                                  Bauleiter: {bar.constructionManager}
+                                </div>
+                              ) : null}
+
+                              <div className="mt-3 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-950">
+                                {formatTons(bar.quantityTons)} t ·{" "}
+                                {bar.entryCount} Eintrag
+                                {bar.entryCount === 1 ? "" : "e"}
+                              </div>
+
+                              {bar.mixLabels.length ? (
+                                <div className="mt-3">
+                                  <div className="text-xs font-semibold text-gray-700">
+                                    Asphaltsorten
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {bar.mixLabels.map((mix) => (
+                                      <span
+                                        key={mix}
+                                        className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700"
+                                      >
+                                        {mix}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {bar.hasForeignMix ? (
+                                <div className="mt-3 inline-flex rounded-full bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-800">
+                                  Fremdmischgut enthalten
+                                </div>
+                              ) : null}
+
+                              {bar.notes.length ? (
+                                <div className="mt-3">
+                                  <div className="text-xs font-semibold text-gray-700">
+                                    Bemerkungen
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    {bar.notes.map((note) => (
+                                      <div
+                                        key={note}
+                                        className="rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-700"
+                                      >
+                                        {note}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              <Link
+                                href="/asphalt-dispatch"
+                                className="mt-4 inline-flex rounded-lg border border-orange-300 px-3 py-2 text-xs font-semibold text-orange-900 hover:bg-orange-50"
+                              >
+                                In Asphaltdisposition bearbeiten →
+                              </Link>
+                            </div>
+                          </CrewAssignmentBar>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CrewTimelineScroll>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function CrewPlanningRowForm({
+  action,
+  id,
+  weekStart,
+  projects,
+  defaultProjectId = "",
+  defaultRowTitle = "",
+  defaultNotes = "",
+  defaultSortOrder = "0",
+}: {
+  action: (formData: FormData) => void | Promise<void>;
+  id?: string;
+  weekStart: string;
+  projects: {
+    id: string;
+    projectNumber: string;
+    name: string;
+  }[];
+  defaultProjectId?: string;
+  defaultRowTitle?: string;
+  defaultNotes?: string;
+  defaultSortOrder?: string;
+}) {
+  return (
+    <form action={action} className="mt-5 space-y-4">
+      {id ? <input type="hidden" name="id" value={id} /> : null}
+      <input type="hidden" name="weekStart" value={weekStart} />
+
+      <label className="block text-sm font-medium text-gray-800">
+        Baustelle
+        <select
+          name="projectId"
+          required
+          defaultValue={defaultProjectId}
+          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+        >
+          <option value="" disabled>
+            Baustelle wählen
+          </option>
+
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.projectNumber} · {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block text-sm font-medium text-gray-800">
+        Abschnitt / Bezeichnung optional
+        <input
+          name="rowTitle"
+          defaultValue={defaultRowTitle}
+          placeholder="z.B. Tiefbau, Asphalt, Pflaster, Kanal"
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="block text-sm font-medium text-gray-800">
+        Sortierung
+        <input
+          name="sortOrder"
+          type="number"
+          defaultValue={defaultSortOrder}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="block text-sm font-medium text-gray-800">
+        Bemerkung
+        <textarea
+          name="notes"
+          rows={3}
+          defaultValue={defaultNotes}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+      >
+        Speichern
+      </button>
+    </form>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-gray-500">{label}</p>
+      <p className="mt-3 text-3xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}

@@ -1,0 +1,1074 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type ProjectOption = {
+  id: string;
+  projectNumber: string;
+  name: string;
+};
+
+type VehicleOption = {
+  id: string;
+  vehicleNumber: string;
+  licensePlate: string | null;
+  vehicleType: string;
+  category: string;
+  driverAssignments?: {
+    driver: {
+      firstName: string;
+      lastName: string;
+    };
+  }[];
+};
+
+type DriverOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  vehicleAssignments?: {
+    isPrimary: boolean;
+    vehicle: {
+      id: string;
+      vehicleNumber: string;
+      licensePlate: string | null;
+      vehicleType: string;
+      category: string;
+    };
+  }[];
+};
+
+type MaterialOption = {
+  id: string;
+  name: string;
+  unit: string;
+  category: string | null;
+};
+
+type AsphaltOption = {
+  id: string;
+  mixNumber: string;
+  name: string;
+  shortName: string | null;
+  unit: string;
+  category: string | null;
+};
+
+type TransportOption = {
+  value: string;
+  label: string;
+};
+
+type TourFormValue = {
+  rowId: number;
+  startTime: string;
+  endTime: string;
+  projectId: string;
+  purposeType: string;
+  itemId: string;
+  customPurpose: string;
+  quantity: string;
+  quantityUnit: string;
+  notes: string;
+};
+
+type ConflictMap = Record<string, string>;
+
+function getPrimaryVehicle(driver: DriverOption | undefined) {
+  if (!driver?.vehicleAssignments || driver.vehicleAssignments.length === 0) {
+    return undefined;
+  }
+
+  return (
+    driver.vehicleAssignments.find((assignment) => assignment.isPrimary)
+      ?.vehicle ?? driver.vehicleAssignments[0]?.vehicle
+  );
+}
+
+function getPrimaryVehicleLabel(driver: DriverOption) {
+  const vehicle = getPrimaryVehicle(driver);
+
+  if (!vehicle) {
+    return "kein Stammfahrzeug";
+  }
+
+  return `${vehicle.licensePlate ?? "-"} · ${vehicle.category}`;
+}
+
+function getVehicleAssignmentLabel(vehicle: VehicleOption) {
+  const assignedDriver = vehicle.driverAssignments?.[0]?.driver;
+
+  if (!assignedDriver) {
+    return "frei";
+  }
+
+  return `Stamm: ${assignedDriver.lastName}, ${assignedDriver.firstName}`;
+}
+
+function getDefaultUnitForPurpose({
+  purposeType,
+  itemId,
+  materials,
+  asphaltMixes,
+}: {
+  purposeType: string;
+  itemId: string;
+  materials: MaterialOption[];
+  asphaltMixes: AsphaltOption[];
+}) {
+  if (purposeType === "MATERIAL") {
+    return materials.find((material) => material.id === itemId)?.unit ?? "";
+  }
+
+  if (purposeType === "ASPHALT") {
+    return asphaltMixes.find((asphalt) => asphalt.id === itemId)?.unit ?? "";
+  }
+
+  return "";
+}
+
+function getFirstAvailableVehicleId({
+  vehicles,
+  shortVehicleConflicts,
+  currentVehicleId,
+}: {
+  vehicles: VehicleOption[];
+  shortVehicleConflicts: ConflictMap;
+  currentVehicleId: string;
+}) {
+  if (currentVehicleId) {
+    return currentVehicleId;
+  }
+
+  return vehicles.find((vehicle) => !shortVehicleConflicts[vehicle.id])?.id ?? "";
+}
+
+function getTimelinePrefillFromUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get("fromTimeline") !== "1") {
+    return null;
+  }
+
+  return {
+    driverId: params.get("prefillDriverId") ?? "",
+    vehicleId: params.get("prefillVehicleId") ?? "",
+    startTime: params.get("prefillStartTime") ?? "",
+    endTime: params.get("prefillEndTime") ?? "",
+    editAssignmentId: params.get("editAssignmentId") ?? "",
+  };
+}
+
+function createEmptyTour(rowId: number, startTime = "", endTime = "") {
+  return {
+    rowId,
+    startTime,
+    endTime,
+    projectId: "",
+    purposeType: "CUSTOM",
+    itemId: "",
+    customPurpose: "",
+    quantity: "",
+    quantityUnit: "",
+    notes: "",
+  };
+}
+
+function timeToSortableNumber(value: string) {
+  const [hoursText, minutesText] = value.split(":");
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return 99999;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function sortAndReindexTourRows(rows: TourFormValue[]) {
+  return [...rows]
+    .sort((a, b) => {
+      const startDiff =
+        timeToSortableNumber(a.startTime) - timeToSortableNumber(b.startTime);
+
+      if (startDiff !== 0) {
+        return startDiff;
+      }
+
+      return timeToSortableNumber(a.endTime) - timeToSortableNumber(b.endTime);
+    })
+    .map((row, index) => ({
+      ...row,
+      rowId: index,
+    }));
+}
+
+export function ShortHaulForm({
+  action,
+  id,
+  workDate,
+  projects,
+  vehicles,
+  drivers,
+  materials,
+  asphaltMixes,
+  transportItems,
+  unitOptions,
+  driverConflicts = {},
+  vehicleConflicts = {},
+  shortDriverConflicts = {},
+  shortVehicleConflicts = {},
+  defaultVehicleId = "",
+  defaultDriverId = "",
+  defaultNotes = "",
+  defaultAllowLongHaulConflict = false,
+  defaultTours = [
+    {
+      startTime: "07:00",
+      endTime: "09:00",
+      projectId: "",
+      purposeType: "CUSTOM",
+      itemId: "",
+      customPurpose: "",
+      quantity: "",
+      quantityUnit: "",
+      notes: "",
+    },
+  ],
+}: {
+  action: (formData: FormData) => void | Promise<void>;
+  id?: string;
+  workDate?: string;
+  projects: ProjectOption[];
+  vehicles: VehicleOption[];
+  drivers: DriverOption[];
+  materials: MaterialOption[];
+  asphaltMixes: AsphaltOption[];
+  transportItems: TransportOption[];
+  unitOptions: string[];
+  driverConflicts?: ConflictMap;
+  vehicleConflicts?: ConflictMap;
+  shortDriverConflicts?: ConflictMap;
+  shortVehicleConflicts?: ConflictMap;
+  defaultVehicleId?: string;
+  defaultDriverId?: string;
+  defaultNotes?: string;
+  defaultAllowLongHaulConflict?: boolean;
+  defaultTours?: {
+    startTime: string;
+    endTime: string;
+    projectId: string;
+    purposeType: string;
+    itemId: string;
+    customPurpose: string;
+    quantity: string;
+    quantityUnit: string;
+    notes: string;
+  }[];
+}) {
+  const [selectedDriverId, setSelectedDriverId] = useState(defaultDriverId);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicleId);
+  const [allowLongHaulConflict, setAllowLongHaulConflict] = useState(
+    defaultAllowLongHaulConflict
+  );
+  const [timelinePrefillApplied, setTimelinePrefillApplied] = useState(false);
+
+  const [tourRows, setTourRows] = useState<TourFormValue[]>(
+    defaultTours.length > 0
+      ? defaultTours.map((tour, index) => ({
+          rowId: index,
+          startTime: tour.startTime,
+          endTime: tour.endTime,
+          projectId: tour.projectId,
+          purposeType: tour.purposeType || "CUSTOM",
+          itemId: tour.itemId || "",
+          customPurpose: tour.customPurpose || "",
+          quantity: tour.quantity || "",
+          quantityUnit: tour.quantityUnit || "",
+          notes: tour.notes || "",
+        }))
+      : [
+          {
+            rowId: 0,
+            startTime: "07:00",
+            endTime: "09:00",
+            projectId: "",
+            purposeType: "CUSTOM",
+            itemId: "",
+            customPurpose: "",
+            quantity: "",
+            quantityUnit: "",
+            notes: "",
+          },
+        ]
+  );
+
+  useEffect(() => {
+    if (timelinePrefillApplied) {
+      return;
+    }
+
+    const prefill = getTimelinePrefillFromUrl();
+
+    if (!prefill) {
+      setTimelinePrefillApplied(true);
+      return;
+    }
+
+    if (id && prefill.editAssignmentId !== id) {
+      setTimelinePrefillApplied(true);
+      return;
+    }
+
+    if (!id && prefill.editAssignmentId) {
+      setTimelinePrefillApplied(true);
+      return;
+    }
+
+    let nextDriverId = prefill.driverId || defaultDriverId;
+    let nextVehicleId = prefill.vehicleId || defaultVehicleId;
+
+    if (nextDriverId && !nextVehicleId) {
+      const driver = drivers.find((item) => item.id === nextDriverId);
+      const primaryVehicle = getPrimaryVehicle(driver);
+
+      if (
+        primaryVehicle &&
+        (!shortVehicleConflicts[primaryVehicle.id] ||
+          primaryVehicle.id === defaultVehicleId)
+      ) {
+        nextVehicleId = primaryVehicle.id;
+      }
+    }
+
+    if (nextVehicleId && !nextDriverId) {
+      const vehicle = vehicles.find((item) => item.id === nextVehicleId);
+      const assignedDriver = vehicle?.driverAssignments?.[0]?.driver;
+
+      if (assignedDriver) {
+        const matchedDriver = drivers.find(
+          (driver) =>
+            driver.firstName === assignedDriver.firstName &&
+            driver.lastName === assignedDriver.lastName
+        );
+
+        if (
+          matchedDriver &&
+          (!shortDriverConflicts[matchedDriver.id] ||
+            matchedDriver.id === defaultDriverId)
+        ) {
+          nextDriverId = matchedDriver.id;
+        }
+      }
+    }
+
+    if (nextDriverId) {
+      setSelectedDriverId(nextDriverId);
+    }
+
+    if (nextVehicleId) {
+      setSelectedVehicleId(nextVehicleId);
+    }
+
+    if (prefill.startTime || prefill.endTime) {
+      setTourRows((rows) => {
+        const existingRows =
+          rows.length > 0 ? rows : [createEmptyTour(0, "07:00", "09:00")];
+
+        if (id && prefill.editAssignmentId === id) {
+          const alreadyHasPrefillTour = existingRows.some(
+            (row) =>
+              row.startTime === prefill.startTime &&
+              row.endTime === prefill.endTime &&
+              row.projectId === "" &&
+              row.purposeType === "CUSTOM"
+          );
+
+          if (alreadyHasPrefillTour) {
+            return sortAndReindexTourRows(existingRows);
+          }
+
+          const nextRowId =
+            existingRows.length === 0
+              ? 0
+              : Math.max(...existingRows.map((row) => row.rowId)) + 1;
+
+          return sortAndReindexTourRows([
+            ...existingRows,
+            createEmptyTour(
+              nextRowId,
+              prefill.startTime || "",
+              prefill.endTime || ""
+            ),
+          ]);
+        }
+
+        return sortAndReindexTourRows(
+          existingRows.map((row, index) =>
+            index === 0
+              ? {
+                  ...row,
+                  startTime: prefill.startTime || row.startTime,
+                  endTime: prefill.endTime || row.endTime,
+                }
+              : row
+          )
+        );
+      });
+    }
+
+    setTimelinePrefillApplied(true);
+  }, [
+    drivers,
+    vehicles,
+    id,
+    defaultDriverId,
+    defaultVehicleId,
+    shortDriverConflicts,
+    shortVehicleConflicts,
+    timelinePrefillApplied,
+  ]);
+
+  const selectedDriver = drivers.find(
+    (driver) => driver.id === selectedDriverId
+  );
+
+  const selectedVehicle = vehicles.find(
+    (vehicle) => vehicle.id === selectedVehicleId
+  );
+
+  const driverConflict = selectedDriverId
+    ? driverConflicts[selectedDriverId]
+    : undefined;
+
+  const vehicleConflict = selectedVehicleId
+    ? vehicleConflicts[selectedVehicleId]
+    : undefined;
+
+  const hasLongHaulConflict = Boolean(driverConflict || vehicleConflict);
+  const mustConfirmLongHaulConflict =
+    hasLongHaulConflict && !allowLongHaulConflict;
+
+  const missingVehicle = Boolean(selectedDriverId && !selectedVehicleId);
+  const missingDriver = Boolean(!selectedDriverId);
+
+  const submitDisabled =
+    missingDriver || missingVehicle || mustConfirmLongHaulConflict;
+
+  const conflictText = useMemo(() => {
+    const parts = [];
+
+    if (driverConflict) {
+      parts.push(`Fahrer ist Langstrecke bei ${driverConflict} geplant.`);
+    }
+
+    if (vehicleConflict) {
+      parts.push(`Fahrzeug ist Langstrecke bei ${vehicleConflict} geplant.`);
+    }
+
+    return parts.join(" ");
+  }, [driverConflict, vehicleConflict]);
+
+  function resetConflictConfirmation() {
+    if (!defaultAllowLongHaulConflict) {
+      setAllowLongHaulConflict(false);
+    }
+  }
+
+  function handleDriverChange(driverId: string) {
+    setSelectedDriverId(driverId);
+    resetConflictConfirmation();
+
+    const driver = drivers.find((item) => item.id === driverId);
+    const primaryVehicle = getPrimaryVehicle(driver);
+
+    if (
+      primaryVehicle &&
+      (!shortVehicleConflicts[primaryVehicle.id] ||
+        primaryVehicle.id === selectedVehicleId ||
+        primaryVehicle.id === defaultVehicleId)
+    ) {
+      setSelectedVehicleId(primaryVehicle.id);
+      return;
+    }
+
+    if (selectedVehicleId) {
+      return;
+    }
+
+    setSelectedVehicleId("");
+  }
+
+  function handleVehicleChange(vehicleId: string) {
+    setSelectedVehicleId(vehicleId);
+    resetConflictConfirmation();
+  }
+
+  function useFirstAvailableVehicle() {
+    const vehicleId = getFirstAvailableVehicleId({
+      vehicles,
+      shortVehicleConflicts,
+      currentVehicleId: defaultVehicleId,
+    });
+
+    if (vehicleId) {
+      setSelectedVehicleId(vehicleId);
+      resetConflictConfirmation();
+    }
+  }
+
+  function addTourRow() {
+    setTourRows((rows) => {
+      const previousRow = rows[rows.length - 1];
+
+      return [
+        ...rows,
+        {
+          rowId: Math.max(...rows.map((row) => row.rowId)) + 1,
+          startTime: previousRow?.endTime || "",
+          endTime: "",
+          projectId: "",
+          purposeType: previousRow?.purposeType || "CUSTOM",
+          itemId: "",
+          customPurpose: "",
+          quantity: "",
+          quantityUnit: "",
+          notes: "",
+        },
+      ];
+    });
+  }
+
+  function removeTourRow(rowId: number) {
+    setTourRows((rows) =>
+      sortAndReindexTourRows(
+        rows.length === 1 ? rows : rows.filter((row) => row.rowId !== rowId)
+      )
+    );
+  }
+
+  function updateTourRow(
+    rowId: number,
+    key: keyof Omit<TourFormValue, "rowId">,
+    value: string
+  ) {
+    setTourRows((rows) =>
+      rows.map((row) => {
+        if (row.rowId !== rowId) {
+          return row;
+        }
+
+        if (key === "purposeType") {
+          return {
+            ...row,
+            purposeType: value,
+            itemId: "",
+            customPurpose: "",
+            quantityUnit: "",
+          };
+        }
+
+        if (key === "itemId") {
+          const defaultUnit = getDefaultUnitForPurpose({
+            purposeType: row.purposeType,
+            itemId: value,
+            materials,
+            asphaltMixes,
+          });
+
+          return {
+            ...row,
+            itemId: value,
+            quantityUnit: row.quantityUnit || defaultUnit,
+          };
+        }
+
+        return {
+          ...row,
+          [key]: value,
+        };
+      })
+    );
+  }
+
+  return (
+    <form action={action} className="mt-4 space-y-5">
+      {id ? <input type="hidden" name="id" value={id} /> : null}
+      {workDate ? (
+        <input type="hidden" name="workDate" value={workDate} />
+      ) : null}
+
+      {allowLongHaulConflict ? (
+        <input type="hidden" name="allowLongHaulConflict" value="on" />
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label className="text-sm font-medium text-gray-800">
+          Fahrer
+          <select
+            name="driverId"
+            required
+            value={selectedDriverId}
+            onChange={(event) => handleDriverChange(event.target.value)}
+            className={
+              driverConflict
+                ? "mt-2 w-full rounded-xl border border-yellow-400 bg-yellow-50 px-3 py-2 text-sm text-gray-900"
+                : "mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            }
+          >
+            <option value="" disabled>
+              Fahrer wählen
+            </option>
+
+            {drivers.map((driver) => {
+              const longConflict = driverConflicts[driver.id];
+              const shortConflict = shortDriverConflicts[driver.id];
+              const isCurrentDriver = driver.id === defaultDriverId;
+
+              return (
+                <option
+                  key={driver.id}
+                  value={driver.id}
+                  disabled={Boolean(shortConflict) && !isCurrentDriver}
+                >
+                  {shortConflict && !isCurrentDriver
+                    ? `bereits Kurzstrecke ${shortConflict} · `
+                    : ""}
+                  {shortConflict && isCurrentDriver
+                    ? `aktuelle Einteilung · `
+                    : ""}
+                  {longConflict ? `⚠ Langstrecke ${longConflict} · ` : ""}
+                  {driver.lastName}, {driver.firstName} ·{" "}
+                  {getPrimaryVehicleLabel(driver)}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Fahrzeug / Kennzeichen
+          <select
+            name="vehicleId"
+            required
+            value={selectedVehicleId}
+            onChange={(event) => handleVehicleChange(event.target.value)}
+            className={
+              missingVehicle
+                ? "mt-2 w-full rounded-xl border border-red-400 bg-red-50 px-3 py-2 text-sm text-gray-900"
+                : vehicleConflict
+                  ? "mt-2 w-full rounded-xl border border-yellow-400 bg-yellow-50 px-3 py-2 text-sm text-gray-900"
+                  : "mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            }
+          >
+            <option value="" disabled>
+              Fahrzeug wählen
+            </option>
+
+            {vehicles.map((vehicle) => {
+              const longConflict = vehicleConflicts[vehicle.id];
+              const shortConflict = shortVehicleConflicts[vehicle.id];
+              const isCurrentVehicle = vehicle.id === defaultVehicleId;
+
+              return (
+                <option
+                  key={vehicle.id}
+                  value={vehicle.id}
+                  disabled={Boolean(shortConflict) && !isCurrentVehicle}
+                >
+                  {shortConflict && !isCurrentVehicle
+                    ? `bereits Kurzstrecke ${shortConflict} · `
+                    : ""}
+                  {shortConflict && isCurrentVehicle
+                    ? `aktuelle Einteilung · `
+                    : ""}
+                  {longConflict ? `⚠ Langstrecke ${longConflict} · ` : ""}
+                  {getVehicleAssignmentLabel(vehicle)} ·{" "}
+                  {vehicle.vehicleNumber} · {vehicle.licensePlate ?? "-"} ·{" "}
+                  {vehicle.category} · {vehicle.vehicleType}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+      </div>
+
+      {selectedDriver ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+          Stammfahrzeug-Vorschlag:{" "}
+          <span className="font-semibold text-gray-900">
+            {getPrimaryVehicleLabel(selectedDriver)}
+          </span>
+        </div>
+      ) : null}
+
+      {missingVehicle ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="font-semibold">Bitte Fahrzeug auswählen</div>
+          <p className="mt-1 text-red-800">
+            Der gewählte Fahrer hat kein automatisch gesetztes verfügbares
+            Stammfahrzeug. Bitte wähle rechts ein Fahrzeug aus.
+          </p>
+
+          <button
+            type="button"
+            onClick={useFirstAvailableVehicle}
+            className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100"
+          >
+            Erstes freies Fahrzeug verwenden
+          </button>
+        </div>
+      ) : null}
+
+      {selectedVehicle ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+          Gewähltes Fahrzeug:{" "}
+          <span className="font-semibold text-gray-900">
+            {selectedVehicle.vehicleNumber} ·{" "}
+            {selectedVehicle.licensePlate ?? "-"} · {selectedVehicle.category} ·{" "}
+            {selectedVehicle.vehicleType}
+          </span>
+        </div>
+      ) : null}
+
+      {hasLongHaulConflict ? (
+        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4">
+          <div className="text-sm font-semibold text-yellow-900">
+            Achtung: Langstrecken-Belegung vorhanden
+          </div>
+
+          <p className="mt-1 text-sm text-yellow-800">{conflictText}</p>
+
+          <label className="mt-3 flex items-start gap-3 rounded-lg border border-yellow-300 bg-white p-3 text-sm font-semibold text-yellow-950">
+            <input
+              type="checkbox"
+              checked={allowLongHaulConflict}
+              onChange={(event) =>
+                setAllowLongHaulConflict(event.target.checked)
+              }
+              className="mt-1 h-4 w-4"
+            />
+
+            <span>
+              <span className="block">
+                Ja, Fahrer/Fahrzeug bewusst zusätzlich in der Kurzstrecke
+                einteilen.
+              </span>
+              <span className="mt-1 block text-xs font-normal leading-5 text-yellow-800">
+                Diese Kurzstrecken-Einteilung wird trotz bestehender
+                Langstrecken-Belegung gespeichert.
+              </span>
+            </span>
+          </label>
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Touren</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Touren werden nach Beginn automatisch als Tour 1, Tour 2, Tour 3
+            sortiert.
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {tourRows.map((tour, index) => {
+            const isLastTour = index === tourRows.length - 1;
+
+            return (
+              <div
+                key={tour.rowId}
+                className="rounded-xl border border-gray-200 bg-white p-4"
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    Tour {index + 1}
+                  </div>
+
+                  {tourRows.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeTourRow(tour.rowId)}
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      entfernen
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="text-xs font-medium text-gray-700">
+                    Beginn
+                    <input
+                      name={`tourStartTime_${tour.rowId}`}
+                      type="time"
+                      required
+                      value={tour.startTime}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "startTime",
+                          event.target.value
+                        )
+                      }
+                      onBlur={() =>
+                        setTourRows((rows) => sortAndReindexTourRows(rows))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Ende
+                    <input
+                      name={`tourEndTime_${tour.rowId}`}
+                      type="time"
+                      required
+                      value={tour.endTime}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "endTime",
+                          event.target.value
+                        )
+                      }
+                      onBlur={() =>
+                        setTourRows((rows) => sortAndReindexTourRows(rows))
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700 md:col-span-2">
+                    Baustelle
+                    <select
+                      name={`tourProjectId_${tour.rowId}`}
+                      required
+                      value={tour.projectId}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "projectId",
+                          event.target.value
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                    >
+                      <option value="" disabled>
+                        Baustelle wählen
+                      </option>
+
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.projectNumber} · {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Zweck-Art
+                    <select
+                      name={`tourPurposeType_${tour.rowId}`}
+                      value={tour.purposeType}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "purposeType",
+                          event.target.value
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                    >
+                      <option value="CUSTOM">Freier Zweck</option>
+                      <option value="MATERIAL">Material</option>
+                      <option value="ASPHALT">Asphalt</option>
+                      <option value="TRANSPORT">Transport / Maschine</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Auswahl
+                    <select
+                      name={`tourItemId_${tour.rowId}`}
+                      value={tour.itemId}
+                      onChange={(event) =>
+                        updateTourRow(tour.rowId, "itemId", event.target.value)
+                      }
+                      disabled={tour.purposeType === "CUSTOM"}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">
+                        {tour.purposeType === "CUSTOM"
+                          ? "Nicht nötig"
+                          : "Aus Liste wählen"}
+                      </option>
+
+                      {tour.purposeType === "MATERIAL"
+                        ? materials.map((material) => (
+                            <option key={material.id} value={material.id}>
+                              {material.name} · {material.unit}
+                              {material.category
+                                ? ` · ${material.category}`
+                                : ""}
+                            </option>
+                          ))
+                        : null}
+
+                      {tour.purposeType === "ASPHALT"
+                        ? asphaltMixes.map((asphalt) => (
+                            <option key={asphalt.id} value={asphalt.id}>
+                              {asphalt.mixNumber} ·{" "}
+                              {asphalt.shortName ?? asphalt.name} ·{" "}
+                              {asphalt.unit}
+                              {asphalt.category ? ` · ${asphalt.category}` : ""}
+                            </option>
+                          ))
+                        : null}
+
+                      {tour.purposeType === "TRANSPORT"
+                        ? transportItems.map((item) => (
+                            <option key={item.value} value={item.value}>
+                              {item.label}
+                            </option>
+                          ))
+                        : null}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Freie Ergänzung / Zweck
+                    <input
+                      name={`tourCustomPurpose_${tour.rowId}`}
+                      value={tour.customPurpose}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "customPurpose",
+                          event.target.value
+                        )
+                      }
+                      placeholder="z.B. Maschine, Sondermaterial, Rückladung"
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Menge
+                    <input
+                      name={`tourQuantity_${tour.rowId}`}
+                      type="number"
+                      step="0.01"
+                      value={tour.quantity}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "quantity",
+                          event.target.value
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700">
+                    Einheit
+                    <select
+                      name={`tourQuantityUnit_${tour.rowId}`}
+                      value={tour.quantityUnit}
+                      onChange={(event) =>
+                        updateTourRow(
+                          tour.rowId,
+                          "quantityUnit",
+                          event.target.value
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Einheit</option>
+                      {unitOptions.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-medium text-gray-700 md:col-span-2">
+                    Bemerkung Tour
+                    <input
+                      name={`tourNotes_${tour.rowId}`}
+                      value={tour.notes}
+                      onChange={(event) =>
+                        updateTourRow(tour.rowId, "notes", event.target.value)
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+                </div>
+
+                {isLastTour ? (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={addTourRow}
+                      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                    >
+                      + Tour
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <label className="block text-sm font-medium text-gray-800">
+        Bemerkung zur Fahrer-/Fahrzeug-Einteilung
+        <input
+          name="notes"
+          defaultValue={defaultNotes}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      {missingDriver ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">
+          Bitte zuerst einen Fahrer auswählen.
+        </div>
+      ) : null}
+
+      {missingVehicle ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">
+          Bitte zuerst ein Fahrzeug auswählen.
+        </div>
+      ) : null}
+
+      {mustConfirmLongHaulConflict ? (
+        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm font-semibold text-yellow-900">
+          Bitte bestätige zuerst bewusst die zusätzliche Kurzstrecken-Einteilung
+          trotz Langstrecke.
+        </div>
+      ) : null}
+
+      <button
+        type="submit"
+        disabled={submitDisabled}
+        className={
+          submitDisabled
+            ? "rounded-xl bg-gray-300 px-5 py-3 text-sm font-semibold text-gray-500"
+            : "rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+        }
+      >
+        Speichern
+      </button>
+    </form>
+  );
+}

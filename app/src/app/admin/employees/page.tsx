@@ -1,0 +1,1432 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { AppShell } from "@/components/AppShell";
+import { prisma } from "@/lib/prisma";
+import { PositionPicker } from "./PositionPicker";
+import { createEmployee, deleteEmployee, updateEmployee } from "./actions";
+
+type FilterValues = Record<string, string>;
+
+function formatDateInput(date: Date | null) {
+  if (!date) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatGermanDate(date: Date | null) {
+  if (!date) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function calculateAge(birthDate: Date | null) {
+  if (!birthDate) {
+    return "-";
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+
+  const hasBirthdayPassed =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() >= birthDate.getDate());
+
+  if (!hasBirthdayPassed) {
+    age -= 1;
+  }
+
+  return String(age);
+}
+
+function getStatusClass(statusValue: string) {
+  if (statusValue === "active") {
+    return "rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800";
+  }
+
+  if (statusValue === "left") {
+    return "rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800";
+  }
+
+  return "rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-800";
+}
+
+function parseDateFilter(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function subtractYears(date: Date, years: number) {
+  return new Date(
+    Date.UTC(date.getFullYear() - years, date.getMonth(), date.getDate())
+  );
+}
+
+function parsePositiveNumber(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  if (Number.isNaN(number) || number < 0) {
+    return null;
+  }
+
+  return number;
+}
+
+function getSortMode(value: string) {
+  if (value === "company") {
+    return "company";
+  }
+
+  if (value === "status") {
+    return "status";
+  }
+
+  return "lastName";
+}
+
+function buildSortHref(filters: FilterValues, sort: string) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && key !== "sort") {
+      params.set(key, value);
+    }
+  }
+
+  params.set("sort", sort);
+
+  return `/admin/employees?${params.toString()}`;
+}
+
+function getSortButtonClass(active: boolean) {
+  return active
+    ? "rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+    : "rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50";
+}
+
+export default async function EmployeesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    status?: string;
+    entryFrom?: string;
+    entryTo?: string;
+    exitFrom?: string;
+    exitTo?: string;
+    company?: string;
+    department?: string;
+    firstName?: string;
+    lastName?: string;
+    position?: string;
+    leadership?: string;
+    birthFrom?: string;
+    birthTo?: string;
+    ageMin?: string;
+    ageMax?: string;
+    gender?: string;
+    mobilePhone?: string;
+    emergencyPhone?: string;
+    street?: string;
+    postalCode?: string;
+    city?: string;
+    notes?: string;
+    sort?: string;
+  }>;
+}) {
+  const params = await searchParams;
+
+  const sortFilter = String(params.sort ?? "").trim();
+  const sortMode = getSortMode(sortFilter);
+
+  const filters: FilterValues = {
+    status: String(params.status ?? "").trim(),
+    entryFrom: String(params.entryFrom ?? "").trim(),
+    entryTo: String(params.entryTo ?? "").trim(),
+    exitFrom: String(params.exitFrom ?? "").trim(),
+    exitTo: String(params.exitTo ?? "").trim(),
+    company: String(params.company ?? "").trim(),
+    department: String(params.department ?? "").trim(),
+    firstName: String(params.firstName ?? "").trim(),
+    lastName: String(params.lastName ?? "").trim(),
+    position: String(params.position ?? "").trim(),
+    leadership: String(params.leadership ?? "").trim(),
+    birthFrom: String(params.birthFrom ?? "").trim(),
+    birthTo: String(params.birthTo ?? "").trim(),
+    ageMin: String(params.ageMin ?? "").trim(),
+    ageMax: String(params.ageMax ?? "").trim(),
+    gender: String(params.gender ?? "").trim(),
+    mobilePhone: String(params.mobilePhone ?? "").trim(),
+    emergencyPhone: String(params.emergencyPhone ?? "").trim(),
+    street: String(params.street ?? "").trim(),
+    postalCode: String(params.postalCode ?? "").trim(),
+    city: String(params.city ?? "").trim(),
+    notes: String(params.notes ?? "").trim(),
+    sort: sortFilter,
+  };
+
+  const filterConditions: any[] = [];
+
+  if (filters.status) {
+    filterConditions.push({
+      statusValue: filters.status,
+    });
+  }
+
+  const entryFrom = parseDateFilter(filters.entryFrom);
+  const entryTo = parseDateFilter(filters.entryTo);
+
+  if (entryFrom) {
+    filterConditions.push({
+      entryDate: {
+        gte: entryFrom,
+      },
+    });
+  }
+
+  if (entryTo) {
+    filterConditions.push({
+      entryDate: {
+        lt: addDays(entryTo, 1),
+      },
+    });
+  }
+
+  const exitFrom = parseDateFilter(filters.exitFrom);
+  const exitTo = parseDateFilter(filters.exitTo);
+
+  if (exitFrom) {
+    filterConditions.push({
+      exitDate: {
+        gte: exitFrom,
+      },
+    });
+  }
+
+  if (exitTo) {
+    filterConditions.push({
+      exitDate: {
+        lt: addDays(exitTo, 1),
+      },
+    });
+  }
+
+  if (filters.company) {
+    filterConditions.push({
+      companyValue: filters.company,
+    });
+  }
+
+  if (filters.department) {
+    filterConditions.push({
+      departmentValue: filters.department,
+    });
+  }
+
+  if (filters.firstName) {
+    filterConditions.push({
+      firstName: {
+        contains: filters.firstName,
+      },
+    });
+  }
+
+  if (filters.lastName) {
+    filterConditions.push({
+      lastName: {
+        contains: filters.lastName,
+      },
+    });
+  }
+
+  if (filters.position) {
+    filterConditions.push({
+      positions: {
+        some: {
+          positionValue: filters.position,
+        },
+      },
+    });
+  }
+
+  if (filters.leadership === "yes") {
+    filterConditions.push({
+      isLeadership: true,
+    });
+  }
+
+  if (filters.leadership === "no") {
+    filterConditions.push({
+      isLeadership: false,
+    });
+  }
+
+  const birthFrom = parseDateFilter(filters.birthFrom);
+  const birthTo = parseDateFilter(filters.birthTo);
+
+  if (birthFrom) {
+    filterConditions.push({
+      birthDate: {
+        gte: birthFrom,
+      },
+    });
+  }
+
+  if (birthTo) {
+    filterConditions.push({
+      birthDate: {
+        lt: addDays(birthTo, 1),
+      },
+    });
+  }
+
+  const ageMin = parsePositiveNumber(filters.ageMin);
+  const ageMax = parsePositiveNumber(filters.ageMax);
+  const today = new Date();
+
+  if (ageMin !== null) {
+    filterConditions.push({
+      birthDate: {
+        lte: subtractYears(today, ageMin),
+      },
+    });
+  }
+
+  if (ageMax !== null) {
+    filterConditions.push({
+      birthDate: {
+        gte: addDays(subtractYears(today, ageMax + 1), 1),
+      },
+    });
+  }
+
+  if (filters.gender) {
+    filterConditions.push({
+      genderValue: filters.gender,
+    });
+  }
+
+  if (filters.mobilePhone) {
+    filterConditions.push({
+      mobilePhone: {
+        contains: filters.mobilePhone,
+      },
+    });
+  }
+
+  if (filters.emergencyPhone) {
+    filterConditions.push({
+      emergencyPhone: {
+        contains: filters.emergencyPhone,
+      },
+    });
+  }
+
+  if (filters.street) {
+    filterConditions.push({
+      street: {
+        contains: filters.street,
+      },
+    });
+  }
+
+  if (filters.postalCode) {
+    filterConditions.push({
+      postalCode: {
+        contains: filters.postalCode,
+      },
+    });
+  }
+
+  if (filters.city) {
+    filterConditions.push({
+      city: {
+        contains: filters.city,
+      },
+    });
+  }
+
+  if (filters.notes) {
+    filterConditions.push({
+      notes: {
+        contains: filters.notes,
+      },
+    });
+  }
+
+  const employeeWhere =
+    filterConditions.length > 0
+      ? {
+          AND: filterConditions,
+        }
+      : {};
+
+  const [
+    employees,
+    statusOptions,
+    companyOptions,
+    departmentOptions,
+    genderOptions,
+    positionOptions,
+  ] = await Promise.all([
+    prisma.employee.findMany({
+      where: employeeWhere,
+      include: {
+        positions: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
+      },
+      orderBy:
+        sortMode === "company"
+          ? [
+              { companyLabel: "asc" },
+              { departmentLabel: "asc" },
+              { lastName: "asc" },
+              { firstName: "asc" },
+            ]
+          : sortMode === "status"
+            ? [
+                { statusValue: "asc" },
+                { lastName: "asc" },
+                { firstName: "asc" },
+              ]
+            : [{ lastName: "asc" }, { firstName: "asc" }],
+    }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "employee_status",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "employee_company",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "employee_department",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "employee_gender",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "employee_position",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+  ]);
+
+  const activeEmployees = employees.filter(
+    (employee) => employee.statusValue === "active"
+  );
+
+  const lkwDrivers = employees.filter((employee) =>
+    employee.positions.some(
+      (position) => position.positionValue === "lkw_fahrer_in"
+    )
+  );
+
+  const leadershipEmployees = employees.filter(
+    (employee) => employee.isLeadership
+  );
+
+  const hasActiveFilters = Object.entries(filters).some(
+    ([key, value]) => key !== "sort" && Boolean(value)
+  );
+
+  return (
+    <AppShell
+      title="Mitarbeiter"
+      description="Zentrale Mitarbeiterverwaltung mit Berufsgruppen, Firmenzuordnung und automatischer LKW-Fahrer-Synchronisierung."
+    >
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
+        <SummaryCard label="Treffer" value={String(employees.length)} />
+        <SummaryCard label="Aktiv" value={String(activeEmployees.length)} />
+        <SummaryCard label="LKW Fahrer*in" value={String(lkwDrivers.length)} />
+        <SummaryCard
+          label="Leitung"
+          value={String(leadershipEmployees.length)}
+        />
+        <SummaryCard
+          label="Ausgetreten"
+          value={String(
+            employees.filter((employee) => employee.statusValue === "left")
+              .length
+          )}
+        />
+      </div>
+
+      <details className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <summary className="cursor-pointer text-xl font-semibold text-gray-900">
+          Mitarbeiter anlegen
+        </summary>
+
+        <EmployeeForm
+          action={createEmployee}
+          statusOptions={statusOptions}
+          companyOptions={companyOptions}
+          departmentOptions={departmentOptions}
+          genderOptions={genderOptions}
+          positionOptions={positionOptions}
+        />
+      </details>
+
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-6 py-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Mitarbeiterliste
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Filter direkt in den Tabellenüberschriften wie bei Excel.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={buildSortHref(filters, "lastName")}
+              className={getSortButtonClass(sortMode === "lastName")}
+            >
+              Nachname A-Z
+            </Link>
+
+            <Link
+              href={buildSortHref(filters, "company")}
+              className={getSortButtonClass(sortMode === "company")}
+            >
+              Nach Firma
+            </Link>
+
+            <Link
+              href={buildSortHref(filters, "status")}
+              className={getSortButtonClass(sortMode === "status")}
+            >
+              Nach Status
+            </Link>
+
+            {hasActiveFilters ? (
+              <Link
+                href={
+                  sortFilter
+                    ? `/admin/employees?sort=${sortMode}`
+                    : "/admin/employees"
+                }
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Alle Filter zurücksetzen
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[2200px] text-left text-sm">
+            <thead className="bg-gray-50 text-gray-800">
+              <tr>
+                <Th>Aktionen</Th>
+
+                <FilterTh title="Status" active={Boolean(filters.status)}>
+                  <SelectFilter
+                    name="status"
+                    value={filters.status}
+                    filters={filters}
+                    exclude={["status"]}
+                    options={statusOptions}
+                    placeholder="Alle Status"
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Eintritt"
+                  active={Boolean(filters.entryFrom || filters.entryTo)}
+                >
+                  <DateRangeFilter
+                    fromName="entryFrom"
+                    toName="entryTo"
+                    fromValue={filters.entryFrom}
+                    toValue={filters.entryTo}
+                    filters={filters}
+                    exclude={["entryFrom", "entryTo"]}
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Austritt"
+                  active={Boolean(filters.exitFrom || filters.exitTo)}
+                >
+                  <DateRangeFilter
+                    fromName="exitFrom"
+                    toName="exitTo"
+                    fromValue={filters.exitFrom}
+                    toValue={filters.exitTo}
+                    filters={filters}
+                    exclude={["exitFrom", "exitTo"]}
+                  />
+                </FilterTh>
+
+                <FilterTh title="Firma" active={Boolean(filters.company)}>
+                  <SelectFilter
+                    name="company"
+                    value={filters.company}
+                    filters={filters}
+                    exclude={["company"]}
+                    options={companyOptions}
+                    placeholder="Alle Firmen"
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Abteilung"
+                  active={Boolean(filters.department)}
+                >
+                  <SelectFilter
+                    name="department"
+                    value={filters.department}
+                    filters={filters}
+                    exclude={["department"]}
+                    options={departmentOptions}
+                    placeholder="Alle Abteilungen"
+                  />
+                </FilterTh>
+
+                <FilterTh title="Vorname" active={Boolean(filters.firstName)}>
+                  <TextFilter
+                    name="firstName"
+                    value={filters.firstName}
+                    filters={filters}
+                    exclude={["firstName"]}
+                    placeholder="Vorname enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="Nachname" active={Boolean(filters.lastName)}>
+                  <TextFilter
+                    name="lastName"
+                    value={filters.lastName}
+                    filters={filters}
+                    exclude={["lastName"]}
+                    placeholder="Nachname enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Berufsgruppen"
+                  active={Boolean(filters.position)}
+                >
+                  <SelectFilter
+                    name="position"
+                    value={filters.position}
+                    filters={filters}
+                    exclude={["position"]}
+                    options={positionOptions}
+                    placeholder="Alle Berufsgruppen"
+                  />
+                </FilterTh>
+
+                <FilterTh title="Leitung" active={Boolean(filters.leadership)}>
+                  <SelectFilter
+                    name="leadership"
+                    value={filters.leadership}
+                    filters={filters}
+                    exclude={["leadership"]}
+                    options={[
+                      { value: "yes", label: "Nur Leitung" },
+                      { value: "no", label: "Ohne Leitung" },
+                    ]}
+                    placeholder="Alle"
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Geburtsdatum"
+                  active={Boolean(filters.birthFrom || filters.birthTo)}
+                >
+                  <DateRangeFilter
+                    fromName="birthFrom"
+                    toName="birthTo"
+                    fromValue={filters.birthFrom}
+                    toValue={filters.birthTo}
+                    filters={filters}
+                    exclude={["birthFrom", "birthTo"]}
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Alter"
+                  active={Boolean(filters.ageMin || filters.ageMax)}
+                >
+                  <NumberRangeFilter
+                    minName="ageMin"
+                    maxName="ageMax"
+                    minValue={filters.ageMin}
+                    maxValue={filters.ageMax}
+                    filters={filters}
+                    exclude={["ageMin", "ageMax"]}
+                  />
+                </FilterTh>
+
+                <FilterTh title="Geschlecht" active={Boolean(filters.gender)}>
+                  <SelectFilter
+                    name="gender"
+                    value={filters.gender}
+                    filters={filters}
+                    exclude={["gender"]}
+                    options={genderOptions}
+                    placeholder="Alle Geschlechter"
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Handynummer"
+                  active={Boolean(filters.mobilePhone)}
+                >
+                  <TextFilter
+                    name="mobilePhone"
+                    value={filters.mobilePhone}
+                    filters={filters}
+                    exclude={["mobilePhone"]}
+                    placeholder="Handynummer enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Notfallkontakt"
+                  active={Boolean(filters.emergencyPhone)}
+                >
+                  <TextFilter
+                    name="emergencyPhone"
+                    value={filters.emergencyPhone}
+                    filters={filters}
+                    exclude={["emergencyPhone"]}
+                    placeholder="Notfallkontakt enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="Straße" active={Boolean(filters.street)}>
+                  <TextFilter
+                    name="street"
+                    value={filters.street}
+                    filters={filters}
+                    exclude={["street"]}
+                    placeholder="Straße enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="PLZ" active={Boolean(filters.postalCode)}>
+                  <TextFilter
+                    name="postalCode"
+                    value={filters.postalCode}
+                    filters={filters}
+                    exclude={["postalCode"]}
+                    placeholder="PLZ enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="Ort" active={Boolean(filters.city)}>
+                  <TextFilter
+                    name="city"
+                    value={filters.city}
+                    filters={filters}
+                    exclude={["city"]}
+                    placeholder="Ort enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="Bemerkung" active={Boolean(filters.notes)}>
+                  <TextFilter
+                    name="notes"
+                    value={filters.notes}
+                    filters={filters}
+                    exclude={["notes"]}
+                    placeholder="Bemerkung enthält..."
+                  />
+                </FilterTh>
+              </tr>
+            </thead>
+
+            <tbody>
+              {employees.length === 0 ? (
+                <tr>
+                  <td colSpan={19} className="p-8 text-center text-gray-500">
+                    Keine Mitarbeiter für die aktuelle Filterauswahl gefunden.
+                  </td>
+                </tr>
+              ) : (
+                employees.map((employee) => (
+                  <tr key={employee.id} className="border-t border-gray-100">
+                    <Td>
+                      <details>
+                        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
+                          Bearbeiten
+                        </summary>
+
+                        <EmployeeForm
+                          action={updateEmployee}
+                          id={employee.id}
+                          statusOptions={statusOptions}
+                          companyOptions={companyOptions}
+                          departmentOptions={departmentOptions}
+                          genderOptions={genderOptions}
+                          positionOptions={positionOptions}
+                          defaultStatusValue={employee.statusValue}
+                          defaultEntryDate={formatDateInput(
+                            employee.entryDate
+                          )}
+                          defaultExitDate={formatDateInput(employee.exitDate)}
+                          defaultCompanyValue={employee.companyValue ?? ""}
+                          defaultDepartmentValue={
+                            employee.departmentValue ?? ""
+                          }
+                          defaultFirstName={employee.firstName}
+                          defaultLastName={employee.lastName}
+                          defaultIsLeadership={employee.isLeadership}
+                          defaultBirthDate={formatDateInput(
+                            employee.birthDate
+                          )}
+                          defaultGenderValue={employee.genderValue ?? ""}
+                          defaultMobilePhone={employee.mobilePhone ?? ""}
+                          defaultEmergencyPhone={
+                            employee.emergencyPhone ?? ""
+                          }
+                          defaultStreet={employee.street ?? ""}
+                          defaultPostalCode={employee.postalCode ?? ""}
+                          defaultCity={employee.city ?? ""}
+                          defaultNotes={employee.notes ?? ""}
+                          defaultPositionValues={employee.positions.map(
+                            (position) => position.positionValue
+                          )}
+                        />
+
+                        <form action={deleteEmployee} className="mt-3">
+                          <input
+                            type="hidden"
+                            name="id"
+                            value={employee.id}
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            Mitarbeiter löschen
+                          </button>
+                        </form>
+                      </details>
+                    </Td>
+
+                    <Td>
+                      <span className={getStatusClass(employee.statusValue)}>
+                        {employee.statusLabel}
+                      </span>
+                    </Td>
+
+                    <Td>{formatGermanDate(employee.entryDate)}</Td>
+                    <Td>{formatGermanDate(employee.exitDate)}</Td>
+                    <Td>{employee.companyLabel ?? "-"}</Td>
+                    <Td>{employee.departmentLabel ?? "-"}</Td>
+
+                    <Td>
+                      <span className="font-semibold text-gray-900">
+                        {employee.firstName}
+                      </span>
+                    </Td>
+
+                    <Td>
+                      <span className="font-semibold text-gray-900">
+                        {employee.lastName}
+                      </span>
+                    </Td>
+
+                    <Td>
+                      {employee.positions.length === 0 ? (
+                        <span className="text-gray-400">-</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {employee.positions.map((position, index) => (
+                            <span
+                              key={position.id}
+                              className={
+                                index === 0
+                                  ? "rounded-full bg-gray-900 px-2 py-1 text-xs font-semibold text-white"
+                                  : "rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700"
+                              }
+                            >
+                              {position.positionLabel}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </Td>
+
+                    <Td>
+                      {employee.isLeadership ? (
+                        <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
+                          Leitung
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </Td>
+
+                    <Td>{formatGermanDate(employee.birthDate)}</Td>
+                    <Td>{calculateAge(employee.birthDate)}</Td>
+                    <Td>{employee.genderLabel ?? "-"}</Td>
+                    <Td>{employee.mobilePhone ?? "-"}</Td>
+                    <Td>{employee.emergencyPhone ?? "-"}</Td>
+                    <Td>{employee.street ?? "-"}</Td>
+                    <Td>{employee.postalCode ?? "-"}</Td>
+                    <Td>{employee.city ?? "-"}</Td>
+
+                    <Td>
+                      <div className="max-w-[260px] whitespace-normal">
+                        {employee.notes ?? "-"}
+                      </div>
+                    </Td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function EmployeeForm({
+  action,
+  id,
+  statusOptions,
+  companyOptions,
+  departmentOptions,
+  genderOptions,
+  positionOptions,
+  defaultStatusValue = "active",
+  defaultEntryDate = "",
+  defaultExitDate = "",
+  defaultCompanyValue = "",
+  defaultDepartmentValue = "",
+  defaultFirstName = "",
+  defaultLastName = "",
+  defaultIsLeadership = false,
+  defaultBirthDate = "",
+  defaultGenderValue = "",
+  defaultMobilePhone = "",
+  defaultEmergencyPhone = "",
+  defaultStreet = "",
+  defaultPostalCode = "",
+  defaultCity = "",
+  defaultNotes = "",
+  defaultPositionValues = [],
+}: {
+  action: (formData: FormData) => void | Promise<void>;
+  id?: string;
+  statusOptions: { value: string; label: string }[];
+  companyOptions: { value: string; label: string }[];
+  departmentOptions: { value: string; label: string }[];
+  genderOptions: { value: string; label: string }[];
+  positionOptions: { value: string; label: string }[];
+  defaultStatusValue?: string;
+  defaultEntryDate?: string;
+  defaultExitDate?: string;
+  defaultCompanyValue?: string;
+  defaultDepartmentValue?: string;
+  defaultFirstName?: string;
+  defaultLastName?: string;
+  defaultIsLeadership?: boolean;
+  defaultBirthDate?: string;
+  defaultGenderValue?: string;
+  defaultMobilePhone?: string;
+  defaultEmergencyPhone?: string;
+  defaultStreet?: string;
+  defaultPostalCode?: string;
+  defaultCity?: string;
+  defaultNotes?: string;
+  defaultPositionValues?: string[];
+}) {
+  return (
+    <form action={action} className="mt-6 space-y-5">
+      {id ? <input type="hidden" name="id" value={id} /> : null}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <label className="text-sm font-medium text-gray-800">
+          Status
+          <select
+            name="statusValue"
+            defaultValue={defaultStatusValue}
+            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Eintritt
+          <input
+            name="entryDate"
+            type="date"
+            defaultValue={defaultEntryDate}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Austritt
+          <input
+            name="exitDate"
+            type="date"
+            defaultValue={defaultExitDate}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Firma
+          <select
+            name="companyValue"
+            defaultValue={defaultCompanyValue}
+            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            <option value="">Firma wählen</option>
+            {companyOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Abteilung
+          <select
+            name="departmentValue"
+            defaultValue={defaultDepartmentValue}
+            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            <option value="">Abteilung wählen</option>
+            {departmentOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Vorname
+          <input
+            name="firstName"
+            required
+            defaultValue={defaultFirstName}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Nachname
+          <input
+            name="lastName"
+            required
+            defaultValue={defaultLastName}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Geburtsdatum
+          <input
+            name="birthDate"
+            type="date"
+            defaultValue={defaultBirthDate}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Geschlecht
+          <select
+            name="genderValue"
+            defaultValue={defaultGenderValue}
+            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          >
+            <option value="">Geschlecht wählen</option>
+            {genderOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Handynummer
+          <input
+            name="mobilePhone"
+            defaultValue={defaultMobilePhone}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Notfallkontakt Handy
+          <input
+            name="emergencyPhone"
+            defaultValue={defaultEmergencyPhone}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Straße
+          <input
+            name="street"
+            defaultValue={defaultStreet}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          PLZ
+          <input
+            name="postalCode"
+            defaultValue={defaultPostalCode}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Ort
+          <input
+            name="city"
+            defaultValue={defaultCity}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+      </div>
+
+      <PositionPicker
+        options={positionOptions}
+        defaultValues={defaultPositionValues}
+        defaultIsLeadership={defaultIsLeadership}
+      />
+
+      <label className="block text-sm font-medium text-gray-800">
+        Bemerkung
+        <textarea
+          name="notes"
+          rows={3}
+          defaultValue={defaultNotes}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+      >
+        Speichern
+      </button>
+    </form>
+  );
+}
+
+function HiddenFilterInputs({
+  filters,
+  exclude,
+}: {
+  filters: FilterValues;
+  exclude: string[];
+}) {
+  return (
+    <>
+      {Object.entries(filters).map(([key, value]) => {
+        if (!value || exclude.includes(key)) {
+          return null;
+        }
+
+        return <input key={key} type="hidden" name={key} value={value} />;
+      })}
+    </>
+  );
+}
+
+function FilterTh({
+  title,
+  active,
+  children,
+}: {
+  title: string;
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <th className="relative whitespace-nowrap p-4 font-semibold">
+      <div className="flex items-center gap-2">
+        <span>{title}</span>
+
+        <details className="relative">
+          <summary
+            className={
+              active
+                ? "flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-md bg-gray-900 text-xs text-white"
+                : "flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-md border border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-50"
+            }
+            title="Filter"
+          >
+            ▾
+          </summary>
+
+          <div className="absolute left-0 top-8 z-30 w-72 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-xl">
+            {children}
+          </div>
+        </details>
+      </div>
+    </th>
+  );
+}
+
+function TextFilter({
+  name,
+  value,
+  filters,
+  exclude,
+  placeholder,
+}: {
+  name: string;
+  value: string;
+  filters: FilterValues;
+  exclude: string[];
+  placeholder: string;
+}) {
+  return (
+    <form action="/admin/employees" className="space-y-3">
+      <HiddenFilterInputs filters={filters} exclude={exclude} />
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Text enthält
+        <input
+          name={name}
+          defaultValue={value}
+          placeholder={placeholder}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal text-gray-900"
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="w-full rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+      >
+        Anwenden
+      </button>
+    </form>
+  );
+}
+
+function SelectFilter({
+  name,
+  value,
+  filters,
+  exclude,
+  options,
+  placeholder,
+}: {
+  name: string;
+  value: string;
+  filters: FilterValues;
+  exclude: string[];
+  options: { value: string; label: string }[];
+  placeholder: string;
+}) {
+  return (
+    <form action="/admin/employees" className="space-y-3">
+      <HiddenFilterInputs filters={filters} exclude={exclude} />
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Auswahl
+        <select
+          name={name}
+          defaultValue={value}
+          className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900"
+        >
+          <option value="">{placeholder}</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        type="submit"
+        className="w-full rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+      >
+        Anwenden
+      </button>
+    </form>
+  );
+}
+
+function DateRangeFilter({
+  fromName,
+  toName,
+  fromValue,
+  toValue,
+  filters,
+  exclude,
+}: {
+  fromName: string;
+  toName: string;
+  fromValue: string;
+  toValue: string;
+  filters: FilterValues;
+  exclude: string[];
+}) {
+  return (
+    <form action="/admin/employees" className="space-y-3">
+      <HiddenFilterInputs filters={filters} exclude={exclude} />
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Von
+        <input
+          type="date"
+          name={fromName}
+          defaultValue={fromValue}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal text-gray-900"
+        />
+      </label>
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Bis
+        <input
+          type="date"
+          name={toName}
+          defaultValue={toValue}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal text-gray-900"
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="w-full rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+      >
+        Anwenden
+      </button>
+    </form>
+  );
+}
+
+function NumberRangeFilter({
+  minName,
+  maxName,
+  minValue,
+  maxValue,
+  filters,
+  exclude,
+}: {
+  minName: string;
+  maxName: string;
+  minValue: string;
+  maxValue: string;
+  filters: FilterValues;
+  exclude: string[];
+}) {
+  return (
+    <form action="/admin/employees" className="space-y-3">
+      <HiddenFilterInputs filters={filters} exclude={exclude} />
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Mindestens
+        <input
+          type="number"
+          name={minName}
+          defaultValue={minValue}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal text-gray-900"
+        />
+      </label>
+
+      <label className="block text-xs font-semibold text-gray-700">
+        Maximal
+        <input
+          type="number"
+          name={maxName}
+          defaultValue={maxValue}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal text-gray-900"
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="w-full rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+      >
+        Anwenden
+      </button>
+    </form>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-gray-500">{label}</p>
+      <p className="mt-3 text-3xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function Th({ children }: { children: ReactNode }) {
+  return <th className="whitespace-nowrap p-4 font-semibold">{children}</th>;
+}
+
+function Td({ children }: { children: ReactNode }) {
+  return <td className="p-4 align-top text-gray-700">{children}</td>;
+}

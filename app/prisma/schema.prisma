@@ -1,0 +1,804 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum ProjectStatus {
+  NOT_STARTED
+  ACTIVE
+  PAUSED
+  FINISHED
+  CANCELLED
+}
+
+model Project {
+  id                  String        @id @default(cuid())
+  projectNumber       String        @unique
+  name                String
+  constructionManager String?
+  plannedStart        DateTime?
+  plannedEnd          DateTime?
+  actualStart         DateTime?
+  actualEnd           DateTime?
+  status              ProjectStatus @default(NOT_STARTED)
+
+  contractValueNet Int   @default(0)
+  changeOrdersNet  Int   @default(0)
+  progressPercent  Float @default(0)
+  paymentsNet      Int   @default(0)
+
+  notes String?
+
+  asphaltDispatchEntries AsphaltDispatchEntry[]
+  truckLongHaulEntries   TruckLongHaulEntry[]
+  shortHaulAssignments   ShortHaulAssignment[]
+  shortHaulTours         ShortHaulTour[]
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
+  crewPlanningRows       CrewPlanningRow[]
+  equipmentDispatchAssignments EquipmentDispatchAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Driver {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  shortcut  String? @unique
+  phone     String?
+  isActive  Boolean @default(true)
+  notes     String?
+
+  shortHaulAssignments          ShortHaulAssignment[]
+  vehicleAssignments            DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments TruckLongHaulTruckAssignment[]
+  asphaltLoadAllocations        AsphaltLoadAllocation[]
+
+  employee Employee? @relation("EmployeeDriver")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vehicle {
+  id               String  @id @default(cuid())
+  vehicleNumber    String  @unique
+  licensePlate     String? @unique
+  vehicleType      String
+  category         String
+  isSpecialVehicle Boolean @default(false)
+  isActive         Boolean @default(true)
+  notes            String?
+
+  asphaltPayloadTons Float @default(0)
+
+  shortHaulAssignments           ShortHaulAssignment[]
+  driverAssignments              DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments  TruckLongHaulTruckAssignment[]
+  specialVehicleTasks            SpecialVehicleTask[]
+  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
+  tours                          ShortHaulTour[]
+  asphaltLoadAllocations         AsphaltLoadAllocation[]
+  crewDefaultVehicles            CrewDefaultVehicle[]
+  crewPlanningAssignmentVehicles CrewPlanningAssignmentVehicle[]
+  equipmentDispatchAssignments    EquipmentDispatchAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DriverVehicleAssignment {
+  id String @id @default(cuid())
+
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  isPrimary Boolean @default(true)
+  isActive  Boolean @default(true)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([driverId, vehicleId])
+  @@index([driverId])
+  @@index([vehicleId])
+}
+
+model MaterialType {
+  id             String  @id @default(cuid())
+  materialNumber String? @unique
+  name           String
+  category       String?
+  unit           String  @default("t")
+  isActive       Boolean @default(true)
+  notes          String?
+
+  truckLongHaulEntries TruckLongHaulEntry[]
+  asphaltTackCoatEntries AsphaltDispatchEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AsphaltMixType {
+  id        String  @id @default(cuid())
+  mixNumber String  @unique
+  name      String
+  shortName String?
+  unit      String  @default("t")
+  category  String?
+  plant     String?
+  isActive  Boolean @default(true)
+  notes     String?
+
+  asphaltDispatchEntries AsphaltDispatchEntry[]
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConcreteType {
+  id            String  @id @default(cuid())
+  typeNumber    String  @unique
+  name          String
+  strengthClass String?
+  exposureClass String?
+  aggregate     String?
+  consistency   String?
+  unit          String  @default("m3")
+  isActive      Boolean @default(true)
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminOption {
+  id        String  @id @default(cuid())
+  groupKey  String
+  value     String
+  label     String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupKey, value])
+  @@index([groupKey])
+}
+
+model AsphaltDispatchEntry {
+  id String @id @default(cuid())
+
+  workDate DateTime
+  crew     String
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber       String  @default("")
+  projectName         String  @default("")
+  constructionManager String?
+
+  asphaltMixTypeId String?
+  asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+
+  asphaltMixNumber String?
+  asphaltMixName   String?
+
+  quantityTons Float   @default(0)
+
+  tackCoatMaterialTypeId String?
+  tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  tackCoatMaterialName   String?
+  tackCoatQuantity       Float   @default(0)
+  tackCoatUnit           String?
+
+  isForeignMix Boolean @default(false)
+
+  notes String?
+
+  truckLongHaulEntries   TruckLongHaulEntry[]
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([crew])
+  @@index([projectId])
+  @@index([asphaltMixTypeId])
+  @@index([tackCoatMaterialTypeId])
+}
+
+model TruckLongHaulEntry {
+  id String @id @default(cuid())
+
+  workDate       DateTime
+  assignmentType String   @default("CONSTRUCTION")
+  asphaltCrew    String?
+
+  asphaltDispatchEntryId String?
+  asphaltDispatchEntry   AsphaltDispatchEntry? @relation(fields: [asphaltDispatchEntryId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber       String  @default("")
+  projectName         String  @default("")
+  constructionManager String?
+
+  materialTypeId String?
+  materialType   MaterialType? @relation(fields: [materialTypeId], references: [id], onDelete: SetNull)
+
+  materialName     String?
+  materialUnit     String?
+  materialQuantity Float   @default(0)
+
+  notes String?
+
+  truckAssignments       TruckLongHaulTruckAssignment[]
+  shortHaulAssignments   ShortHaulAssignment[]
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([assignmentType])
+  @@index([asphaltCrew])
+  @@index([asphaltDispatchEntryId])
+  @@index([projectId])
+  @@index([materialTypeId])
+}
+
+model TruckLongHaulTruckAssignment {
+  id String @id @default(cuid())
+
+  entryId String
+  entry   TruckLongHaulEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  ownerType       String
+  vehicleCategory String
+
+  driverId   String?
+  driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  driverName String?
+
+  vehicleId     String?
+  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleNumber String?
+  licensePlate  String?
+  vehicleType   String?
+
+  subcontractorName String?
+  notes             String?
+
+  plannedTourCount   Int     @default(0)
+  plannedTonsPerTour Float   @default(0)
+  plannedTotalTons   Float   @default(0)
+  plannedStartTime   String  @default("06:30")
+  plannedEndTime     String  @default("17:00")
+  plannedNotes       String?
+
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entryId])
+  @@index([ownerType])
+  @@index([vehicleCategory])
+  @@index([driverId])
+  @@index([vehicleId])
+}
+
+model ShortHaulAssignment {
+  id String @id @default(cuid())
+
+  workDate  DateTime
+  startTime String   @default("07:00")
+
+  truckLongHaulEntryId String?
+  truckLongHaulEntry   TruckLongHaulEntry? @relation(fields: [truckLongHaulEntryId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber String @default("")
+  projectName   String @default("")
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  vehicleNumber   String?
+  licensePlate    String?
+  vehicleType     String?
+  vehicleCategory String?
+
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  driverName String?
+
+  material String?
+  notes    String?
+
+  allowLongHaulConflict Boolean @default(false)
+  conflictNote          String?
+
+  tours                  ShortHaulTour[]
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([truckLongHaulEntryId])
+  @@index([projectId])
+  @@index([vehicleId])
+  @@index([driverId])
+}
+
+model ShortHaulTour {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   ShortHaulAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  tourNumber Int    @default(1)
+  startTime  String
+  endTime    String
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber String @default("")
+  projectName   String @default("")
+
+  purposeType   String  @default("CUSTOM")
+  itemId        String?
+  itemName      String?
+  customPurpose String?
+
+  quantity     Float?
+  quantityUnit String?
+
+  material String?
+  notes    String?
+
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignmentId])
+  @@index([projectId])
+  @@index([purposeType])
+  @@index([itemId])
+  @@index([startTime])
+  @@index([endTime])
+}
+
+model SpecialVehicleTask {
+  id String @id @default(cuid())
+
+  workDate DateTime
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  vehicleName String
+  taskText    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([vehicleId])
+  @@index([vehicleName])
+}
+
+model SpecialVehicleDispatchAssignment {
+  id String @id @default(cuid())
+
+  workDate  DateTime
+  startTime String   @default("07:00")
+  endTime   String   @default("17:00")
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  vehicleName String @default("")
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber String @default("")
+  projectName   String @default("")
+
+  crewId String?
+  crew   Crew? @relation(fields: [crewId], references: [id], onDelete: SetNull)
+
+  crewName String?
+
+  taskText String @default("")
+
+  materialName String?
+  quantity     Float?
+  quantityUnit String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([vehicleId])
+  @@index([projectId])
+  @@index([crewId])
+  @@index([startTime])
+  @@index([endTime])
+}
+
+model AsphaltLoadAllocation {
+  id String @id @default(cuid())
+
+  workDate   DateTime
+  sourceType String   @default("SHORT")
+
+  asphaltDispatchEntryId String
+  asphaltDispatchEntry   AsphaltDispatchEntry @relation(fields: [asphaltDispatchEntryId], references: [id], onDelete: Cascade)
+
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectNumber String   @default("")
+  projectName   String   @default("")
+
+  asphaltMixTypeId String?
+  asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+  asphaltMixNumber String?
+  asphaltMixName   String?
+
+  shortHaulAssignmentId String?
+  shortHaulAssignment   ShortHaulAssignment? @relation(fields: [shortHaulAssignmentId], references: [id], onDelete: Cascade)
+
+  longHaulEntryId String?
+  longHaulEntry   TruckLongHaulEntry? @relation(fields: [longHaulEntryId], references: [id], onDelete: Cascade)
+
+  longHaulTruckAssignmentId String?
+  longHaulTruckAssignment   TruckLongHaulTruckAssignment? @relation(fields: [longHaulTruckAssignmentId], references: [id], onDelete: Cascade)
+
+  ownerType String @default("OWN")
+
+  vehicleId       String?
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleNumber   String?
+  licensePlate    String?
+  vehicleType     String?
+  vehicleCategory String?
+
+  driverId   String?
+  driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  driverName String?
+
+  subcontractorName String?
+
+  tourCount   Int   @default(1)
+  tonsPerTour Float @default(0)
+  totalTons   Float @default(0)
+
+  startTime String @default("06:30")
+  endTime   String @default("17:00")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workDate])
+  @@index([sourceType])
+  @@index([asphaltDispatchEntryId])
+  @@index([projectId])
+  @@index([asphaltMixTypeId])
+  @@index([shortHaulAssignmentId])
+  @@index([longHaulEntryId])
+  @@index([longHaulTruckAssignmentId])
+  @@index([vehicleId])
+  @@index([driverId])
+}
+
+model Employee {
+  id String @id @default(cuid())
+
+  statusValue String @default("active")
+  statusLabel String @default("Aktiv")
+
+  entryDate DateTime?
+  exitDate  DateTime?
+
+  companyValue String?
+  companyLabel String?
+
+  departmentValue String?
+  departmentLabel String?
+
+  firstName String
+  lastName  String
+
+  isLeadership Boolean @default(false)
+
+  birthDate   DateTime?
+  genderValue String?
+  genderLabel String?
+
+  mobilePhone    String?
+  emergencyPhone String?
+
+  street     String?
+  postalCode String?
+  city       String?
+
+  driverId String? @unique
+  driver   Driver? @relation("EmployeeDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  positions EmployeePositionAssignment[]
+
+  crewMemberships                 CrewMember[]
+  crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([statusValue])
+  @@index([companyValue])
+  @@index([departmentValue])
+  @@index([lastName])
+  @@index([driverId])
+}
+
+model EmployeePositionAssignment {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  positionValue String
+  positionLabel String
+  sortOrder     Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, positionValue])
+  @@index([employeeId])
+  @@index([positionValue])
+}
+
+model WorkTimePreset {
+  id        String  @id @default(cuid())
+  name      String
+  startTime String  @default("06:30")
+  endTime   String  @default("17:00")
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Crew {
+  id String @id @default(cuid())
+
+  name String
+
+  typeValue String?
+  typeLabel String?
+
+  colorClass String?
+  notes      String?
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+  isAsphaltDispatchCrew Boolean @default(false)
+
+  members         CrewMember[]
+  defaultVehicles CrewDefaultVehicle[]
+  assignments     CrewPlanningAssignment[]
+  equipmentDispatchAssignments EquipmentDispatchAssignment[]
+  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([typeValue])
+  @@index([isActive])
+}
+
+model CrewMember {
+  id String @id @default(cuid())
+
+  crewId String
+  crew   Crew   @relation(fields: [crewId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  roleText  String?
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([crewId, employeeId])
+  @@index([crewId])
+  @@index([employeeId])
+}
+
+model CrewDefaultVehicle {
+  id String @id @default(cuid())
+
+  crewId String
+  crew   Crew   @relation(fields: [crewId], references: [id], onDelete: Cascade)
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  notes     String?
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([crewId, vehicleId])
+  @@index([crewId])
+  @@index([vehicleId])
+}
+
+model EquipmentDispatchAssignment {
+  id String @id @default(cuid())
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  crewId String?
+  crew   Crew? @relation(fields: [crewId], references: [id], onDelete: SetNull)
+
+  startDate DateTime
+  endDate   DateTime
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vehicleId])
+  @@index([projectId])
+  @@index([crewId])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model CrewPlanningRow {
+  id String @id @default(cuid())
+
+  weekStart DateTime
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  projectNumber String @default("")
+  projectName   String @default("")
+
+  rowTitle String?
+  notes    String?
+
+  sortOrder Int @default(0)
+
+  assignments CrewPlanningAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([weekStart])
+  @@index([projectId])
+  @@index([sortOrder])
+}
+
+model CrewPlanningAssignment {
+  id String @id @default(cuid())
+
+  rowId String
+  row   CrewPlanningRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+
+  crewId String?
+  crew   Crew?   @relation(fields: [crewId], references: [id], onDelete: SetNull)
+
+  crewName      String  @default("")
+  crewTypeValue String?
+  crewTypeLabel String?
+
+  startDate DateTime
+  endDate   DateTime
+
+  startTime String @default("06:30")
+  endTime   String @default("17:00")
+
+  notes String?
+
+  extraEmployees CrewPlanningAssignmentEmployee[]
+  extraVehicles  CrewPlanningAssignmentVehicle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rowId])
+  @@index([crewId])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model CrewPlanningAssignmentEmployee {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   CrewPlanningAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  mode String @default("EXTRA")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, employeeId, mode])
+  @@index([assignmentId])
+  @@index([employeeId])
+  @@index([mode])
+}
+
+model CrewPlanningAssignmentVehicle {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   CrewPlanningAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  mode String @default("EXTRA")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, vehicleId, mode])
+  @@index([assignmentId])
+  @@index([vehicleId])
+  @@index([mode])
+}
