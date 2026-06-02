@@ -2,6 +2,10 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getAsphaltOpenPositions } from "@/lib/asphalt-loads";
+import {
+  formatLiters,
+  getTackCoatOpenPositions,
+} from "@/lib/tack-coat-loads";
 import { UtilizationTimeline } from "./short-haul/UtilizationTimeline";
 
 type DetailView =
@@ -275,6 +279,7 @@ export default async function TruckDispatchPage({
     longHaulOwnAssignments,
     longHaulSubcontractorAssignments,
     asphaltOpenPositions,
+    tackCoatOpenPositions,
   ] = await Promise.all([
     prisma.driver.findMany({
       where: {
@@ -359,6 +364,7 @@ export default async function TruckDispatchPage({
     }),
 
     getAsphaltOpenPositions(selectedDate),
+    getTackCoatOpenPositions(selectedDate),
   ]);
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
@@ -402,6 +408,21 @@ export default async function TruckDispatchPage({
 
   const openAsphaltTons = asphaltOpenPositions.reduce(
     (sum, position) => sum + position.openTons,
+    0
+  );
+
+  const totalTackCoatLiters = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.plannedLiters,
+    0
+  );
+
+  const allocatedTackCoatLiters = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.allocatedLiters,
+    0
+  );
+
+  const openTackCoatLiters = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.openLiters,
     0
   );
 
@@ -694,10 +715,15 @@ export default async function TruckDispatchPage({
           isActive={activeDetail === "vehicles"}
         />
 
-        <SummaryCard
-          label="Offene Asphaltmenge"
-          value={`${formatTons(openAsphaltTons)} t`}
-          hint={`${formatTons(allocatedAsphaltTons)} t verteilt`}
+        <OpenQuantitiesSummaryCard
+          asphaltOpen={`${formatTons(openAsphaltTons)} t`}
+          asphaltHint={`${formatTons(allocatedAsphaltTons)} von ${formatTons(
+            totalAsphaltTons
+          )} t verteilt`}
+          tackCoatOpen={`${formatLiters(openTackCoatLiters)} l`}
+          tackCoatHint={`${formatLiters(
+            allocatedTackCoatLiters
+          )} von ${formatLiters(totalTackCoatLiters)} l eingeteilt`}
           href={buildDetailHref(selectedDateInput, "asphalt")}
           isActive={activeDetail === "asphalt"}
         />
@@ -711,9 +737,13 @@ export default async function TruckDispatchPage({
           longHaulOwnAssignments={longHaulOwnAssignments}
           longHaulSubcontractorAssignments={longHaulSubcontractorAssignments}
           asphaltOpenPositions={asphaltOpenPositions}
+          tackCoatOpenPositions={tackCoatOpenPositions}
           totalAsphaltTons={totalAsphaltTons}
           allocatedAsphaltTons={allocatedAsphaltTons}
           openAsphaltTons={openAsphaltTons}
+          totalTackCoatLiters={totalTackCoatLiters}
+          allocatedTackCoatLiters={allocatedTackCoatLiters}
+          openTackCoatLiters={openTackCoatLiters}
           vehicles={vehicles}
         />
       ) : null}
@@ -760,9 +790,13 @@ function DetailPanel({
   longHaulOwnAssignments,
   longHaulSubcontractorAssignments,
   asphaltOpenPositions,
+  tackCoatOpenPositions,
   totalAsphaltTons,
   allocatedAsphaltTons,
   openAsphaltTons,
+  totalTackCoatLiters,
+  allocatedTackCoatLiters,
+  openTackCoatLiters,
   vehicles,
 }: {
   activeDetail: Exclude<DetailView, null>;
@@ -843,9 +877,25 @@ function DetailPanel({
     openTons: number;
     isFullyAllocated: boolean;
   }[];
+  tackCoatOpenPositions: {
+    key: string;
+    projectNumber: string;
+    projectName: string;
+    materialName: string;
+    quantityUnit: string;
+    plannedLiters: number;
+    specialVehicleLiters: number;
+    shortHaulLiters: number;
+    allocatedLiters: number;
+    openLiters: number;
+    isFullyAllocated: boolean;
+  }[];
   totalAsphaltTons: number;
   allocatedAsphaltTons: number;
   openAsphaltTons: number;
+  totalTackCoatLiters: number;
+  allocatedTackCoatLiters: number;
+  openTackCoatLiters: number;
   vehicles: {
     id: string;
     vehicleNumber: string;
@@ -860,7 +910,7 @@ function DetailPanel({
     foreign: "Fremd-LKW im Detail",
     drivers: "Belegte Fahrer im Detail",
     vehicles: "Belegte Fahrzeuge im Detail",
-    asphalt: "Offene Asphaltmengen im Detail",
+    asphalt: "Offene Mengen im Detail",
   };
 
   return (
@@ -914,11 +964,15 @@ function DetailPanel({
         ) : null}
 
         {activeDetail === "asphalt" ? (
-          <AsphaltDetails
+          <OpenQuantitiesDetails
             asphaltOpenPositions={asphaltOpenPositions}
+            tackCoatOpenPositions={tackCoatOpenPositions}
             totalAsphaltTons={totalAsphaltTons}
             allocatedAsphaltTons={allocatedAsphaltTons}
             openAsphaltTons={openAsphaltTons}
+            totalTackCoatLiters={totalTackCoatLiters}
+            allocatedTackCoatLiters={allocatedTackCoatLiters}
+            openTackCoatLiters={openTackCoatLiters}
           />
         ) : null}
       </div>
@@ -926,11 +980,15 @@ function DetailPanel({
   );
 }
 
-function AsphaltDetails({
+function OpenQuantitiesDetails({
   asphaltOpenPositions,
+  tackCoatOpenPositions,
   totalAsphaltTons,
   allocatedAsphaltTons,
   openAsphaltTons,
+  totalTackCoatLiters,
+  allocatedTackCoatLiters,
+  openTackCoatLiters,
 }: {
   asphaltOpenPositions: {
     asphaltDispatchEntryId: string;
@@ -943,63 +1001,153 @@ function AsphaltDetails({
     openTons: number;
     isFullyAllocated: boolean;
   }[];
+  tackCoatOpenPositions: {
+    key: string;
+    projectNumber: string;
+    projectName: string;
+    materialName: string;
+    quantityUnit: string;
+    plannedLiters: number;
+    specialVehicleLiters: number;
+    shortHaulLiters: number;
+    allocatedLiters: number;
+    openLiters: number;
+    isFullyAllocated: boolean;
+  }[];
   totalAsphaltTons: number;
   allocatedAsphaltTons: number;
   openAsphaltTons: number;
+  totalTackCoatLiters: number;
+  allocatedTackCoatLiters: number;
+  openTackCoatLiters: number;
 }) {
-  if (asphaltOpenPositions.length === 0) {
+  if (asphaltOpenPositions.length === 0 && tackCoatOpenPositions.length === 0) {
     return (
-      <EmptyDetail text="Keine Asphaltmengen aus der Asphaltdisposition für diesen Tag vorhanden." />
+      <EmptyDetail text="Keine Asphalt- oder Anspritzmittelmengen aus der Asphaltdisposition für diesen Tag vorhanden." />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <MiniStat label="Gesamt" value={`${formatTons(totalAsphaltTons)} t`} />
-        <MiniStat
-          label="Verteilt"
-          value={`${formatTons(allocatedAsphaltTons)} t`}
-        />
-        <MiniStat label="Offen" value={`${formatTons(openAsphaltTons)} t`} />
-      </div>
+    <div className="space-y-6">
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Asphalt</h3>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <MiniStat
+              label="Gesamt"
+              value={`${formatTons(totalAsphaltTons)} t`}
+            />
+            <MiniStat
+              label="Verteilt"
+              value={`${formatTons(allocatedAsphaltTons)} t`}
+            />
+            <MiniStat
+              label="Offen"
+              value={`${formatTons(openAsphaltTons)} t`}
+            />
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {asphaltOpenPositions.map((position) => (
-          <DetailCard
-            key={position.asphaltDispatchEntryId}
-            badge={
-              position.isFullyAllocated
-                ? "Asphalt · vollständig verteilt"
-                : "Asphalt · offen"
-            }
-            title={`${position.projectNumber} · ${position.projectName}`}
-            subtitle={`${position.asphaltMixNumber ?? "-"} · ${
-              position.asphaltMixName ?? "-"
-            }`}
-            rows={[
-              {
-                label: "Gesamt",
-                value: `${formatTons(position.totalTons)} t`,
-              },
-              {
-                label: "Verteilt",
-                value: `${formatTons(position.allocatedTons)} t`,
-              },
-              {
-                label: "Offen",
-                value: `${formatTons(position.openTons)} t`,
-              },
-              {
-                label: "Status",
-                value: position.isFullyAllocated
-                  ? "vollständig verteilt"
-                  : "noch offen",
-              },
-            ]}
-          />
-        ))}
-      </div>
+        {asphaltOpenPositions.length === 0 ? (
+          <EmptyDetail text="Keine Asphaltmengen aus der Asphaltdisposition für diesen Tag vorhanden." />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {asphaltOpenPositions.map((position) => (
+              <DetailCard
+                key={position.asphaltDispatchEntryId}
+                badge={
+                  position.isFullyAllocated
+                    ? "Asphalt · vollständig verteilt"
+                    : "Asphalt · offen"
+                }
+                title={`${position.projectNumber} · ${position.projectName}`}
+                subtitle={`${position.asphaltMixNumber ?? "-"} · ${
+                  position.asphaltMixName ?? "-"
+                }`}
+                rows={[
+                  {
+                    label: "Gesamt",
+                    value: `${formatTons(position.totalTons)} t`,
+                  },
+                  {
+                    label: "Verteilt",
+                    value: `${formatTons(position.allocatedTons)} t`,
+                  },
+                  {
+                    label: "Offen",
+                    value: `${formatTons(position.openTons)} t`,
+                  },
+                  {
+                    label: "Status",
+                    value: position.isFullyAllocated
+                      ? "vollständig verteilt"
+                      : "noch offen",
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4 border-t border-gray-100 pt-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">
+            Anspritzmittel
+          </h3>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <MiniStat
+              label="Bedarf"
+              value={`${formatLiters(totalTackCoatLiters)} l`}
+            />
+            <MiniStat
+              label="Eingeteilt"
+              value={`${formatLiters(allocatedTackCoatLiters)} l`}
+            />
+            <MiniStat
+              label="Offen"
+              value={`${formatLiters(openTackCoatLiters)} l`}
+            />
+          </div>
+        </div>
+
+        {tackCoatOpenPositions.length === 0 ? (
+          <EmptyDetail text="Keine Anspritzmittelmengen aus der Asphaltdisposition für diesen Tag vorhanden." />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {tackCoatOpenPositions.map((position) => (
+              <DetailCard
+                key={position.key}
+                badge={
+                  position.isFullyAllocated
+                    ? "Anspritzmittel · vollständig eingeteilt"
+                    : "Anspritzmittel · offen"
+                }
+                title={`${position.projectNumber} · ${position.projectName}`}
+                subtitle={`${position.materialName} · ${position.quantityUnit}`}
+                rows={[
+                  {
+                    label: "Bedarf",
+                    value: `${formatLiters(position.plannedLiters)} l`,
+                  },
+                  {
+                    label: "Spritzwagen",
+                    value: `${formatLiters(position.specialVehicleLiters)} l`,
+                  },
+                  {
+                    label: "Kurzstrecke",
+                    value: `${formatLiters(position.shortHaulLiters)} l`,
+                  },
+                  {
+                    label: "Offen",
+                    value: `${formatLiters(position.openLiters)} l`,
+                  },
+                ]}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1600,6 +1748,75 @@ function SummaryCard({
       >
         {hint}
       </p>
+      <p
+        className={
+          isActive
+            ? "mt-3 text-xs font-semibold text-white"
+            : "mt-3 text-xs font-semibold text-gray-900"
+        }
+      >
+        Details anzeigen →
+      </p>
+    </Link>
+  );
+}
+
+function OpenQuantitiesSummaryCard({
+  asphaltOpen,
+  asphaltHint,
+  tackCoatOpen,
+  tackCoatHint,
+  href,
+  isActive,
+}: {
+  asphaltOpen: string;
+  asphaltHint: string;
+  tackCoatOpen: string;
+  tackCoatHint: string;
+  href: string;
+  isActive: boolean;
+}) {
+  const labelClass = isActive
+    ? "text-sm font-medium text-gray-200"
+    : "text-sm font-medium text-gray-500";
+  const rowLabelClass = isActive
+    ? "text-xs font-semibold text-gray-200"
+    : "text-xs font-semibold text-gray-600";
+  const valueClass = isActive
+    ? "text-xl font-bold text-white"
+    : "text-xl font-bold text-gray-900";
+  const hintClass = isActive ? "text-xs text-gray-300" : "text-xs text-gray-500";
+  const dividerClass = isActive ? "border-gray-700" : "border-gray-100";
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "rounded-2xl border border-gray-900 bg-gray-900 p-6 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+          : "rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+      }
+    >
+      <p className={labelClass}>Offene Mengen</p>
+
+      <div className="mt-3 space-y-3">
+        <div>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className={rowLabelClass}>Asphalt</span>
+            <span className={valueClass}>{asphaltOpen}</span>
+          </div>
+          <p className={`mt-1 ${hintClass}`}>{asphaltHint}</p>
+        </div>
+
+        <div className={`border-t pt-3 ${dividerClass}`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className={rowLabelClass}>Anspritzmittel</span>
+            <span className={valueClass}>{tackCoatOpen}</span>
+          </div>
+          <p className={`mt-1 ${hintClass}`}>{tackCoatHint}</p>
+        </div>
+      </div>
+
       <p
         className={
           isActive

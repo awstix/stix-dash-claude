@@ -454,13 +454,6 @@ export function AsphaltShortSuggestionForm({
                 <input type="hidden" name={`batchTonsPerTour_${index}`} value={row.tonsPerTour} />
                 <input type="hidden" name={`batchStartTime_${index}`} value={row.startTime} />
                 <input type="hidden" name={`batchEndTime_${index}`} value={row.endTime} />
-                <input
-                  type="hidden"
-                  name={`batchNotes_${index}`}
-                  value={`Vorschlag ${index + 1} übernommen · Kapazität ${formatTons(
-                    calculation.capacityTons,
-                  )} t · Zuteilung ${formatTons(calculation.allocatedTons)} t`}
-                />
 
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-xs font-bold text-blue-950">

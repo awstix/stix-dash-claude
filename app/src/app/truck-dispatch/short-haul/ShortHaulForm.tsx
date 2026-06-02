@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 type ProjectOption = {
   id: string;
@@ -1063,10 +1064,11 @@ export function ShortHaulForm({
         disabled={submitDisabled}
         className={
           submitDisabled
-            ? "rounded-xl bg-gray-300 px-5 py-3 text-sm font-semibold text-gray-500"
-            : "rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+            ? "inline-flex items-center justify-center gap-2 rounded-xl bg-gray-300 px-5 py-3 text-sm font-semibold text-gray-500"
+            : "inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
         }
       >
+        <ActionIcon name="save" className="h-4 w-4" />
         Speichern
       </button>
     </form>

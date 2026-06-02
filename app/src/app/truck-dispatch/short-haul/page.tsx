@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ProjectStatus } from "@prisma/client";
+import { ActionIcon, type ActionIconName } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { AsphaltShortAllocationForm } from "./AsphaltShortAllocationForm";
@@ -24,24 +25,14 @@ import {
   deleteTackCoatLoadAllocation,
   updateTackCoatLoadAllocation,
 } from "../tack-coat-load-actions";
+import { DismissibleDetails } from "./DismissibleDetails";
 import { ShortHaulForm } from "./ShortHaulForm";
 import { UtilizationTimeline } from "./UtilizationTimeline";
 import {
   createShortHaulAssignment,
-  createSpecialVehicleTask,
   deleteShortHaulAssignment,
-  deleteSpecialVehicleTask,
   updateShortHaulAssignment,
-  updateSpecialVehicleTask,
 } from "./actions";
-
-const specialVehicleFallback = [
-  "Kranwagen",
-  "Tieflader",
-  "Unimog mit Asphaltfräse",
-  "Abroller 1",
-  "Abroller 2",
-];
 
 const transportFallback = [
   { value: "maschine", label: "Maschine transportieren" },
@@ -52,8 +43,6 @@ const transportFallback = [
 ];
 
 const unitFallback = ["t", "m³", "m3", "Stk", "h", "km", "m", "Pauschal"];
-
-const dayLabels = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
 
 function parseDateParam(value: string | undefined) {
   if (!value) {
@@ -70,20 +59,6 @@ function addDays(date: Date, days: number) {
   return result;
 }
 
-function startOfWeek(date: Date) {
-  const result = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  );
-
-  const day = result.getUTCDay();
-  const diffToMonday = (day + 6) % 7;
-
-  result.setUTCDate(result.getUTCDate() - diffToMonday);
-  result.setUTCHours(0, 0, 0, 0);
-
-  return result;
-}
-
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -95,10 +70,6 @@ function formatGermanDate(date: Date) {
     month: "2-digit",
     year: "numeric",
   }).format(date);
-}
-
-function sameDate(a: Date, b: Date) {
-  return formatDateInput(a) === formatDateInput(b);
 }
 
 function formatQuantity(value: number | null, unit: string | null) {
@@ -233,21 +204,11 @@ export default async function ShortHaulPage({
   const today = formatDateInput(new Date());
   const nextDay = formatDateInput(addDays(selectedDate, 1));
 
-  const weekStart = startOfWeek(selectedDate);
-  const weekEnd = addDays(weekStart, 7);
-
-  const weekDays = dayLabels.map((label, index) => ({
-    label,
-    date: addDays(weekStart, index),
-  }));
-
   const [
     assignments,
-    specialTasks,
     projects,
     vehicles,
     drivers,
-    specialVehicles,
     longHaulAssignments,
     materials,
     asphaltMixes,
@@ -271,16 +232,6 @@ export default async function ShortHaulPage({
         },
       },
       orderBy: [{ startTime: "asc" }, { vehicleNumber: "asc" }],
-    }),
-
-    prisma.specialVehicleTask.findMany({
-      where: {
-        workDate: {
-          gte: weekStart,
-          lt: weekEnd,
-        },
-      },
-      orderBy: [{ workDate: "asc" }, { vehicleName: "asc" }],
     }),
 
     prisma.project.findMany({
@@ -329,14 +280,6 @@ export default async function ShortHaulPage({
         },
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    }),
-
-    prisma.vehicle.findMany({
-      where: {
-        isActive: true,
-        isSpecialVehicle: true,
-      },
-      orderBy: [{ vehicleNumber: "asc" }],
     }),
 
     prisma.truckLongHaulTruckAssignment.findMany({
@@ -512,6 +455,9 @@ export default async function ShortHaulPage({
     (sum, position) => sum + position.shortHaulLiters,
     0
   );
+
+  const allocatedTackCoatLiters =
+    specialVehicleTackCoatLiters + shortHaulTackCoatLiters;
 
   const openTackCoatLiters = tackCoatOpenPositions.reduce(
     (sum, position) => sum + position.openLiters,
@@ -862,7 +808,7 @@ export default async function ShortHaulPage({
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <SummaryCard
           label="Einteilungen"
           value={String(assignments.length)}
@@ -875,16 +821,15 @@ export default async function ShortHaulPage({
           hint="geplante Fahrten"
         />
 
-        <SummaryCard
-          label="Asphalt offen"
-          value={`${formatTons(openAsphaltTons)} t`}
-          hint={`${formatTons(allocatedAsphaltTons)} t verteilt`}
-        />
-
-        <SummaryCard
-          label="Anspritz offen"
-          value={`${formatLiters(openTackCoatLiters)} l`}
-          hint={`${formatLiters(shortHaulTackCoatLiters)} l Kurzstrecke`}
+        <OpenQuantitiesSummaryCard
+          asphaltOpen={`${formatTons(openAsphaltTons)} t`}
+          asphaltHint={`${formatTons(allocatedAsphaltTons)} von ${formatTons(
+            totalAsphaltTons
+          )} t verteilt`}
+          tackCoatOpen={`${formatLiters(openTackCoatLiters)} l`}
+          tackCoatHint={`${formatLiters(
+            allocatedTackCoatLiters
+          )} von ${formatLiters(totalTackCoatLiters)} l eingeteilt`}
         />
 
         <SummaryCard
@@ -900,7 +845,7 @@ export default async function ShortHaulPage({
         />
       </div>
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Nicht verteilte Asphaltmengen
@@ -913,107 +858,107 @@ export default async function ShortHaulPage({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1320px] text-left text-sm">
-            <thead className="bg-gray-50 text-gray-800">
-              <tr>
-                <Th>Baustelle</Th>
-                <Th>Asphaltsorte</Th>
-                <Th>Gesamt</Th>
-                <Th>Verteilt</Th>
-                <Th>Offen</Th>
-                <Th>Menge zuteilen</Th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {asphaltOpenPositions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
-                    Für diesen Tag sind keine Asphaltmengen in der
-                    Asphaltdisposition vorhanden.
-                  </td>
-                </tr>
+        <div className="divide-y divide-gray-100">
+          {asphaltOpenPositions.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              Für diesen Tag sind keine Asphaltmengen in der Asphaltdisposition
+              vorhanden.
+            </div>
+          ) : (
+            asphaltOpenPositions.map((position) =>
+              position.isFullyAllocated ? (
+                <CompactAllocatedRow
+                  key={position.asphaltDispatchEntryId}
+                  title={`${position.projectNumber} · ${position.projectName}`}
+                  detail={`${position.asphaltMixNumber ?? "-"} · ${
+                    position.asphaltMixName ?? "-"
+                  }`}
+                  metrics={[
+                    {
+                      label: "Gesamt",
+                      value: `${formatTons(position.totalTons)} t`,
+                    },
+                    {
+                      label: "verteilt",
+                      value: `${formatTons(position.allocatedTons)} t`,
+                    },
+                  ]}
+                />
               ) : (
-                asphaltOpenPositions.map((position) => (
-                  <tr
-                    key={position.asphaltDispatchEntryId}
-                    className="border-t border-gray-100"
-                  >
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {position.projectNumber}
+                <div
+                  key={position.asphaltDispatchEntryId}
+                  className="p-4"
+                >
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_auto] lg:items-start">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900">
+                        {position.projectNumber} · {position.projectName}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {position.projectName}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {position.asphaltMixNumber ?? "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="mt-1 text-xs text-gray-500">
+                        {position.asphaltMixNumber ?? "-"} ·{" "}
                         {position.asphaltMixName ?? "-"}
                       </div>
-                    </Td>
+                      <span className="mt-2 inline-flex rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">
+                        {formatTons(position.openTons)} t offen
+                      </span>
+                    </div>
 
-                    <Td>
-                      <strong>{formatTons(position.totalTons)} t</strong>
-                    </Td>
-
-                    <Td>{formatTons(position.allocatedTons)} t</Td>
-
-                    <Td>
-                      {position.isFullyAllocated ? (
-                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
-                          vollständig verteilt
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">
-                          {formatTons(position.openTons)} t offen
-                        </span>
-                      )}
-                    </Td>
-
-                    <Td>
-                      <AsphaltShortAllocationForm
-                        workDate={selectedDateInput}
-                        position={{
-                          asphaltDispatchEntryId:
-                            position.asphaltDispatchEntryId,
-                          openTons: position.openTons,
-                          isFullyAllocated: position.isFullyAllocated,
-                        }}
-                        drivers={drivers}
-                        vehicles={vehicles}
-                        driverConflicts={asphaltAllocationDriverConflicts}
-                        vehicleConflicts={asphaltAllocationVehicleConflicts}
+                    <div className="grid grid-cols-3 gap-2">
+                      <QuantityMetric
+                        label="Gesamt"
+                        value={`${formatTons(position.totalTons)} t`}
                       />
-
-                      <AsphaltShortSuggestionForm
-                        workDate={selectedDateInput}
-                        position={{
-                          asphaltDispatchEntryId:
-                            position.asphaltDispatchEntryId,
-                          openTons: position.openTons,
-                          isFullyAllocated: position.isFullyAllocated,
-                        }}
-                        drivers={drivers}
-                        vehicles={vehicles}
-                        driverConflicts={asphaltAllocationDriverConflicts}
-                        vehicleConflicts={asphaltAllocationVehicleConflicts}
+                      <QuantityMetric
+                        label="Verteilt"
+                        value={`${formatTons(position.allocatedTons)} t`}
                       />
-                    </Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <QuantityMetric
+                        label="Offen"
+                        value={`${formatTons(position.openTons)} t`}
+                      />
+                    </div>
+
+                    <DismissibleDetails className="group relative lg:self-start">
+                      <AllocationDetailsSummary label="Zuteilen" />
+                      <EditDetailsPanel align="right">
+                        <AsphaltShortAllocationForm
+                          workDate={selectedDateInput}
+                          position={{
+                            asphaltDispatchEntryId:
+                              position.asphaltDispatchEntryId,
+                            openTons: position.openTons,
+                            isFullyAllocated: position.isFullyAllocated,
+                          }}
+                          drivers={drivers}
+                          vehicles={vehicles}
+                          driverConflicts={asphaltAllocationDriverConflicts}
+                          vehicleConflicts={asphaltAllocationVehicleConflicts}
+                        />
+
+                        <AsphaltShortSuggestionForm
+                          workDate={selectedDateInput}
+                          position={{
+                            asphaltDispatchEntryId:
+                              position.asphaltDispatchEntryId,
+                            openTons: position.openTons,
+                            isFullyAllocated: position.isFullyAllocated,
+                          }}
+                          drivers={drivers}
+                          vehicles={vehicles}
+                          driverConflicts={asphaltAllocationDriverConflicts}
+                          vehicleConflicts={asphaltAllocationVehicleConflicts}
+                        />
+                      </EditDetailsPanel>
+                    </DismissibleDetails>
+                  </div>
+                </div>
+              ),
+            )
+          )}
         </div>
       </section>
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Offene Anspritzmittelmengen
@@ -1026,106 +971,117 @@ export default async function ShortHaulPage({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1320px] text-left text-sm">
-            <thead className="bg-gray-50 text-gray-800">
-              <tr>
-                <Th>Baustelle</Th>
-                <Th>Anspritzmittel</Th>
-                <Th>Bedarf</Th>
-                <Th>Spritzwagen</Th>
-                <Th>Kurzstrecke</Th>
-                <Th>Offen</Th>
-                <Th>Nachlieferung</Th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {tackCoatOpenPositions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-500">
-                    Für diesen Tag sind keine Anspritzmittelmengen in der
-                    Asphaltdisposition vorhanden.
-                  </td>
-                </tr>
+        <div className="divide-y divide-gray-100">
+          {tackCoatOpenPositions.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              Für diesen Tag sind keine Anspritzmittelmengen in der
+              Asphaltdisposition vorhanden.
+            </div>
+          ) : (
+            tackCoatOpenPositions.map((position) =>
+              position.isFullyAllocated ? (
+                <CompactAllocatedRow
+                  key={position.key}
+                  title={`${position.projectNumber} · ${position.projectName}`}
+                  detail={`${position.materialName} · Einheit ${position.quantityUnit}`}
+                  metrics={[
+                    {
+                      label: "Bedarf",
+                      value: `${formatLiters(position.plannedLiters)} ${
+                        position.quantityUnit
+                      }`,
+                    },
+                    {
+                      label: "Spritzwagen",
+                      value: `${formatLiters(position.specialVehicleLiters)} ${
+                        position.quantityUnit
+                      }`,
+                    },
+                    {
+                      label: "Kurzstrecke",
+                      value: `${formatLiters(position.shortHaulLiters)} ${
+                        position.quantityUnit
+                      }`,
+                    },
+                  ]}
+                />
               ) : (
-                tackCoatOpenPositions.map((position) => (
-                  <tr key={position.key} className="border-t border-gray-100">
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {position.projectNumber}
+                <div key={position.key} className="p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,430px)_auto] lg:items-start">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900">
+                        {position.projectNumber} · {position.projectName}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {position.projectName}
+                      <div className="mt-1 text-xs text-gray-500">
+                        {position.materialName} · Einheit {position.quantityUnit}
                       </div>
                       {position.crewNames.length > 0 ? (
                         <div className="mt-1 text-xs text-gray-500">
                           {position.crewNames.join(", ")}
                         </div>
                       ) : null}
-                    </Td>
+                      <span className="mt-2 inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
+                        {formatLiters(position.openLiters)}{" "}
+                        {position.quantityUnit} offen
+                      </span>
+                    </div>
 
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {position.materialName}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Einheit {position.quantityUnit}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <strong>
-                        {formatLiters(position.plannedLiters)} {position.quantityUnit}
-                      </strong>
-                    </Td>
-
-                    <Td>
-                      {formatLiters(position.specialVehicleLiters)} {position.quantityUnit}
-                    </Td>
-
-                    <Td>
-                      {formatLiters(position.shortHaulLiters)} {position.quantityUnit}
-                    </Td>
-
-                    <Td>
-                      {position.isFullyAllocated ? (
-                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
-                          vollständig gedeckt
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
-                          {formatLiters(position.openLiters)} {position.quantityUnit} offen
-                        </span>
-                      )}
-                    </Td>
-
-                    <Td>
-                      <TackCoatShortAllocationForm
-                        workDate={selectedDateInput}
-                        position={{
-                          projectId: position.projectId,
-                          projectNumber: position.projectNumber,
-                          materialName: position.materialName,
-                          quantityUnit: position.quantityUnit,
-                          openLiters: position.openLiters,
-                          isFullyAllocated: position.isFullyAllocated,
-                        }}
-                        drivers={drivers}
-                        vehicles={vehicles}
-                        driverConflicts={tackCoatAllocationDriverConflicts}
-                        vehicleConflicts={tackCoatAllocationVehicleConflicts}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <QuantityMetric
+                        label="Bedarf"
+                        value={`${formatLiters(position.plannedLiters)} ${
+                          position.quantityUnit
+                        }`}
                       />
-                    </Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <QuantityMetric
+                        label="Spritzwagen"
+                        value={`${formatLiters(position.specialVehicleLiters)} ${
+                          position.quantityUnit
+                        }`}
+                      />
+                      <QuantityMetric
+                        label="Kurzstrecke"
+                        value={`${formatLiters(position.shortHaulLiters)} ${
+                          position.quantityUnit
+                        }`}
+                      />
+                      <QuantityMetric
+                        label="Offen"
+                        value={`${formatLiters(position.openLiters)} ${
+                          position.quantityUnit
+                        }`}
+                      />
+                    </div>
+
+                    <DismissibleDetails className="group relative lg:self-start">
+                      <AllocationDetailsSummary label="Zuteilen" />
+                      <EditDetailsPanel align="right">
+                        <TackCoatShortAllocationForm
+                          workDate={selectedDateInput}
+                          position={{
+                            projectId: position.projectId,
+                            projectNumber: position.projectNumber,
+                            materialName: position.materialName,
+                            quantityUnit: position.quantityUnit,
+                            openLiters: position.openLiters,
+                            isFullyAllocated: position.isFullyAllocated,
+                          }}
+                          drivers={drivers}
+                          vehicles={vehicles}
+                          driverConflicts={tackCoatAllocationDriverConflicts}
+                          vehicleConflicts={tackCoatAllocationVehicleConflicts}
+                        />
+                      </EditDetailsPanel>
+                    </DismissibleDetails>
+                  </div>
+                </div>
+              ),
+            )
+          )}
         </div>
       </section>
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Verteilte Asphaltmengen Kurzstrecke
@@ -1136,25 +1092,33 @@ export default async function ShortHaulPage({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1400px] text-left text-sm">
+        <div className="overflow-visible">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col style={{ width: "54px" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "23%" }} />
+              <col style={{ width: "17%" }} />
+            </colgroup>
             <thead className="bg-gray-50 text-gray-800">
               <tr>
+                <Th className="px-2 text-center">
+                  <span className="sr-only">Aktion</span>
+                </Th>
                 <Th>LKW / Fahrer</Th>
-                <Th>Bereich</Th>
-                <Th>Zeit</Th>
-                <Th>Touren</Th>
-                <Th>t / Tour</Th>
-                <Th>Gesamt</Th>
+                <Th>Baustelle</Th>
+                <Th>Asphalt</Th>
+                <Th>Zeit & Menge</Th>
                 <Th>Bemerkung</Th>
-                <Th>Aktionen</Th>
               </tr>
             </thead>
 
             <tbody>
               {shortAsphaltAllocations.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     Noch keine Asphaltmengen auf Kurzstrecken-LKW verteilt.
                   </td>
                 </tr>
@@ -1164,151 +1128,99 @@ export default async function ShortHaulPage({
 
                   return (
                     <tr key={allocation.id} className="border-t border-gray-100">
-                      <Td>
-                        <div className="font-semibold text-gray-900">
-                          {allocation.vehicleLabel}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {allocation.driverName ?? "-"}
-                        </div>
+                      <Td className="px-2 text-center">
+                        <DismissibleDetails className="group relative">
+                          <EditDetailsSummary />
+
+                          <EditDetailsPanel>
+                            <div className="rounded-xl border border-orange-200 bg-white p-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Beginn
+                                  <input
+                                    form={formId}
+                                    name="startTime"
+                                    type="time"
+                                    defaultValue={allocation.startTime}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Ende
+                                  <input
+                                    form={formId}
+                                    name="endTime"
+                                    type="time"
+                                    defaultValue={allocation.endTime}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Touren
+                                  <input
+                                    form={formId}
+                                    name="tourCount"
+                                    type="number"
+                                    min="1"
+                                    defaultValue={allocation.tourCount}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  t / Tour
+                                  <input
+                                    form={formId}
+                                    name="tonsPerTour"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    defaultValue={String(allocation.tonsPerTour)}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="mt-2 block text-xs font-medium text-gray-700">
+                                Bemerkung
+                                <input
+                                  form={formId}
+                                  name="notes"
+                                  defaultValue={allocation.notes ?? ""}
+                                  className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                                />
+                              </label>
+
+                              <div className="mt-3 flex gap-2">
+                                <form id={formId} action={updateAsphaltLoadAllocation}>
+                                  <input
+                                    type="hidden"
+                                    name="id"
+                                    value={allocation.id}
+                                  />
+                                  <IconActionButton
+                                    icon="save"
+                                    title="Asphalt-Zuteilung speichern"
+                                  />
+                                </form>
+
+                                <form action={deleteAsphaltLoadAllocation}>
+                                  <input
+                                    type="hidden"
+                                    name="id"
+                                    value={allocation.id}
+                                  />
+                                  <IconActionButton
+                                    icon="delete"
+                                    title="Asphalt-Zuteilung löschen"
+                                    danger
+                                  />
+                                </form>
+                              </div>
+                            </div>
+                          </EditDetailsPanel>
+                        </DismissibleDetails>
                       </Td>
 
-                      <Td>Kurzstrecke</Td>
-
-                      <Td>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            form={formId}
-                            name="startTime"
-                            type="time"
-                            defaultValue={allocation.startTime}
-                            className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                          />
-                          <input
-                            form={formId}
-                            name="endTime"
-                            type="time"
-                            defaultValue={allocation.endTime}
-                            className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                          />
-                        </div>
-                      </Td>
-
-                      <Td>
-                        <input
-                          form={formId}
-                          name="tourCount"
-                          type="number"
-                          min="1"
-                          defaultValue={allocation.tourCount}
-                          className="w-24 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <input
-                          form={formId}
-                          name="tonsPerTour"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          defaultValue={String(allocation.tonsPerTour)}
-                          className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <strong>{formatTons(allocation.totalTons)} t</strong>
-                      </Td>
-
-                      <Td>
-                        <input
-                          form={formId}
-                          name="notes"
-                          defaultValue={allocation.notes ?? ""}
-                          className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <div className="flex gap-2">
-                          <form id={formId} action={updateAsphaltLoadAllocation}>
-                            <input
-                              type="hidden"
-                              name="id"
-                              value={allocation.id}
-                            />
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                            >
-                              Speichern
-                            </button>
-                          </form>
-
-                          <form action={deleteAsphaltLoadAllocation}>
-                            <input
-                              type="hidden"
-                              name="id"
-                              value={allocation.id}
-                            />
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                            >
-                              Löschen
-                            </button>
-                          </form>
-                        </div>
-                      </Td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Verteilte Anspritzmittel Kurzstrecke
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Hier siehst du, welcher LKW Restmengen oder Nachschub für
-            Anspritzmittel liefert.
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1400px] text-left text-sm">
-            <thead className="bg-gray-50 text-gray-800">
-              <tr>
-                <Th>LKW / Fahrer</Th>
-                <Th>Baustelle</Th>
-                <Th>Zeit</Th>
-                <Th>Touren</Th>
-                <Th>l / Tour</Th>
-                <Th>Gesamt</Th>
-                <Th>Bemerkung</Th>
-                <Th>Aktionen</Th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {shortTackCoatAllocations.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
-                    Noch keine Anspritzmittelmengen auf Kurzstrecken-LKW verteilt.
-                  </td>
-                </tr>
-              ) : (
-                shortTackCoatAllocations.map((allocation) => {
-                  const formId = `tack-coat-allocation-form-${allocation.id}`;
-
-                  return (
-                    <tr key={allocation.id} className="border-t border-gray-100">
                       <Td>
                         <div className="font-semibold text-gray-900">
                           {allocation.vehicleLabel}
@@ -1325,90 +1237,226 @@ export default async function ShortHaulPage({
                         <div className="text-xs text-gray-500">
                           {allocation.projectName}
                         </div>
-                        <div className="mt-1 text-xs font-medium text-gray-600">
+                      </Td>
+
+                      <Td>
+                        <div className="font-semibold text-gray-900">
+                          {allocation.asphaltMixNumber ?? "-"}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {allocation.asphaltMixName ?? "Asphalt"}
+                        </div>
+                      </Td>
+
+                      <Td>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {allocation.startTime} – {allocation.endTime}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          {allocation.tourCount} Tour
+                          {allocation.tourCount === 1 ? "" : "en"} ·{" "}
+                          {formatTons(allocation.tonsPerTour)} t/Tour ·{" "}
+                          <strong>{formatTons(allocation.totalTons)} t gesamt</strong>
+                        </div>
+                      </Td>
+
+                      <Td>
+                        {allocation.notes ? (
+                          <span>{allocation.notes}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Verteilte Anspritzmittel Kurzstrecke
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Hier siehst du, welcher LKW Restmengen oder Nachschub für
+            Anspritzmittel liefert.
+          </p>
+        </div>
+
+        <div className="overflow-visible">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col style={{ width: "54px" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "23%" }} />
+              <col style={{ width: "17%" }} />
+            </colgroup>
+            <thead className="bg-gray-50 text-gray-800">
+              <tr>
+                <Th className="px-2 text-center">
+                  <span className="sr-only">Aktion</span>
+                </Th>
+                <Th>LKW / Fahrer</Th>
+                <Th>Baustelle</Th>
+                <Th>Anspritzmittel</Th>
+                <Th>Zeit & Menge</Th>
+                <Th>Bemerkung</Th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {shortTackCoatAllocations.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    Noch keine Anspritzmittelmengen auf Kurzstrecken-LKW verteilt.
+                  </td>
+                </tr>
+              ) : (
+                shortTackCoatAllocations.map((allocation) => {
+                  const formId = `tack-coat-allocation-form-${allocation.id}`;
+
+                  return (
+                    <tr key={allocation.id} className="border-t border-gray-100">
+                      <Td className="px-2 text-center">
+                        <DismissibleDetails className="group relative">
+                          <EditDetailsSummary />
+
+                          <EditDetailsPanel>
+                            <div className="rounded-xl border border-blue-200 bg-white p-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Beginn
+                                  <input
+                                    form={formId}
+                                    name="startTime"
+                                    type="time"
+                                    defaultValue={allocation.startTime}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Ende
+                                  <input
+                                    form={formId}
+                                    name="endTime"
+                                    type="time"
+                                    defaultValue={allocation.endTime}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  Touren
+                                  <input
+                                    form={formId}
+                                    name="tourCount"
+                                    type="number"
+                                    min="1"
+                                    defaultValue={allocation.tourCount}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-700">
+                                  l / Tour
+                                  <input
+                                    form={formId}
+                                    name="litersPerTour"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    defaultValue={String(allocation.litersPerTour)}
+                                    className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="mt-2 block text-xs font-medium text-gray-700">
+                                Bemerkung
+                                <input
+                                  form={formId}
+                                  name="notes"
+                                  defaultValue={allocation.notes ?? ""}
+                                  className="mt-1 w-full min-w-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                                />
+                              </label>
+
+                              <div className="mt-3 flex gap-2">
+                                <form id={formId} action={updateTackCoatLoadAllocation}>
+                                  <input type="hidden" name="id" value={allocation.id} />
+                                  <IconActionButton
+                                    icon="save"
+                                    title="Anspritzmittel-Zuteilung speichern"
+                                  />
+                                </form>
+
+                                <form action={deleteTackCoatLoadAllocation}>
+                                  <input type="hidden" name="id" value={allocation.id} />
+                                  <IconActionButton
+                                    icon="delete"
+                                    title="Anspritzmittel-Zuteilung löschen"
+                                    danger
+                                  />
+                                </form>
+                              </div>
+                            </div>
+                          </EditDetailsPanel>
+                        </DismissibleDetails>
+                      </Td>
+
+                      <Td>
+                        <div className="font-semibold text-gray-900">
+                          {allocation.vehicleLabel}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {allocation.driverName ?? "-"}
+                        </div>
+                      </Td>
+
+                      <Td>
+                        <div className="font-semibold text-gray-900">
+                          {allocation.projectNumber}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {allocation.projectName}
+                        </div>
+                      </Td>
+
+                      <Td>
+                        <div className="font-semibold text-gray-900">
                           {allocation.materialName}
                         </div>
-                      </Td>
-
-                      <Td>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            form={formId}
-                            name="startTime"
-                            type="time"
-                            defaultValue={allocation.startTime}
-                            className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                          />
-                          <input
-                            form={formId}
-                            name="endTime"
-                            type="time"
-                            defaultValue={allocation.endTime}
-                            className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                          />
+                        <div className="text-xs text-gray-500">
+                          Einheit: {allocation.quantityUnit}
                         </div>
                       </Td>
 
                       <Td>
-                        <input
-                          form={formId}
-                          name="tourCount"
-                          type="number"
-                          min="1"
-                          defaultValue={allocation.tourCount}
-                          className="w-24 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <input
-                          form={formId}
-                          name="litersPerTour"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          defaultValue={String(allocation.litersPerTour)}
-                          className="w-28 rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <strong>
-                          {formatLiters(allocation.totalLiters)} {allocation.quantityUnit}
-                        </strong>
-                      </Td>
-
-                      <Td>
-                        <input
-                          form={formId}
-                          name="notes"
-                          defaultValue={allocation.notes ?? ""}
-                          className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                        />
-                      </Td>
-
-                      <Td>
-                        <div className="flex gap-2">
-                          <form id={formId} action={updateTackCoatLoadAllocation}>
-                            <input type="hidden" name="id" value={allocation.id} />
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                            >
-                              Speichern
-                            </button>
-                          </form>
-
-                          <form action={deleteTackCoatLoadAllocation}>
-                            <input type="hidden" name="id" value={allocation.id} />
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                            >
-                              Löschen
-                            </button>
-                          </form>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {allocation.startTime} – {allocation.endTime}
                         </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          {allocation.tourCount} Tour
+                          {allocation.tourCount === 1 ? "" : "en"} ·{" "}
+                          {formatLiters(allocation.litersPerTour)}{" "}
+                          {allocation.quantityUnit}/Tour ·{" "}
+                          <strong>
+                            {formatLiters(allocation.totalLiters)}{" "}
+                            {allocation.quantityUnit} gesamt
+                          </strong>
+                        </div>
+                      </Td>
+
+                      <Td>
+                        {allocation.notes ? (
+                          <span>{allocation.notes}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </Td>
                     </tr>
                   );
@@ -1470,23 +1518,31 @@ export default async function ShortHaulPage({
         />
       </div>
 
-      <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Tagesaushang Kurzstrecke
           </h2>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1300px] text-left text-sm">
+        <div className="overflow-visible">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col style={{ width: "54px" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "20%" }} />
+              <col />
+              <col style={{ width: "22%" }} />
+            </colgroup>
             <thead className="bg-gray-50 text-gray-800">
               <tr>
+                <Th className="px-2 text-center">
+                  <span className="sr-only">Aktion</span>
+                </Th>
                 <Th>Fahrer</Th>
                 <Th>Fahrzeug</Th>
-                <Th>Kennzeichen</Th>
                 <Th>Touren</Th>
                 <Th>Hinweis</Th>
-                <Th>Aktionen</Th>
               </tr>
             </thead>
 
@@ -1495,7 +1551,7 @@ export default async function ShortHaulPage({
               shortAsphaltAllocations.length === 0 &&
               shortTackCoatAllocations.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     Noch keine Kurzstrecken-Einteilung, Asphalt-Zuteilung oder Anspritzmittel-Nachlieferung für diesen Tag vorhanden.
                   </td>
                 </tr>
@@ -1503,6 +1559,83 @@ export default async function ShortHaulPage({
                 <>
                 {assignments.map((assignment) => (
                   <tr key={assignment.id} className="border-t border-gray-100">
+                    <Td className="px-2 text-center">
+                      <DismissibleDetails className="group relative">
+                        <EditDetailsSummary />
+
+                        <EditDetailsPanel>
+                          <ShortHaulForm
+                            action={updateShortHaulAssignment}
+                            id={assignment.id}
+                            projects={projects}
+                            vehicles={vehicles}
+                            drivers={drivers}
+                            materials={materials}
+                            asphaltMixes={asphaltMixes}
+                            transportItems={transportItems}
+                            unitOptions={unitOptions}
+                            driverConflicts={driverConflicts}
+                            vehicleConflicts={vehicleConflicts}
+                            shortDriverConflicts={buildShortDriverConflicts(
+                              assignment.id
+                            )}
+                            shortVehicleConflicts={buildShortVehicleConflicts(
+                              assignment.id
+                            )}
+                            defaultVehicleId={assignment.vehicleId ?? ""}
+                            defaultDriverId={assignment.driverId ?? ""}
+                            defaultNotes={assignment.notes ?? ""}
+                            defaultAllowLongHaulConflict={
+                              assignment.allowLongHaulConflict
+                            }
+                            defaultTours={
+                              assignment.tours.length > 0
+                                ? assignment.tours.map((tour) => ({
+                                    startTime: tour.startTime,
+                                    endTime: tour.endTime,
+                                    projectId: tour.projectId ?? "",
+                                    purposeType: tour.purposeType ?? "CUSTOM",
+                                    itemId: tour.itemId ?? "",
+                                    customPurpose: tour.customPurpose ?? "",
+                                    quantity:
+                                      tour.quantity !== null &&
+                                      tour.quantity !== undefined
+                                        ? String(tour.quantity)
+                                        : "",
+                                    quantityUnit: tour.quantityUnit ?? "",
+                                    notes: tour.notes ?? "",
+                                  }))
+                                : [
+                                    {
+                                      startTime: assignment.startTime,
+                                      endTime: "",
+                                      projectId: assignment.projectId ?? "",
+                                      purposeType: "CUSTOM",
+                                      itemId: "",
+                                      customPurpose: assignment.material ?? "",
+                                      quantity: "",
+                                      quantityUnit: "",
+                                      notes: "",
+                                    },
+                                  ]
+                            }
+                          />
+
+                          <form
+                            action={deleteShortHaulAssignment}
+                            className="mt-3 flex justify-start"
+                          >
+                            <input type="hidden" name="id" value={assignment.id} />
+                            <IconActionButton
+                              icon="delete"
+                              title="Kurzstrecken-Einteilung löschen"
+                              danger
+                            />
+                          </form>
+                        </EditDetailsPanel>
+                      </DismissibleDetails>
+                    </Td>
+
                     <Td>
                       <div className="font-semibold text-gray-900">
                         {assignment.driverName ?? "-"}
@@ -1517,9 +1650,10 @@ export default async function ShortHaulPage({
                         {assignment.vehicleCategory ?? "-"} ·{" "}
                         {assignment.vehicleType ?? "-"}
                       </div>
+                      <div className="text-xs text-gray-500">
+                        Kennzeichen: {assignment.licensePlate ?? "-"}
+                      </div>
                     </Td>
-
-                    <Td>{assignment.licensePlate ?? "-"}</Td>
 
                     <Td>
                       <div className="space-y-2">
@@ -1578,83 +1712,6 @@ export default async function ShortHaulPage({
                       )}
                     </Td>
 
-                    <Td>
-                      <details>
-                        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-                          Bearbeiten
-                        </summary>
-
-                        <ShortHaulForm
-                          action={updateShortHaulAssignment}
-                          id={assignment.id}
-                          projects={projects}
-                          vehicles={vehicles}
-                          drivers={drivers}
-                          materials={materials}
-                          asphaltMixes={asphaltMixes}
-                          transportItems={transportItems}
-                          unitOptions={unitOptions}
-                          driverConflicts={driverConflicts}
-                          vehicleConflicts={vehicleConflicts}
-                          shortDriverConflicts={buildShortDriverConflicts(
-                            assignment.id
-                          )}
-                          shortVehicleConflicts={buildShortVehicleConflicts(
-                            assignment.id
-                          )}
-                          defaultVehicleId={assignment.vehicleId ?? ""}
-                          defaultDriverId={assignment.driverId ?? ""}
-                          defaultNotes={assignment.notes ?? ""}
-                          defaultAllowLongHaulConflict={
-                            assignment.allowLongHaulConflict
-                          }
-                          defaultTours={
-                            assignment.tours.length > 0
-                              ? assignment.tours.map((tour) => ({
-                                  startTime: tour.startTime,
-                                  endTime: tour.endTime,
-                                  projectId: tour.projectId ?? "",
-                                  purposeType: tour.purposeType ?? "CUSTOM",
-                                  itemId: tour.itemId ?? "",
-                                  customPurpose: tour.customPurpose ?? "",
-                                  quantity:
-                                    tour.quantity !== null &&
-                                    tour.quantity !== undefined
-                                      ? String(tour.quantity)
-                                      : "",
-                                  quantityUnit: tour.quantityUnit ?? "",
-                                  notes: tour.notes ?? "",
-                                }))
-                              : [
-                                  {
-                                    startTime: assignment.startTime,
-                                    endTime: "",
-                                    projectId: assignment.projectId ?? "",
-                                    purposeType: "CUSTOM",
-                                    itemId: "",
-                                    customPurpose: assignment.material ?? "",
-                                    quantity: "",
-                                    quantityUnit: "",
-                                    notes: "",
-                                  },
-                                ]
-                          }
-                        />
-
-                        <form
-                          action={deleteShortHaulAssignment}
-                          className="mt-3"
-                        >
-                          <input type="hidden" name="id" value={assignment.id} />
-                          <button
-                            type="submit"
-                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                          >
-                            Löschen
-                          </button>
-                        </form>
-                      </details>
-                    </Td>
                   </tr>
                 ))}
 
@@ -1664,73 +1721,12 @@ export default async function ShortHaulPage({
                     id={`asphalt-allocation-${allocation.id}`}
                     className="border-t border-orange-100 bg-orange-50/30"
                   >
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.driverName ?? "-"}
-                      </div>
-                      <div className="mt-1 inline-flex rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-900">
-                        Asphalt Kurzstrecke
-                      </div>
-                    </Td>
+                    <Td className="px-2 text-center">
+                      <DismissibleDetails className="group relative">
+                        <EditDetailsSummary />
 
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.vehicleLabel || "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Kurzstrecken-Asphalt
-                      </div>
-                    </Td>
-
-                    <Td>siehe Fahrzeug</Td>
-
-                    <Td>
-                      <div className="rounded-lg border border-orange-200 bg-white p-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
-                          <span>
-                            {allocation.tourCount} Tour
-                            {allocation.tourCount === 1 ? "" : "en"}
-                          </span>
-                          <span>
-                            {allocation.startTime} – {allocation.endTime}
-                          </span>
-                          <span className="rounded-full bg-orange-100 px-2 py-1 text-orange-900">
-                            Asphalt
-                          </span>
-                        </div>
-
-                        <div className="mt-1 text-sm font-medium text-gray-900">
-                          {allocation.projectNumber} · {allocation.projectName}
-                        </div>
-
-                        <div className="mt-1 text-xs text-gray-600">
-                          {allocation.asphaltMixNumber ?? "-"} ·{" "}
-                          {allocation.asphaltMixName ?? "Asphalt"} ·{" "}
-                          {formatTons(allocation.totalTons)} t gesamt ·{" "}
-                          {formatTons(allocation.tonsPerTour)} t/Tour
-                        </div>
-
-                        {allocation.notes ? (
-                          <div className="mt-1 text-xs text-gray-500">
-                            {allocation.notes}
-                          </div>
-                        ) : null}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs font-medium text-orange-950">
-                        Asphalt-Zuteilung aus „Nicht verteilte Asphaltmengen“
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <details>
-                        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-                          Bearbeiten
-                        </summary>
-
-                        <div className="mt-3 rounded-xl border border-orange-200 bg-white p-3">
+                        <EditDetailsPanel>
+                        <div className="rounded-xl border border-orange-200 bg-white p-3">
                           <div className="grid grid-cols-2 gap-2">
                             <label className="text-xs font-medium text-gray-700">
                               Beginn
@@ -1798,14 +1794,10 @@ export default async function ShortHaulPage({
                                 name="id"
                                 value={allocation.id}
                               />
-                              <button
-                                type="submit"
+                              <IconActionButton
+                                icon="save"
                                 title="Asphalt-Zuteilung speichern"
-                                aria-label="Asphalt-Zuteilung speichern"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-base text-white hover:bg-gray-700"
-                              >
-                                💾
-                              </button>
+                              />
                             </form>
 
                             <form action={deleteAsphaltLoadAllocation}>
@@ -1814,34 +1806,24 @@ export default async function ShortHaulPage({
                                 name="id"
                                 value={allocation.id}
                               />
-                              <button
-                                type="submit"
+                              <IconActionButton
+                                icon="delete"
                                 title="Asphalt-Zuteilung löschen"
-                                aria-label="Asphalt-Zuteilung löschen"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-base text-red-700 hover:bg-red-50"
-                              >
-                                🗑️
-                              </button>
+                                danger
+                              />
                             </form>
                           </div>
                         </div>
-                      </details>
+                        </EditDetailsPanel>
+                      </DismissibleDetails>
                     </Td>
-                  </tr>
-                ))}
 
-                {shortTackCoatAllocations.map((allocation) => (
-                  <tr
-                    key={`daily-tack-coat-${allocation.id}`}
-                    id={`tack-coat-allocation-${allocation.id}`}
-                    className="border-t border-blue-100 bg-blue-50/30"
-                  >
                     <Td>
                       <div className="font-semibold text-gray-900">
                         {allocation.driverName ?? "-"}
                       </div>
-                      <div className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-900">
-                        Anspritzmittel Kurzstrecke
+                      <div className="mt-1 inline-flex rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-900">
+                        Asphalt Kurzstrecke
                       </div>
                     </Td>
 
@@ -1850,14 +1832,12 @@ export default async function ShortHaulPage({
                         {allocation.vehicleLabel || "-"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Anspritzmittel-Nachlieferung
+                        Kurzstrecken-Asphalt
                       </div>
                     </Td>
 
-                    <Td>siehe Fahrzeug</Td>
-
                     <Td>
-                      <div className="rounded-lg border border-blue-200 bg-white p-3">
+                      <div className="rounded-lg border border-orange-200 bg-white p-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
                           <span>
                             {allocation.tourCount} Tour
@@ -1866,8 +1846,8 @@ export default async function ShortHaulPage({
                           <span>
                             {allocation.startTime} – {allocation.endTime}
                           </span>
-                          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-900">
-                            Anspritzmittel
+                          <span className="rounded-full bg-orange-100 px-2 py-1 text-orange-900">
+                            Asphalt
                           </span>
                         </div>
 
@@ -1876,11 +1856,10 @@ export default async function ShortHaulPage({
                         </div>
 
                         <div className="mt-1 text-xs text-gray-600">
-                          {allocation.materialName} ·{" "}
-                          {formatLiters(allocation.totalLiters)}{" "}
-                          {allocation.quantityUnit} gesamt ·{" "}
-                          {formatLiters(allocation.litersPerTour)}{" "}
-                          {allocation.quantityUnit}/Tour
+                          {allocation.asphaltMixNumber ?? "-"} ·{" "}
+                          {allocation.asphaltMixName ?? "Asphalt"} ·{" "}
+                          {formatTons(allocation.totalTons)} t gesamt ·{" "}
+                          {formatTons(allocation.tonsPerTour)} t/Tour
                         </div>
 
                         {allocation.notes ? (
@@ -1892,18 +1871,25 @@ export default async function ShortHaulPage({
                     </Td>
 
                     <Td>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs font-medium text-blue-950">
-                        Nachlieferung aus „Offene Anspritzmittelmengen“
+                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs font-medium text-orange-950">
+                        Asphalt-Zuteilung aus „Nicht verteilte Asphaltmengen“
                       </div>
                     </Td>
+                  </tr>
+                ))}
 
-                    <Td>
-                      <details>
-                        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-                          Bearbeiten
-                        </summary>
+                {shortTackCoatAllocations.map((allocation) => (
+                  <tr
+                    key={`daily-tack-coat-${allocation.id}`}
+                    id={`tack-coat-allocation-${allocation.id}`}
+                    className="border-t border-blue-100 bg-blue-50/30"
+                  >
+                    <Td className="px-2 text-center">
+                      <DismissibleDetails className="group relative">
+                        <EditDetailsSummary />
 
-                        <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+                        <EditDetailsPanel>
+                        <div className="rounded-xl border border-blue-200 bg-white p-3">
                           <div className="grid grid-cols-2 gap-2">
                             <label className="text-xs font-medium text-gray-700">
                               Beginn
@@ -1967,30 +1953,83 @@ export default async function ShortHaulPage({
                               action={updateTackCoatLoadAllocation}
                             >
                               <input type="hidden" name="id" value={allocation.id} />
-                              <button
-                                type="submit"
+                              <IconActionButton
+                                icon="save"
                                 title="Anspritzmittel-Zuteilung speichern"
-                                aria-label="Anspritzmittel-Zuteilung speichern"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-base text-white hover:bg-gray-700"
-                              >
-                                💾
-                              </button>
+                              />
                             </form>
 
                             <form action={deleteTackCoatLoadAllocation}>
                               <input type="hidden" name="id" value={allocation.id} />
-                              <button
-                                type="submit"
+                              <IconActionButton
+                                icon="delete"
                                 title="Anspritzmittel-Zuteilung löschen"
-                                aria-label="Anspritzmittel-Zuteilung löschen"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-base text-red-700 hover:bg-red-50"
-                              >
-                                🗑️
-                              </button>
+                                danger
+                              />
                             </form>
                           </div>
                         </div>
-                      </details>
+                        </EditDetailsPanel>
+                      </DismissibleDetails>
+                    </Td>
+
+                    <Td>
+                      <div className="font-semibold text-gray-900">
+                        {allocation.driverName ?? "-"}
+                      </div>
+                      <div className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-900">
+                        Anspritzmittel Kurzstrecke
+                      </div>
+                    </Td>
+
+                    <Td>
+                      <div className="font-semibold text-gray-900">
+                        {allocation.vehicleLabel || "-"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Anspritzmittel-Nachlieferung
+                      </div>
+                    </Td>
+
+                    <Td>
+                      <div className="rounded-lg border border-blue-200 bg-white p-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
+                          <span>
+                            {allocation.tourCount} Tour
+                            {allocation.tourCount === 1 ? "" : "en"}
+                          </span>
+                          <span>
+                            {allocation.startTime} – {allocation.endTime}
+                          </span>
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-900">
+                            Anspritzmittel
+                          </span>
+                        </div>
+
+                        <div className="mt-1 text-sm font-medium text-gray-900">
+                          {allocation.projectNumber} · {allocation.projectName}
+                        </div>
+
+                        <div className="mt-1 text-xs text-gray-600">
+                          {allocation.materialName} ·{" "}
+                          {formatLiters(allocation.totalLiters)}{" "}
+                          {allocation.quantityUnit} gesamt ·{" "}
+                          {formatLiters(allocation.litersPerTour)}{" "}
+                          {allocation.quantityUnit}/Tour
+                        </div>
+
+                        {allocation.notes ? (
+                          <div className="mt-1 text-xs text-gray-500">
+                            {allocation.notes}
+                          </div>
+                        ) : null}
+                      </div>
+                    </Td>
+
+                    <Td>
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs font-medium text-blue-950">
+                        Nachlieferung aus „Offene Anspritzmittelmengen“
+                      </div>
                     </Td>
                   </tr>
                 ))}
@@ -2001,145 +2040,6 @@ export default async function ShortHaulPage({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Sonderfahrzeuge Wochenplan
-        </h2>
-
-        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-5">
-          {weekDays.map((day) => {
-            const tasksForDay = specialTasks.filter((task) =>
-              sameDate(task.workDate, day.date)
-            );
-
-            return (
-              <div
-                key={formatDateInput(day.date)}
-                className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
-              >
-                <div className="font-semibold text-gray-900">{day.label}</div>
-                <div className="mt-1 text-xs text-gray-500">
-                  {formatGermanDate(day.date)}
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {tasksForDay.map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-xl border border-gray-200 bg-white p-3"
-                    >
-                      <div className="text-sm font-semibold text-gray-900">
-                        {task.vehicleName}
-                      </div>
-
-                      <form action={updateSpecialVehicleTask} className="mt-2">
-                        <input type="hidden" name="id" value={task.id} />
-                        <textarea
-                          name="taskText"
-                          rows={3}
-                          defaultValue={task.taskText}
-                          className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                        />
-                        <button
-                          type="submit"
-                          className="mt-2 rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                        >
-                          Speichern
-                        </button>
-                      </form>
-
-                      <form action={deleteSpecialVehicleTask} className="mt-2">
-                        <input type="hidden" name="id" value={task.id} />
-                        <button
-                          type="submit"
-                          className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        >
-                          Löschen
-                        </button>
-                      </form>
-                    </div>
-                  ))}
-                </div>
-
-                <details className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white p-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-gray-700">
-                    Aufgabe hinzufügen
-                  </summary>
-
-                  <form
-                    action={createSpecialVehicleTask}
-                    className="mt-3 space-y-3"
-                  >
-                    <input
-                      type="hidden"
-                      name="workDate"
-                      value={formatDateInput(day.date)}
-                    />
-
-                    {specialVehicles.length > 0 ? (
-                      <label className="block text-xs font-medium text-gray-700">
-                        Sonderfahrzeug
-                        <select
-                          name="vehicleId"
-                          required
-                          defaultValue=""
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-                        >
-                          <option value="" disabled>
-                            Fahrzeug wählen
-                          </option>
-
-                          {specialVehicles.map((vehicle) => (
-                            <option key={vehicle.id} value={vehicle.id}>
-                              {getVehicleLabel(vehicle)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : (
-                      <label className="block text-xs font-medium text-gray-700">
-                        Sonderfahrzeug
-                        <select
-                          name="vehicleName"
-                          required
-                          defaultValue=""
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-                        >
-                          <option value="" disabled>
-                            Fahrzeug wählen
-                          </option>
-
-                          {specialVehicleFallback.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-
-                    <label className="block text-xs font-medium text-gray-700">
-                      Aufgabe
-                      <textarea
-                        name="taskText"
-                        rows={3}
-                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                      />
-                    </label>
-
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
-                    >
-                      Aufgabe speichern
-                    </button>
-                  </form>
-                </details>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </AppShell>
   );
 }
@@ -2159,6 +2059,151 @@ function SummaryCard({
       <p className="mt-3 text-3xl font-bold text-gray-900">{value}</p>
       <p className="mt-1 text-xs text-gray-500">{hint}</p>
     </div>
+  );
+}
+
+function OpenQuantitiesSummaryCard({
+  asphaltOpen,
+  asphaltHint,
+  tackCoatOpen,
+  tackCoatHint,
+}: {
+  asphaltOpen: string;
+  asphaltHint: string;
+  tackCoatOpen: string;
+  tackCoatHint: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-gray-500">Offene Mengen</p>
+
+      <div className="mt-3 space-y-3">
+        <div>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-semibold text-gray-700">Asphalt</span>
+            <span className="text-2xl font-bold text-gray-900">
+              {asphaltOpen}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">{asphaltHint}</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-semibold text-gray-700">
+              Anspritzmittel
+            </span>
+            <span className="text-2xl font-bold text-gray-900">
+              {tackCoatOpen}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">{tackCoatHint}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuantityMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+      <div className="text-[11px] font-semibold uppercase text-gray-500">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-bold text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+function CompactAllocatedRow({
+  title,
+  detail,
+  metrics,
+}: {
+  title: string;
+  detail: string;
+  metrics: { label: string; value: string }[];
+}) {
+  return (
+    <div className="bg-green-50/50 p-3 text-sm text-gray-700">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-semibold text-gray-900">{title}</span>
+        <span>{detail}</span>
+        {metrics.map((metric) => (
+          <span key={metric.label}>
+            {metric.label}: <strong>{metric.value}</strong>
+          </span>
+        ))}
+        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
+          vollständig verteilt
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EditDetailsSummary() {
+  return (
+    <summary
+      aria-label="Bearbeiten"
+      title="Bearbeiten"
+      className="mx-auto inline-flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-50"
+    >
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-white">
+        <ActionIcon name="edit" className="h-4 w-4" />
+      </span>
+    </summary>
+  );
+}
+
+function AllocationDetailsSummary({ label }: { label: string }) {
+  return (
+    <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700">
+      {label}
+    </summary>
+  );
+}
+
+function EditDetailsPanel({
+  children,
+  align = "left",
+}: {
+  children: ReactNode;
+  align?: "left" | "right";
+}) {
+  const alignmentClass = align === "right" ? "right-0" : "left-0";
+
+  return (
+    <div
+      className={`absolute top-full z-30 mt-2 hidden w-[min(calc(100vw-2rem),760px)] ${alignmentClass} rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-xl group-open:block`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function IconActionButton({
+  icon,
+  title,
+  danger = false,
+}: {
+  icon: ActionIconName;
+  title: string;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="submit"
+      title={title}
+      aria-label={title}
+      className={
+        danger
+          ? "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+          : "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+      }
+    >
+      <ActionIcon name={icon} className="h-4 w-4" />
+    </button>
   );
 }
 
@@ -2218,10 +2263,30 @@ function AvailabilityList({
   );
 }
 
-function Th({ children }: { children: ReactNode }) {
-  return <th className="whitespace-nowrap p-4 font-semibold">{children}</th>;
+function Th({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <th className={`whitespace-normal break-words p-3 font-semibold ${className}`}>
+      {children}
+    </th>
+  );
 }
 
-function Td({ children }: { children: ReactNode }) {
-  return <td className="p-4 align-top text-gray-700">{children}</td>;
+function Td({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <td className={`break-words p-3 align-top text-gray-700 ${className}`}>
+      {children}
+    </td>
+  );
 }
