@@ -89,6 +89,18 @@ export function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+export function hasAsphaltQuantity(entry: {
+  asphaltMixTypeId?: string | null;
+  asphaltMixNumber?: string | null;
+  asphaltMixName?: string | null;
+  quantityTons: number;
+}) {
+  return (
+    entry.quantityTons > 0 &&
+    Boolean(entry.asphaltMixTypeId || entry.asphaltMixNumber || entry.asphaltMixName)
+  );
+}
+
 export async function getAsphaltOpenPositions(workDate: Date) {
   const [dispatchEntries, allocations] = await Promise.all([
     prisma.asphaltDispatchEntry.findMany({
@@ -123,7 +135,7 @@ export async function getAsphaltOpenPositions(workDate: Date) {
     );
   }
 
-  return dispatchEntries.map((entry): AsphaltOpenPosition => {
+  return dispatchEntries.filter(hasAsphaltQuantity).map((entry): AsphaltOpenPosition => {
     const allocatedTons = allocatedByDispatchEntry.get(entry.id) ?? 0;
     const openTons = roundTons(Math.max(0, entry.quantityTons - allocatedTons));
 
@@ -216,6 +228,10 @@ export async function getOpenTonsForDispatchEntry({
 
   if (!dispatchEntry) {
     throw new Error("Asphaltposition wurde nicht gefunden.");
+  }
+
+  if (!hasAsphaltQuantity(dispatchEntry)) {
+    throw new Error("Diese Position enthält keine Asphaltmenge.");
   }
 
   const allocations = await prisma.asphaltLoadAllocation.findMany({

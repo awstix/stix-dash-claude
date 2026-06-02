@@ -311,6 +311,68 @@ async function assertShortHaulAvailability({
       `Fahrzeug ${existing.licensePlate ?? existing.vehicleNumber ?? ""} ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen.`
     );
   }
+
+  const existingAsphaltAllocation = await prisma.asphaltLoadAllocation.findFirst({
+    where: {
+      sourceType: "SHORT",
+      workDate: getDayRange(workDate),
+      OR: [{ driverId }, { vehicleId }],
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (existingAsphaltAllocation) {
+    if (existingAsphaltAllocation.driverId === driverId) {
+      throw new Error(
+        `Fahrer ${
+          existingAsphaltAllocation.driverName ?? ""
+        } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`
+      );
+    }
+
+    if (existingAsphaltAllocation.vehicleId === vehicleId) {
+      throw new Error(
+        `Fahrzeug ${
+          existingAsphaltAllocation.licensePlate ??
+          existingAsphaltAllocation.vehicleNumber ??
+          ""
+        } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`
+      );
+    }
+  }
+
+  const existingTackCoatAllocation = await prisma.tackCoatLoadAllocation.findFirst({
+    where: {
+      sourceType: "SHORT",
+      workDate: getDayRange(workDate),
+      OR: [{ driverId }, { vehicleId }],
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (existingTackCoatAllocation) {
+    if (existingTackCoatAllocation.driverId === driverId) {
+      throw new Error(
+        `Fahrer ${
+          existingTackCoatAllocation.driverName ?? ""
+        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`
+      );
+    }
+
+    if (existingTackCoatAllocation.vehicleId === vehicleId) {
+      throw new Error(
+        `Fahrzeug ${
+          existingTackCoatAllocation.licensePlate ??
+          existingTackCoatAllocation.vehicleNumber ??
+          ""
+        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`
+      );
+    }
+  }
 }
 
 async function parseTours(formData: FormData) {

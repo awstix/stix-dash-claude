@@ -57,6 +57,7 @@ function revalidateConsumers() {
   revalidatePath("/special-vehicle-dispatch");
   revalidatePath("/truck-dispatch");
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/truck-dispatch/long-haul");
   revalidatePath("/crew-dispatch");
 }
 

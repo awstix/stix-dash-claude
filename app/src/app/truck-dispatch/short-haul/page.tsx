@@ -379,6 +379,12 @@ export default async function ShortHaulPage({
       }
     }
 
+    Object.assign(
+      conflicts,
+      shortAsphaltDriverConflicts,
+      shortTackCoatDriverConflicts,
+    );
+
     return conflicts;
   }
 
@@ -395,31 +401,14 @@ export default async function ShortHaulPage({
       }
     }
 
+    Object.assign(
+      conflicts,
+      shortAsphaltVehicleConflicts,
+      shortTackCoatVehicleConflicts,
+    );
+
     return conflicts;
   }
-
-  const shortDriverConflicts = buildShortDriverConflicts();
-  const shortVehicleConflicts = buildShortVehicleConflicts();
-
-  const usedDriverIds = new Set(
-    assignments
-      .map((assignment) => assignment.driverId)
-      .filter((id): id is string => Boolean(id))
-  );
-
-  const usedVehicleIds = new Set(
-    assignments
-      .map((assignment) => assignment.vehicleId)
-      .filter((id): id is string => Boolean(id))
-  );
-
-  const freeDrivers = drivers.filter(
-    (driver) => !usedDriverIds.has(driver.id) && !driverConflicts[driver.id]
-  );
-
-  const freeVehicles = vehicles.filter(
-    (vehicle) => !usedVehicleIds.has(vehicle.id) && !vehicleConflicts[vehicle.id]
-  );
 
   const totalTours = assignments.reduce(
     (sum, assignment) => sum + assignment.tours.length,
@@ -512,32 +501,51 @@ export default async function ShortHaulPage({
       ])
   );
 
+  const shortDriverConflicts = buildShortDriverConflicts();
+  const shortVehicleConflicts = buildShortVehicleConflicts();
+
+  const usedDriverIds = new Set([
+    ...assignments
+      .map((assignment) => assignment.driverId)
+      .filter((id): id is string => Boolean(id)),
+    ...Object.keys(shortAsphaltDriverConflicts),
+    ...Object.keys(shortTackCoatDriverConflicts),
+  ]);
+
+  const usedVehicleIds = new Set([
+    ...assignments
+      .map((assignment) => assignment.vehicleId)
+      .filter((id): id is string => Boolean(id)),
+    ...Object.keys(shortAsphaltVehicleConflicts),
+    ...Object.keys(shortTackCoatVehicleConflicts),
+  ]);
+
+  const freeDrivers = drivers.filter(
+    (driver) => !usedDriverIds.has(driver.id) && !driverConflicts[driver.id]
+  );
+
+  const freeVehicles = vehicles.filter(
+    (vehicle) => !usedVehicleIds.has(vehicle.id) && !vehicleConflicts[vehicle.id]
+  );
+
   const asphaltAllocationDriverConflicts = {
     ...driverConflicts,
     ...shortDriverConflicts,
-    ...shortAsphaltDriverConflicts,
-    ...shortTackCoatDriverConflicts,
   };
 
   const asphaltAllocationVehicleConflicts = {
     ...vehicleConflicts,
     ...shortVehicleConflicts,
-    ...shortAsphaltVehicleConflicts,
-    ...shortTackCoatVehicleConflicts,
   };
 
   const tackCoatAllocationDriverConflicts = {
     ...driverConflicts,
     ...shortDriverConflicts,
-    ...shortAsphaltDriverConflicts,
-    ...shortTackCoatDriverConflicts,
   };
 
   const tackCoatAllocationVehicleConflicts = {
     ...vehicleConflicts,
     ...shortVehicleConflicts,
-    ...shortAsphaltVehicleConflicts,
-    ...shortTackCoatVehicleConflicts,
   };
 
   const utilizationRows = [

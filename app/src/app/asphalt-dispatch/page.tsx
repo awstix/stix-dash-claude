@@ -2,7 +2,10 @@ import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { getAsphaltOpenPositions } from "@/lib/asphalt-loads";
+import {
+  getAsphaltOpenPositions,
+  hasAsphaltQuantity,
+} from "@/lib/asphalt-loads";
 import {
   formatLiters,
   getTackCoatOpenPositionsForRange,
@@ -300,8 +303,12 @@ export default async function AsphaltDispatchPage({
   const payloadSummaries = buildPayloadSummaries(payloadVehicles);
 
   const crews = asphaltDispatchCrews.map((crew) => crew.name);
+  const asphaltEntries = entries.filter(hasAsphaltQuantity);
 
-  const totalTons = entries.reduce((sum, entry) => sum + entry.quantityTons, 0);
+  const totalTons = asphaltEntries.reduce(
+    (sum, entry) => sum + entry.quantityTons,
+    0,
+  );
   const totalTackCoatQuantity = entries.reduce(
     (sum, entry) => sum + (entry.tackCoatQuantity ?? 0),
     0,
@@ -328,7 +335,7 @@ export default async function AsphaltDispatchPage({
 
   const dayTotals = new Map(
     days.map((day) => {
-      const total = entries
+      const total = asphaltEntries
         .filter((entry) => sameDate(entry.workDate, day.date))
         .reduce((sum, entry) => sum + entry.quantityTons, 0);
 
@@ -400,38 +407,17 @@ export default async function AsphaltDispatchPage({
     };
   });
 
-  const tackCoatMaterialById = new Map(
-    tackCoatMaterials.map((material) => [material.id, material]),
-  );
-
   const tackCoatPositionByKey = new Map(
     tackCoatOpenPositions.map((position) => [position.key, position]),
   );
 
   const mixSummaryMap = new Map<string, MixSummaryItem>();
 
-  for (const entry of entries) {
-    const isTackCoatOnlyEntry =
-      !entry.asphaltMixNumber &&
-      !entry.asphaltMixName &&
-      Boolean(entry.tackCoatMaterialName);
-
-    const tackCoatMaterial = tackCoatMaterialById.get(
-      entry.tackCoatMaterialTypeId ?? "",
-    );
-
-    const mixNumber = isTackCoatOnlyEntry
-      ? tackCoatMaterial?.materialNumber ?? "Anspritzmittel"
-      : entry.asphaltMixNumber ?? "-";
-
-    const mixName = isTackCoatOnlyEntry
-      ? entry.tackCoatMaterialName ?? tackCoatMaterial?.name ?? "Anspritzmittel"
-      : entry.asphaltMixName ?? "Ohne Bezeichnung";
-
-    const unit = isTackCoatOnlyEntry ? entry.tackCoatUnit ?? "l" : "t";
-    const quantity = isTackCoatOnlyEntry
-      ? entry.tackCoatQuantity ?? 0
-      : entry.quantityTons;
+  for (const entry of asphaltEntries) {
+    const mixNumber = entry.asphaltMixNumber ?? "-";
+    const mixName = entry.asphaltMixName ?? "Ohne Bezeichnung";
+    const unit = "t";
+    const quantity = entry.quantityTons;
 
     const key = `${mixNumber}-${mixName}-${unit}`;
 
@@ -671,7 +657,8 @@ export default async function AsphaltDispatchPage({
                 );
 
                 const dayTotal = dayEntries.reduce(
-                  (sum, entry) => sum + entry.quantityTons,
+                  (sum, entry) =>
+                    hasAsphaltQuantity(entry) ? sum + entry.quantityTons : sum,
                   0
                 );
 
@@ -693,18 +680,26 @@ export default async function AsphaltDispatchPage({
                   >
                     <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <div className="text-xs font-medium text-gray-500">
-                        Tagesmenge Kolonne
+                        {isTackCoatCrew
+                          ? "Anspritzmittel Kolonne"
+                          : "Tagesmenge Kolonne"}
                       </div>
                       <div className="mt-1 text-xl font-bold text-gray-900">
-                        {formatTons(dayTotal)} t
+                        {isTackCoatCrew
+                          ? `${formatLiters(dayTackCoatTotal)} l`
+                          : `${formatTons(dayTotal)} t`}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
                         {dayEntries.length} Eintrag
                         {dayEntries.length === 1 ? "" : "e"}
                       </div>
-                      {dayTackCoatTotal > 0 ? (
+                      {isTackCoatCrew ? (
                         <div className="mt-1 text-xs font-semibold text-purple-800">
-                          Anspritzmittel {formatTons(dayTackCoatTotal)} l
+                          keine Asphaltmenge
+                        </div>
+                      ) : dayTackCoatTotal > 0 ? (
+                        <div className="mt-1 text-xs font-semibold text-purple-800">
+                          Anspritzmittel {formatLiters(dayTackCoatTotal)} l
                         </div>
                       ) : null}
                     </div>

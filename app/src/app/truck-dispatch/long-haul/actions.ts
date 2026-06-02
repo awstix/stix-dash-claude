@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -227,6 +228,43 @@ async function assertDriverAvailableForLongHaul({
       `Fahrer ${shortHaulExisting.driverName ?? ""} ist an diesem Tag bereits in der Kurzstrecke bei Maßnahme ${shortHaulExisting.projectNumber} · ${shortHaulExisting.projectName} geplant.`,
     );
   }
+
+  const asphaltAllocationExisting = await prisma.asphaltLoadAllocation.findFirst({
+    where: {
+      sourceType: "SHORT",
+      driverId,
+      workDate: getDayRange(workDate),
+    },
+  });
+
+  if (asphaltAllocationExisting) {
+    throw new Error(
+      `Fahrer ${
+        asphaltAllocationExisting.driverName ?? ""
+      } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke bei Maßnahme ${
+        asphaltAllocationExisting.projectNumber
+      } · ${asphaltAllocationExisting.projectName} geplant.`,
+    );
+  }
+
+  const tackCoatAllocationExisting =
+    await prisma.tackCoatLoadAllocation.findFirst({
+      where: {
+        sourceType: "SHORT",
+        driverId,
+        workDate: getDayRange(workDate),
+      },
+    });
+
+  if (tackCoatAllocationExisting) {
+    throw new Error(
+      `Fahrer ${
+        tackCoatAllocationExisting.driverName ?? ""
+      } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung bei Maßnahme ${
+        tackCoatAllocationExisting.projectNumber
+      } · ${tackCoatAllocationExisting.projectName} geplant.`,
+    );
+  }
 }
 
 async function assertVehicleAvailableForLongHaul({
@@ -264,6 +302,47 @@ async function assertVehicleAvailableForLongHaul({
   if (shortHaulExisting) {
     throw new Error(
       `Fahrzeug ${shortHaulExisting.licensePlate ?? shortHaulExisting.vehicleNumber ?? ""} ist an diesem Tag bereits in der Kurzstrecke bei Maßnahme ${shortHaulExisting.projectNumber} · ${shortHaulExisting.projectName} geplant.`,
+    );
+  }
+
+  const asphaltAllocationExisting = await prisma.asphaltLoadAllocation.findFirst({
+    where: {
+      sourceType: "SHORT",
+      vehicleId,
+      workDate: getDayRange(workDate),
+    },
+  });
+
+  if (asphaltAllocationExisting) {
+    throw new Error(
+      `Fahrzeug ${
+        asphaltAllocationExisting.licensePlate ??
+        asphaltAllocationExisting.vehicleNumber ??
+        ""
+      } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke bei Maßnahme ${
+        asphaltAllocationExisting.projectNumber
+      } · ${asphaltAllocationExisting.projectName} geplant.`,
+    );
+  }
+
+  const tackCoatAllocationExisting =
+    await prisma.tackCoatLoadAllocation.findFirst({
+      where: {
+        sourceType: "SHORT",
+        vehicleId,
+        workDate: getDayRange(workDate),
+      },
+    });
+
+  if (tackCoatAllocationExisting) {
+    throw new Error(
+      `Fahrzeug ${
+        tackCoatAllocationExisting.licensePlate ??
+        tackCoatAllocationExisting.vehicleNumber ??
+        ""
+      } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung bei Maßnahme ${
+        tackCoatAllocationExisting.projectNumber
+      } · ${tackCoatAllocationExisting.projectName} geplant.`,
     );
   }
 }
@@ -646,7 +725,7 @@ async function createLongHaulAsphaltAllocation({
   truckAssignment,
   plannedAsphaltLoad,
 }: {
-  tx: any;
+  tx: Prisma.TransactionClient;
   workDate: Date;
   entryData: LongHaulEntryData;
   entryId: string;

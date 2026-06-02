@@ -120,6 +120,7 @@ type ShortHaulConflict = {
   licensePlate: string | null;
   projectNumber: string;
   projectName: string;
+  sourceLabel?: string | null;
 };
 
 function startOfWeek(date: Date) {
@@ -246,7 +247,9 @@ function buildConflictMaps(conflicts: ShortHaulConflict[]) {
   const vehicleConflicts = new Map<string, string>();
 
   for (const conflict of conflicts) {
-    const label = `${conflict.projectNumber} · ${conflict.projectName}`;
+    const label = conflict.sourceLabel
+      ? `${conflict.projectNumber} · ${conflict.sourceLabel}`
+      : `${conflict.projectNumber} · ${conflict.projectName}`;
 
     if (conflict.driverId) {
       driverConflicts.set(conflict.driverId, label);
@@ -366,6 +369,8 @@ export default async function LongHaulPage({
     vehicles,
     drivers,
     shortHaulConflicts,
+    shortAsphaltConflicts,
+    shortTackCoatConflicts,
     vehicleCategoryOptions,
     asphaltCrewOptions,
     subcontractorOptions,
@@ -459,6 +464,48 @@ export default async function LongHaulPage({
       },
     }),
 
+    prisma.asphaltLoadAllocation.findMany({
+      where: {
+        sourceType: "SHORT",
+        workDate: {
+          gte: weekStart,
+          lt: weekEnd,
+        },
+      },
+      select: {
+        workDate: true,
+        driverId: true,
+        vehicleId: true,
+        driverName: true,
+        vehicleNumber: true,
+        licensePlate: true,
+        projectNumber: true,
+        projectName: true,
+        asphaltMixName: true,
+      },
+    }),
+
+    prisma.tackCoatLoadAllocation.findMany({
+      where: {
+        sourceType: "SHORT",
+        workDate: {
+          gte: weekStart,
+          lt: weekEnd,
+        },
+      },
+      select: {
+        workDate: true,
+        driverId: true,
+        vehicleId: true,
+        driverName: true,
+        vehicleNumber: true,
+        licensePlate: true,
+        projectNumber: true,
+        projectName: true,
+        materialName: true,
+      },
+    }),
+
     prisma.adminOption.findMany({
       where: {
         isActive: true,
@@ -498,6 +545,18 @@ export default async function LongHaulPage({
   const asphaltCrews = asphaltCrewOptions.map((crew) => crew.name);
 
   const subcontractors = subcontractorOptions.map((option) => option.label);
+
+  const shortSourceConflicts: ShortHaulConflict[] = [
+    ...shortHaulConflicts,
+    ...shortAsphaltConflicts.map((conflict) => ({
+      ...conflict,
+      sourceLabel: `Asphalt ${conflict.asphaltMixName ?? "Asphalt"}`,
+    })),
+    ...shortTackCoatConflicts.map((conflict) => ({
+      ...conflict,
+      sourceLabel: `Anspritzmittel ${conflict.materialName}`,
+    })),
+  ];
 
   const asphaltOpenPositionsByDayEntries = await Promise.all(
     days.map(async (day) => {
@@ -666,7 +725,7 @@ export default async function LongHaulPage({
             (allocation) => allocation.sourceType === "LONG",
           );
 
-          const shortConflictsForDay = shortHaulConflicts.filter((conflict) =>
+          const shortConflictsForDay = shortSourceConflicts.filter((conflict) =>
             sameDate(conflict.workDate, day.date),
           );
 

@@ -250,6 +250,37 @@ async function assertShortSourceAvailability({
     }
   }
 
+  const existingTackCoatAllocation = await prisma.tackCoatLoadAllocation.findFirst({
+    where: {
+      sourceType: "SHORT",
+      workDate: getDayRange(workDate),
+      OR: orConditions,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (existingTackCoatAllocation) {
+    if (driverId && existingTackCoatAllocation.driverId === driverId) {
+      throw new Error(
+        `Fahrer ${
+          existingTackCoatAllocation.driverName ?? ""
+        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`,
+      );
+    }
+
+    if (vehicleId && existingTackCoatAllocation.vehicleId === vehicleId) {
+      throw new Error(
+        `Fahrzeug ${
+          existingTackCoatAllocation.licensePlate ??
+          existingTackCoatAllocation.vehicleNumber ??
+          ""
+        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`,
+      );
+    }
+  }
+
   const existingLongHaul = await prisma.truckLongHaulTruckAssignment.findFirst({
     where: {
       ownerType: "OWN",

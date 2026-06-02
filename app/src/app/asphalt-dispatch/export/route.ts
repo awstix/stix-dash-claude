@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { hasAsphaltQuantity } from "@/lib/asphalt-loads";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -115,6 +116,7 @@ export async function GET(request: Request) {
     where,
     orderBy: [{ workDate: "asc" }, { crew: "asc" }, { createdAt: "asc" }],
   });
+  const asphaltEntries = entries.filter(hasAsphaltQuantity);
 
   const workbook = XLSX.utils.book_new();
 
@@ -133,12 +135,12 @@ export async function GET(request: Request) {
     },
     {
       Feld: "Anzahl Einträge",
-      Wert: entries.length,
+      Wert: asphaltEntries.length,
     },
     {
       Feld: "Gesamtmenge",
       Wert: `${formatTons(
-        entries.reduce((sum, entry) => sum + entry.quantityTons, 0)
+        asphaltEntries.reduce((sum, entry) => sum + entry.quantityTons, 0)
       )} t`,
     },
     {
@@ -166,7 +168,7 @@ export async function GET(request: Request) {
       Bauleiter: entry.constructionManager ?? "",
       Sortennummer: entry.asphaltMixNumber ?? "",
       Asphaltsorte: entry.asphaltMixName ?? "",
-      "Menge t": formatTons(entry.quantityTons),
+      "Menge t": hasAsphaltQuantity(entry) ? formatTons(entry.quantityTons) : "",
       Fremdmischgut: entry.isForeignMix ? "ja" : "nein",
       Bemerkung: entry.notes ?? "",
       Erstellt: formatGermanDateTime(entry.createdAt),
@@ -197,7 +199,7 @@ export async function GET(request: Request) {
 
   const daySummaryMap = new Map<string, { date: Date; quantityTons: number; count: number }>();
 
-  for (const entry of entries) {
+  for (const entry of asphaltEntries) {
     const key = formatDateInput(entry.workDate);
 
     const current = daySummaryMap.get(key) ?? {
@@ -235,7 +237,7 @@ export async function GET(request: Request) {
     { date: Date; crew: string; quantityTons: number; count: number }
   >();
 
-  for (const entry of entries) {
+  for (const entry of asphaltEntries) {
     const key = `${formatDateInput(entry.workDate)}-${entry.crew}`;
 
     const current = crewSummaryMap.get(key) ?? {
@@ -282,7 +284,7 @@ export async function GET(request: Request) {
     { mixNumber: string; mixName: string; quantityTons: number; count: number }
   >();
 
-  for (const entry of entries) {
+  for (const entry of asphaltEntries) {
     const mixNumber = entry.asphaltMixNumber ?? "Ohne Sortennummer";
     const mixName = entry.asphaltMixName ?? "Ohne Bezeichnung";
     const key = `${mixNumber}-${mixName}`;
