@@ -15,6 +15,7 @@ import {
 import { InitialTruckRows } from "./InitialTruckRows";
 import { LongHaulAssignmentTypeFields } from "./LongHaulAssignmentTypeFields";
 import { LongHaulOwnTruckSuggestionForm } from "./LongHaulOwnTruckSuggestionForm";
+import { LongHaulPlannedPerformanceFields } from "./LongHaulPlannedPerformanceFields";
 import {
   createLongHaulEntry,
   createOwnTruckAssignment,
@@ -47,6 +48,7 @@ type DriverWithVehicles = {
       licensePlate: string | null;
       vehicleType: string;
       category: string;
+      asphaltPayloadTons: number;
     };
   }[];
 };
@@ -1638,6 +1640,7 @@ function LongHaulEntryCard({
 
               <OwnTruckForm
                 entryId={entry.id}
+                materialQuantity={entry.materialQuantity}
                 drivers={drivers}
                 vehicles={vehicles}
                 busyDrivers={busyDrivers}
@@ -1982,6 +1985,7 @@ function VehicleSelectOptions({
 
 function OwnTruckForm({
   entryId,
+  materialQuantity,
   drivers,
   vehicles,
   busyDrivers = new Map<string, string>(),
@@ -1990,6 +1994,7 @@ function OwnTruckForm({
   shortVehicleConflicts = new Map<string, string>(),
 }: {
   entryId: string;
+  materialQuantity: number;
   drivers: DriverWithVehicles[];
   vehicles: VehicleWithDriver[];
   busyDrivers?: Map<string, string>;
@@ -2037,46 +2042,18 @@ function OwnTruckForm({
         />
       </select>
 
-      <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
-        <div className="text-xs font-semibold text-orange-950">
-          Geplante Leistung
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <input
-            name="ownTourCount_0"
-            type="number"
-            min="1"
-            defaultValue="1"
-            placeholder="Touren"
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          />
-          <input
-            name="ownTonsPerTour_0"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="t / Tour"
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          />
-          <input
-            name="ownStartTime_0"
-            type="time"
-            defaultValue="06:30"
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          />
-          <input
-            name="ownEndTime_0"
-            type="time"
-            defaultValue="17:00"
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          />
-        </div>
-        <input
-          name="ownAsphaltNotes_0"
-          placeholder="Bemerkung zur geplanten Leistung"
-          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </div>
+      <LongHaulPlannedPerformanceFields
+        materialQuantity={materialQuantity}
+        vehicles={vehicles}
+        drivers={drivers}
+        driverSelectName="driverId"
+        vehicleSelectName="vehicleId"
+        tourCountName="ownTourCount_0"
+        tonsPerTourName="ownTonsPerTour_0"
+        startTimeName="ownStartTime_0"
+        endTimeName="ownEndTime_0"
+        notesName="ownAsphaltNotes_0"
+      />
 
       <input
         name="notes"

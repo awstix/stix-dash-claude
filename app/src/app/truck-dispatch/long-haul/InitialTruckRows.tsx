@@ -15,6 +15,7 @@ type DriverWithVehicles = {
       licensePlate: string | null;
       vehicleType: string;
       category: string;
+      asphaltPayloadTons: number;
     };
   }[];
 };
@@ -44,6 +45,8 @@ type OwnRow = {
   notes: string;
   tourCount: string;
   tonsPerTour: string;
+  tourCountWasEdited: boolean;
+  tonsPerTourWasEdited: boolean;
   startTime: string;
   endTime: string;
   asphaltNotes: string;
@@ -316,6 +319,8 @@ function createEmptyOwnRow(rowId: number): OwnRow {
     notes: "",
     tourCount: "1",
     tonsPerTour: "",
+    tourCountWasEdited: false,
+    tonsPerTourWasEdited: false,
     startTime: "06:30",
     endTime: "17:00",
     asphaltNotes: "",
@@ -360,6 +365,7 @@ export function InitialTruckRows({
   const [ownRows, setOwnRows] = useState<OwnRow[]>([createEmptyOwnRow(0)]);
   const [subRows, setSubRows] = useState<SubRow[]>([createEmptySubRow(0)]);
   const [selectedAsphaltOpenTons, setSelectedAsphaltOpenTons] = useState(0);
+  const [selectedMaterialQuantity, setSelectedMaterialQuantity] = useState(0);
   const [autoPrefilledOpenTons, setAutoPrefilledOpenTons] = useState(0);
 
   const driversById = useMemo(
@@ -385,8 +391,28 @@ export function InitialTruckRows({
     return parseNumber(field.value || "0");
   }
 
+  function readSelectedMaterialQuantityFromForm() {
+    const form = rootRef.current?.closest("form");
+    const field = form?.elements.namedItem(
+      "materialQuantity",
+    ) as HTMLInputElement | null;
+
+    if (!field) {
+      return 0;
+    }
+
+    return parseNumber(field.value || "0");
+  }
+
   useEffect(() => {
-    setSelectedAsphaltOpenTons(readSelectedAsphaltOpenTonsFromForm());
+    const timeoutId = window.setTimeout(() => {
+      setSelectedAsphaltOpenTons(readSelectedAsphaltOpenTonsFromForm());
+      setSelectedMaterialQuantity(readSelectedMaterialQuantityFromForm());
+    }, 0);
+    const form = rootRef.current?.closest("form");
+    const materialQuantityField = form?.elements.namedItem(
+      "materialQuantity",
+    ) as HTMLInputElement | null;
 
     function handleOpenTonsChange(event: Event) {
       const customEvent = event as CustomEvent<{ openTons: number }>;
@@ -395,15 +421,38 @@ export function InitialTruckRows({
       );
     }
 
+    function handleMaterialQuantityChange() {
+      setSelectedMaterialQuantity(
+        roundTons(readSelectedMaterialQuantityFromForm()),
+      );
+    }
+
     window.addEventListener(
       "longhaul-asphalt-open-tons-change",
       handleOpenTonsChange,
+    );
+    materialQuantityField?.addEventListener(
+      "input",
+      handleMaterialQuantityChange,
+    );
+    materialQuantityField?.addEventListener(
+      "change",
+      handleMaterialQuantityChange,
     );
 
     return () => {
       window.removeEventListener(
         "longhaul-asphalt-open-tons-change",
         handleOpenTonsChange,
+      );
+      window.clearTimeout(timeoutId);
+      materialQuantityField?.removeEventListener(
+        "input",
+        handleMaterialQuantityChange,
+      );
+      materialQuantityField?.removeEventListener(
+        "change",
+        handleMaterialQuantityChange,
       );
     };
   }, []);
@@ -471,9 +520,38 @@ export function InitialTruckRows({
   }
 
   function getEffectiveSelectedAsphaltOpenTons() {
-    const fromState = selectedAsphaltOpenTons;
-    const fromForm = readSelectedAsphaltOpenTonsFromForm();
-    return roundTons(fromState > 0 ? fromState : fromForm);
+    return roundTons(selectedAsphaltOpenTons);
+  }
+
+  function getEffectivePlanningTons() {
+    const asphaltOpenTons = getEffectiveSelectedAsphaltOpenTons();
+
+    if (asphaltOpenTons > 0) {
+      return asphaltOpenTons;
+    }
+
+    return roundTons(selectedMaterialQuantity);
+  }
+
+  function getSuggestedOwnPerformancePatch({
+    row,
+    payloadTons,
+  }: {
+    row: OwnRow | undefined;
+    payloadTons: number;
+  }) {
+    const planningTons = getEffectivePlanningTons();
+
+    return {
+      tonsPerTour:
+        payloadTons > 0 && !row?.tonsPerTourWasEdited
+          ? String(payloadTons)
+          : row?.tonsPerTour ?? "",
+      tourCount:
+        payloadTons > 0 && planningTons > 0 && !row?.tourCountWasEdited
+          ? getSuggestedTourCount(planningTons, payloadTons)
+          : row?.tourCount ?? "1",
+    };
   }
 
   function getAssignedOwnCapacityTons(rows: OwnRow[]) {
@@ -562,24 +640,10 @@ export function InitialTruckRows({
 
   const remainingAsphaltOpenTons = getRemainingAsphaltOpenTons(ownRows);
 
-  const visibleSuggestion = useMemo(
-    () =>
-      buildBestSuggestionForOpenTons({
-        rows: ownRows,
-        openTons: remainingAsphaltOpenTons,
-      }),
-    [
-      ownRows,
-      selectedAsphaltOpenTons,
-      remainingAsphaltOpenTons,
-      drivers,
-      vehicles,
-      busyDrivers,
-      busyVehicles,
-      shortDriverConflicts,
-      shortVehicleConflicts,
-    ],
-  );
+  const visibleSuggestion = buildBestSuggestionForOpenTons({
+    rows: ownRows,
+    openTons: remainingAsphaltOpenTons,
+  });
 
   const firstOwnRow = ownRows[0];
   const firstRowDriver = firstOwnRow?.driverId
@@ -615,8 +679,11 @@ export function InitialTruckRows({
 
   useEffect(() => {
     if (selectedAsphaltOpenTons <= 0) {
-      setAutoPrefilledOpenTons(0);
-      return;
+      const timeoutId = window.setTimeout(() => {
+        setAutoPrefilledOpenTons(0);
+      }, 0);
+
+      return () => window.clearTimeout(timeoutId);
     }
 
     if (!visibleSuggestion) {
@@ -627,47 +694,92 @@ export function InitialTruckRows({
       return;
     }
 
-    setOwnRows((rows) => {
-      const firstRow = rows[0];
+    const timeoutId = window.setTimeout(() => {
+      setOwnRows((rows) => {
+        const firstRow = rows[0];
 
-      if (!firstRow) {
-        return rows;
-      }
+        if (!firstRow) {
+          return rows;
+        }
 
-      const firstRowIsBlank =
-        !firstRow.driverId &&
-        !firstRow.vehicleId &&
-        !firstRow.notes &&
-        !firstRow.asphaltNotes &&
-        !firstRow.tonsPerTour &&
-        firstRow.tourCount === "1";
+        const firstRowIsBlank =
+          !firstRow.driverId &&
+          !firstRow.vehicleId &&
+          !firstRow.notes &&
+          !firstRow.asphaltNotes &&
+          !firstRow.tonsPerTour &&
+          firstRow.tourCount === "1";
 
-      if (!firstRowIsBlank) {
-        return rows;
-      }
+        if (!firstRowIsBlank) {
+          return rows;
+        }
 
-      return rows.map((row, index) =>
-        index === 0
-          ? {
-              ...row,
-              driverId: visibleSuggestion.driverId,
-              vehicleId: visibleSuggestion.vehicleId,
-              tourCount: String(visibleSuggestion.tourCount),
-              tonsPerTour: String(visibleSuggestion.payloadTons),
-              startTime: "06:30",
-              endTime: "17:00",
-              asphaltNotes: `Vorschlag · Kapazität ${formatTons(
-                visibleSuggestion.capacityTons,
-              )} t · Zuteilung ${formatTons(
-                visibleSuggestion.allocatedTons,
-              )} t`,
-            }
-          : row,
-      );
-    });
+        return rows.map((row, index) =>
+          index === 0
+            ? {
+                ...row,
+                driverId: visibleSuggestion.driverId,
+                vehicleId: visibleSuggestion.vehicleId,
+                tourCount: String(visibleSuggestion.tourCount),
+                tonsPerTour: String(visibleSuggestion.payloadTons),
+                tourCountWasEdited: false,
+                tonsPerTourWasEdited: false,
+                startTime: "06:30",
+                endTime: "17:00",
+                asphaltNotes: `Vorschlag · Kapazität ${formatTons(
+                  visibleSuggestion.capacityTons,
+                )} t · Zuteilung ${formatTons(
+                  visibleSuggestion.allocatedTons,
+                )} t`,
+              }
+            : row,
+        );
+      });
 
-    setAutoPrefilledOpenTons(selectedAsphaltOpenTons);
+      setAutoPrefilledOpenTons(selectedAsphaltOpenTons);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [selectedAsphaltOpenTons, visibleSuggestion, autoPrefilledOpenTons]);
+
+  useEffect(() => {
+    const planningTons =
+      selectedAsphaltOpenTons > 0
+        ? roundTons(selectedAsphaltOpenTons)
+        : roundTons(selectedMaterialQuantity);
+
+    if (planningTons <= 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setOwnRows((rows) =>
+        rows.map((row) => {
+          if (!row.vehicleId) {
+            return row;
+          }
+
+          const payloadTons =
+            vehiclesById.get(row.vehicleId)?.asphaltPayloadTons ?? 0;
+
+          if (payloadTons <= 0 || row.tourCountWasEdited) {
+            return row;
+          }
+
+          return {
+            ...row,
+            tourCount: getSuggestedTourCount(planningTons, payloadTons),
+            tonsPerTour:
+              row.tonsPerTourWasEdited || row.tonsPerTour
+                ? row.tonsPerTour
+                : String(payloadTons),
+          };
+        }),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [selectedMaterialQuantity, selectedAsphaltOpenTons, vehiclesById]);
 
   function applyVisibleSuggestion() {
     setOwnRows((rows) => {
@@ -728,17 +840,16 @@ export function InitialTruckRows({
         : undefined;
 
     const payloadTons = vehicle?.asphaltPayloadTons ?? 0;
-    const selectedOpenTons = getEffectiveSelectedAsphaltOpenTons();
     const currentRow = ownRows.find((row) => row.rowId === rowId);
+    const performancePatch = getSuggestedOwnPerformancePatch({
+      row: currentRow,
+      payloadTons,
+    });
 
     updateOwnRow(rowId, {
       driverId,
       vehicleId: vehicle?.id ?? "",
-      tonsPerTour: payloadTons > 0 ? String(payloadTons) : "",
-      tourCount:
-        payloadTons > 0 && selectedOpenTons > 0
-          ? getSuggestedTourCount(selectedOpenTons, payloadTons)
-          : currentRow?.tourCount ?? "1",
+      ...performancePatch,
     });
   }
 
@@ -746,16 +857,15 @@ export function InitialTruckRows({
     const vehicle = vehiclesById.get(vehicleId);
     const currentRow = ownRows.find((row) => row.rowId === rowId);
     const payloadTons = vehicle?.asphaltPayloadTons ?? 0;
-    const selectedOpenTons = getEffectiveSelectedAsphaltOpenTons();
+    const performancePatch = getSuggestedOwnPerformancePatch({
+      row: currentRow,
+      payloadTons,
+    });
 
     if (currentRow?.driverId) {
       updateOwnRow(rowId, {
         vehicleId,
-        tonsPerTour: payloadTons > 0 ? String(payloadTons) : currentRow.tonsPerTour,
-        tourCount:
-          payloadTons > 0 && selectedOpenTons > 0
-            ? getSuggestedTourCount(selectedOpenTons, payloadTons)
-            : currentRow.tourCount,
+        ...performancePatch,
       });
       return;
     }
@@ -783,11 +893,7 @@ export function InitialTruckRows({
     updateOwnRow(rowId, {
       vehicleId,
       driverId,
-      tonsPerTour: payloadTons > 0 ? String(payloadTons) : "",
-      tourCount:
-        payloadTons > 0 && selectedOpenTons > 0
-          ? getSuggestedTourCount(selectedOpenTons, payloadTons)
-          : currentRow?.tourCount ?? "1",
+      ...performancePatch,
     });
   }
 
@@ -800,8 +906,8 @@ export function InitialTruckRows({
             <p className="mt-1 text-xs text-gray-500">
               Fahrer und Stammfahrzeug werden automatisch miteinander
               übernommen. Touren und t/Tour werden direkt als geplante Leistung
-              gespeichert. Bei Asphaltmaßnahme wird die Tourenzahl automatisch
-              aus offener Menge und Fahrzeug-Nutzlast vorgeschlagen.
+              gespeichert. Die Tourenzahl wird aus Materialmenge und
+              Fahrzeug-Nutzlast vorgeschlagen.
             </p>
           </div>
         </div>
@@ -885,11 +991,19 @@ export function InitialTruckRows({
               </div>
             )
           ) : (
-            <div className="mt-2 rounded-lg border border-blue-200 bg-white p-2 text-xs text-blue-950">
-              Erst oben <strong>Art = Asphaltmaßnahme</strong> und eine
-              Asphaltposition wählen. Danach wird LKW-STIX 1 automatisch mit
-              einem Vorschlag vorausgefüllt.
-            </div>
+            <>
+              {selectedMaterialQuantity > 0 ? (
+                <div className="mt-2 rounded-lg border border-blue-200 bg-white p-2 text-xs text-blue-950">
+                  Materialmenge: <strong>{formatTons(selectedMaterialQuantity)} t</strong>. Wenn du unten einen LKW auswählst, werden Touren und t/Tour aus der hinterlegten Nutzlast vorgeschlagen.
+                </div>
+              ) : (
+                <div className="mt-2 rounded-lg border border-blue-200 bg-white p-2 text-xs text-blue-950">
+                  Oben Materialmenge eintragen oder bei Asphalt eine
+                  Asphaltposition wählen. Danach werden Touren und t/Tour anhand
+                  der LKW-Nutzlast vorgeschlagen.
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -1002,6 +1116,7 @@ export function InitialTruckRows({
                           onChange={(event) =>
                             updateOwnRow(row.rowId, {
                               tourCount: event.target.value,
+                              tourCountWasEdited: true,
                             })
                           }
                           className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-xs text-gray-900"
@@ -1019,6 +1134,7 @@ export function InitialTruckRows({
                           onChange={(event) =>
                             updateOwnRow(row.rowId, {
                               tonsPerTour: event.target.value,
+                              tonsPerTourWasEdited: true,
                             })
                           }
                           placeholder="z.B. 18"

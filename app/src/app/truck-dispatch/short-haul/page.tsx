@@ -1253,7 +1253,18 @@ export default async function ShortHaulPage({
         </h3>
 
         <div className="rounded-xl border border-orange-200 bg-white p-3">
+          <div className="mb-3 text-xs font-semibold text-orange-900">
+            {getAllocationTourLabel(allocation)}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-medium text-gray-700 md:col-span-2">
+              Baustelle
+              <div className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-2 py-2 text-sm font-medium text-gray-900">
+                {allocation.projectNumber} · {allocation.projectName}
+              </div>
+            </label>
+
             <label className="text-xs font-medium text-gray-700">
               Beginn
               <input
@@ -1343,7 +1354,18 @@ export default async function ShortHaulPage({
         </h3>
 
         <div className="rounded-xl border border-blue-200 bg-white p-3">
+          <div className="mb-3 text-xs font-semibold text-blue-900">
+            {getAllocationTourLabel(allocation)}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-medium text-gray-700 md:col-span-2">
+              Baustelle
+              <div className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-2 py-2 text-sm font-medium text-gray-900">
+                {allocation.projectNumber} · {allocation.projectName}
+              </div>
+            </label>
+
             <label className="text-xs font-medium text-gray-700">
               Beginn
               <input
@@ -2393,14 +2415,25 @@ export default async function ShortHaulPage({
                         row.kind === "assignment" &&
                         row.assignment.id === timelineEditAssignmentId
                     );
-                    const editRows =
-                      defaultOpen && timelineEditAssignmentId
-                        ? group.sourceRows.filter(
-                            (row) =>
-                              row.kind === "assignment" &&
-                              row.assignment.id === timelineEditAssignmentId
-                          )
-                        : group.sourceRows;
+                    const editRows = [...group.sourceRows].sort(
+                      (first, second) => {
+                        const startDiff = first.sortStart - second.sortStart;
+
+                        if (startDiff !== 0) {
+                          return startDiff;
+                        }
+
+                        const endDiff = first.sortEnd - second.sortEnd;
+
+                        if (endDiff !== 0) {
+                          return endDiff;
+                        }
+
+                        return `${first.kind}-${first.id}`.localeCompare(
+                          `${second.kind}-${second.id}`
+                        );
+                      }
+                    );
 
                     return (
                       <tr
