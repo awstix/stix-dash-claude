@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
 
 type ProjectOption = {
@@ -144,13 +145,7 @@ function getFirstAvailableVehicleId({
   return vehicles.find((vehicle) => !shortVehicleConflicts[vehicle.id])?.id ?? "";
 }
 
-function getTimelinePrefillFromUrl() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-
+function getTimelinePrefillFromSearchParams(params: URLSearchParams) {
   if (params.get("fromTimeline") !== "1") {
     return null;
   }
@@ -161,7 +156,21 @@ function getTimelinePrefillFromUrl() {
     startTime: params.get("prefillStartTime") ?? "",
     endTime: params.get("prefillEndTime") ?? "",
     editAssignmentId: params.get("editAssignmentId") ?? "",
+    tourNumber: Number.parseInt(params.get("prefillTourNumber") ?? "1", 10),
+    externalTourOffset: parseOptionalPositiveInt(
+      params.get("prefillExternalTourOffset")
+    ),
   };
+}
+
+function parseOptionalPositiveInt(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const number = Number.parseInt(value, 10);
+
+  return Number.isNaN(number) || number < 0 ? null : number;
 }
 
 function createEmptyTour(rowId: number, startTime = "", endTime = "") {
@@ -228,6 +237,7 @@ export function ShortHaulForm({
   defaultDriverId = "",
   defaultNotes = "",
   defaultAllowLongHaulConflict = false,
+  defaultTourNumberOffset = 0,
   defaultTours = [
     {
       startTime: "07:00",
@@ -260,6 +270,7 @@ export function ShortHaulForm({
   defaultDriverId?: string;
   defaultNotes?: string;
   defaultAllowLongHaulConflict?: boolean;
+  defaultTourNumberOffset?: number;
   defaultTours?: {
     startTime: string;
     endTime: string;
@@ -272,12 +283,21 @@ export function ShortHaulForm({
     notes: string;
   }[];
 }) {
+  const searchParams = useSearchParams();
+  const timelinePrefillKey = searchParams.toString();
+  const timelinePrefill = useMemo(
+    () =>
+      getTimelinePrefillFromSearchParams(
+        new URLSearchParams(timelinePrefillKey)
+      ),
+    [timelinePrefillKey]
+  );
+  const appliedTimelinePrefillKeyRef = useRef<string | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState(defaultDriverId);
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicleId);
   const [allowLongHaulConflict, setAllowLongHaulConflict] = useState(
     defaultAllowLongHaulConflict
   );
-  const [timelinePrefillApplied, setTimelinePrefillApplied] = useState(false);
 
   const [tourRows, setTourRows] = useState<TourFormValue[]>(
     defaultTours.length > 0
@@ -310,120 +330,120 @@ export function ShortHaulForm({
   );
 
   useEffect(() => {
-    if (timelinePrefillApplied) {
+    if (appliedTimelinePrefillKeyRef.current === timelinePrefillKey) {
       return;
     }
 
-    const prefill = getTimelinePrefillFromUrl();
-
-    if (!prefill) {
-      setTimelinePrefillApplied(true);
+    if (!timelinePrefill) {
+      appliedTimelinePrefillKeyRef.current = timelinePrefillKey;
       return;
     }
 
-    if (id && prefill.editAssignmentId !== id) {
-      setTimelinePrefillApplied(true);
+    if (id && timelinePrefill.editAssignmentId !== id) {
+      appliedTimelinePrefillKeyRef.current = timelinePrefillKey;
       return;
     }
 
-    if (!id && prefill.editAssignmentId) {
-      setTimelinePrefillApplied(true);
+    if (!id && timelinePrefill.editAssignmentId) {
+      appliedTimelinePrefillKeyRef.current = timelinePrefillKey;
       return;
     }
 
-    let nextDriverId = prefill.driverId || defaultDriverId;
-    let nextVehicleId = prefill.vehicleId || defaultVehicleId;
+    const timeoutId = window.setTimeout(() => {
+      let nextDriverId = timelinePrefill.driverId || defaultDriverId;
+      let nextVehicleId = timelinePrefill.vehicleId || defaultVehicleId;
 
-    if (nextDriverId && !nextVehicleId) {
-      const driver = drivers.find((item) => item.id === nextDriverId);
-      const primaryVehicle = getPrimaryVehicle(driver);
-
-      if (
-        primaryVehicle &&
-        (!shortVehicleConflicts[primaryVehicle.id] ||
-          primaryVehicle.id === defaultVehicleId)
-      ) {
-        nextVehicleId = primaryVehicle.id;
-      }
-    }
-
-    if (nextVehicleId && !nextDriverId) {
-      const vehicle = vehicles.find((item) => item.id === nextVehicleId);
-      const assignedDriver = vehicle?.driverAssignments?.[0]?.driver;
-
-      if (assignedDriver) {
-        const matchedDriver = drivers.find(
-          (driver) =>
-            driver.firstName === assignedDriver.firstName &&
-            driver.lastName === assignedDriver.lastName
-        );
+      if (nextDriverId && !nextVehicleId) {
+        const driver = drivers.find((item) => item.id === nextDriverId);
+        const primaryVehicle = getPrimaryVehicle(driver);
 
         if (
-          matchedDriver &&
-          (!shortDriverConflicts[matchedDriver.id] ||
-            matchedDriver.id === defaultDriverId)
+          primaryVehicle &&
+          (!shortVehicleConflicts[primaryVehicle.id] ||
+            primaryVehicle.id === defaultVehicleId)
         ) {
-          nextDriverId = matchedDriver.id;
+          nextVehicleId = primaryVehicle.id;
         }
       }
-    }
 
-    if (nextDriverId) {
-      setSelectedDriverId(nextDriverId);
-    }
+      if (nextVehicleId && !nextDriverId) {
+        const vehicle = vehicles.find((item) => item.id === nextVehicleId);
+        const assignedDriver = vehicle?.driverAssignments?.[0]?.driver;
 
-    if (nextVehicleId) {
-      setSelectedVehicleId(nextVehicleId);
-    }
-
-    if (prefill.startTime || prefill.endTime) {
-      setTourRows((rows) => {
-        const existingRows =
-          rows.length > 0 ? rows : [createEmptyTour(0, "07:00", "09:00")];
-
-        if (id && prefill.editAssignmentId === id) {
-          const alreadyHasPrefillTour = existingRows.some(
-            (row) =>
-              row.startTime === prefill.startTime &&
-              row.endTime === prefill.endTime &&
-              row.projectId === "" &&
-              row.purposeType === "CUSTOM"
+        if (assignedDriver) {
+          const matchedDriver = drivers.find(
+            (driver) =>
+              driver.firstName === assignedDriver.firstName &&
+              driver.lastName === assignedDriver.lastName
           );
 
-          if (alreadyHasPrefillTour) {
-            return sortAndReindexTourRows(existingRows);
+          if (
+            matchedDriver &&
+            (!shortDriverConflicts[matchedDriver.id] ||
+              matchedDriver.id === defaultDriverId)
+          ) {
+            nextDriverId = matchedDriver.id;
+          }
+        }
+      }
+
+      if (nextDriverId) {
+        setSelectedDriverId(nextDriverId);
+      }
+
+      if (nextVehicleId) {
+        setSelectedVehicleId(nextVehicleId);
+      }
+
+      if (timelinePrefill.startTime || timelinePrefill.endTime) {
+        setTourRows((rows) => {
+          const existingRows =
+            rows.length > 0 ? rows : [createEmptyTour(0, "07:00", "09:00")];
+
+          if (id && timelinePrefill.editAssignmentId === id) {
+            const alreadyHasPrefillTour = existingRows.some(
+              (row) =>
+                row.startTime === timelinePrefill.startTime &&
+                row.endTime === timelinePrefill.endTime
+            );
+
+            if (alreadyHasPrefillTour) {
+              return sortAndReindexTourRows(existingRows);
+            }
+
+            const nextRowId =
+              existingRows.length === 0
+                ? 0
+                : Math.max(...existingRows.map((row) => row.rowId)) + 1;
+
+            return sortAndReindexTourRows([
+              ...existingRows,
+              createEmptyTour(
+                nextRowId,
+                timelinePrefill.startTime || "",
+                timelinePrefill.endTime || ""
+              ),
+            ]);
           }
 
-          const nextRowId =
-            existingRows.length === 0
-              ? 0
-              : Math.max(...existingRows.map((row) => row.rowId)) + 1;
+          return sortAndReindexTourRows(
+            existingRows.map((row, index) =>
+              index === 0
+                ? {
+                    ...row,
+                    startTime: timelinePrefill.startTime || row.startTime,
+                    endTime: timelinePrefill.endTime || row.endTime,
+                  }
+                : row
+            )
+          );
+        });
+      }
 
-          return sortAndReindexTourRows([
-            ...existingRows,
-            createEmptyTour(
-              nextRowId,
-              prefill.startTime || "",
-              prefill.endTime || ""
-            ),
-          ]);
-        }
+      appliedTimelinePrefillKeyRef.current = timelinePrefillKey;
+    }, 0);
 
-        return sortAndReindexTourRows(
-          existingRows.map((row, index) =>
-            index === 0
-              ? {
-                  ...row,
-                  startTime: prefill.startTime || row.startTime,
-                  endTime: prefill.endTime || row.endTime,
-                }
-              : row
-          )
-        );
-      });
-    }
-
-    setTimelinePrefillApplied(true);
+    return () => window.clearTimeout(timeoutId);
   }, [
     drivers,
     vehicles,
@@ -432,7 +452,8 @@ export function ShortHaulForm({
     defaultVehicleId,
     shortDriverConflicts,
     shortVehicleConflicts,
-    timelinePrefillApplied,
+    timelinePrefill,
+    timelinePrefillKey,
   ]);
 
   const selectedDriver = drivers.find(
@@ -442,6 +463,13 @@ export function ShortHaulForm({
   const selectedVehicle = vehicles.find(
     (vehicle) => vehicle.id === selectedVehicleId
   );
+  const timelinePrefillDriverId = timelinePrefill?.driverId ?? "";
+  const timelinePrefillVehicleId = timelinePrefill?.vehicleId ?? "";
+  const timelineTourNumberOffset =
+    timelinePrefill?.externalTourOffset ??
+    (!id && timelinePrefill?.tourNumber && timelinePrefill.tourNumber > 1
+      ? timelinePrefill.tourNumber - 1
+      : defaultTourNumberOffset);
 
   const driverConflict = selectedDriverId
     ? driverConflicts[selectedDriverId]
@@ -629,7 +657,9 @@ export function ShortHaulForm({
             {drivers.map((driver) => {
               const longConflict = driverConflicts[driver.id];
               const shortConflict = shortDriverConflicts[driver.id];
-              const isCurrentDriver = driver.id === defaultDriverId;
+              const isCurrentDriver =
+                driver.id === defaultDriverId ||
+                driver.id === timelinePrefillDriverId;
 
               return (
                 <option
@@ -674,7 +704,9 @@ export function ShortHaulForm({
             {vehicles.map((vehicle) => {
               const longConflict = vehicleConflicts[vehicle.id];
               const shortConflict = shortVehicleConflicts[vehicle.id];
-              const isCurrentVehicle = vehicle.id === defaultVehicleId;
+              const isCurrentVehicle =
+                vehicle.id === defaultVehicleId ||
+                vehicle.id === timelinePrefillVehicleId;
 
               return (
                 <option
@@ -789,7 +821,7 @@ export function ShortHaulForm({
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-gray-900">
-                    Tour {index + 1}
+                    Tour {timelineTourNumberOffset + index + 1}
                   </div>
 
                   {tourRows.length > 1 ? (

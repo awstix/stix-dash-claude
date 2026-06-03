@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateShortHaulTourTimeFromTimeline } from "./actions";
 
@@ -11,6 +11,7 @@ type UtilizationBlock = {
   detail?: string;
   startTime: string;
   endTime: string;
+  tourCount?: number;
   type: "SHORT" | "LONG";
 };
 
@@ -262,26 +263,6 @@ function buildHourMarks(rangeStart: number, rangeEnd: number) {
   return marks;
 }
 
-function getDateFromBrowserUrl() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const dateParam = params.get("date");
-
-  if (dateParam) {
-    return dateParam;
-  }
-
-  const now = new Date();
-
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
 function getPrefillHref({
   row,
   startTime,
@@ -299,6 +280,11 @@ function getPrefillHref({
   params.set("prefillStartTime", startTime);
   params.set("prefillEndTime", endTime);
   params.set("fromTimeline", "1");
+  params.set("prefillTourNumber", String(getPrefillTourNumber(row, startTime)));
+  params.set(
+    "prefillExternalTourOffset",
+    String(getPrefillExternalTourOffset(row, startTime))
+  );
 
   if (row.kind === "DRIVER") {
     params.set(
@@ -333,25 +319,51 @@ function getPrefillHref({
   return `/truck-dispatch/short-haul?${params.toString()}#fahrer-fahrzeug-einteilen`;
 }
 
+function getPrefillTourNumber(row: UtilizationRow, startTime: string) {
+  const startMinutes = timeToMinutes(startTime);
+
+  return getPreviousBlockTourCount(row.blocks, startMinutes) + 1;
+}
+
+function getPrefillExternalTourOffset(row: UtilizationRow, startTime: string) {
+  const startMinutes = timeToMinutes(startTime);
+  const shortPrefix = row.kind === "DRIVER" ? "driver-short-" : "vehicle-short-";
+
+  return getPreviousBlockTourCount(
+    row.blocks.filter((block) => !block.id.startsWith(shortPrefix)),
+    startMinutes
+  );
+}
+
+function getPreviousBlockTourCount(
+  blocks: UtilizationBlock[],
+  startMinutes: number
+) {
+  return blocks
+    .filter((block) => timeToMinutes(block.endTime) <= startMinutes)
+    .reduce((sum, block) => sum + (block.tourCount ?? 1), 0);
+}
+
 function getTrackFromElement(element: HTMLElement) {
   return element.closest("[data-timeline-track]") as HTMLElement | null;
 }
 
-export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
+export function UtilizationTimeline({
+  rows,
+  selectedDate,
+}: {
+  rows: UtilizationRow[];
+  selectedDate: string;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
   const [showFreeOnly, setShowFreeOnly] = useState(false);
   const [showFullDay, setShowFullDay] = useState(false);
   const [workTime, setWorkTime] = useState<WorkTimeSettings>(fallbackWorkTime);
-  const [selectedDate, setSelectedDate] = useState("");
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [savingBlockId, setSavingBlockId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelectedDate(getDateFromBrowserUrl());
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -387,19 +399,13 @@ export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
   const rangeEnd = showFullDay ? 1440 : timeToMinutes(workTime.endTime);
   const hourMarks = buildHourMarks(rangeStart, rangeEnd);
 
-  const rowsWithFreeIntervals = useMemo(
-    () =>
-      rows.map((row) => ({
-        ...row,
-        visibleBlocks: row.blocks
-          .map((block) => clampBlockToRange(block, rangeStart, rangeEnd))
-          .filter((block): block is NonNullable<typeof block> =>
-            Boolean(block)
-          ),
-        freeIntervals: getFreeIntervals(row.blocks, rangeStart, rangeEnd),
-      })),
-    [rows, rangeStart, rangeEnd]
-  );
+  const rowsWithFreeIntervals = rows.map((row) => ({
+    ...row,
+    visibleBlocks: row.blocks
+      .map((block) => clampBlockToRange(block, rangeStart, rangeEnd))
+      .filter((block): block is NonNullable<typeof block> => Boolean(block)),
+    freeIntervals: getFreeIntervals(row.blocks, rangeStart, rangeEnd),
+  }));
 
   const visibleRows = showFreeOnly
     ? rowsWithFreeIntervals.filter((row) => row.freeIntervals.length > 0)
@@ -466,45 +472,49 @@ export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
       return;
     }
 
+    const activeDragState = dragState;
+
     function handlePointerMove(event: PointerEvent) {
-      const range = dragState.rangeEnd - dragState.rangeStart;
-      const deltaPixels = event.clientX - dragState.pointerStartX;
+      const range = activeDragState.rangeEnd - activeDragState.rangeStart;
+      const deltaPixels = event.clientX - activeDragState.pointerStartX;
       const deltaMinutes = snapMinutes(
-        (deltaPixels / dragState.trackWidth) * range
+        (deltaPixels / activeDragState.trackWidth) * range
       );
 
-      let nextStart = dragState.initialStartMinutes;
-      let nextEnd = dragState.initialEndMinutes;
+      let nextStart = activeDragState.initialStartMinutes;
+      let nextEnd = activeDragState.initialEndMinutes;
 
-      if (dragState.mode === "move") {
-        const duration = dragState.initialEndMinutes - dragState.initialStartMinutes;
+      if (activeDragState.mode === "move") {
+        const duration =
+          activeDragState.initialEndMinutes -
+          activeDragState.initialStartMinutes;
 
         nextStart = clamp(
-          dragState.initialStartMinutes + deltaMinutes,
-          dragState.rangeStart,
-          dragState.rangeEnd - duration
+          activeDragState.initialStartMinutes + deltaMinutes,
+          activeDragState.rangeStart,
+          activeDragState.rangeEnd - duration
         );
         nextEnd = nextStart + duration;
       }
 
-      if (dragState.mode === "resize-start") {
+      if (activeDragState.mode === "resize-start") {
         nextStart = clamp(
-          dragState.initialStartMinutes + deltaMinutes,
-          dragState.rangeStart,
-          dragState.initialEndMinutes - minBlockMinutes
+          activeDragState.initialStartMinutes + deltaMinutes,
+          activeDragState.rangeStart,
+          activeDragState.initialEndMinutes - minBlockMinutes
         );
       }
 
-      if (dragState.mode === "resize-end") {
+      if (activeDragState.mode === "resize-end") {
         nextEnd = clamp(
-          dragState.initialEndMinutes + deltaMinutes,
-          dragState.initialStartMinutes + minBlockMinutes,
-          dragState.rangeEnd
+          activeDragState.initialEndMinutes + deltaMinutes,
+          activeDragState.initialStartMinutes + minBlockMinutes,
+          activeDragState.rangeEnd
         );
       }
 
       setDragPreview({
-        blockId: dragState.blockId,
+        blockId: activeDragState.blockId,
         startMinutes: snapMinutes(nextStart),
         endMinutes: snapMinutes(nextEnd),
       });
@@ -513,7 +523,7 @@ export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
     function handlePointerUp() {
       const preview = dragPreview;
 
-      if (!preview || preview.blockId !== dragState.blockId) {
+      if (!preview || preview.blockId !== activeDragState.blockId) {
         setDragState(null);
         setDragPreview(null);
         return;
@@ -521,8 +531,8 @@ export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
 
       const nextStartTime = minutesToTime(preview.startMinutes);
       const nextEndTime = minutesToTime(preview.endMinutes);
-      const oldStartTime = minutesToTime(dragState.initialStartMinutes);
-      const oldEndTime = minutesToTime(dragState.initialEndMinutes);
+      const oldStartTime = minutesToTime(activeDragState.initialStartMinutes);
+      const oldEndTime = minutesToTime(activeDragState.initialEndMinutes);
 
       setDragState(null);
 
@@ -531,13 +541,13 @@ export function UtilizationTimeline({ rows }: { rows: UtilizationRow[] }) {
         return;
       }
 
-      setSavingBlockId(dragState.blockId);
+      setSavingBlockId(activeDragState.blockId);
 
       startTransition(() => {
         void (async () => {
           try {
             await updateShortHaulTourTimeFromTimeline({
-              tourId: dragState.tourId,
+              tourId: activeDragState.tourId,
               startTime: nextStartTime,
               endTime: nextEndTime,
             });

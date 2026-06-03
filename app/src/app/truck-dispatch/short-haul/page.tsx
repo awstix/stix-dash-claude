@@ -72,6 +72,18 @@ function formatGermanDate(date: Date) {
   }).format(date);
 }
 
+function timeToMinutes(value: string) {
+  const [hoursText, minutesText] = value.split(":");
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return 0;
+  }
+
+  return hours * 60 + minutes;
+}
+
 function formatQuantity(value: number | null, unit: string | null) {
   if (value === null || value === undefined) {
     return null;
@@ -194,12 +206,16 @@ export default async function ShortHaulPage({
 }: {
   searchParams: Promise<{
     date?: string;
+    editAssignmentId?: string;
+    fromTimeline?: string;
   }>;
 }) {
   const params = await searchParams;
 
   const selectedDate = parseDateParam(params.date);
   const selectedDateInput = formatDateInput(selectedDate);
+  const timelineEditAssignmentId =
+    params.fromTimeline === "1" ? params.editAssignmentId ?? "" : "";
   const previousDay = formatDateInput(addDays(selectedDate, -1));
   const today = formatDateInput(new Date());
   const nextDay = formatDateInput(addDays(selectedDate, 1));
@@ -548,10 +564,383 @@ export default async function ShortHaulPage({
     ...shortVehicleConflicts,
   };
 
+  function matchesDailyResource(
+    target: { driverId: string | null; vehicleId: string | null },
+    candidate: { driverId: string | null; vehicleId: string | null }
+  ) {
+    return Boolean(
+      (target.driverId && candidate.driverId === target.driverId) ||
+        (target.vehicleId && candidate.vehicleId === target.vehicleId)
+    );
+  }
+
+  function getDailyTourOffsetBefore({
+    driverId,
+    vehicleId,
+    beforeMinutes,
+    excludeTourId,
+  }: {
+    driverId: string | null;
+    vehicleId: string | null;
+    beforeMinutes: number;
+    excludeTourId?: string;
+  }) {
+    const target = { driverId, vehicleId };
+
+    const matchingShortTourCount = assignments.reduce((sum, assignment) => {
+      if (!matchesDailyResource(target, assignment)) {
+        return sum;
+      }
+
+      return (
+        sum +
+        assignment.tours.filter(
+          (tour) =>
+            tour.id !== excludeTourId &&
+            timeToMinutes(tour.endTime) <= beforeMinutes
+        ).length
+      );
+    }, 0);
+
+    const matchingAsphaltTourCount = shortAsphaltAllocations
+      .filter(
+        (allocation) =>
+          matchesDailyResource(target, allocation) &&
+          timeToMinutes(allocation.endTime) <= beforeMinutes
+      )
+      .reduce((sum, allocation) => sum + allocation.tourCount, 0);
+
+    const matchingTackCoatTourCount = shortTackCoatAllocations
+      .filter(
+        (allocation) =>
+          matchesDailyResource(target, allocation) &&
+          timeToMinutes(allocation.endTime) <= beforeMinutes
+      )
+      .reduce((sum, allocation) => sum + allocation.tourCount, 0);
+
+    return (
+      matchingShortTourCount +
+      matchingAsphaltTourCount +
+      matchingTackCoatTourCount
+    );
+  }
+
+  function getShortHaulAssignmentTourOffset(
+    assignment: (typeof assignments)[number]
+  ) {
+    const firstTourStart = assignment.tours.reduce(
+      (earliest, tour) =>
+        timeToMinutes(tour.startTime) < timeToMinutes(earliest)
+          ? tour.startTime
+          : earliest,
+      assignment.tours[0]?.startTime ?? assignment.startTime
+    );
+
+    return getDailyTourOffsetBefore({
+      driverId: assignment.driverId,
+      vehicleId: assignment.vehicleId,
+      beforeMinutes: timeToMinutes(firstTourStart),
+    });
+  }
+
+  function getShortHaulTourNumber(
+    assignment: (typeof assignments)[number],
+    tour: (typeof assignments)[number]["tours"][number]
+  ) {
+    return (
+      getDailyTourOffsetBefore({
+        driverId: assignment.driverId,
+        vehicleId: assignment.vehicleId,
+        beforeMinutes: timeToMinutes(tour.startTime),
+        excludeTourId: tour.id,
+      }) + 1
+    );
+  }
+
+  function getAllocationTourLabel(allocation: {
+    driverId: string | null;
+    vehicleId: string | null;
+    startTime: string;
+    tourCount: number;
+  }) {
+    const offset = getDailyTourOffsetBefore({
+      driverId: allocation.driverId,
+      vehicleId: allocation.vehicleId,
+      beforeMinutes: timeToMinutes(allocation.startTime),
+    });
+    const firstTourNumber = offset + 1;
+    const lastTourNumber = offset + Math.max(allocation.tourCount, 1);
+
+    if (firstTourNumber === lastTourNumber) {
+      return `Tour ${firstTourNumber}`;
+    }
+
+    return `Touren ${firstTourNumber}-${lastTourNumber}`;
+  }
+
+  function getAssignmentSortStart(assignment: (typeof assignments)[number]) {
+    return assignment.tours.reduce(
+      (earliest, tour) =>
+        Math.min(earliest, timeToMinutes(tour.startTime)),
+      timeToMinutes(assignment.startTime)
+    );
+  }
+
+  function getAssignmentSortEnd(assignment: (typeof assignments)[number]) {
+    return assignment.tours.reduce(
+      (latest, tour) => Math.max(latest, timeToMinutes(tour.endTime)),
+      timeToMinutes(assignment.startTime)
+    );
+  }
+
+  const dailyScheduleRows = [
+    ...assignments.map((assignment) => ({
+      kind: "assignment" as const,
+      id: assignment.id,
+      sortStart: getAssignmentSortStart(assignment),
+      sortEnd: getAssignmentSortEnd(assignment),
+      assignment,
+    })),
+    ...shortAsphaltAllocations.map((allocation) => ({
+      kind: "asphalt" as const,
+      id: allocation.id,
+      sortStart: timeToMinutes(allocation.startTime),
+      sortEnd: timeToMinutes(allocation.endTime),
+      allocation,
+    })),
+    ...shortTackCoatAllocations.map((allocation) => ({
+      kind: "tackCoat" as const,
+      id: allocation.id,
+      sortStart: timeToMinutes(allocation.startTime),
+      sortEnd: timeToMinutes(allocation.endTime),
+      allocation,
+    })),
+  ].sort((first, second) => {
+    const startDiff = first.sortStart - second.sortStart;
+
+    if (startDiff !== 0) {
+      return startDiff;
+    }
+
+    const endDiff = first.sortEnd - second.sortEnd;
+
+    if (endDiff !== 0) {
+      return endDiff;
+    }
+
+    return `${first.kind}-${first.id}`.localeCompare(
+      `${second.kind}-${second.id}`
+    );
+  });
+
+  type DailyScheduleRow = (typeof dailyScheduleRows)[number];
+  type DailyScheduleItem =
+    | {
+        kind: "shortTour";
+        id: string;
+        sortStart: number;
+        sortEnd: number;
+        assignment: (typeof assignments)[number];
+        tour: (typeof assignments)[number]["tours"][number];
+      }
+    | {
+        kind: "asphalt";
+        id: string;
+        sortStart: number;
+        sortEnd: number;
+        allocation: (typeof shortAsphaltAllocations)[number];
+      }
+    | {
+        kind: "tackCoat";
+        id: string;
+        sortStart: number;
+        sortEnd: number;
+        allocation: (typeof shortTackCoatAllocations)[number];
+      };
+
+  function getSortedAssignmentTours(assignment: (typeof assignments)[number]) {
+    return [...assignment.tours].sort((first, second) => {
+      const startDiff =
+        timeToMinutes(first.startTime) - timeToMinutes(second.startTime);
+
+      if (startDiff !== 0) {
+        return startDiff;
+      }
+
+      return timeToMinutes(first.endTime) - timeToMinutes(second.endTime);
+    });
+  }
+
+  function getDailyRowDriverId(row: DailyScheduleRow) {
+    return row.kind === "assignment"
+      ? row.assignment.driverId
+      : row.allocation.driverId;
+  }
+
+  function getDailyRowVehicleId(row: DailyScheduleRow) {
+    return row.kind === "assignment"
+      ? row.assignment.vehicleId
+      : row.allocation.vehicleId;
+  }
+
+  function getDailyRowDriverName(row: DailyScheduleRow) {
+    return row.kind === "assignment"
+      ? row.assignment.driverName
+      : row.allocation.driverName;
+  }
+
+  function getDailyRowVehicleLabel(row: DailyScheduleRow) {
+    if (row.kind !== "assignment") {
+      return row.allocation.vehicleLabel || "-";
+    }
+
+    return (
+      [
+        row.assignment.vehicleNumber,
+        row.assignment.licensePlate,
+        row.assignment.vehicleCategory,
+        row.assignment.vehicleType,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "-"
+    );
+  }
+
+  function getDailyRowGroupKey(row: DailyScheduleRow) {
+    const driverId = getDailyRowDriverId(row);
+    const vehicleId = getDailyRowVehicleId(row);
+
+    if (driverId) {
+      return `driver-${driverId}`;
+    }
+
+    if (vehicleId) {
+      return `vehicle-${vehicleId}`;
+    }
+
+    return `${row.kind}-${row.id}`;
+  }
+
+  function getDailyScheduleItems(row: DailyScheduleRow): DailyScheduleItem[] {
+    if (row.kind === "assignment") {
+      return getSortedAssignmentTours(row.assignment).map((tour) => ({
+        kind: "shortTour" as const,
+        id: tour.id,
+        sortStart: timeToMinutes(tour.startTime),
+        sortEnd: timeToMinutes(tour.endTime),
+        assignment: row.assignment,
+        tour,
+      }));
+    }
+
+    if (row.kind === "asphalt") {
+      return [
+        {
+          kind: "asphalt" as const,
+          id: row.allocation.id,
+          sortStart: timeToMinutes(row.allocation.startTime),
+          sortEnd: timeToMinutes(row.allocation.endTime),
+          allocation: row.allocation,
+        },
+      ];
+    }
+
+    return [
+      {
+        kind: "tackCoat" as const,
+        id: row.allocation.id,
+        sortStart: timeToMinutes(row.allocation.startTime),
+        sortEnd: timeToMinutes(row.allocation.endTime),
+        allocation: row.allocation,
+      },
+    ];
+  }
+
+  const dailyScheduleGroupMap = new Map<
+    string,
+    {
+      id: string;
+      sortStart: number;
+      sortEnd: number;
+      driverName: string;
+      vehicleLabels: string[];
+      sourceRows: DailyScheduleRow[];
+      items: DailyScheduleItem[];
+    }
+  >();
+
+  for (const row of dailyScheduleRows) {
+    const groupKey = getDailyRowGroupKey(row);
+    const existingGroup = dailyScheduleGroupMap.get(groupKey);
+    const group =
+      existingGroup ??
+      {
+        id: groupKey,
+        sortStart: row.sortStart,
+        sortEnd: row.sortEnd,
+        driverName: getDailyRowDriverName(row) ?? "-",
+        vehicleLabels: [],
+        sourceRows: [],
+        items: [],
+      };
+
+    group.sortStart = Math.min(group.sortStart, row.sortStart);
+    group.sortEnd = Math.max(group.sortEnd, row.sortEnd);
+    group.sourceRows.push(row);
+    group.items.push(...getDailyScheduleItems(row));
+    addUniqueLabel(group.vehicleLabels, getDailyRowVehicleLabel(row));
+
+    if (group.driverName === "-" && getDailyRowDriverName(row)) {
+      group.driverName = getDailyRowDriverName(row) ?? "-";
+    }
+
+    dailyScheduleGroupMap.set(groupKey, group);
+  }
+
+  const dailyScheduleGroups = Array.from(dailyScheduleGroupMap.values()).map(
+    (group) => ({
+      ...group,
+      items: group.items.sort((first, second) => {
+        const startDiff = first.sortStart - second.sortStart;
+
+        if (startDiff !== 0) {
+          return startDiff;
+        }
+
+        const endDiff = first.sortEnd - second.sortEnd;
+
+        if (endDiff !== 0) {
+          return endDiff;
+        }
+
+        return `${first.kind}-${first.id}`.localeCompare(
+          `${second.kind}-${second.id}`
+        );
+      }),
+    })
+  ).sort((first, second) => {
+    const startDiff = first.sortStart - second.sortStart;
+
+    if (startDiff !== 0) {
+      return startDiff;
+    }
+
+    return first.driverName.localeCompare(second.driverName);
+  });
+
   const utilizationRows = [
     ...drivers.map((driver) => {
       const blocks = [];
       const dayVehicleLabels: string[] = [];
+      const dayAssignment =
+        assignments.find((assignment) => assignment.driverId === driver.id) ??
+        null;
+      const dayAsphaltAllocation = shortAsphaltAllocations.find(
+        (allocation) => allocation.driverId === driver.id
+      );
+      const dayTackCoatAllocation = shortTackCoatAllocations.find(
+        (allocation) => allocation.driverId === driver.id
+      );
 
       for (const longHaulAssignment of longHaulAssignments) {
         if (longHaulAssignment.driverId === driver.id) {
@@ -626,6 +1015,7 @@ export default async function ShortHaulPage({
           )} t = ${formatTons(allocation.totalTons)} t`,
           startTime: allocation.startTime,
           endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
           type: "SHORT" as const,
         });
       }
@@ -647,6 +1037,7 @@ export default async function ShortHaulPage({
           )} ${allocation.quantityUnit}`,
           startTime: allocation.startTime,
           endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
           type: "SHORT" as const,
         });
       }
@@ -663,12 +1054,28 @@ export default async function ShortHaulPage({
         kind: "DRIVER" as const,
         title: `${driver.lastName}, ${driver.firstName}`,
         subtitle: `${dayVehicleText} · ${primaryVehicleText}`,
+        shortHaulAssignmentId: dayAssignment?.id,
+        dayDriverId: driver.id,
+        dayVehicleId:
+          dayAssignment?.vehicleId ??
+          dayAsphaltAllocation?.vehicleId ??
+          dayTackCoatAllocation?.vehicleId ??
+          undefined,
         blocks,
       };
     }),
 
     ...vehicles.map((vehicle) => {
       const blocks = [];
+      const dayAssignment =
+        assignments.find((assignment) => assignment.vehicleId === vehicle.id) ??
+        null;
+      const dayAsphaltAllocation = shortAsphaltAllocations.find(
+        (allocation) => allocation.vehicleId === vehicle.id
+      );
+      const dayTackCoatAllocation = shortTackCoatAllocations.find(
+        (allocation) => allocation.vehicleId === vehicle.id
+      );
 
       for (const longHaulAssignment of longHaulAssignments) {
         if (longHaulAssignment.vehicleId === vehicle.id) {
@@ -715,6 +1122,7 @@ export default async function ShortHaulPage({
           )} t = ${formatTons(allocation.totalTons)} t`,
           startTime: allocation.startTime,
           endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
           type: "SHORT" as const,
         });
       }
@@ -734,6 +1142,7 @@ export default async function ShortHaulPage({
           )} ${allocation.quantityUnit}`,
           startTime: allocation.startTime,
           endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
           type: "SHORT" as const,
         });
       }
@@ -747,10 +1156,397 @@ export default async function ShortHaulPage({
         subtitle: assignedDriver
           ? `Stammfahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
           : `frei zugeordnet · ${vehicle.category} · ${vehicle.vehicleType}`,
+        shortHaulAssignmentId: dayAssignment?.id,
+        dayDriverId:
+          dayAssignment?.driverId ??
+          dayAsphaltAllocation?.driverId ??
+          dayTackCoatAllocation?.driverId ??
+          undefined,
+        dayVehicleId: vehicle.id,
         blocks,
       };
     }),
   ];
+
+  function renderAssignmentEditSection(
+    assignment: (typeof assignments)[number]
+  ) {
+    const assignmentTourOffset = getShortHaulAssignmentTourOffset(assignment);
+    const sortedTours = getSortedAssignmentTours(assignment);
+
+    return (
+      <section key={`edit-assignment-${assignment.id}`} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+          Kurzstrecken-Touren bearbeiten
+        </h3>
+
+        <ShortHaulForm
+          action={updateShortHaulAssignment}
+          id={assignment.id}
+          projects={projects}
+          vehicles={vehicles}
+          drivers={drivers}
+          materials={materials}
+          asphaltMixes={asphaltMixes}
+          transportItems={transportItems}
+          unitOptions={unitOptions}
+          driverConflicts={driverConflicts}
+          vehicleConflicts={vehicleConflicts}
+          shortDriverConflicts={buildShortDriverConflicts(assignment.id)}
+          shortVehicleConflicts={buildShortVehicleConflicts(assignment.id)}
+          defaultVehicleId={assignment.vehicleId ?? ""}
+          defaultDriverId={assignment.driverId ?? ""}
+          defaultNotes={assignment.notes ?? ""}
+          defaultAllowLongHaulConflict={assignment.allowLongHaulConflict}
+          defaultTourNumberOffset={assignmentTourOffset}
+          defaultTours={
+            sortedTours.length > 0
+              ? sortedTours.map((tour) => ({
+                  startTime: tour.startTime,
+                  endTime: tour.endTime,
+                  projectId: tour.projectId ?? "",
+                  purposeType: tour.purposeType ?? "CUSTOM",
+                  itemId: tour.itemId ?? "",
+                  customPurpose: tour.customPurpose ?? "",
+                  quantity:
+                    tour.quantity !== null && tour.quantity !== undefined
+                      ? String(tour.quantity)
+                      : "",
+                  quantityUnit: tour.quantityUnit ?? "",
+                  notes: tour.notes ?? "",
+                }))
+              : [
+                  {
+                    startTime: assignment.startTime,
+                    endTime: "",
+                    projectId: assignment.projectId ?? "",
+                    purposeType: "CUSTOM",
+                    itemId: "",
+                    customPurpose: assignment.material ?? "",
+                    quantity: "",
+                    quantityUnit: "",
+                    notes: "",
+                  },
+                ]
+          }
+        />
+
+        <form action={deleteShortHaulAssignment} className="mt-3 flex justify-start">
+          <input type="hidden" name="id" value={assignment.id} />
+          <IconActionButton
+            icon="delete"
+            title="Kurzstrecken-Einteilung löschen"
+            danger
+          />
+        </form>
+      </section>
+    );
+  }
+
+  function renderAsphaltEditSection(
+    allocation: (typeof shortAsphaltAllocations)[number]
+  ) {
+    return (
+      <section key={`edit-asphalt-${allocation.id}`} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+          Asphalt-Zuteilung bearbeiten
+        </h3>
+
+        <div className="rounded-xl border border-orange-200 bg-white p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-medium text-gray-700">
+              Beginn
+              <input
+                form={`daily-allocation-form-${allocation.id}`}
+                name="startTime"
+                type="time"
+                defaultValue={allocation.startTime}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              Ende
+              <input
+                form={`daily-allocation-form-${allocation.id}`}
+                name="endTime"
+                type="time"
+                defaultValue={allocation.endTime}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              Touren
+              <input
+                form={`daily-allocation-form-${allocation.id}`}
+                name="tourCount"
+                type="number"
+                min="1"
+                defaultValue={allocation.tourCount}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              t / Tour
+              <input
+                form={`daily-allocation-form-${allocation.id}`}
+                name="tonsPerTour"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={String(allocation.tonsPerTour)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+          </div>
+
+          <input
+            form={`daily-allocation-form-${allocation.id}`}
+            name="notes"
+            defaultValue={allocation.notes ?? ""}
+            placeholder="Bemerkung"
+            className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+          />
+
+          <div className="mt-3 flex gap-2">
+            <form
+              id={`daily-allocation-form-${allocation.id}`}
+              action={updateAsphaltLoadAllocation}
+            >
+              <input type="hidden" name="id" value={allocation.id} />
+              <IconActionButton icon="save" title="Asphalt-Zuteilung speichern" />
+            </form>
+
+            <form action={deleteAsphaltLoadAllocation}>
+              <input type="hidden" name="id" value={allocation.id} />
+              <IconActionButton
+                icon="delete"
+                title="Asphalt-Zuteilung löschen"
+                danger
+              />
+            </form>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderTackCoatEditSection(
+    allocation: (typeof shortTackCoatAllocations)[number]
+  ) {
+    return (
+      <section key={`edit-tack-coat-${allocation.id}`} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+        <h3 className="mb-3 text-sm font-semibold text-gray-900">
+          Anspritzmittel-Zuteilung bearbeiten
+        </h3>
+
+        <div className="rounded-xl border border-blue-200 bg-white p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-medium text-gray-700">
+              Beginn
+              <input
+                form={`daily-tack-coat-form-${allocation.id}`}
+                name="startTime"
+                type="time"
+                defaultValue={allocation.startTime}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              Ende
+              <input
+                form={`daily-tack-coat-form-${allocation.id}`}
+                name="endTime"
+                type="time"
+                defaultValue={allocation.endTime}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              Touren
+              <input
+                form={`daily-tack-coat-form-${allocation.id}`}
+                name="tourCount"
+                type="number"
+                min="1"
+                defaultValue={allocation.tourCount}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+
+            <label className="text-xs font-medium text-gray-700">
+              l / Tour
+              <input
+                form={`daily-tack-coat-form-${allocation.id}`}
+                name="litersPerTour"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={String(allocation.litersPerTour)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
+              />
+            </label>
+          </div>
+
+          <input
+            form={`daily-tack-coat-form-${allocation.id}`}
+            name="notes"
+            defaultValue={allocation.notes ?? ""}
+            placeholder="Bemerkung"
+            className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+          />
+
+          <div className="mt-3 flex gap-2">
+            <form
+              id={`daily-tack-coat-form-${allocation.id}`}
+              action={updateTackCoatLoadAllocation}
+            >
+              <input type="hidden" name="id" value={allocation.id} />
+              <IconActionButton
+                icon="save"
+                title="Anspritzmittel-Zuteilung speichern"
+              />
+            </form>
+
+            <form action={deleteTackCoatLoadAllocation}>
+              <input type="hidden" name="id" value={allocation.id} />
+              <IconActionButton
+                icon="delete"
+                title="Anspritzmittel-Zuteilung löschen"
+                danger
+              />
+            </form>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderDailyEditSection(row: DailyScheduleRow) {
+    if (row.kind === "assignment") {
+      return renderAssignmentEditSection(row.assignment);
+    }
+
+    if (row.kind === "asphalt") {
+      return renderAsphaltEditSection(row.allocation);
+    }
+
+    return renderTackCoatEditSection(row.allocation);
+  }
+
+  function renderDailyScheduleItem(item: DailyScheduleItem) {
+    if (item.kind === "shortTour") {
+      const quantityText = formatQuantity(
+        item.tour.quantity,
+        item.tour.quantityUnit
+      );
+
+      return (
+        <div
+          key={`short-tour-${item.id}`}
+          className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
+            <span>
+              Tour {getShortHaulTourNumber(item.assignment, item.tour)}
+            </span>
+            <span>
+              {item.tour.startTime} – {item.tour.endTime}
+            </span>
+            <span className="rounded-full bg-white px-2 py-1 text-gray-700">
+              {getTourPurposeTypeLabel(item.tour.purposeType)}
+            </span>
+          </div>
+
+          <div className="mt-1 text-sm font-medium text-gray-900">
+            {item.tour.projectNumber} · {item.tour.projectName}
+          </div>
+
+          <div className="mt-1 text-xs text-gray-600">
+            Zweck: {getTourPurposeLabel(item.tour)}
+            {quantityText ? ` · ${quantityText}` : ""}
+          </div>
+
+          {item.tour.notes ? (
+            <div className="mt-1 text-xs text-gray-500">{item.tour.notes}</div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (item.kind === "asphalt") {
+      const allocation = item.allocation;
+
+      return (
+        <div
+          key={`asphalt-${allocation.id}`}
+          className="rounded-lg border border-orange-200 bg-orange-50/40 p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
+            <span>{getAllocationTourLabel(allocation)}</span>
+            <span>
+              {allocation.startTime} – {allocation.endTime}
+            </span>
+            <span className="rounded-full bg-orange-100 px-2 py-1 text-orange-900">
+              Asphalt
+            </span>
+          </div>
+
+          <div className="mt-1 text-sm font-medium text-gray-900">
+            {allocation.projectNumber} · {allocation.projectName}
+          </div>
+
+          <div className="mt-1 text-xs text-gray-600">
+            {allocation.asphaltMixNumber ?? "-"} ·{" "}
+            {allocation.asphaltMixName ?? "Asphalt"} ·{" "}
+            {formatTons(allocation.totalTons)} t gesamt ·{" "}
+            {formatTons(allocation.tonsPerTour)} t/Tour
+          </div>
+
+          {allocation.notes ? (
+            <div className="mt-1 text-xs text-gray-500">{allocation.notes}</div>
+          ) : null}
+        </div>
+      );
+    }
+
+    const allocation = item.allocation;
+
+    return (
+      <div
+        key={`tack-coat-${allocation.id}`}
+        className="rounded-lg border border-blue-200 bg-blue-50/40 p-3"
+      >
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
+          <span>{getAllocationTourLabel(allocation)}</span>
+          <span>
+            {allocation.startTime} – {allocation.endTime}
+          </span>
+          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-900">
+            Anspritzmittel
+          </span>
+        </div>
+
+        <div className="mt-1 text-sm font-medium text-gray-900">
+          {allocation.projectNumber} · {allocation.projectName}
+        </div>
+
+        <div className="mt-1 text-xs text-gray-600">
+          {allocation.materialName} · {formatLiters(allocation.totalLiters)}{" "}
+          {allocation.quantityUnit} gesamt ·{" "}
+          {formatLiters(allocation.litersPerTour)} {allocation.quantityUnit}/Tour
+        </div>
+
+        {allocation.notes ? (
+          <div className="mt-1 text-xs text-gray-500">{allocation.notes}</div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <AppShell
@@ -1475,7 +2271,10 @@ export default async function ShortHaulPage({
         </div>
       </section>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div
+        id="fahrer-fahrzeug-einteilen"
+        className="mb-6 scroll-mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      >
         <h2 className="text-xl font-semibold text-gray-900">
           Fahrer/Fahrzeug einteilen
         </h2>
@@ -1497,7 +2296,10 @@ export default async function ShortHaulPage({
         />
       </div>
 
-      <UtilizationTimeline rows={utilizationRows} />
+      <UtilizationTimeline
+        rows={utilizationRows}
+        selectedDate={selectedDateInput}
+      />
 
       <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <AvailabilityList
@@ -1555,9 +2357,7 @@ export default async function ShortHaulPage({
             </thead>
 
             <tbody>
-              {assignments.length === 0 &&
-              shortAsphaltAllocations.length === 0 &&
-              shortTackCoatAllocations.length === 0 ? (
+              {dailyScheduleGroups.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-gray-500">
                     Noch keine Kurzstrecken-Einteilung, Asphalt-Zuteilung oder Anspritzmittel-Nachlieferung für diesen Tag vorhanden.
@@ -1565,482 +2365,137 @@ export default async function ShortHaulPage({
                 </tr>
               ) : (
                 <>
-                {assignments.map((assignment) => (
-                  <tr key={assignment.id} className="border-t border-gray-100">
-                    <Td className="px-2 text-center">
-                      <DismissibleDetails className="group relative">
-                        <EditDetailsSummary />
+                  {dailyScheduleGroups.map((group) => {
+                    const assignmentSourceRow = group.sourceRows.find(
+                      (
+                        row
+                      ): row is Extract<
+                        DailyScheduleRow,
+                        { kind: "assignment" }
+                      > => row.kind === "assignment"
+                    );
+                    const conflictNotes = group.sourceRows.flatMap((row) =>
+                      row.kind === "assignment" && row.assignment.conflictNote
+                        ? [row.assignment.conflictNote]
+                        : []
+                    );
+                    const hasShortTours = group.items.some(
+                      (item) => item.kind === "shortTour"
+                    );
+                    const hasAsphalt = group.items.some(
+                      (item) => item.kind === "asphalt"
+                    );
+                    const hasTackCoat = group.items.some(
+                      (item) => item.kind === "tackCoat"
+                    );
+                    const defaultOpen = group.sourceRows.some(
+                      (row) =>
+                        row.kind === "assignment" &&
+                        row.assignment.id === timelineEditAssignmentId
+                    );
+                    const editRows =
+                      defaultOpen && timelineEditAssignmentId
+                        ? group.sourceRows.filter(
+                            (row) =>
+                              row.kind === "assignment" &&
+                              row.assignment.id === timelineEditAssignmentId
+                          )
+                        : group.sourceRows;
 
-                        <EditDetailsPanel>
-                          <ShortHaulForm
-                            action={updateShortHaulAssignment}
-                            id={assignment.id}
-                            projects={projects}
-                            vehicles={vehicles}
-                            drivers={drivers}
-                            materials={materials}
-                            asphaltMixes={asphaltMixes}
-                            transportItems={transportItems}
-                            unitOptions={unitOptions}
-                            driverConflicts={driverConflicts}
-                            vehicleConflicts={vehicleConflicts}
-                            shortDriverConflicts={buildShortDriverConflicts(
-                              assignment.id
-                            )}
-                            shortVehicleConflicts={buildShortVehicleConflicts(
-                              assignment.id
-                            )}
-                            defaultVehicleId={assignment.vehicleId ?? ""}
-                            defaultDriverId={assignment.driverId ?? ""}
-                            defaultNotes={assignment.notes ?? ""}
-                            defaultAllowLongHaulConflict={
-                              assignment.allowLongHaulConflict
-                            }
-                            defaultTours={
-                              assignment.tours.length > 0
-                                ? assignment.tours.map((tour) => ({
-                                    startTime: tour.startTime,
-                                    endTime: tour.endTime,
-                                    projectId: tour.projectId ?? "",
-                                    purposeType: tour.purposeType ?? "CUSTOM",
-                                    itemId: tour.itemId ?? "",
-                                    customPurpose: tour.customPurpose ?? "",
-                                    quantity:
-                                      tour.quantity !== null &&
-                                      tour.quantity !== undefined
-                                        ? String(tour.quantity)
-                                        : "",
-                                    quantityUnit: tour.quantityUnit ?? "",
-                                    notes: tour.notes ?? "",
-                                  }))
-                                : [
-                                    {
-                                      startTime: assignment.startTime,
-                                      endTime: "",
-                                      projectId: assignment.projectId ?? "",
-                                      purposeType: "CUSTOM",
-                                      itemId: "",
-                                      customPurpose: assignment.material ?? "",
-                                      quantity: "",
-                                      quantityUnit: "",
-                                      notes: "",
-                                    },
-                                  ]
-                            }
-                          />
-
-                          <form
-                            action={deleteShortHaulAssignment}
-                            className="mt-3 flex justify-start"
+                    return (
+                      <tr
+                        key={group.id}
+                        id={
+                          assignmentSourceRow
+                            ? `assignment-${assignmentSourceRow.id}`
+                            : group.id
+                        }
+                        className="scroll-mt-6 border-t border-gray-100"
+                      >
+                        <Td className="px-2 text-center">
+                          <DismissibleDetails
+                            className="group relative"
+                            defaultOpen={defaultOpen}
                           >
-                            <input type="hidden" name="id" value={assignment.id} />
-                            <IconActionButton
-                              icon="delete"
-                              title="Kurzstrecken-Einteilung löschen"
-                              danger
-                            />
-                          </form>
-                        </EditDetailsPanel>
-                      </DismissibleDetails>
-                    </Td>
+                            <EditDetailsSummary />
 
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {assignment.driverName ?? "-"}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {assignment.vehicleNumber ?? "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {assignment.vehicleCategory ?? "-"} ·{" "}
-                        {assignment.vehicleType ?? "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Kennzeichen: {assignment.licensePlate ?? "-"}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="space-y-2">
-                        {assignment.tours.length === 0 ? (
-                          <span className="text-gray-400">Keine Touren</span>
-                        ) : (
-                          assignment.tours.map((tour) => {
-                            const quantityText = formatQuantity(
-                              tour.quantity,
-                              tour.quantityUnit
-                            );
-
-                            return (
-                              <div
-                                key={tour.id}
-                                className="rounded-lg border border-gray-200 bg-gray-50 p-3"
-                              >
-                                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
-                                  <span>Tour {tour.tourNumber}</span>
-                                  <span>
-                                    {tour.startTime} – {tour.endTime}
-                                  </span>
-                                  <span className="rounded-full bg-white px-2 py-1 text-gray-700">
-                                    {getTourPurposeTypeLabel(tour.purposeType)}
-                                  </span>
-                                </div>
-
-                                <div className="mt-1 text-sm font-medium text-gray-900">
-                                  {tour.projectNumber} · {tour.projectName}
-                                </div>
-
-                                <div className="mt-1 text-xs text-gray-600">
-                                  Zweck: {getTourPurposeLabel(tour)}
-                                  {quantityText ? ` · ${quantityText}` : ""}
-                                </div>
-
-                                {tour.notes ? (
-                                  <div className="mt-1 text-xs text-gray-500">
-                                    {tour.notes}
-                                  </div>
-                                ) : null}
+                            <EditDetailsPanel>
+                              <div className="space-y-4">
+                                {editRows.map(renderDailyEditSection)}
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </Td>
+                            </EditDetailsPanel>
+                          </DismissibleDetails>
+                        </Td>
 
-                    <Td>
-                      {assignment.conflictNote ? (
-                        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
-                          {assignment.conflictNote}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </Td>
-
-                  </tr>
-                ))}
-
-                {shortAsphaltAllocations.map((allocation) => (
-                  <tr
-                    key={`daily-asphalt-${allocation.id}`}
-                    id={`asphalt-allocation-${allocation.id}`}
-                    className="border-t border-orange-100 bg-orange-50/30"
-                  >
-                    <Td className="px-2 text-center">
-                      <DismissibleDetails className="group relative">
-                        <EditDetailsSummary />
-
-                        <EditDetailsPanel>
-                        <div className="rounded-xl border border-orange-200 bg-white p-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <label className="text-xs font-medium text-gray-700">
-                              Beginn
-                              <input
-                                form={`daily-allocation-form-${allocation.id}`}
-                                name="startTime"
-                                type="time"
-                                defaultValue={allocation.startTime}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              Ende
-                              <input
-                                form={`daily-allocation-form-${allocation.id}`}
-                                name="endTime"
-                                type="time"
-                                defaultValue={allocation.endTime}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              Touren
-                              <input
-                                form={`daily-allocation-form-${allocation.id}`}
-                                name="tourCount"
-                                type="number"
-                                min="1"
-                                defaultValue={allocation.tourCount}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              t / Tour
-                              <input
-                                form={`daily-allocation-form-${allocation.id}`}
-                                name="tonsPerTour"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                defaultValue={String(allocation.tonsPerTour)}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
+                        <Td>
+                          <div className="font-semibold text-gray-900">
+                            {group.driverName}
                           </div>
-
-                          <input
-                            form={`daily-allocation-form-${allocation.id}`}
-                            name="notes"
-                            defaultValue={allocation.notes ?? ""}
-                            placeholder="Bemerkung"
-                            className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                          />
-
-                          <div className="mt-3 flex gap-2">
-                            <form
-                              id={`daily-allocation-form-${allocation.id}`}
-                              action={updateAsphaltLoadAllocation}
-                            >
-                              <input
-                                type="hidden"
-                                name="id"
-                                value={allocation.id}
-                              />
-                              <IconActionButton
-                                icon="save"
-                                title="Asphalt-Zuteilung speichern"
-                              />
-                            </form>
-
-                            <form action={deleteAsphaltLoadAllocation}>
-                              <input
-                                type="hidden"
-                                name="id"
-                                value={allocation.id}
-                              />
-                              <IconActionButton
-                                icon="delete"
-                                title="Asphalt-Zuteilung löschen"
-                                danger
-                              />
-                            </form>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {hasShortTours ? (
+                              <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700">
+                                Kurzstrecke
+                              </span>
+                            ) : null}
+                            {hasAsphalt ? (
+                              <span className="rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-900">
+                                Asphalt
+                              </span>
+                            ) : null}
+                            {hasTackCoat ? (
+                              <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-900">
+                                Anspritzmittel
+                              </span>
+                            ) : null}
                           </div>
-                        </div>
-                        </EditDetailsPanel>
-                      </DismissibleDetails>
-                    </Td>
+                        </Td>
 
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.driverName ?? "-"}
-                      </div>
-                      <div className="mt-1 inline-flex rounded-full bg-orange-100 px-2 py-1 text-[11px] font-semibold text-orange-900">
-                        Asphalt Kurzstrecke
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.vehicleLabel || "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Kurzstrecken-Asphalt
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="rounded-lg border border-orange-200 bg-white p-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
-                          <span>
-                            {allocation.tourCount} Tour
-                            {allocation.tourCount === 1 ? "" : "en"}
-                          </span>
-                          <span>
-                            {allocation.startTime} – {allocation.endTime}
-                          </span>
-                          <span className="rounded-full bg-orange-100 px-2 py-1 text-orange-900">
-                            Asphalt
-                          </span>
-                        </div>
-
-                        <div className="mt-1 text-sm font-medium text-gray-900">
-                          {allocation.projectNumber} · {allocation.projectName}
-                        </div>
-
-                        <div className="mt-1 text-xs text-gray-600">
-                          {allocation.asphaltMixNumber ?? "-"} ·{" "}
-                          {allocation.asphaltMixName ?? "Asphalt"} ·{" "}
-                          {formatTons(allocation.totalTons)} t gesamt ·{" "}
-                          {formatTons(allocation.tonsPerTour)} t/Tour
-                        </div>
-
-                        {allocation.notes ? (
-                          <div className="mt-1 text-xs text-gray-500">
-                            {allocation.notes}
+                        <Td>
+                          <div className="space-y-1">
+                            {group.vehicleLabels.length > 0 ? (
+                              group.vehicleLabels.map((label) => (
+                                <div
+                                  key={`${group.id}-${label}`}
+                                  className="font-semibold text-gray-900"
+                                >
+                                  {label}
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </div>
-                        ) : null}
-                      </div>
-                    </Td>
+                        </Td>
 
-                    <Td>
-                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs font-medium text-orange-950">
-                        Asphalt-Zuteilung aus „Nicht verteilte Asphaltmengen“
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
-
-                {shortTackCoatAllocations.map((allocation) => (
-                  <tr
-                    key={`daily-tack-coat-${allocation.id}`}
-                    id={`tack-coat-allocation-${allocation.id}`}
-                    className="border-t border-blue-100 bg-blue-50/30"
-                  >
-                    <Td className="px-2 text-center">
-                      <DismissibleDetails className="group relative">
-                        <EditDetailsSummary />
-
-                        <EditDetailsPanel>
-                        <div className="rounded-xl border border-blue-200 bg-white p-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <label className="text-xs font-medium text-gray-700">
-                              Beginn
-                              <input
-                                form={`daily-tack-coat-form-${allocation.id}`}
-                                name="startTime"
-                                type="time"
-                                defaultValue={allocation.startTime}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              Ende
-                              <input
-                                form={`daily-tack-coat-form-${allocation.id}`}
-                                name="endTime"
-                                type="time"
-                                defaultValue={allocation.endTime}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              Touren
-                              <input
-                                form={`daily-tack-coat-form-${allocation.id}`}
-                                name="tourCount"
-                                type="number"
-                                min="1"
-                                defaultValue={allocation.tourCount}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
-
-                            <label className="text-xs font-medium text-gray-700">
-                              l / Tour
-                              <input
-                                form={`daily-tack-coat-form-${allocation.id}`}
-                                name="litersPerTour"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                defaultValue={String(allocation.litersPerTour)}
-                                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm font-medium text-gray-900"
-                              />
-                            </label>
+                        <Td>
+                          <div className="space-y-2">
+                            {group.items.length > 0 ? (
+                              group.items.map(renderDailyScheduleItem)
+                            ) : (
+                              <span className="text-gray-400">Keine Touren</span>
+                            )}
                           </div>
+                        </Td>
 
-                          <input
-                            form={`daily-tack-coat-form-${allocation.id}`}
-                            name="notes"
-                            defaultValue={allocation.notes ?? ""}
-                            placeholder="Bemerkung"
-                            className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                          />
-
-                          <div className="mt-3 flex gap-2">
-                            <form
-                              id={`daily-tack-coat-form-${allocation.id}`}
-                              action={updateTackCoatLoadAllocation}
-                            >
-                              <input type="hidden" name="id" value={allocation.id} />
-                              <IconActionButton
-                                icon="save"
-                                title="Anspritzmittel-Zuteilung speichern"
-                              />
-                            </form>
-
-                            <form action={deleteTackCoatLoadAllocation}>
-                              <input type="hidden" name="id" value={allocation.id} />
-                              <IconActionButton
-                                icon="delete"
-                                title="Anspritzmittel-Zuteilung löschen"
-                                danger
-                              />
-                            </form>
-                          </div>
-                        </div>
-                        </EditDetailsPanel>
-                      </DismissibleDetails>
-                    </Td>
-
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.driverName ?? "-"}
-                      </div>
-                      <div className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-900">
-                        Anspritzmittel Kurzstrecke
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="font-semibold text-gray-900">
-                        {allocation.vehicleLabel || "-"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Anspritzmittel-Nachlieferung
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="rounded-lg border border-blue-200 bg-white p-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900">
-                          <span>
-                            {allocation.tourCount} Tour
-                            {allocation.tourCount === 1 ? "" : "en"}
-                          </span>
-                          <span>
-                            {allocation.startTime} – {allocation.endTime}
-                          </span>
-                          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-900">
-                            Anspritzmittel
-                          </span>
-                        </div>
-
-                        <div className="mt-1 text-sm font-medium text-gray-900">
-                          {allocation.projectNumber} · {allocation.projectName}
-                        </div>
-
-                        <div className="mt-1 text-xs text-gray-600">
-                          {allocation.materialName} ·{" "}
-                          {formatLiters(allocation.totalLiters)}{" "}
-                          {allocation.quantityUnit} gesamt ·{" "}
-                          {formatLiters(allocation.litersPerTour)}{" "}
-                          {allocation.quantityUnit}/Tour
-                        </div>
-
-                        {allocation.notes ? (
-                          <div className="mt-1 text-xs text-gray-500">
-                            {allocation.notes}
-                          </div>
-                        ) : null}
-                      </div>
-                    </Td>
-
-                    <Td>
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs font-medium text-blue-950">
-                        Nachlieferung aus „Offene Anspritzmittelmengen“
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
+                        <Td>
+                          {conflictNotes.length > 0 ? (
+                            <div className="space-y-2">
+                              {conflictNotes.map((note) => (
+                                <div
+                                  key={note}
+                                  className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900"
+                                >
+                                  {note}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </Td>
+                      </tr>
+                    );
+                  })}
                 </>
               )}
             </tbody>

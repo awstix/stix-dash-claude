@@ -214,14 +214,13 @@ function getLongHaulMaterialLabel(entry: {
 
 function getShortHaulTimeLabel(assignment: {
   startTime: string;
-  endTime: string;
   tours: {
     startTime: string;
     endTime: string;
   }[];
 }) {
   if (assignment.tours.length === 0) {
-    return `${assignment.startTime} – ${assignment.endTime}`;
+    return `${assignment.startTime} – keine Touren`;
   }
 
   const sortedTours = [...assignment.tours].sort((a, b) =>
@@ -778,7 +777,10 @@ export default async function TruckDispatchPage({
         </Link>
       </div>
 
-      <UtilizationTimeline rows={utilizationRows} />
+      <UtilizationTimeline
+        rows={utilizationRows}
+        selectedDate={selectedDateInput}
+      />
     </AppShell>
   );
 }
@@ -804,7 +806,7 @@ function DetailPanel({
   shortHaulAssignments: {
     id: string;
     startTime: string;
-    endTime: string;
+    vehicleId: string | null;
     driverName: string | null;
     vehicleNumber: string | null;
     licensePlate: string | null;
@@ -826,6 +828,7 @@ function DetailPanel({
   }[];
   longHaulOwnAssignments: {
     id: string;
+    vehicleId: string | null;
     driverName: string | null;
     vehicleNumber: string | null;
     licensePlate: string | null;
@@ -1301,7 +1304,6 @@ function ShortHaulDetails({
   assignments: {
     id: string;
     startTime: string;
-    endTime: string;
     driverName: string | null;
     vehicleNumber: string | null;
     licensePlate: string | null;
@@ -1384,7 +1386,6 @@ function DriverDetails({
   shortHaulAssignments: {
     id: string;
     startTime: string;
-    endTime: string;
     driverName: string | null;
     vehicleNumber: string | null;
     licensePlate: string | null;
@@ -1507,7 +1508,6 @@ function VehicleDetails({
   shortHaulAssignments: {
     id: string;
     startTime: string;
-    endTime: string;
     vehicleId: string | null;
     driverName: string | null;
     vehicleNumber: string | null;

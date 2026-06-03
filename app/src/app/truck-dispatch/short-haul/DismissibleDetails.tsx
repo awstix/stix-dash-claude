@@ -10,12 +10,26 @@ import {
 export function DismissibleDetails({
   children,
   className,
+  defaultOpen = false,
 }: {
   children: ReactNode;
   className?: string;
+  defaultOpen?: boolean;
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!defaultOpen) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setOpen(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [defaultOpen]);
 
   useEffect(() => {
     if (!open) return;

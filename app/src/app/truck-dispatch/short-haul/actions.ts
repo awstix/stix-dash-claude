@@ -115,6 +115,15 @@ function toursOverlap(
   return firstStart < secondEnd && secondStart < firstEnd;
 }
 
+function findOverlappingTimeBlock<T extends { startTime: string; endTime: string }>(
+  existingBlocks: T[],
+  plannedTours: { startTime: string; endTime: string }[]
+) {
+  return existingBlocks.find((block) =>
+    plannedTours.some((tour) => toursOverlap(block, tour))
+  );
+}
+
 async function getVehicle(vehicleId: string) {
   if (!vehicleId) return null;
 
@@ -275,11 +284,13 @@ async function assertShortHaulAvailability({
   driverId,
   vehicleId,
   workDate,
+  tours,
   excludeId,
 }: {
   driverId: string;
   vehicleId: string;
   workDate: Date;
+  tours: { startTime: string; endTime: string }[];
   excludeId?: string;
 }) {
   const existing = await prisma.shortHaulAssignment.findFirst({
@@ -312,7 +323,7 @@ async function assertShortHaulAvailability({
     );
   }
 
-  const existingAsphaltAllocation = await prisma.asphaltLoadAllocation.findFirst({
+  const existingAsphaltAllocations = await prisma.asphaltLoadAllocation.findMany({
     where: {
       sourceType: "SHORT",
       workDate: getDayRange(workDate),
@@ -322,6 +333,10 @@ async function assertShortHaulAvailability({
       createdAt: "asc",
     },
   });
+  const existingAsphaltAllocation = findOverlappingTimeBlock(
+    existingAsphaltAllocations,
+    tours
+  );
 
   if (existingAsphaltAllocation) {
     if (existingAsphaltAllocation.driverId === driverId) {
@@ -343,7 +358,8 @@ async function assertShortHaulAvailability({
     }
   }
 
-  const existingTackCoatAllocation = await prisma.tackCoatLoadAllocation.findFirst({
+  const existingTackCoatAllocations =
+    await prisma.tackCoatLoadAllocation.findMany({
     where: {
       sourceType: "SHORT",
       workDate: getDayRange(workDate),
@@ -353,6 +369,10 @@ async function assertShortHaulAvailability({
       createdAt: "asc",
     },
   });
+  const existingTackCoatAllocation = findOverlappingTimeBlock(
+    existingTackCoatAllocations,
+    tours
+  );
 
   if (existingTackCoatAllocation) {
     if (existingTackCoatAllocation.driverId === driverId) {
@@ -493,7 +513,21 @@ async function parseTours(formData: FormData) {
     );
   }
 
-  return tours;
+  return tours
+    .sort((first, second) => {
+      const startDiff =
+        timeToMinutes(first.startTime) - timeToMinutes(second.startTime);
+
+      if (startDiff !== 0) {
+        return startDiff;
+      }
+
+      return timeToMinutes(first.endTime) - timeToMinutes(second.endTime);
+    })
+    .map((tour, index) => ({
+      ...tour,
+      tourNumber: index + 1,
+    }));
 }
 
 async function resolveShortHaulData(formData: FormData, workDate: Date) {
@@ -564,6 +598,7 @@ export async function createShortHaulAssignment(formData: FormData) {
     driverId: driver.id,
     vehicleId: vehicle.id,
     workDate,
+    tours,
   });
 
   await prisma.shortHaulAssignment.create({
@@ -632,6 +667,7 @@ export async function updateShortHaulAssignment(formData: FormData) {
     driverId: driver.id,
     vehicleId: vehicle.id,
     workDate,
+    tours,
     excludeId: id,
   });
 
