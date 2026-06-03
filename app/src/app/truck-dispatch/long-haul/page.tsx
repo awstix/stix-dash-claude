@@ -13,7 +13,10 @@ import {
   updateAsphaltLoadAllocation,
 } from "../asphalt-load-actions";
 import { InitialTruckRows } from "./InitialTruckRows";
-import { LongHaulAssignmentTypeFields } from "./LongHaulAssignmentTypeFields";
+import {
+  LongHaulAssignmentTypeFields,
+  LongHaulConstructionFields,
+} from "./LongHaulAssignmentTypeFields";
 import { LongHaulOwnTruckSuggestionForm } from "./LongHaulOwnTruckSuggestionForm";
 import { LongHaulPlannedPerformanceFields } from "./LongHaulPlannedPerformanceFields";
 import {
@@ -321,6 +324,52 @@ function formatAsphaltMixLabel(allocation: AsphaltAllocationForPage) {
   return mixName || mixNumber || "Asphalt";
 }
 
+function normalizeOptionText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function getDefaultConstructionMaterialSource(entry: {
+  assignmentType: string;
+  materialTypeId: string | null;
+  materialName: string | null;
+}): "MATERIAL" | "ASPHALT" {
+  return entry.assignmentType === "CONSTRUCTION" &&
+    !entry.materialTypeId &&
+    Boolean(entry.materialName)
+    ? "ASPHALT"
+    : "MATERIAL";
+}
+
+function getDefaultAsphaltMixTypeId(
+  materialName: string | null,
+  asphaltMixes: {
+    id: string;
+    mixNumber: string;
+    name: string;
+    shortName: string | null;
+  }[],
+) {
+  const normalizedMaterialName = normalizeOptionText(materialName);
+
+  if (!normalizedMaterialName) {
+    return "";
+  }
+
+  return (
+    asphaltMixes.find((mix) => {
+      const mixNumber = normalizeOptionText(mix.mixNumber);
+      const mixName = normalizeOptionText(mix.name);
+      const shortName = normalizeOptionText(mix.shortName);
+
+      return (
+        (mixNumber && normalizedMaterialName.includes(mixNumber)) ||
+        (mixName && normalizedMaterialName.includes(mixName)) ||
+        (shortName && normalizedMaterialName.includes(shortName))
+      );
+    })?.id ?? ""
+  );
+}
+
 function PlannedAsphaltInfo({
   allocations,
 }: {
@@ -380,7 +429,7 @@ export default async function LongHaulPage({
     shortAsphaltConflicts,
     shortTackCoatConflicts,
     vehicleCategoryOptions,
-    asphaltCrewOptions,
+    asphaltMixes,
     subcontractorOptions,
   ] = await Promise.all([
     prisma.truckLongHaulEntry.findMany({
@@ -522,12 +571,15 @@ export default async function LongHaulPage({
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
 
-    prisma.crew.findMany({
+    prisma.asphaltMixType.findMany({
       where: {
         isActive: true,
-        isAsphaltDispatchCrew: true,
       },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [
+        { category: "asc" },
+        { mixNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
     prisma.adminOption.findMany({
@@ -549,8 +601,6 @@ export default async function LongHaulPage({
           "4-Achser",
           "Sattelzug",
         ];
-
-  const asphaltCrews = asphaltCrewOptions.map((crew) => crew.name);
 
   const subcontractors = subcontractorOptions.map((option) => option.label);
 
@@ -847,10 +897,10 @@ export default async function LongHaulPage({
                     entry={entry}
                     projects={projects}
                     materials={materials}
+                    asphaltMixes={asphaltMixes}
                     vehicles={vehicles}
                     drivers={drivers}
                     vehicleCategories={vehicleCategories}
-                    asphaltCrews={asphaltCrews}
                     subcontractors={subcontractors}
                     busyDrivers={busyDrivers}
                     busyVehicles={busyVehicles}
@@ -872,7 +922,7 @@ export default async function LongHaulPage({
                     workDate={formatDateInput(day.date)}
                     projects={projects}
                     materials={materials}
-                    asphaltCrews={asphaltCrews}
+                    asphaltMixes={asphaltMixes}
                     asphaltOpenPositions={asphaltOpenPositions}
                     showInitialTruckRows
                     drivers={drivers}
@@ -1385,10 +1435,10 @@ function LongHaulEntryCard({
   entry,
   projects,
   materials,
+  asphaltMixes,
   vehicles,
   drivers,
   vehicleCategories,
-  asphaltCrews,
   subcontractors,
   busyDrivers,
   busyVehicles,
@@ -1439,10 +1489,17 @@ function LongHaulEntryCard({
     unit: string;
     category: string | null;
   }[];
+  asphaltMixes: {
+    id: string;
+    mixNumber: string;
+    name: string;
+    shortName: string | null;
+    unit: string;
+    category: string | null;
+  }[];
   vehicles: VehicleWithDriver[];
   drivers: DriverWithVehicles[];
   vehicleCategories: string[];
-  asphaltCrews: string[];
   subcontractors: string[];
   busyDrivers: Map<string, string>;
   busyVehicles: Map<string, string>;
@@ -1576,13 +1633,17 @@ function LongHaulEntryCard({
             id={entry.id}
             projects={projects}
             materials={materials}
-            asphaltCrews={asphaltCrews}
+            asphaltMixes={asphaltMixes}
             asphaltOpenPositions={asphaltOpenPositions}
             defaultAssignmentType={entry.assignmentType}
-            defaultAsphaltCrew={entry.asphaltCrew ?? ""}
             defaultAsphaltDispatchEntryId={entry.asphaltDispatchEntryId ?? ""}
             defaultProjectId={entry.projectId ?? ""}
             defaultMaterialTypeId={entry.materialTypeId ?? ""}
+            defaultMaterialSource={getDefaultConstructionMaterialSource(entry)}
+            defaultAsphaltMixTypeId={getDefaultAsphaltMixTypeId(
+              entry.materialName,
+              asphaltMixes,
+            )}
             defaultMaterialQuantity={entry.materialQuantity}
             defaultNotes={entry.notes ?? ""}
           />
@@ -2307,7 +2368,7 @@ function LongHaulForm({
   workDate,
   projects,
   materials,
-  asphaltCrews,
+  asphaltMixes,
   asphaltOpenPositions = [],
   showInitialTruckRows = false,
   drivers = [],
@@ -2319,10 +2380,11 @@ function LongHaulForm({
   shortDriverConflicts = new Map<string, string>(),
   shortVehicleConflicts = new Map<string, string>(),
   defaultAssignmentType = "CONSTRUCTION",
-  defaultAsphaltCrew = "",
+  defaultMaterialSource = "MATERIAL",
   defaultAsphaltDispatchEntryId = "",
   defaultProjectId = "",
   defaultMaterialTypeId = "",
+  defaultAsphaltMixTypeId = "",
   defaultMaterialQuantity = 0,
   defaultNotes = "",
 }: {
@@ -2341,7 +2403,14 @@ function LongHaulForm({
     unit: string;
     category: string | null;
   }[];
-  asphaltCrews: string[];
+  asphaltMixes: {
+    id: string;
+    mixNumber: string;
+    name: string;
+    shortName: string | null;
+    unit: string;
+    category: string | null;
+  }[];
   asphaltOpenPositions?: AsphaltOpenPositionForPage[];
   showInitialTruckRows?: boolean;
   drivers?: DriverWithVehicles[];
@@ -2353,10 +2422,11 @@ function LongHaulForm({
   shortDriverConflicts?: Map<string, string>;
   shortVehicleConflicts?: Map<string, string>;
   defaultAssignmentType?: string;
-  defaultAsphaltCrew?: string;
+  defaultMaterialSource?: "MATERIAL" | "ASPHALT";
   defaultAsphaltDispatchEntryId?: string;
   defaultProjectId?: string;
   defaultMaterialTypeId?: string;
+  defaultAsphaltMixTypeId?: string;
   defaultMaterialQuantity?: number;
   defaultNotes?: string;
 }) {
@@ -2371,68 +2441,22 @@ function LongHaulForm({
       ) : null}
 
       <LongHaulAssignmentTypeFields
-        asphaltCrews={asphaltCrews}
         asphaltOpenPositions={asphaltOpenPositions}
         defaultAssignmentType={defaultAssignmentType}
-        defaultAsphaltCrew={defaultAsphaltCrew}
         defaultAsphaltDispatchEntryId={defaultAsphaltDispatchEntryId}
       />
 
-      <div className="rounded-xl border border-gray-200 bg-white p-3">
-        <div className="text-sm font-semibold text-gray-900">
-          Normale Baumaßnahme
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Nur ausfüllen, wenn oben bei Art „Normale Baumaßnahme“ gewählt ist.
-        </p>
-
-        <label className="mt-3 block text-sm font-medium text-gray-700">
-          Projekt
-          <select
-            name="projectId"
-            defaultValue={defaultProjectId}
-            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-          >
-            <option value="">Projekt wählen</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.projectNumber} · {project.name}
-                {project.constructionManager
-                  ? ` · ${project.constructionManager}`
-                  : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="mt-3 block text-sm font-medium text-gray-700">
-          Material
-          <select
-            name="materialTypeId"
-            defaultValue={defaultMaterialTypeId}
-            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-          >
-            <option value="">Material wählen</option>
-            {materials.map((material) => (
-              <option key={material.id} value={material.id}>
-                {material.name} · {material.unit}
-                {material.category ? ` · ${material.category}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="mt-3 block text-sm font-medium text-gray-700">
-          Materialmenge
-          <input
-            name="materialQuantity"
-            type="number"
-            step="0.01"
-            defaultValue={defaultMaterialQuantity}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-          />
-        </label>
-      </div>
+      <LongHaulConstructionFields
+        projects={projects}
+        materials={materials}
+        asphaltMixes={asphaltMixes}
+        defaultAssignmentType={defaultAssignmentType}
+        defaultMaterialSource={defaultMaterialSource}
+        defaultProjectId={defaultProjectId}
+        defaultMaterialTypeId={defaultMaterialTypeId}
+        defaultAsphaltMixTypeId={defaultAsphaltMixTypeId}
+        defaultMaterialQuantity={defaultMaterialQuantity}
+      />
 
       {showInitialTruckRows ? (
         <InitialTruckRows

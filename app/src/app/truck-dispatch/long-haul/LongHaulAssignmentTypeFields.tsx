@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type AsphaltOpenPositionForLongHaulForm = {
   asphaltDispatchEntryId: string;
@@ -12,11 +12,45 @@ export type AsphaltOpenPositionForLongHaulForm = {
   openTons: number;
 };
 
+export type LongHaulConstructionProjectOption = {
+  id: string;
+  projectNumber: string;
+  name: string;
+  constructionManager: string | null;
+};
+
+export type LongHaulConstructionMaterialOption = {
+  id: string;
+  name: string;
+  unit: string;
+  category: string | null;
+};
+
+export type LongHaulConstructionAsphaltOption = {
+  id: string;
+  mixNumber: string;
+  name: string;
+  shortName: string | null;
+  unit: string;
+  category: string | null;
+};
+
 function formatTons(value: number) {
   return new Intl.NumberFormat("de-DE", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function getOptionGroup(category: string | null | undefined) {
+  const text = category?.trim();
+  return text ? text : "Ohne Gruppe";
+}
+
+function getUniqueGroups(categories: (string | null | undefined)[]) {
+  return Array.from(new Set(categories.map(getOptionGroup))).sort((a, b) =>
+    a.localeCompare(b, "de")
+  );
 }
 
 function notifySelectedAsphaltOpenTons(openTons: number) {
@@ -30,44 +64,27 @@ function notifySelectedAsphaltOpenTons(openTons: number) {
 }
 
 export function LongHaulAssignmentTypeFields({
-  asphaltCrews,
   asphaltOpenPositions,
   defaultAssignmentType = "CONSTRUCTION",
-  defaultAsphaltCrew = "",
   defaultAsphaltDispatchEntryId = "",
 }: {
-  asphaltCrews: string[];
   asphaltOpenPositions: AsphaltOpenPositionForLongHaulForm[];
   defaultAssignmentType?: string;
-  defaultAsphaltCrew?: string;
   defaultAsphaltDispatchEntryId?: string;
 }) {
   const [assignmentType, setAssignmentType] = useState(defaultAssignmentType);
-  const [selectedAsphaltCrew, setSelectedAsphaltCrew] = useState(
-    defaultAsphaltCrew,
-  );
   const [selectedDispatchEntryId, setSelectedDispatchEntryId] = useState(
     defaultAsphaltDispatchEntryId,
   );
 
   const isAsphalt = assignmentType === "ASPHALT";
 
-  const filteredAsphaltOpenPositions = useMemo(() => {
-    if (!selectedAsphaltCrew) {
-      return asphaltOpenPositions;
-    }
-
-    return asphaltOpenPositions.filter(
-      (position) => position.crew === selectedAsphaltCrew,
-    );
-  }, [asphaltOpenPositions, selectedAsphaltCrew]);
-
   const selectedPosition = useMemo(
     () =>
-      filteredAsphaltOpenPositions.find(
+      asphaltOpenPositions.find(
         (position) => position.asphaltDispatchEntryId === selectedDispatchEntryId,
       ),
-    [filteredAsphaltOpenPositions, selectedDispatchEntryId],
+    [asphaltOpenPositions, selectedDispatchEntryId],
   );
 
   const selectedOpenTons = isAsphalt ? selectedPosition?.openTons ?? 0 : 0;
@@ -88,7 +105,6 @@ export function LongHaulAssignmentTypeFields({
             setAssignmentType(nextType);
 
             if (nextType !== "ASPHALT") {
-              setSelectedAsphaltCrew("");
               setSelectedDispatchEntryId("");
               notifySelectedAsphaltOpenTons(0);
             }
@@ -106,27 +122,6 @@ export function LongHaulAssignmentTypeFields({
             Asphaltmaßnahme
           </div>
 
-          <label className="mt-3 block text-sm font-medium text-orange-950">
-            Asphaltkolonne
-            <select
-              name="asphaltCrew"
-              value={selectedAsphaltCrew}
-              onChange={(event) => {
-                setSelectedAsphaltCrew(event.target.value);
-                setSelectedDispatchEntryId("");
-                notifySelectedAsphaltOpenTons(0);
-              }}
-              className="mt-1 w-full rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-orange-600"
-            >
-              <option value="">Alle Asphaltkolonnen anzeigen</option>
-              {asphaltCrews.map((crew) => (
-                <option key={crew} value={crew}>
-                  {crew}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <label className="mt-3 block text-sm font-semibold text-orange-950">
             Asphaltposition aus Tages-Disposition
             <select
@@ -136,7 +131,7 @@ export function LongHaulAssignmentTypeFields({
                 const nextId = event.target.value;
                 setSelectedDispatchEntryId(nextId);
 
-                const nextPosition = filteredAsphaltOpenPositions.find(
+                const nextPosition = asphaltOpenPositions.find(
                   (position) => position.asphaltDispatchEntryId === nextId,
                 );
 
@@ -147,7 +142,7 @@ export function LongHaulAssignmentTypeFields({
             >
               <option value="">Asphaltposition wählen</option>
 
-              {filteredAsphaltOpenPositions.map((position) => (
+              {asphaltOpenPositions.map((position) => (
                 <option
                   key={position.asphaltDispatchEntryId}
                   value={position.asphaltDispatchEntryId}
@@ -182,19 +177,9 @@ export function LongHaulAssignmentTypeFields({
             </div>
           ) : null}
 
-          {asphaltOpenPositions.length > 0 &&
-          selectedAsphaltCrew &&
-          filteredAsphaltOpenPositions.length === 0 ? (
-            <div className="mt-3 rounded-lg border border-orange-300 bg-white p-3 text-xs font-medium text-orange-900">
-              Für diese Asphaltkolonne gibt es an diesem Tag keine offene
-              Asphaltposition.
-            </div>
-          ) : null}
-
           <p className="mt-2 text-xs leading-5 text-orange-800">
-            Wenn du eine Asphaltkolonne wählst, werden darunter nur noch die
-            offenen Asphaltpositionen dieser Kolonne angezeigt. Ohne Auswahl
-            werden alle offenen Asphaltpositionen dieses Tages angezeigt.
+            Die gewählte Asphaltposition übernimmt Baustelle, Sorte und offene
+            Menge.
           </p>
         </div>
       ) : (
@@ -208,5 +193,206 @@ export function LongHaulAssignmentTypeFields({
         </>
       )}
     </>
+  );
+}
+
+export function LongHaulConstructionFields({
+  projects,
+  materials,
+  asphaltMixes,
+  defaultAssignmentType = "CONSTRUCTION",
+  defaultMaterialSource = "MATERIAL",
+  defaultProjectId = "",
+  defaultMaterialTypeId = "",
+  defaultAsphaltMixTypeId = "",
+  defaultMaterialQuantity = 0,
+}: {
+  projects: LongHaulConstructionProjectOption[];
+  materials: LongHaulConstructionMaterialOption[];
+  asphaltMixes: LongHaulConstructionAsphaltOption[];
+  defaultAssignmentType?: string;
+  defaultMaterialSource?: "MATERIAL" | "ASPHALT";
+  defaultProjectId?: string;
+  defaultMaterialTypeId?: string;
+  defaultAsphaltMixTypeId?: string;
+  defaultMaterialQuantity?: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [assignmentType, setAssignmentType] = useState(defaultAssignmentType);
+  const [materialSource, setMaterialSource] = useState(defaultMaterialSource);
+  const [materialGroup, setMaterialGroup] = useState(() => {
+    const defaultItem =
+      defaultMaterialSource === "ASPHALT"
+        ? asphaltMixes.find((asphalt) => asphalt.id === defaultAsphaltMixTypeId)
+        : materials.find((material) => material.id === defaultMaterialTypeId);
+
+    return defaultItem ? getOptionGroup(defaultItem.category) : "";
+  });
+  const [selectedMaterialTypeId, setSelectedMaterialTypeId] =
+    useState(defaultMaterialTypeId);
+  const [selectedAsphaltMixTypeId, setSelectedAsphaltMixTypeId] =
+    useState(defaultAsphaltMixTypeId);
+  const materialGroups = useMemo(
+    () => getUniqueGroups(materials.map((material) => material.category)),
+    [materials]
+  );
+  const asphaltGroups = useMemo(
+    () => getUniqueGroups(asphaltMixes.map((asphalt) => asphalt.category)),
+    [asphaltMixes]
+  );
+  const filteredMaterials = materialGroup
+    ? materials.filter(
+        (material) => getOptionGroup(material.category) === materialGroup
+      )
+    : materials;
+  const filteredAsphaltMixes = materialGroup
+    ? asphaltMixes.filter(
+        (asphalt) => getOptionGroup(asphalt.category) === materialGroup
+      )
+    : asphaltMixes;
+
+  useEffect(() => {
+    const form = containerRef.current?.closest("form");
+    const select = form?.querySelector<HTMLSelectElement>(
+      'select[name="assignmentType"]',
+    );
+
+    if (!select) {
+      return;
+    }
+
+    function syncAssignmentType() {
+      setAssignmentType(select.value);
+    }
+
+    syncAssignmentType();
+    select.addEventListener("change", syncAssignmentType);
+
+    return () => {
+      select.removeEventListener("change", syncAssignmentType);
+    };
+  }, []);
+
+  if (assignmentType !== "CONSTRUCTION") {
+    return <div ref={containerRef} />;
+  }
+
+  return (
+    <div ref={containerRef} className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="text-sm font-semibold text-gray-900">
+        Normale Baumaßnahme
+      </div>
+
+      <label className="mt-3 block text-sm font-medium text-gray-700">
+        Art der Ladung
+        <select
+          name="constructionMaterialSource"
+          value={materialSource}
+          onChange={(event) => {
+            setMaterialSource(event.target.value as "MATERIAL" | "ASPHALT");
+            setMaterialGroup("");
+            setSelectedMaterialTypeId("");
+            setSelectedAsphaltMixTypeId("");
+          }}
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        >
+          <option value="MATERIAL">Material</option>
+          <option value="ASPHALT">Asphalt</option>
+        </select>
+      </label>
+
+      <label className="mt-3 block text-sm font-medium text-gray-700">
+        Projekt
+        <select
+          name="projectId"
+          defaultValue={defaultProjectId}
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        >
+          <option value="">Projekt wählen</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.projectNumber} · {project.name}
+              {project.constructionManager
+                ? ` · ${project.constructionManager}`
+                : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mt-3 block text-sm font-medium text-gray-700">
+        {materialSource === "ASPHALT" ? "Asphaltgruppe" : "Materialgruppe"}
+        <select
+          name="constructionMaterialGroup"
+          value={materialGroup}
+          onChange={(event) => {
+            setMaterialGroup(event.target.value);
+            setSelectedMaterialTypeId("");
+            setSelectedAsphaltMixTypeId("");
+          }}
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        >
+          <option value="">
+            {materialSource === "ASPHALT"
+              ? "Alle Asphaltgruppen"
+              : "Alle Materialgruppen"}
+          </option>
+          {(materialSource === "ASPHALT" ? asphaltGroups : materialGroups).map(
+            (group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            )
+          )}
+        </select>
+      </label>
+
+      <label className="mt-3 block text-sm font-medium text-gray-700">
+        {materialSource === "ASPHALT" ? "Asphaltsorte" : "Material"}
+        {materialSource === "ASPHALT" ? (
+          <select
+            name="asphaltMixTypeId"
+            value={selectedAsphaltMixTypeId}
+            onChange={(event) => setSelectedAsphaltMixTypeId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+          >
+            <option value="">Asphaltsorte wählen</option>
+            {filteredAsphaltMixes.map((asphalt) => (
+              <option key={asphalt.id} value={asphalt.id}>
+                {asphalt.mixNumber} · {asphalt.shortName ?? asphalt.name} ·{" "}
+                {asphalt.unit}
+                {asphalt.category ? ` · ${asphalt.category}` : ""}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select
+            name="materialTypeId"
+            value={selectedMaterialTypeId}
+            onChange={(event) => setSelectedMaterialTypeId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+          >
+            <option value="">Material wählen</option>
+            {filteredMaterials.map((material) => (
+              <option key={material.id} value={material.id}>
+                {material.name} · {material.unit}
+                {material.category ? ` · ${material.category}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
+
+      <label className="mt-3 block text-sm font-medium text-gray-700">
+        Materialmenge
+        <input
+          name="materialQuantity"
+          type="number"
+          step="0.01"
+          defaultValue={defaultMaterialQuantity}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+    </div>
   );
 }

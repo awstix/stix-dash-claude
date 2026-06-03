@@ -144,6 +144,16 @@ async function getMaterial(materialTypeId: string) {
   });
 }
 
+async function getAsphaltMix(asphaltMixTypeId: string) {
+  if (!asphaltMixTypeId) return null;
+
+  return prisma.asphaltMixType.findUnique({
+    where: {
+      id: asphaltMixTypeId,
+    },
+  });
+}
+
 async function getAsphaltDispatchEntry(asphaltDispatchEntryId: string) {
   if (!asphaltDispatchEntryId) return null;
 
@@ -354,7 +364,6 @@ async function resolveLongHaulEntryData(
     formData.get("assignmentType") ?? "CONSTRUCTION",
   );
 
-  const asphaltCrew = optionalString(formData.get("asphaltCrew"));
   const notes = optionalString(formData.get("notes"));
 
   const asphaltDispatchEntryId = String(
@@ -378,7 +387,7 @@ async function resolveLongHaulEntryData(
 
     return {
       assignmentType,
-      asphaltCrew,
+      asphaltCrew: asphaltDispatchEntry.crew,
       asphaltDispatchEntryId: asphaltDispatchEntry.id,
 
       projectId: asphaltDispatchEntry.projectId,
@@ -402,32 +411,61 @@ async function resolveLongHaulEntryData(
   }
 
   const projectId = String(formData.get("projectId") ?? "").trim();
+  const constructionMaterialSource = String(
+    formData.get("constructionMaterialSource") ?? "MATERIAL",
+  );
   const materialTypeId = String(formData.get("materialTypeId") ?? "").trim();
+  const asphaltMixTypeId = String(
+    formData.get("asphaltMixTypeId") ?? "",
+  ).trim();
 
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
   }
 
-  if (!materialTypeId) {
+  if (constructionMaterialSource === "ASPHALT" && !asphaltMixTypeId) {
+    throw new Error("Bitte eine Asphaltsorte auswählen.");
+  }
+
+  if (constructionMaterialSource !== "ASPHALT" && !materialTypeId) {
     throw new Error("Bitte ein Material auswählen.");
   }
 
-  const [project, material] = await Promise.all([
+  const [project, material, asphaltMix] = await Promise.all([
     getProject(projectId),
-    getMaterial(materialTypeId),
+    constructionMaterialSource === "ASPHALT"
+      ? Promise.resolve(null)
+      : getMaterial(materialTypeId),
+    constructionMaterialSource === "ASPHALT"
+      ? getAsphaltMix(asphaltMixTypeId)
+      : Promise.resolve(null),
   ]);
 
   if (!project) {
     throw new Error("Projekt wurde nicht gefunden.");
   }
 
-  if (!material) {
+  if (constructionMaterialSource === "ASPHALT" && !asphaltMix) {
+    throw new Error("Asphaltsorte wurde nicht gefunden.");
+  }
+
+  if (constructionMaterialSource !== "ASPHALT" && !material) {
     throw new Error("Material wurde nicht gefunden.");
   }
 
+  const materialLabel =
+    constructionMaterialSource === "ASPHALT"
+      ? [
+          asphaltMix?.mixNumber,
+          asphaltMix?.shortName ?? asphaltMix?.name,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : material?.name ?? null;
+
   return {
     assignmentType,
-    asphaltCrew,
+    asphaltCrew: null,
     asphaltDispatchEntryId: null,
 
     projectId: project.id,
@@ -435,9 +473,13 @@ async function resolveLongHaulEntryData(
     projectName: project.name,
     constructionManager: project.constructionManager,
 
-    materialTypeId: material.id,
-    materialName: material.name,
-    materialUnit: material.unit,
+    materialTypeId:
+      constructionMaterialSource === "ASPHALT" ? null : material?.id ?? null,
+    materialName: materialLabel,
+    materialUnit:
+      constructionMaterialSource === "ASPHALT"
+        ? asphaltMix?.unit ?? "t"
+        : material?.unit ?? null,
     materialQuantity: parseNumber(formData.get("materialQuantity")),
 
     notes,

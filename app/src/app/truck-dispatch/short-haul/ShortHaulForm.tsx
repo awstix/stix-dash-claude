@@ -67,6 +67,7 @@ type TourFormValue = {
   endTime: string;
   projectId: string;
   purposeType: string;
+  itemGroup: string;
   itemId: string;
   customPurpose: string;
   quantity: string;
@@ -129,6 +130,41 @@ function getDefaultUnitForPurpose({
   return "";
 }
 
+function getOptionGroup(category: string | null | undefined) {
+  const text = category?.trim();
+  return text ? text : "Ohne Gruppe";
+}
+
+function getUniqueGroups(categories: (string | null | undefined)[]) {
+  return Array.from(new Set(categories.map(getOptionGroup))).sort((a, b) =>
+    a.localeCompare(b, "de")
+  );
+}
+
+function getDefaultGroupForPurpose({
+  purposeType,
+  itemId,
+  materials,
+  asphaltMixes,
+}: {
+  purposeType: string;
+  itemId: string;
+  materials: MaterialOption[];
+  asphaltMixes: AsphaltOption[];
+}) {
+  if (purposeType === "MATERIAL") {
+    const material = materials.find((item) => item.id === itemId);
+    return material ? getOptionGroup(material.category) : "";
+  }
+
+  if (purposeType === "ASPHALT") {
+    const asphalt = asphaltMixes.find((item) => item.id === itemId);
+    return asphalt ? getOptionGroup(asphalt.category) : "";
+  }
+
+  return "";
+}
+
 function getFirstAvailableVehicleId({
   vehicles,
   shortVehicleConflicts,
@@ -180,6 +216,7 @@ function createEmptyTour(rowId: number, startTime = "", endTime = "") {
     endTime,
     projectId: "",
     purposeType: "CUSTOM",
+    itemGroup: "",
     itemId: "",
     customPurpose: "",
     quantity: "",
@@ -307,6 +344,12 @@ export function ShortHaulForm({
           endTime: tour.endTime,
           projectId: tour.projectId,
           purposeType: tour.purposeType || "CUSTOM",
+          itemGroup: getDefaultGroupForPurpose({
+            purposeType: tour.purposeType || "CUSTOM",
+            itemId: tour.itemId || "",
+            materials,
+            asphaltMixes,
+          }),
           itemId: tour.itemId || "",
           customPurpose: tour.customPurpose || "",
           quantity: tour.quantity || "",
@@ -320,6 +363,7 @@ export function ShortHaulForm({
             endTime: "09:00",
             projectId: "",
             purposeType: "CUSTOM",
+            itemGroup: "",
             itemId: "",
             customPurpose: "",
             quantity: "",
@@ -327,6 +371,14 @@ export function ShortHaulForm({
             notes: "",
           },
         ]
+  );
+  const materialGroups = useMemo(
+    () => getUniqueGroups(materials.map((material) => material.category)),
+    [materials]
+  );
+  const asphaltGroups = useMemo(
+    () => getUniqueGroups(asphaltMixes.map((asphalt) => asphalt.category)),
+    [asphaltMixes]
   );
 
   useEffect(() => {
@@ -563,6 +615,7 @@ export function ShortHaulForm({
           endTime: "",
           projectId: "",
           purposeType: previousRow?.purposeType || "CUSTOM",
+          itemGroup: "",
           itemId: "",
           customPurpose: "",
           quantity: "",
@@ -596,8 +649,18 @@ export function ShortHaulForm({
           return {
             ...row,
             purposeType: value,
+            itemGroup: "",
             itemId: "",
             customPurpose: "",
+            quantityUnit: "",
+          };
+        }
+
+        if (key === "itemGroup") {
+          return {
+            ...row,
+            itemGroup: value,
+            itemId: "",
             quantityUnit: "",
           };
         }
@@ -612,6 +675,14 @@ export function ShortHaulForm({
 
           return {
             ...row,
+            itemGroup:
+              row.itemGroup ||
+              getDefaultGroupForPurpose({
+                purposeType: row.purposeType,
+                itemId: value,
+                materials,
+                asphaltMixes,
+              }),
             itemId: value,
             quantityUnit: row.quantityUnit || defaultUnit,
           };
@@ -813,6 +884,22 @@ export function ShortHaulForm({
         <div className="mt-4 space-y-4">
           {tourRows.map((tour, index) => {
             const isLastTour = index === tourRows.length - 1;
+            const hasItemGroup =
+              tour.purposeType === "MATERIAL" || tour.purposeType === "ASPHALT";
+            const itemGroups =
+              tour.purposeType === "MATERIAL" ? materialGroups : asphaltGroups;
+            const filteredMaterials = tour.itemGroup
+              ? materials.filter(
+                  (material) =>
+                    getOptionGroup(material.category) === tour.itemGroup
+                )
+              : materials;
+            const filteredAsphaltMixes = tour.itemGroup
+              ? asphaltMixes.filter(
+                  (asphalt) =>
+                    getOptionGroup(asphalt.category) === tour.itemGroup
+                )
+              : asphaltMixes;
 
             return (
               <div
@@ -926,6 +1013,37 @@ export function ShortHaulForm({
                     </select>
                   </label>
 
+                  {hasItemGroup ? (
+                    <label className="text-xs font-medium text-gray-700">
+                      {tour.purposeType === "MATERIAL"
+                        ? "Materialgruppe"
+                        : "Asphaltgruppe"}
+                      <select
+                        name={`tourItemGroup_${tour.rowId}`}
+                        value={tour.itemGroup}
+                        onChange={(event) =>
+                          updateTourRow(
+                            tour.rowId,
+                            "itemGroup",
+                            event.target.value
+                          )
+                        }
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                      >
+                        <option value="">
+                          {tour.purposeType === "MATERIAL"
+                            ? "Alle Materialgruppen"
+                            : "Alle Asphaltgruppen"}
+                        </option>
+                        {itemGroups.map((group) => (
+                          <option key={group} value={group}>
+                            {group}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
                   <label className="text-xs font-medium text-gray-700">
                     Auswahl
                     <select
@@ -944,7 +1062,7 @@ export function ShortHaulForm({
                       </option>
 
                       {tour.purposeType === "MATERIAL"
-                        ? materials.map((material) => (
+                        ? filteredMaterials.map((material) => (
                             <option key={material.id} value={material.id}>
                               {material.name} · {material.unit}
                               {material.category
@@ -955,7 +1073,7 @@ export function ShortHaulForm({
                         : null}
 
                       {tour.purposeType === "ASPHALT"
-                        ? asphaltMixes.map((asphalt) => (
+                        ? filteredAsphaltMixes.map((asphalt) => (
                             <option key={asphalt.id} value={asphalt.id}>
                               {asphalt.mixNumber} ·{" "}
                               {asphalt.shortName ?? asphalt.name} ·{" "}
