@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,7 +9,6 @@ import {
   updateDriverVehicleAssignment,
 } from "./actions";
 
-type FilterStatus = "all" | "active" | "inactive";
 type FilterPrimary = "all" | "primary" | "secondary";
 
 type PersonOption = {
@@ -27,11 +27,6 @@ function normalizeSearch(value: string | undefined) {
 
 function normalizeFilterText(value: string | undefined) {
   return String(value ?? "").trim();
-}
-
-function getFilterStatus(value: string | undefined): FilterStatus {
-  if (value === "active" || value === "inactive") return value;
-  return "all";
 }
 
 function getFilterPrimary(value: string | undefined): FilterPrimary {
@@ -133,7 +128,6 @@ export default async function DriverVehiclesPage({
     vehicleNumber?: string;
     licensePlate?: string;
     vehicleType?: string;
-    status?: string;
     primary?: string;
     category?: string;
     notes?: string;
@@ -146,7 +140,6 @@ export default async function DriverVehiclesPage({
   const filterVehicleNumber = normalizeSearch(params.vehicleNumber);
   const filterLicensePlate = normalizeSearch(params.licensePlate);
   const filterVehicleType = normalizeSearch(params.vehicleType);
-  const filterStatus = getFilterStatus(params.status);
   const filterPrimary = getFilterPrimary(params.primary);
   const filterCategory = normalizeFilterText(params.category);
   const filterNotes = normalizeSearch(params.notes);
@@ -186,6 +179,12 @@ export default async function DriverVehiclesPage({
     }),
 
     prisma.driverVehicleAssignment.findMany({
+      where: {
+        isActive: true,
+        driver: {
+          isActive: true,
+        },
+      },
       include: {
         driver: {
           include: {
@@ -195,7 +194,6 @@ export default async function DriverVehiclesPage({
         vehicle: true,
       },
       orderBy: [
-        { isActive: "desc" },
         { isPrimary: "desc" },
         { driver: { lastName: "asc" } },
         { vehicle: { vehicleNumber: "asc" } },
@@ -273,15 +271,11 @@ export default async function DriverVehiclesPage({
   ).sort((a, b) => a.localeCompare(b, "de-DE"));
 
   const activeAssignedVehicleIds = new Set(
-    assignments
-      .filter((assignment) => assignment.isActive)
-      .map((assignment) => assignment.vehicleId),
+    assignments.map((assignment) => assignment.vehicleId),
   );
 
   const activeAssignedDriverIds = new Set(
-    assignments
-      .filter((assignment) => assignment.isActive)
-      .map((assignment) => assignment.driverId),
+    assignments.map((assignment) => assignment.driverId),
   );
 
   const freeVehicles = activeVehicles.filter(
@@ -294,8 +288,6 @@ export default async function DriverVehiclesPage({
   );
 
   const filteredAssignments = assignments.filter((assignment) => {
-    if (filterStatus === "active" && !assignment.isActive) return false;
-    if (filterStatus === "inactive" && assignment.isActive) return false;
     if (filterPrimary === "primary" && !assignment.isPrimary) return false;
     if (filterPrimary === "secondary" && assignment.isPrimary) return false;
     if (filterCategory && assignment.vehicle.category !== filterCategory) {
@@ -361,7 +353,6 @@ export default async function DriverVehiclesPage({
       assignment.isPrimary
         ? "hauptfahrzeug ja primär primary"
         : "kein hauptfahrzeug nein zweitfahrzeug secondary",
-      assignment.isActive ? "aktiv ja active" : "inaktiv nein inactive",
       assignment.notes,
     ]
       .filter(Boolean)
@@ -378,7 +369,6 @@ export default async function DriverVehiclesPage({
       filterVehicleNumber ||
       filterLicensePlate ||
       filterVehicleType ||
-      filterStatus !== "all" ||
       filterPrimary !== "all" ||
       filterCategory ||
       filterNotes,
@@ -391,11 +381,9 @@ export default async function DriverVehiclesPage({
     >
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         <SummaryCard
-          label="Aktive Zuordnungen"
-          value={String(
-            assignments.filter((assignment) => assignment.isActive).length,
-          )}
-          hint="Mitarbeiter/Fahrer mit festem Fahrzeug"
+          label="Zuordnungen"
+          value={String(assignments.length)}
+          hint="aktive Mitarbeiter/Fahrer mit festem Fahrzeug"
         />
 
         <SummaryCard
@@ -482,7 +470,7 @@ export default async function DriverVehiclesPage({
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               Ein Feld für alles: Mitarbeiter/Fahrer, Fahrzeugnummer,
-              Kennzeichen, Typ, Kategorie, Hauptfahrzeug, Aktiv-Status oder
+              Kennzeichen, Typ, Kategorie, Hauptfahrzeug oder
               Bemerkung.
             </p>
           </div>
@@ -505,7 +493,7 @@ export default async function DriverVehiclesPage({
                 name="q"
                 defaultValue={params.q ?? ""}
                 autoFocus
-                placeholder="Alles durchsuchen: Müller, AB-ST, 101, Bagger, aktiv, Hauptfahrzeug ..."
+                placeholder="Alles durchsuchen: Müller, AB-ST, 101, Bagger, Hauptfahrzeug ..."
                 className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm text-gray-900 outline-none focus:border-gray-900"
               />
             </label>
@@ -625,19 +613,6 @@ export default async function DriverVehiclesPage({
                   <option value="secondary">Nur weitere Fahrzeuge</option>
                 </select>
               </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Aktiv
-                <select
-                  name="status"
-                  defaultValue={filterStatus}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="all">Alle</option>
-                  <option value="active">Nur aktiv</option>
-                  <option value="inactive">Nur inaktiv</option>
-                </select>
-              </label>
             </div>
           </div>
         </form>
@@ -650,8 +625,8 @@ export default async function DriverVehiclesPage({
               Bestehende Zuordnungen
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Fahrer/Mitarbeiter, Fahrzeug, Hauptfahrzeug, Aktiv-Status und
-              Bemerkung können direkt in der Zeile geändert werden.
+              Fahrer/Mitarbeiter, Fahrzeug, Hauptfahrzeug und Bemerkung können
+              direkt in der Zeile geändert werden.
             </p>
           </div>
 
@@ -661,9 +636,12 @@ export default async function DriverVehiclesPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1380px] text-left text-sm">
+          <table className="w-full min-w-[1260px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
+                <th className="sticky left-0 z-20 w-[92px] whitespace-nowrap border-r border-gray-200 bg-gray-50 p-3 text-center font-semibold shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                  Aktion
+                </th>
                 <Th>Mitarbeiter / Fahrer</Th>
                 <Th>Fahrzeug / Kombination</Th>
                 <Th>Fahrzeugnummer</Th>
@@ -671,16 +649,14 @@ export default async function DriverVehiclesPage({
                 <Th>Typ</Th>
                 <Th>Kategorie</Th>
                 <Th>Hauptfahrzeug</Th>
-                <Th>Aktiv</Th>
                 <Th>Bemerkung</Th>
-                <Th>Aktionen</Th>
               </tr>
             </thead>
 
             <tbody className="text-gray-900">
               {filteredAssignments.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
+                  <td colSpan={9} className="p-8 text-center text-gray-500">
                     Keine Zuordnung passt zu den aktuellen Filtern.
                   </td>
                 </tr>
@@ -696,6 +672,37 @@ export default async function DriverVehiclesPage({
                       key={assignment.id}
                       className="border-t border-gray-100"
                     >
+                      <td className="sticky left-0 z-10 w-[92px] border-r border-gray-200 bg-white p-3 align-top shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            form={formId}
+                            type="submit"
+                            title="Zuordnung speichern"
+                            aria-label="Zuordnung speichern"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                          >
+                            <ActionIcon name="save" className="h-4 w-4" />
+                          </button>
+
+                          <form action={deleteDriverVehicleAssignment}>
+                            <input
+                              type="hidden"
+                              name="id"
+                              value={assignment.id}
+                            />
+
+                            <button
+                              type="submit"
+                              title="Zuordnung löschen"
+                              aria-label="Zuordnung löschen"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                            >
+                              <ActionIcon name="delete" className="h-4 w-4" />
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+
                       <Td>
                         <form
                           id={formId}
@@ -762,52 +769,12 @@ export default async function DriverVehiclesPage({
                       </Td>
 
                       <Td>
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                          <input
-                            form={formId}
-                            type="checkbox"
-                            name="isActive"
-                            defaultChecked={assignment.isActive}
-                            className="h-4 w-4"
-                          />
-                          aktiv
-                        </label>
-                      </Td>
-
-                      <Td>
                         <input
                           form={formId}
                           name="notes"
                           defaultValue={assignment.notes ?? ""}
                           className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                         />
-                      </Td>
-
-                      <Td>
-                        <div className="flex gap-2">
-                          <button
-                            form={formId}
-                            type="submit"
-                            className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                          >
-                            Speichern
-                          </button>
-
-                          <form action={deleteDriverVehicleAssignment}>
-                            <input
-                              type="hidden"
-                              name="id"
-                              value={assignment.id}
-                            />
-
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                            >
-                              Löschen
-                            </button>
-                          </form>
-                        </div>
                       </Td>
                     </tr>
                   );

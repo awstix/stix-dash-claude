@@ -16,22 +16,32 @@ const importTypes = [
   {
     value: "vehicles",
     label: "Fahrzeuge",
-    help: "Erwartete Spalten: Fahrzeugnummer, Kennzeichen, Fahrzeugtyp, Kategorie, Sonderfahrzeug, Bemerkung",
+    help: "Erwartete Spalten: Fahrzeugnummer, Kennzeichen, Fahrzeugtyp, Kategorie, Nutzlast t, Arbeitsmitteltank l, Sonderfahrzeug, Aktiv, Bemerkung",
   },
   {
     value: "materials",
     label: "Materialliste",
-    help: "Erwartete Spalten: Materialnummer, Materialname, Kategorie, Einheit, Bemerkung",
+    help: "Erwartete Spalten: Materialnummer, Materialname, Kategorie, Einheit, Aktiv, Bemerkung",
   },
   {
     value: "asphalt-types",
     label: "Sortenliste Asphalt",
-    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Kurzbezeichnung, Einheit, Kategorie, Mischanlage, Bemerkung",
+    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Kurzbezeichnung, Einheit, Kategorie, Mischanlage, Aktiv, Bemerkung",
+  },
+  {
+    value: "tack-coat-types",
+    label: "Anspritzmittel",
+    help: "Erwartete Spalten: Nummer, Bezeichnung, Einheit, Aktiv, Bemerkung",
   },
   {
     value: "concrete-types",
     label: "Sortenliste Beton",
-    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Festigkeitsklasse, Expositionsklasse, Körnung, Konsistenz, Einheit, Bemerkung",
+    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Festigkeitsklasse, Expositionsklasse, Körnung, Konsistenz, Einheit, Aktiv, Bemerkung",
+  },
+  {
+    value: "options",
+    label: "Auswahllisten",
+    help: "Erwartete Spalten: Gruppe, Interner Wert, Bezeichnung, Position, Aktiv. Bestehende Werte werden über Gruppe + Interner Wert aktualisiert.",
   },
 ];
 
@@ -148,6 +158,15 @@ export default async function ImportsPage({
             >
               Excel-Vorlage herunterladen
             </Link>
+
+            {type.value === "options" ? (
+              <Link
+                href="/admin/imports/export?type=options"
+                className="ml-2 mt-4 inline-flex rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              >
+                Aktuelle Auswahllisten exportieren
+              </Link>
+            ) : null}
           </div>
         ))}
       </div>

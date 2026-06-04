@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
@@ -11,7 +12,9 @@ type ImportType =
   | "vehicles"
   | "materials"
   | "asphalt-types"
-  | "concrete-types";
+  | "tack-coat-types"
+  | "concrete-types"
+  | "options";
 
 type ImportResult = {
   created: number;
@@ -22,6 +25,7 @@ type ImportResult = {
 type ExcelRow = Record<string, unknown>;
 
 const LKW_DRIVER_POSITION_VALUE = "lkw_fahrer_in";
+const TACK_COAT_CATEGORY = "Anspritzmittel";
 
 function normalizeHeader(value: string) {
   return value
@@ -60,6 +64,36 @@ function getBoolean(row: ExcelRow, aliases: string[]) {
   const value = getCell(row, aliases).toLowerCase();
 
   return ["ja", "yes", "true", "1", "x", "aktiv"].includes(value);
+}
+
+function getOptionalBoolean(row: ExcelRow, aliases: string[]) {
+  const value = getCell(row, aliases).toLowerCase();
+
+  if (!value) {
+    return null;
+  }
+
+  if (["ja", "yes", "true", "1", "x", "aktiv"].includes(value)) {
+    return true;
+  }
+
+  if (["nein", "no", "false", "0", "inaktiv"].includes(value)) {
+    return false;
+  }
+
+  return null;
+}
+
+function getOptionalNumber(row: ExcelRow, aliases: string[]) {
+  const value = getCell(row, aliases).replace(",", ".");
+
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 function splitFullName(fullName: string) {
@@ -399,7 +433,7 @@ async function syncDriverForEmployee({
   statusValue,
   positions,
 }: {
-  tx: any;
+  tx: Prisma.TransactionClient;
   employeeId: string;
   driverId: string | null;
   firstName: string;
@@ -787,6 +821,22 @@ async function importVehicles(rows: ExcelRow[]): Promise<ImportResult> {
       },
     });
 
+    const asphaltPayloadTons = getOptionalNumber(row, [
+      "Nutzlast",
+      "Nutzlast t",
+      "NutzlastT",
+      "asphaltPayloadTons",
+    ]);
+    const tackCoatTankLiters = getOptionalNumber(row, [
+      "Arbeitsmitteltank",
+      "Arbeitsmitteltank l",
+      "ArbeitsmitteltankLiter",
+      "Tank",
+      "Tank l",
+      "tackCoatTankLiters",
+    ]);
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
+
     if (existing) {
       await prisma.vehicle.update({
         where: {
@@ -796,11 +846,15 @@ async function importVehicles(rows: ExcelRow[]): Promise<ImportResult> {
           licensePlate: licensePlate ? normalizeCode(licensePlate) : null,
           vehicleType,
           category,
+          asphaltPayloadTons: asphaltPayloadTons ?? existing.asphaltPayloadTons,
+          tackCoatTankLiters:
+            tackCoatTankLiters ?? existing.tackCoatTankLiters,
           isSpecialVehicle: getBoolean(row, [
             "Sonderfahrzeug",
             "Special",
             "isSpecialVehicle",
           ]),
+          isActive: isActive ?? existing.isActive,
           notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
         },
       });
@@ -815,11 +869,14 @@ async function importVehicles(rows: ExcelRow[]): Promise<ImportResult> {
         licensePlate: licensePlate ? normalizeCode(licensePlate) : null,
         vehicleType,
         category,
+        asphaltPayloadTons: asphaltPayloadTons ?? 0,
+        tackCoatTankLiters: tackCoatTankLiters ?? 0,
         isSpecialVehicle: getBoolean(row, [
           "Sonderfahrzeug",
           "Special",
           "isSpecialVehicle",
         ]),
+        isActive: isActive ?? true,
         notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
       },
     });
@@ -865,6 +922,8 @@ async function importMaterials(rows: ExcelRow[]): Promise<ImportResult> {
       notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
     };
 
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
+
     if (data.materialNumber) {
       const existing = await prisma.materialType.findUnique({
         where: {
@@ -877,7 +936,10 @@ async function importMaterials(rows: ExcelRow[]): Promise<ImportResult> {
           where: {
             id: existing.id,
           },
-          data,
+          data: {
+            ...data,
+            isActive: isActive ?? existing.isActive,
+          },
         });
 
         result.updated++;
@@ -886,7 +948,10 @@ async function importMaterials(rows: ExcelRow[]): Promise<ImportResult> {
     }
 
     await prisma.materialType.create({
-      data,
+      data: {
+        ...data,
+        isActive: isActive ?? true,
+      },
     });
 
     result.created++;
@@ -931,6 +996,7 @@ async function importAsphaltTypes(rows: ExcelRow[]): Promise<ImportResult> {
       plant: getOptional(row, ["Mischanlage", "Standort", "plant"]),
       notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
     };
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
 
     const existing = await prisma.asphaltMixType.findUnique({
       where: {
@@ -940,18 +1006,101 @@ async function importAsphaltTypes(rows: ExcelRow[]): Promise<ImportResult> {
 
     if (existing) {
       await prisma.asphaltMixType.update({
-        where: {
-          id: existing.id,
-        },
-        data,
-      });
+          where: {
+            id: existing.id,
+          },
+          data: {
+            ...data,
+            isActive: isActive ?? existing.isActive,
+          },
+        });
 
       result.updated++;
       continue;
     }
 
     await prisma.asphaltMixType.create({
-      data,
+      data: {
+        ...data,
+        isActive: isActive ?? true,
+      },
+    });
+
+    result.created++;
+  }
+
+  return result;
+}
+
+async function importTackCoatTypes(rows: ExcelRow[]): Promise<ImportResult> {
+  const result = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+  };
+
+  for (const row of rows) {
+    const materialNumber = getOptional(row, [
+      "Nummer",
+      "Materialnummer",
+      "Materialnr",
+      "materialNumber",
+    ]);
+    const name = getCell(row, [
+      "Bezeichnung",
+      "Anspritzmittel",
+      "Materialname",
+      "Name",
+    ]);
+
+    if (!name) {
+      result.skipped++;
+      continue;
+    }
+
+    const data = {
+      materialNumber: materialNumber ? normalizeCode(materialNumber) : null,
+      name,
+      category: TACK_COAT_CATEGORY,
+      unit: getCell(row, ["Einheit", "unit"]) || "l",
+      notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
+    };
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
+
+    const existing = data.materialNumber
+      ? await prisma.materialType.findUnique({
+          where: {
+            materialNumber: data.materialNumber,
+          },
+        })
+      : await prisma.materialType.findFirst({
+          where: {
+            category: TACK_COAT_CATEGORY,
+            name,
+          },
+        });
+
+    if (existing) {
+      await prisma.materialType.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          ...data,
+          materialNumber: data.materialNumber ?? existing.materialNumber,
+          isActive: isActive ?? existing.isActive,
+        },
+      });
+
+      result.updated++;
+      continue;
+    }
+
+    await prisma.materialType.create({
+      data: {
+        ...data,
+        isActive: isActive ?? true,
+      },
     });
 
     result.created++;
@@ -1000,6 +1149,7 @@ async function importConcreteTypes(rows: ExcelRow[]): Promise<ImportResult> {
       unit: getCell(row, ["Einheit", "unit"]) || "m³",
       notes: getOptional(row, ["Bemerkung", "Notiz", "Notes"]),
     };
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
 
     const existing = await prisma.concreteType.findUnique({
       where: {
@@ -1009,18 +1159,108 @@ async function importConcreteTypes(rows: ExcelRow[]): Promise<ImportResult> {
 
     if (existing) {
       await prisma.concreteType.update({
-        where: {
-          id: existing.id,
-        },
-        data,
-      });
+          where: {
+            id: existing.id,
+          },
+          data: {
+            ...data,
+            isActive: isActive ?? existing.isActive,
+          },
+        });
 
       result.updated++;
       continue;
     }
 
     await prisma.concreteType.create({
-      data,
+      data: {
+        ...data,
+        isActive: isActive ?? true,
+      },
+    });
+
+    result.created++;
+  }
+
+  return result;
+}
+
+async function importOptions(rows: ExcelRow[]): Promise<ImportResult> {
+  const result = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+  };
+
+  for (const row of rows) {
+    const isCompletelyEmpty = Object.values(row).every((value) => !text(value));
+
+    if (isCompletelyEmpty) {
+      continue;
+    }
+
+    const groupKey = getCell(row, [
+      "Gruppe",
+      "Auswahlliste",
+      "groupKey",
+      "GroupKey",
+    ]);
+    const label = getCell(row, ["Bezeichnung", "Label", "label", "Name"]);
+
+    if (!groupKey || !label) {
+      result.skipped++;
+      continue;
+    }
+
+    const valueInput = getCell(row, [
+      "Interner Wert",
+      "InternerWert",
+      "Wert",
+      "value",
+      "Value",
+    ]);
+    const value = valueInput || slugify(label);
+    const sortOrder = getOptionalNumber(row, [
+      "Position",
+      "Sortierung",
+      "sortOrder",
+      "SortOrder",
+    ]);
+    const isActive = getOptionalBoolean(row, ["Aktiv", "active", "isActive"]);
+
+    const existing = await prisma.adminOption.findUnique({
+      where: {
+        groupKey_value: {
+          groupKey,
+          value,
+        },
+      },
+    });
+
+    if (existing) {
+      await prisma.adminOption.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          label,
+          sortOrder: sortOrder ?? existing.sortOrder,
+          isActive: isActive ?? existing.isActive,
+        },
+      });
+
+      result.updated++;
+      continue;
+    }
+
+    await prisma.adminOption.create({
+      data: {
+        groupKey,
+        value,
+        label,
+        sortOrder: sortOrder ?? (await getNextSortOrder(groupKey)),
+        isActive: isActive ?? true,
+      },
     });
 
     result.created++;
@@ -1055,8 +1295,12 @@ export async function importExcel(formData: FormData) {
     result = await importMaterials(rows);
   } else if (importType === "asphalt-types") {
     result = await importAsphaltTypes(rows);
+  } else if (importType === "tack-coat-types") {
+    result = await importTackCoatTypes(rows);
   } else if (importType === "concrete-types") {
     result = await importConcreteTypes(rows);
+  } else if (importType === "options") {
+    result = await importOptions(rows);
   } else {
     throw new Error("Unbekannter Importtyp.");
   }
@@ -1067,6 +1311,7 @@ export async function importExcel(formData: FormData) {
   revalidatePath("/admin/vehicles");
   revalidatePath("/admin/materials");
   revalidatePath("/admin/asphalt-types");
+  revalidatePath("/admin/tack-coat-types");
   revalidatePath("/admin/concrete-types");
   revalidatePath("/admin/options");
 

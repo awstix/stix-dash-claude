@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,10 @@ function getPersonInput(formData: FormData) {
   ).trim();
 }
 
-async function resolveDriverForPersonInput(tx: any, personInput: string) {
+async function resolveDriverForPersonInput(
+  tx: Prisma.TransactionClient,
+  personInput: string,
+) {
   if (!personInput) {
     throw new Error("Bitte einen Mitarbeiter/Fahrer auswählen.");
   }
@@ -169,7 +173,6 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
   const personInput = getPersonInput(formData);
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
   const isPrimary = formData.get("isPrimary") === "on";
-  const isActive = formData.get("isActive") === "on";
 
   if (!id) {
     throw new Error("Zuordnungs-ID fehlt.");
@@ -237,7 +240,6 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
         driverId,
         vehicleId,
         isPrimary,
-        isActive,
         notes: optionalString(formData.get("notes")),
       },
     });

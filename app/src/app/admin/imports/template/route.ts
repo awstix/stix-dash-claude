@@ -8,7 +8,9 @@ type ImportType =
   | "vehicles"
   | "materials"
   | "asphalt-types"
-  | "concrete-types";
+  | "tack-coat-types"
+  | "concrete-types"
+  | "options";
 
 type TemplateConfig = {
   filename: string;
@@ -112,7 +114,10 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
         "Kennzeichen",
         "Fahrzeugtyp",
         "Kategorie",
+        "Nutzlast t",
+        "Arbeitsmitteltank l",
         "Sonderfahrzeug",
+        "Aktiv",
         "Bemerkung",
       ],
       exampleRows: [
@@ -121,11 +126,14 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
           Kennzeichen: "AB-ST-101",
           Fahrzeugtyp: "LKW",
           Kategorie: "4-Achser",
+          "Nutzlast t": "18",
+          "Arbeitsmitteltank l": "0",
           Sonderfahrzeug: "nein",
+          Aktiv: "ja",
           Bemerkung: "",
         },
       ],
-      columnWidths: [18, 18, 18, 22, 18, 36],
+      columnWidths: [18, 18, 18, 22, 14, 22, 18, 12, 36],
     };
   }
 
@@ -138,6 +146,7 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
         "Materialname",
         "Kategorie",
         "Einheit",
+        "Aktiv",
         "Bemerkung",
       ],
       exampleRows: [
@@ -146,10 +155,11 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
           Materialname: "Frostschutz 0/32",
           Kategorie: "Frostschutz",
           Einheit: "t",
+          Aktiv: "ja",
           Bemerkung: "",
         },
       ],
-      columnWidths: [18, 28, 20, 12, 36],
+      columnWidths: [18, 28, 20, 12, 12, 36],
     };
   }
 
@@ -164,6 +174,7 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
         "Einheit",
         "Kategorie",
         "Mischanlage",
+        "Aktiv",
         "Bemerkung",
       ],
       exampleRows: [
@@ -174,10 +185,60 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
           Einheit: "t",
           Kategorie: "Asphaltdeckschicht",
           Mischanlage: "Eigene Mischanlage",
+          Aktiv: "ja",
           Bemerkung: "",
         },
       ],
-      columnWidths: [18, 36, 20, 12, 26, 28, 36],
+      columnWidths: [18, 36, 20, 12, 26, 28, 12, 36],
+    };
+  }
+
+  if (type === "tack-coat-types") {
+    return {
+      filename: "anspritzmittel-import-vorlage.xlsx",
+      sheetName: "Anspritzmittel",
+      headers: ["Nummer", "Bezeichnung", "Einheit", "Aktiv", "Bemerkung"],
+      exampleRows: [
+        {
+          Nummer: "C60B",
+          Bezeichnung: "C60B4-S",
+          Einheit: "l",
+          Aktiv: "ja",
+          Bemerkung: "",
+        },
+      ],
+      columnWidths: [18, 32, 12, 12, 36],
+    };
+  }
+
+  if (type === "options") {
+    return {
+      filename: "auswahllisten-import-vorlage.xlsx",
+      sheetName: "Auswahllisten",
+      headers: [
+        "Gruppe",
+        "Interner Wert",
+        "Bezeichnung",
+        "Position",
+        "Aktiv",
+      ],
+      exampleRows: [
+        {
+          Gruppe: "material_category",
+          "Interner Wert": "recycling",
+          Bezeichnung: "Recycling",
+          Position: "90",
+          Aktiv: "ja",
+        },
+        {
+          Gruppe: "vehicle_type",
+          "Interner Wert": "spritzwagen",
+          Bezeichnung: "Spritzwagen",
+          Position: "80",
+          Aktiv: "ja",
+        },
+      ],
+      columnWidths: [30, 28, 36, 12, 12],
     };
   }
 
@@ -192,6 +253,7 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
       "Körnung",
       "Konsistenz",
       "Einheit",
+      "Aktiv",
       "Bemerkung",
     ],
     exampleRows: [
@@ -203,10 +265,11 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
         Körnung: "0/16",
         Konsistenz: "F3",
         Einheit: "m³",
+        Aktiv: "ja",
         Bemerkung: "",
       },
     ],
-    columnWidths: [20, 32, 22, 22, 16, 16, 12, 36],
+    columnWidths: [20, 32, 22, 22, 16, 16, 12, 12, 36],
   };
 }
 
@@ -220,7 +283,9 @@ export async function GET(request: NextRequest) {
     "vehicles",
     "materials",
     "asphalt-types",
+    "tack-coat-types",
     "concrete-types",
+    "options",
   ];
 
   if (!allowedTypes.includes(type)) {

@@ -1,3 +1,4 @@
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultWorkTimePresets } from "@/lib/work-time";
@@ -72,7 +73,47 @@ export default async function WorkingTimePage() {
 
             return (
               <div key={preset.id} className="p-5">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_130px_130px_100px_100px_auto] lg:items-end">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr_130px_130px_100px_100px] lg:items-end">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <form id={formId} action={updateWorkTimePreset}>
+                      <input type="hidden" name="id" value={preset.id} />
+                      <button
+                        type="submit"
+                        title="Arbeitszeit speichern"
+                        aria-label="Arbeitszeit speichern"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                      >
+                        <ActionIcon name="save" className="h-4 w-4" />
+                      </button>
+                    </form>
+
+                    <form action={setDefaultWorkTimePreset}>
+                      <input type="hidden" name="id" value={preset.id} />
+                      <button
+                        type="submit"
+                        className={
+                          preset.isDefault
+                            ? "rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
+                            : "rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                        }
+                      >
+                        {preset.isDefault ? "Standard" : "Als Standard"}
+                      </button>
+                    </form>
+
+                    <form action={deleteWorkTimePreset}>
+                      <input type="hidden" name="id" value={preset.id} />
+                      <button
+                        type="submit"
+                        title="Arbeitszeit löschen"
+                        aria-label="Arbeitszeit löschen"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      >
+                        <ActionIcon name="delete" className="h-4 w-4" />
+                      </button>
+                    </form>
+                  </div>
+
                   <label className="text-sm font-medium text-gray-800">
                     Name
                     <input
@@ -126,42 +167,6 @@ export default async function WorkingTimePage() {
                     />
                     aktiv
                   </label>
-
-                  <div className="flex flex-wrap gap-2">
-                    <form id={formId} action={updateWorkTimePreset}>
-                      <input type="hidden" name="id" value={preset.id} />
-                      <button
-                        type="submit"
-                        className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                      >
-                        Speichern
-                      </button>
-                    </form>
-
-                    <form action={setDefaultWorkTimePreset}>
-                      <input type="hidden" name="id" value={preset.id} />
-                      <button
-                        type="submit"
-                        className={
-                          preset.isDefault
-                            ? "rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
-                            : "rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                        }
-                      >
-                        {preset.isDefault ? "Standard" : "Als Standard"}
-                      </button>
-                    </form>
-
-                    <form action={deleteWorkTimePreset}>
-                      <input type="hidden" name="id" value={preset.id} />
-                      <button
-                        type="submit"
-                        className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        Löschen
-                      </button>
-                    </form>
-                  </div>
                 </div>
               </div>
             );

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -96,6 +97,9 @@ export default async function AsphaltTypesPage() {
           <table className="w-full min-w-[1350px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
+                <th className="sticky left-0 z-20 w-[92px] whitespace-nowrap border-r border-gray-200 bg-gray-50 p-4 text-center font-semibold shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                  Aktion
+                </th>
                 <Th>Sortennr.</Th>
                 <Th>Bezeichnung</Th>
                 <Th>Kurzbez.</Th>
@@ -104,7 +108,6 @@ export default async function AsphaltTypesPage() {
                 <Th>Mischanlage</Th>
                 <Th>Aktiv</Th>
                 <Th>Bemerkung</Th>
-                <Th>Aktionen</Th>
               </tr>
             </thead>
 
@@ -124,6 +127,44 @@ export default async function AsphaltTypesPage() {
                       key={asphaltType.id}
                       className="border-t border-gray-100"
                     >
+                      <td className="sticky left-0 z-10 w-[92px] border-r border-gray-200 bg-white p-4 align-top shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                        <div className="flex items-center justify-center gap-2">
+                          <form id={formId} action={updateAsphaltType}>
+                            <input
+                              type="hidden"
+                              name="id"
+                              value={asphaltType.id}
+                            />
+
+                            <button
+                              type="submit"
+                              title="Asphaltsorte speichern"
+                              aria-label="Asphaltsorte speichern"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                            >
+                              <ActionIcon name="save" className="h-4 w-4" />
+                            </button>
+                          </form>
+
+                          <form action={deleteAsphaltType}>
+                            <input
+                              type="hidden"
+                              name="id"
+                              value={asphaltType.id}
+                            />
+
+                            <button
+                              type="submit"
+                              title="Asphaltsorte löschen"
+                              aria-label="Asphaltsorte löschen"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                            >
+                              <ActionIcon name="delete" className="h-4 w-4" />
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+
                       <Td>
                         <SmallInput
                           formId={formId}
@@ -198,40 +239,6 @@ export default async function AsphaltTypesPage() {
                           name="notes"
                           defaultValue={asphaltType.notes ?? ""}
                         />
-                      </Td>
-
-                      <Td>
-                        <div className="flex gap-2">
-                          <form id={formId} action={updateAsphaltType}>
-                            <input
-                              type="hidden"
-                              name="id"
-                              value={asphaltType.id}
-                            />
-
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                            >
-                              Speichern
-                            </button>
-                          </form>
-
-                          <form action={deleteAsphaltType}>
-                            <input
-                              type="hidden"
-                              name="id"
-                              value={asphaltType.id}
-                            />
-
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                            >
-                              Löschen
-                            </button>
-                          </form>
-                        </div>
                       </Td>
                     </tr>
                   );

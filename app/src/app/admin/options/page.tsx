@@ -1,10 +1,10 @@
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
   createAdminOption,
   deleteAdminOption,
   saveAdminOptionSortOrder,
-  seedDefaultOptions,
   sortAdminOptionsAlphabetically,
   sortAdminOptionsByPosition,
   updateAdminOption,
@@ -124,6 +124,16 @@ function sectionAnchor(title: string) {
   return title.toLowerCase().replaceAll(" ", "-");
 }
 
+function getNextSortOrder(options: { sortOrder: number }[]) {
+  if (options.length === 0) return 10;
+
+  const maxSortOrder = Math.max(
+    ...options.map((option) => option.sortOrder),
+  );
+
+  return Math.floor(maxSortOrder / 10) * 10 + 10;
+}
+
 export default async function AdminOptionsPage() {
   const options = await prisma.adminOption.findMany({
     orderBy: [{ groupKey: "asc" }, { sortOrder: "asc" }, { label: "asc" }],
@@ -134,37 +144,6 @@ export default async function AdminOptionsPage() {
       title="Auswahllisten"
       description="Dropdown-Werte zentral verwalten, ohne Code ändern zu müssen."
     >
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Standardwerte einspielen
-            </h2>
-
-            <p className="mt-2 text-sm text-gray-600">
-              Legt Standardwerte für Mitarbeiter, Berufsgruppen, Firmen,
-              Fahrzeuge, Nachunternehmer, Material, Asphalt, Beton und
-              Kolonnentypen an.
-            </p>
-
-            <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-medium text-yellow-900">
-              Hinweis: Nicht verwenden, wenn du vorhandene eigene Werte nicht
-              anfassen möchtest. Neue Kolonnentypen kannst du unten im Abschnitt
-              „Kolonnen → Kolonnentypen“ manuell hinzufügen.
-            </p>
-          </div>
-
-          <form action={seedDefaultOptions}>
-            <button
-              type="submit"
-              className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-            >
-              Standardwerte einspielen
-            </button>
-          </form>
-        </div>
-      </div>
-
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {optionSections.map((section) => {
           const sectionOptionCount = section.groups.reduce((sum, group) => {
@@ -271,6 +250,7 @@ export default async function AdminOptionsPage() {
                   const groupOptions = options.filter(
                     (option) => option.groupKey === group.key
                   );
+                  const nextSortOrder = getNextSortOrder(groupOptions);
 
                   const sortFormId = `sort-form-${group.key}`;
 
@@ -342,7 +322,46 @@ export default async function AdminOptionsPage() {
                                   key={option.id}
                                   className="rounded-xl border border-gray-200 bg-white p-3"
                                 >
-                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px_120px_auto] md:items-start">
+                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[92px_1fr_140px_120px] md:items-start">
+                                    <div className="flex items-center gap-2 pt-6">
+                                      <form
+                                        id={rowFormId}
+                                        action={updateAdminOption}
+                                      >
+                                        <input
+                                          type="hidden"
+                                          name="id"
+                                          value={option.id}
+                                        />
+
+                                        <button
+                                          type="submit"
+                                          title="Auswahlpunkt speichern"
+                                          aria-label="Auswahlpunkt speichern"
+                                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                                        >
+                                          <ActionIcon name="save" className="h-4 w-4" />
+                                        </button>
+                                      </form>
+
+                                      <form action={deleteAdminOption}>
+                                        <input
+                                          type="hidden"
+                                          name="id"
+                                          value={option.id}
+                                        />
+
+                                        <button
+                                          type="submit"
+                                          title="Auswahlpunkt löschen"
+                                          aria-label="Auswahlpunkt löschen"
+                                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                                        >
+                                          <ActionIcon name="delete" className="h-4 w-4" />
+                                        </button>
+                                      </form>
+                                    </div>
+
                                     <div>
                                       <label className="text-xs font-semibold text-gray-600">
                                         Bezeichnung
@@ -395,41 +414,6 @@ export default async function AdminOptionsPage() {
                                       />
                                       aktiv
                                     </label>
-
-                                    <div className="mt-6 flex gap-2 md:mt-7">
-                                      <form
-                                        id={rowFormId}
-                                        action={updateAdminOption}
-                                      >
-                                        <input
-                                          type="hidden"
-                                          name="id"
-                                          value={option.id}
-                                        />
-
-                                        <button
-                                          type="submit"
-                                          className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                                        >
-                                          Speichern
-                                        </button>
-                                      </form>
-
-                                      <form action={deleteAdminOption}>
-                                        <input
-                                          type="hidden"
-                                          name="id"
-                                          value={option.id}
-                                        />
-
-                                        <button
-                                          type="submit"
-                                          className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                                        >
-                                          Löschen
-                                        </button>
-                                      </form>
-                                    </div>
                                   </div>
                                 </div>
                               );
@@ -466,7 +450,7 @@ export default async function AdminOptionsPage() {
                               <input
                                 name="sortOrder"
                                 type="number"
-                                placeholder="optional"
+                                defaultValue={String(nextSortOrder)}
                                 className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                               />
                             </label>
