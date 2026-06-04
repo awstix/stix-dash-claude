@@ -634,6 +634,7 @@ model Employee {
 
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
+  dispositionEntries              EmployeeDispositionEntry[]
 
   notes String?
 
@@ -645,6 +646,32 @@ model Employee {
   @@index([departmentValue])
   @@index([lastName])
   @@index([driverId])
+}
+
+model EmployeeDispositionEntry {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+
+  startTime String @default("06:30")
+  endTime   String @default("17:00")
+
+  typeValue String
+  typeLabel String
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([typeValue])
 }
 
 model EmployeePositionAssignment {

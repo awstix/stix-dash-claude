@@ -1,16 +1,25 @@
 import Link from "next/link";
 
-const navigation = [
+const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Projekte", href: "/projects" },
-  { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
-  { name: "LKW-Einteilung", href: "/truck-dispatch" },
-  { name: "Kolonneneinteilung", href: "/crew-dispatch" },
-  { name: "Gerätedisposition", href: "/equipment-dispatch" },
-  { name: "Sonderfahrzeuge", href: "/special-vehicle-dispatch" },
+];
+
+const secondaryNavigation = [
   { name: "Bestellung", href: "/orders" },
   { name: "Admin", href: "/admin" },
 ];
+
+const dispositionNavigation = [
+  { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
+  { name: "Gerätedisposition", href: "/equipment-dispatch" },
+  { name: "Kolonneneinteilung", href: "/crew-dispatch" },
+  { name: "LKW-Einteilung", href: "/truck-dispatch" },
+  { name: "LKW-Einteilung Kurzstrecke", href: "/truck-dispatch/short-haul" },
+  { name: "LKW-Einteilung Langstrecke", href: "/truck-dispatch/long-haul" },
+  { name: "Mitarbeiterdisposition", href: "/employee-dispatch" },
+  { name: "Sonderfahrzeuge", href: "/special-vehicle-dispatch" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 export function AppShell({
   title,
@@ -30,7 +39,35 @@ export function AppShell({
           </Link>
 
           <nav className="flex flex-wrap gap-2 text-sm font-medium text-gray-600">
-            {navigation.map((item) => (
+            {primaryNavigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-lg px-3 py-2 hover:bg-gray-100 hover:text-gray-900"
+              >
+                {item.name}
+              </Link>
+            ))}
+
+            <details className="group relative">
+              <summary className="cursor-pointer list-none rounded-lg px-3 py-2 hover:bg-gray-100 hover:text-gray-900 marker:content-none [&::-webkit-details-marker]:hidden">
+                Disposition
+              </summary>
+
+              <div className="absolute left-0 top-10 z-50 min-w-[260px] rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                {dispositionNavigation.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </details>
+
+            {secondaryNavigation.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
