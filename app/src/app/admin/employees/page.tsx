@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { Prisma } from "@prisma/client";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { PositionPicker } from "./PositionPicker";
@@ -45,6 +47,12 @@ function calculateAge(birthDate: Date | null) {
   }
 
   return String(age);
+}
+
+function isExitedEmployeeStatus(statusValue: string, statusLabel: string | null) {
+  const normalizedStatus = `${statusValue} ${statusLabel ?? ""}`.toLowerCase();
+
+  return statusValue === "left" || normalizedStatus.includes("ausgeschieden");
 }
 
 function getStatusClass(statusValue: string) {
@@ -191,7 +199,7 @@ export default async function EmployeesPage({
     sort: sortFilter,
   };
 
-  const filterConditions: any[] = [];
+  const filterConditions: Prisma.EmployeeWhereInput[] = [];
 
   if (filters.status) {
     filterConditions.push({
@@ -380,7 +388,7 @@ export default async function EmployeesPage({
     });
   }
 
-  const employeeWhere =
+  const employeeWhere: Prisma.EmployeeWhereInput =
     filterConditions.length > 0
       ? {
           AND: filterConditions,
@@ -465,6 +473,9 @@ export default async function EmployeesPage({
   const activeEmployees = employees.filter(
     (employee) => employee.statusValue === "active"
   );
+  const exitedEmployees = employees.filter((employee) =>
+    isExitedEmployeeStatus(employee.statusValue, employee.statusLabel)
+  );
 
   const lkwDrivers = employees.filter((employee) =>
     employee.positions.some(
@@ -495,10 +506,7 @@ export default async function EmployeesPage({
         />
         <SummaryCard
           label="Ausgetreten"
-          value={String(
-            employees.filter((employee) => employee.statusValue === "left")
-              .length
-          )}
+          value={String(exitedEmployees.length)}
         />
       </div>
 
@@ -801,61 +809,67 @@ export default async function EmployeesPage({
                 employees.map((employee) => (
                   <tr key={employee.id} className="border-t border-gray-100">
                     <Td>
-                      <details>
-                        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
-                          Bearbeiten
+                      <details className="relative">
+                        <summary
+                          className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 transition marker:content-none hover:bg-gray-50 [&::-webkit-details-marker]:hidden"
+                          title="Mitarbeiter bearbeiten"
+                        >
+                          <ActionIcon name="edit" className="h-4 w-4" />
+                          <span className="sr-only">Bearbeiten</span>
                         </summary>
 
-                        <EmployeeForm
-                          action={updateEmployee}
-                          id={employee.id}
-                          statusOptions={statusOptions}
-                          companyOptions={companyOptions}
-                          departmentOptions={departmentOptions}
-                          genderOptions={genderOptions}
-                          positionOptions={positionOptions}
-                          defaultStatusValue={employee.statusValue}
-                          defaultEntryDate={formatDateInput(
-                            employee.entryDate
-                          )}
-                          defaultExitDate={formatDateInput(employee.exitDate)}
-                          defaultCompanyValue={employee.companyValue ?? ""}
-                          defaultDepartmentValue={
-                            employee.departmentValue ?? ""
-                          }
-                          defaultFirstName={employee.firstName}
-                          defaultLastName={employee.lastName}
-                          defaultIsLeadership={employee.isLeadership}
-                          defaultBirthDate={formatDateInput(
-                            employee.birthDate
-                          )}
-                          defaultGenderValue={employee.genderValue ?? ""}
-                          defaultMobilePhone={employee.mobilePhone ?? ""}
-                          defaultEmergencyPhone={
-                            employee.emergencyPhone ?? ""
-                          }
-                          defaultStreet={employee.street ?? ""}
-                          defaultPostalCode={employee.postalCode ?? ""}
-                          defaultCity={employee.city ?? ""}
-                          defaultNotes={employee.notes ?? ""}
-                          defaultPositionValues={employee.positions.map(
-                            (position) => position.positionValue
-                          )}
-                        />
-
-                        <form action={deleteEmployee} className="mt-3">
-                          <input
-                            type="hidden"
-                            name="id"
-                            value={employee.id}
+                        <div className="absolute left-0 top-10 z-50 w-[min(980px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
+                          <EmployeeForm
+                            action={updateEmployee}
+                            id={employee.id}
+                            statusOptions={statusOptions}
+                            companyOptions={companyOptions}
+                            departmentOptions={departmentOptions}
+                            genderOptions={genderOptions}
+                            positionOptions={positionOptions}
+                            defaultStatusValue={employee.statusValue}
+                            defaultEntryDate={formatDateInput(
+                              employee.entryDate
+                            )}
+                            defaultExitDate={formatDateInput(employee.exitDate)}
+                            defaultCompanyValue={employee.companyValue ?? ""}
+                            defaultDepartmentValue={
+                              employee.departmentValue ?? ""
+                            }
+                            defaultFirstName={employee.firstName}
+                            defaultLastName={employee.lastName}
+                            defaultIsLeadership={employee.isLeadership}
+                            defaultBirthDate={formatDateInput(
+                              employee.birthDate
+                            )}
+                            defaultGenderValue={employee.genderValue ?? ""}
+                            defaultMobilePhone={employee.mobilePhone ?? ""}
+                            defaultEmergencyPhone={
+                              employee.emergencyPhone ?? ""
+                            }
+                            defaultStreet={employee.street ?? ""}
+                            defaultPostalCode={employee.postalCode ?? ""}
+                            defaultCity={employee.city ?? ""}
+                            defaultNotes={employee.notes ?? ""}
+                            defaultPositionValues={employee.positions.map(
+                              (position) => position.positionValue
+                            )}
                           />
-                          <button
-                            type="submit"
-                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                          >
-                            Mitarbeiter löschen
-                          </button>
-                        </form>
+
+                          <form action={deleteEmployee} className="mt-3">
+                            <input
+                              type="hidden"
+                              name="id"
+                              value={employee.id}
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                            >
+                              Mitarbeiter löschen
+                            </button>
+                          </form>
+                        </div>
                       </details>
                     </Td>
 

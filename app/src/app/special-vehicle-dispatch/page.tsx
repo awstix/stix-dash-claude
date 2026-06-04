@@ -402,6 +402,70 @@ function getVehicleSearchText(vehicle: {
     .toLowerCase();
 }
 
+function isTackCoatSpecialVehicle(vehicle: {
+  vehicleNumber: string;
+  licensePlate: string | null;
+  vehicleType: string;
+  category: string;
+  notes: string | null;
+  tackCoatTankLiters: number;
+}) {
+  if (vehicle.tackCoatTankLiters > 0) return true;
+
+  return [
+    vehicle.vehicleNumber,
+    vehicle.licensePlate,
+    vehicle.vehicleType,
+    vehicle.category,
+    vehicle.notes,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes("anspritz");
+}
+
+function getTackCoatNeedsForTimelineUnit({
+  needs,
+  unit,
+}: {
+  needs: TackCoatNeedForForm[];
+  unit: TimelineUnit;
+}) {
+  const startDate = formatDateInput(unit.startDate);
+  const endDate = formatDateInput(unit.endDateExclusive);
+
+  return needs.filter(
+    (need) =>
+      need.plannedQuantity > 0 &&
+      need.workDate >= startDate &&
+      need.workDate < endDate,
+  );
+}
+
+function getTackCoatMarkerText(needs: TackCoatNeedForForm[]) {
+  const openLiters = needs.reduce((sum, need) => sum + need.openQuantity, 0);
+
+  if (openLiters > 0) {
+    return `Anspritz offen ${formatLiters(openLiters)} l`;
+  }
+
+  return "Anspritz vollständig";
+}
+
+function getTackCoatMarkerTitle(needs: TackCoatNeedForForm[]) {
+  return needs
+    .map((need) =>
+      [
+        formatGermanDate(parseDateParam(need.workDate)),
+        `${need.projectNumber} · ${need.projectName}`,
+        `${formatLiters(need.openQuantity)} ${need.quantityUnit} offen`,
+        need.materialName,
+      ].join(" · "),
+    )
+    .join("\n");
+}
+
 function assignmentMatchesQuery(assignment: AssignmentForPage, query: string) {
   if (!query) return true;
 
@@ -981,70 +1045,103 @@ export default async function SpecialVehicleDispatchPage({
               className="min-w-0"
               style={{ minWidth: timelineContentMinWidth || undefined }}
             >
-              {filteredVehicles.map((vehicle) => (
-                <div
-                  key={vehicle.id}
-                  className="grid border-t border-gray-100"
-                  style={{ gridTemplateColumns: timelineFrameColumns }}
-                >
-                  <div className="sticky left-0 z-20 border-r border-gray-200 bg-white p-4">
-                    <div className="font-semibold text-gray-900">{vehicle.vehicleNumber}</div>
-                    <div className="mt-1 text-sm text-gray-600">{vehicle.licensePlate ?? "-"}</div>
-                    <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
-                      <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.vehicleType}</span>
+              {filteredVehicles.map((vehicle) => {
+                const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
+
+                return (
+                  <div
+                    key={vehicle.id}
+                    className="grid border-t border-gray-100"
+                    style={{ gridTemplateColumns: timelineFrameColumns }}
+                  >
+                    <div className="sticky left-0 z-20 border-r border-gray-200 bg-white p-4">
+                      <div className="font-semibold text-gray-900">{vehicle.vehicleNumber}</div>
+                      <div className="mt-1 text-sm text-gray-600">{vehicle.licensePlate ?? "-"}</div>
+                      <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
+                        <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
+                        <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
+                        <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.vehicleType}</span>
+                        {isTackCoatVehicle ? (
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-800">
+                            Anspritzgerät
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="grid min-h-[108px]" style={{ gridTemplateColumns: gridColumns }}>
+                      {timelineUnits.map((unit) => {
+                        const dateInput = unit.defaultStartDate;
+                        const dayAssignments = getAssignmentsForVehicleAndDate({
+                          assignments: assignmentsForPage,
+                          vehicleId: vehicle.id,
+                          dateInput,
+                        });
+                        const tackCoatNeeds = isTackCoatVehicle
+                          ? getTackCoatNeedsForTimelineUnit({
+                              needs: tackCoatNeedsForForm,
+                              unit,
+                            })
+                          : [];
+                        const openTackCoatLitersForUnit = tackCoatNeeds.reduce(
+                          (sum, need) => sum + need.openQuantity,
+                          0,
+                        );
+                        const plusHref = buildSpecialVehicleDispatchHref({
+                          fromDate,
+                          toDate,
+                          view,
+                          showWeekend,
+                          filters,
+                          focusDate: dateInput,
+                          newVehicleId: vehicle.id,
+                          newDate: dateInput,
+                        });
+
+                        return (
+                          <div key={`${vehicle.id}-${unit.key}`} className="min-h-[108px] border-r border-gray-100 p-2 last:border-r-0">
+                            <Link
+                              href={`${plusHref}#special-vehicle-create`}
+                              className="mb-2 flex h-7 w-full items-center justify-center rounded-md border border-dashed border-purple-300 bg-purple-50 text-xs font-semibold text-purple-800 hover:bg-purple-100"
+                            >
+                              +
+                            </Link>
+
+                            {tackCoatNeeds.length > 0 ? (
+                              <Link
+                                href={`${plusHref}#special-vehicle-create`}
+                                title={getTackCoatMarkerTitle(tackCoatNeeds)}
+                                className={
+                                  openTackCoatLitersForUnit > 0
+                                    ? "mb-2 block rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
+                                    : "mb-2 block rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold leading-5 text-green-800 hover:bg-green-100"
+                                }
+                              >
+                                {getTackCoatMarkerText(tackCoatNeeds)}
+                              </Link>
+                            ) : null}
+
+                            <div className="space-y-2">
+                              {dayAssignments.map((assignment) => (
+                                <SpecialVehicleAssignmentCard
+                                  key={assignment.id}
+                                  assignment={assignment}
+                                  vehicles={vehicles}
+                                  transportVehicles={transportVehicles}
+                                  drivers={drivers}
+                                  projects={projects}
+                                  crews={crews}
+                                  tackCoatMaterials={tackCoatMaterials}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-
-                  <div className="grid min-h-[108px]" style={{ gridTemplateColumns: gridColumns }}>
-                    {timelineUnits.map((unit) => {
-                      const dateInput = unit.defaultStartDate;
-                      const dayAssignments = getAssignmentsForVehicleAndDate({
-                        assignments: assignmentsForPage,
-                        vehicleId: vehicle.id,
-                        dateInput,
-                      });
-                      const plusHref = buildSpecialVehicleDispatchHref({
-                        fromDate,
-                        toDate,
-                        view,
-                        showWeekend,
-                        filters,
-                        focusDate: dateInput,
-                        newVehicleId: vehicle.id,
-                        newDate: dateInput,
-                      });
-
-                      return (
-                        <div key={`${vehicle.id}-${unit.key}`} className="min-h-[108px] border-r border-gray-100 p-2 last:border-r-0">
-                          <Link
-                            href={`${plusHref}#special-vehicle-create`}
-                            className="mb-2 flex h-7 w-full items-center justify-center rounded-md border border-dashed border-purple-300 bg-purple-50 text-xs font-semibold text-purple-800 hover:bg-purple-100"
-                          >
-                            +
-                          </Link>
-
-                          <div className="space-y-2">
-                            {dayAssignments.map((assignment) => (
-                              <SpecialVehicleAssignmentCard
-                                key={assignment.id}
-                                assignment={assignment}
-                                vehicles={vehicles}
-                                transportVehicles={transportVehicles}
-                                drivers={drivers}
-                                projects={projects}
-                                crews={crews}
-                                tackCoatMaterials={tackCoatMaterials}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </SpecialVehicleTimelineScroll>
         )}

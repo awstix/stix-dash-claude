@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
+import { ActionIcon } from "@/components/ActionIcon";
 import { prisma } from "@/lib/prisma";
 import { createVehicle, deleteVehicle, updateVehicle } from "./actions";
 
@@ -194,6 +195,7 @@ export default async function VehiclesPage({
           className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-8"
         >
           <Input name="vehicleNumber" label="Fahrzeugnummer" required />
+          <Input name="notes" label="Bemerkung" />
           <Input name="licensePlate" label="Kennzeichen" />
 
           <Select
@@ -215,14 +217,12 @@ export default async function VehiclesPage({
 
           <Input
             name="tackCoatTankLiters"
-            label="Tank l"
+            label="Arbeitsmitteltank l"
             type="number"
             step="0.01"
             min="0"
             placeholder="z.B. 600"
           />
-
-          <Input name="notes" label="Bemerkung" />
 
           <label className="flex items-end gap-2 text-sm font-medium text-gray-800">
             <input
@@ -252,7 +252,7 @@ export default async function VehiclesPage({
                 Fahrzeugübersicht
               </h2>
               <p className="mt-1 text-sm text-gray-600">
-                Änderungen direkt in der Zeile vornehmen und rechts mit 💾
+                Änderungen direkt in der Zeile vornehmen und links mit dem Speichern-Symbol
                 sichern. Die Aktionsspalte bleibt beim seitlichen Scrollen
                 sichtbar.
               </p>
@@ -281,6 +281,13 @@ export default async function VehiclesPage({
                 list="vehicle-number-filter-options"
                 placeholder="z.B. 101"
                 defaultValue={vehicleNumberFilter}
+              />
+
+              <FilterInput
+                name="notes"
+                label="Bemerkung"
+                placeholder="Bemerkung suchen"
+                defaultValue={notesFilter}
               />
 
               <FilterInput
@@ -325,13 +332,6 @@ export default async function VehiclesPage({
                   { value: "yes", label: "nur aktive" },
                   { value: "no", label: "nur inaktive" },
                 ]}
-              />
-
-              <FilterInput
-                name="notes"
-                label="Bemerkung"
-                placeholder="Bemerkung suchen"
-                defaultValue={notesFilter}
               />
             </div>
 
@@ -383,22 +383,22 @@ export default async function VehiclesPage({
           <table className="w-full min-w-[1290px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
+                <th className="sticky left-0 z-20 w-[92px] whitespace-nowrap border-r border-gray-200 bg-gray-50 p-3 text-center font-semibold shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                  Aktion
+                </th>
                 <Th>Fahrzeugnr.</Th>
+                <Th>Bemerkung</Th>
                 <Th>Kennzeichen</Th>
                 <Th>Fahrzeugtyp</Th>
                 <Th>Kategorie</Th>
                 <th className="w-[105px] whitespace-nowrap p-3 font-semibold">
                   Nutzlast
                 </th>
-                <th className="w-[105px] whitespace-nowrap p-3 font-semibold">
-                  Tank
+                <th className="w-[145px] whitespace-nowrap p-3 font-semibold">
+                  Arbeitsmitteltank
                 </th>
                 <Th>Sonderfahrzeug</Th>
                 <Th>Aktiv</Th>
-                <Th>Bemerkung</Th>
-                <th className="sticky right-0 z-20 w-[92px] whitespace-nowrap border-l border-gray-200 bg-gray-50 p-3 text-center font-semibold shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)]">
-                  Aktion
-                </th>
               </tr>
             </thead>
 
@@ -421,11 +421,49 @@ export default async function VehiclesPage({
 
                   return (
                     <tr key={vehicle.id} className="border-t border-gray-100">
+                      <td className="sticky left-0 z-10 w-[92px] border-r border-gray-200 bg-white p-3 align-top shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                        <div className="flex items-center justify-center gap-2">
+                          <form id={formId} action={updateVehicle}>
+                            <input type="hidden" name="id" value={vehicle.id} />
+
+                            <button
+                              type="submit"
+                              title="Änderungen speichern"
+                              aria-label="Änderungen speichern"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                            >
+                              <ActionIcon name="save" className="h-4 w-4" />
+                            </button>
+                          </form>
+
+                          <form action={deleteVehicle}>
+                            <input type="hidden" name="id" value={vehicle.id} />
+
+                            <button
+                              type="submit"
+                              title="Fahrzeug löschen"
+                              aria-label="Fahrzeug löschen"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                            >
+                              <ActionIcon name="delete" className="h-4 w-4" />
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+
                       <Td>
                         <SmallInput
                           formId={formId}
                           name="vehicleNumber"
                           defaultValue={vehicle.vehicleNumber}
+                        />
+                      </Td>
+
+                      <Td>
+                        <SmallInput
+                          formId={formId}
+                          name="notes"
+                          defaultValue={vehicle.notes ?? ""}
                         />
                       </Td>
 
@@ -455,7 +493,7 @@ export default async function VehiclesPage({
                         />
                       </Td>
 
-                      <td className="w-[105px] p-3 align-top">
+                      <td className="w-[145px] p-3 align-top">
                         <div className="space-y-1">
                           <SmallPayloadInput
                             formId={formId}
@@ -510,44 +548,6 @@ export default async function VehiclesPage({
                           aktiv
                         </label>
                       </Td>
-
-                      <Td>
-                        <SmallInput
-                          formId={formId}
-                          name="notes"
-                          defaultValue={vehicle.notes ?? ""}
-                        />
-                      </Td>
-
-                      <td className="sticky right-0 z-10 w-[92px] border-l border-gray-200 bg-white p-3 align-top shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)]">
-                        <div className="flex items-center justify-center gap-2">
-                          <form id={formId} action={updateVehicle}>
-                            <input type="hidden" name="id" value={vehicle.id} />
-
-                            <button
-                              type="submit"
-                              title="Änderungen speichern"
-                              aria-label="Änderungen speichern"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-base text-white hover:bg-gray-700"
-                            >
-                              💾
-                            </button>
-                          </form>
-
-                          <form action={deleteVehicle}>
-                            <input type="hidden" name="id" value={vehicle.id} />
-
-                            <button
-                              type="submit"
-                              title="Fahrzeug löschen"
-                              aria-label="Fahrzeug löschen"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-base text-red-700 hover:bg-red-50"
-                            >
-                              🗑️
-                            </button>
-                          </form>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })

@@ -82,7 +82,6 @@ export async function updateDriver(formData: FormData) {
       lastName,
       shortcut,
       phone: optionalString(formData.get("phone")),
-      isActive: formData.get("isActive") === "on",
       notes: optionalString(formData.get("notes")),
     },
   });

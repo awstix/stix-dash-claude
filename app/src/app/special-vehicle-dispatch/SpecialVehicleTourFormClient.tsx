@@ -99,7 +99,7 @@ function getDefaultRows(needs: TackCoatNeed[], workDate: string, tankLiters = 0)
         materialName: need.materialName,
         quantity: String(suggestedQuantity),
         quantityUnit: need.quantityUnit,
-        notes: `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}${tankLiters > 0 ? ` · Tank ${formatNumber(tankLiters)} l` : ""}`,
+        notes: `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}${tankLiters > 0 ? ` · Arbeitsmitteltank ${formatNumber(tankLiters)} l` : ""}`,
       };
     });
   }
@@ -221,7 +221,7 @@ export function SpecialVehicleTourFormClient({
       notes:
         row.notes ||
         `Vorschlag aus Asphaltdisposition: ${formatNumber(need.quantity)} ${need.quantityUnit} ${need.materialName}${
-          selectedVehicle?.tackCoatTankLiters ? ` · Tank ${formatNumber(selectedVehicle.tackCoatTankLiters)} l` : ""
+          selectedVehicle?.tackCoatTankLiters ? ` · Arbeitsmitteltank ${formatNumber(selectedVehicle.tackCoatTankLiters)} l` : ""
         }`,
     });
   }
@@ -280,12 +280,12 @@ export function SpecialVehicleTourFormClient({
             {vehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
                 {getVehicleLabel(vehicle)}
-                {vehicle.tackCoatTankLiters > 0 ? ` · Tank ${formatNumber(vehicle.tackCoatTankLiters)} l` : ""}
+                {vehicle.tackCoatTankLiters > 0 ? ` · Arbeitsmitteltank ${formatNumber(vehicle.tackCoatTankLiters)} l` : ""}
               </option>
             ))}
           </select>
           <span className="mt-1 block text-[11px] font-medium text-blue-700">
-            Tankinhalt:{" "}
+            Arbeitsmitteltank:{" "}
             {selectedVehicle
               ? selectedVehicle.tackCoatTankLiters > 0
                 ? `${formatNumber(selectedVehicle.tackCoatTankLiters)} l`
@@ -360,7 +360,7 @@ export function SpecialVehicleTourFormClient({
       </div>
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-950">
-        Tankinhalt Anspritzmaschine aus Fahrzeugstamm:{" "}
+        Arbeitsmitteltank aus Fahrzeugstamm:{" "}
         {selectedVehicle
           ? selectedVehicle.tackCoatTankLiters > 0
             ? `${formatNumber(selectedVehicle.tackCoatTankLiters)} l`

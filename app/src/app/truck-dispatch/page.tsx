@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { getAsphaltOpenPositions } from "@/lib/asphalt-loads";
+import {
+  getAsphaltAllocationsForDay,
+  getAsphaltOpenPositions,
+} from "@/lib/asphalt-loads";
 import {
   formatLiters,
+  getTackCoatAllocationsForDay,
   getTackCoatOpenPositions,
 } from "@/lib/tack-coat-loads";
 import { UtilizationTimeline } from "./short-haul/UtilizationTimeline";
@@ -278,7 +282,9 @@ export default async function TruckDispatchPage({
     longHaulOwnAssignments,
     longHaulSubcontractorAssignments,
     asphaltOpenPositions,
+    asphaltAllocations,
     tackCoatOpenPositions,
+    tackCoatAllocations,
   ] = await Promise.all([
     prisma.driver.findMany({
       where: {
@@ -363,10 +369,18 @@ export default async function TruckDispatchPage({
     }),
 
     getAsphaltOpenPositions(selectedDate),
+    getAsphaltAllocationsForDay(selectedDate),
     getTackCoatOpenPositions(selectedDate),
+    getTackCoatAllocationsForDay(selectedDate),
   ]);
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
+  const shortAsphaltAllocations = asphaltAllocations.filter(
+    (allocation) => allocation.sourceType === "SHORT"
+  );
+  const shortTackCoatAllocations = tackCoatAllocations.filter(
+    (allocation) => allocation.sourceType === "SHORT"
+  );
 
   const shortDriverIds = new Set(
     shortHaulAssignments
@@ -392,8 +406,31 @@ export default async function TruckDispatchPage({
       .filter((id): id is string => Boolean(id))
   );
 
-  const usedDriverIds = new Set([...shortDriverIds, ...longDriverIds]);
-  const usedVehicleIds = new Set([...shortVehicleIds, ...longVehicleIds]);
+  const asphaltAllocationDriverIds = shortAsphaltAllocations
+    .map((allocation) => allocation.driverId)
+    .filter((id): id is string => Boolean(id));
+  const asphaltAllocationVehicleIds = shortAsphaltAllocations
+    .map((allocation) => allocation.vehicleId)
+    .filter((id): id is string => Boolean(id));
+  const tackCoatAllocationDriverIds = shortTackCoatAllocations
+    .map((allocation) => allocation.driverId)
+    .filter((id): id is string => Boolean(id));
+  const tackCoatAllocationVehicleIds = shortTackCoatAllocations
+    .map((allocation) => allocation.vehicleId)
+    .filter((id): id is string => Boolean(id));
+
+  const usedDriverIds = new Set([
+    ...shortDriverIds,
+    ...longDriverIds,
+    ...asphaltAllocationDriverIds,
+    ...tackCoatAllocationDriverIds,
+  ]);
+  const usedVehicleIds = new Set([
+    ...shortVehicleIds,
+    ...longVehicleIds,
+    ...asphaltAllocationVehicleIds,
+    ...tackCoatAllocationVehicleIds,
+  ]);
 
   const totalAsphaltTons = asphaltOpenPositions.reduce(
     (sum, position) => sum + position.totalTons,
@@ -432,6 +469,12 @@ export default async function TruckDispatchPage({
       let shortHaulAssignmentId: string | undefined;
       let dayDriverId: string | undefined = driver.id;
       let dayVehicleId: string | undefined;
+      const dayAsphaltAllocation = shortAsphaltAllocations.find(
+        (allocation) => allocation.driverId === driver.id
+      );
+      const dayTackCoatAllocation = shortTackCoatAllocations.find(
+        (allocation) => allocation.driverId === driver.id
+      );
 
       for (const longHaulAssignment of longHaulOwnAssignments) {
         if (longHaulAssignment.driverId === driver.id) {
@@ -509,6 +552,66 @@ export default async function TruckDispatchPage({
         }
       }
 
+      for (const allocation of shortAsphaltAllocations) {
+        if (allocation.driverId !== driver.id) {
+          continue;
+        }
+
+        if (allocation.driverId) {
+          dayDriverId = allocation.driverId;
+        }
+
+        if (allocation.vehicleId) {
+          dayVehicleId = allocation.vehicleId;
+        }
+
+        addUniqueLabel(dayVehicleLabels, allocation.vehicleLabel);
+
+        blocks.push({
+          id: `driver-asphalt-${allocation.id}`,
+          label: `${allocation.projectNumber} · ${
+            allocation.asphaltMixName ?? "Asphalt"
+          }`,
+          detail: `${allocation.tourCount} Touren × ${formatTons(
+            allocation.tonsPerTour
+          )} t = ${formatTons(allocation.totalTons)} t`,
+          startTime: allocation.startTime,
+          endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
+          type: "SHORT" as const,
+        });
+      }
+
+      for (const allocation of shortTackCoatAllocations) {
+        if (allocation.driverId !== driver.id) {
+          continue;
+        }
+
+        if (allocation.driverId) {
+          dayDriverId = allocation.driverId;
+        }
+
+        if (allocation.vehicleId) {
+          dayVehicleId = allocation.vehicleId;
+        }
+
+        addUniqueLabel(dayVehicleLabels, allocation.vehicleLabel);
+
+        blocks.push({
+          id: `driver-tack-coat-${allocation.id}`,
+          label: `${allocation.projectNumber} · ${allocation.materialName}`,
+          detail: `${allocation.tourCount} Touren × ${formatLiters(
+            allocation.litersPerTour
+          )} ${allocation.quantityUnit} = ${formatLiters(
+            allocation.totalLiters
+          )} ${allocation.quantityUnit}`,
+          startTime: allocation.startTime,
+          endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
+          type: "SHORT" as const,
+        });
+      }
+
       const dayVehicleText =
         dayVehicleLabels.length > 0
           ? `Tageseinteilung: ${dayVehicleLabels.join(" / ")}`
@@ -523,7 +626,11 @@ export default async function TruckDispatchPage({
         subtitle: `${dayVehicleText} · ${primaryVehicleText}`,
         shortHaulAssignmentId,
         dayDriverId,
-        dayVehicleId,
+        dayVehicleId:
+          dayVehicleId ??
+          dayAsphaltAllocation?.vehicleId ??
+          dayTackCoatAllocation?.vehicleId ??
+          undefined,
         blocks,
       };
     }),
@@ -533,6 +640,12 @@ export default async function TruckDispatchPage({
       let shortHaulAssignmentId: string | undefined;
       let dayDriverId: string | undefined;
       let dayVehicleId: string | undefined = vehicle.id;
+      const dayAsphaltAllocation = shortAsphaltAllocations.find(
+        (allocation) => allocation.vehicleId === vehicle.id
+      );
+      const dayTackCoatAllocation = shortTackCoatAllocations.find(
+        (allocation) => allocation.vehicleId === vehicle.id
+      );
 
       for (const longHaulAssignment of longHaulOwnAssignments) {
         if (longHaulAssignment.vehicleId === vehicle.id) {
@@ -584,6 +697,62 @@ export default async function TruckDispatchPage({
         }
       }
 
+      for (const allocation of shortAsphaltAllocations) {
+        if (allocation.vehicleId !== vehicle.id) {
+          continue;
+        }
+
+        if (allocation.driverId) {
+          dayDriverId = allocation.driverId;
+        }
+
+        if (allocation.vehicleId) {
+          dayVehicleId = allocation.vehicleId;
+        }
+
+        blocks.push({
+          id: `vehicle-asphalt-${allocation.id}`,
+          label: `${allocation.projectNumber} · ${
+            allocation.asphaltMixName ?? "Asphalt"
+          }`,
+          detail: `${allocation.tourCount} Touren × ${formatTons(
+            allocation.tonsPerTour
+          )} t = ${formatTons(allocation.totalTons)} t`,
+          startTime: allocation.startTime,
+          endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
+          type: "SHORT" as const,
+        });
+      }
+
+      for (const allocation of shortTackCoatAllocations) {
+        if (allocation.vehicleId !== vehicle.id) {
+          continue;
+        }
+
+        if (allocation.driverId) {
+          dayDriverId = allocation.driverId;
+        }
+
+        if (allocation.vehicleId) {
+          dayVehicleId = allocation.vehicleId;
+        }
+
+        blocks.push({
+          id: `vehicle-tack-coat-${allocation.id}`,
+          label: `${allocation.projectNumber} · ${allocation.materialName}`,
+          detail: `${allocation.tourCount} Touren × ${formatLiters(
+            allocation.litersPerTour
+          )} ${allocation.quantityUnit} = ${formatLiters(
+            allocation.totalLiters
+          )} ${allocation.quantityUnit}`,
+          startTime: allocation.startTime,
+          endTime: allocation.endTime,
+          tourCount: allocation.tourCount,
+          type: "SHORT" as const,
+        });
+      }
+
       const assignedDriver = vehicle.driverAssignments[0]?.driver;
 
       return {
@@ -594,7 +763,11 @@ export default async function TruckDispatchPage({
           ? `Stammfahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
           : `frei zugeordnet · ${vehicle.category} · ${vehicle.vehicleType}`,
         shortHaulAssignmentId,
-        dayDriverId,
+        dayDriverId:
+          dayDriverId ??
+          dayAsphaltAllocation?.driverId ??
+          dayTackCoatAllocation?.driverId ??
+          undefined,
         dayVehicleId,
         blocks,
       };
@@ -701,7 +874,7 @@ export default async function TruckDispatchPage({
         <SummaryCard
           label="Belegte Fahrer"
           value={String(usedDriverIds.size)}
-          hint="kurz oder lang"
+          hint="kurz, lang oder Mengen"
           href={buildDetailHref(selectedDateInput, "drivers")}
           isActive={activeDetail === "drivers"}
         />
@@ -709,7 +882,7 @@ export default async function TruckDispatchPage({
         <SummaryCard
           label="Belegte Fahrzeuge"
           value={String(usedVehicleIds.size)}
-          hint="kurz oder lang"
+          hint="kurz, lang oder Mengen"
           href={buildDetailHref(selectedDateInput, "vehicles")}
           isActive={activeDetail === "vehicles"}
         />

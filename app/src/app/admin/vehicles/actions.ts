@@ -29,7 +29,7 @@ function parsePayloadTons(value: FormDataEntryValue | null) {
   return Math.round(number * 100) / 100;
 }
 
-function parseTankLiters(value: FormDataEntryValue | null) {
+function parseWorkMaterialTankLiters(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim().replace(",", ".");
 
   if (!text) {
@@ -39,7 +39,9 @@ function parseTankLiters(value: FormDataEntryValue | null) {
   const number = Number(text);
 
   if (Number.isNaN(number) || number < 0) {
-    throw new Error("Das Tankvolumen muss eine Zahl größer oder gleich 0 sein.");
+    throw new Error(
+      "Der Arbeitsmitteltank muss eine Zahl größer oder gleich 0 sein."
+    );
   }
 
   return Math.round(number * 100) / 100;
@@ -63,7 +65,7 @@ export async function createVehicle(formData: FormData) {
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
   );
-  const tackCoatTankLiters = parseTankLiters(
+  const tackCoatTankLiters = parseWorkMaterialTankLiters(
     formData.get("tackCoatTankLiters")
   );
 
@@ -120,7 +122,7 @@ export async function updateVehicle(formData: FormData) {
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
   );
-  const tackCoatTankLiters = parseTankLiters(
+  const tackCoatTankLiters = parseWorkMaterialTankLiters(
     formData.get("tackCoatTankLiters")
   );
 

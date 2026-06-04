@@ -318,8 +318,8 @@ export function TackCoatShortAllocationForm({
                   {conflict ? `belegt ${conflict} · ` : ""}
                   {getVehicleLabel(vehicle)}
                   {vehicle.tackCoatTankLiters > 0
-                    ? ` · Tank ${formatLiters(vehicle.tackCoatTankLiters)} l`
-                    : " · kein Tank hinterlegt"}
+                    ? ` · Arbeitsmitteltank ${formatLiters(vehicle.tackCoatTankLiters)} l`
+                    : " · kein Arbeitsmitteltank hinterlegt"}
                 </option>
               );
             })}
@@ -434,7 +434,7 @@ export function TackCoatShortAllocationForm({
 
       {selectedVehicle ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
-          Tank laut Stammdaten:{" "}
+          Arbeitsmitteltank laut Stammdaten:{" "}
           <strong>
             {selectedVehicle.tackCoatTankLiters > 0
               ? `${formatLiters(selectedVehicle.tackCoatTankLiters)} l`
@@ -446,7 +446,7 @@ export function TackCoatShortAllocationForm({
 
       {tankWarning ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
-          Hinweis: Die Handeingabe liegt über dem hinterlegten Tankvolumen.
+          Hinweis: Die Handeingabe liegt über dem hinterlegten Arbeitsmitteltank.
           Speichern bleibt möglich.
         </div>
       ) : null}
