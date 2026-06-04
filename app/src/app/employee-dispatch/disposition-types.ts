@@ -1,7 +1,7 @@
 export const employeeDispositionTypes = [
   {
     value: "betrieb",
-    label: "Betrieb",
+    label: "Baustelle",
     barClass: "bg-emerald-700 text-white",
     badgeClass: "bg-emerald-100 text-emerald-900",
   },

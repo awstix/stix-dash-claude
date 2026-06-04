@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type ActionIconName = "delete" | "edit" | "save";
+export type ActionIconName = "delete" | "edit" | "filter" | "save";
 
 export function ActionIcon({
   name,
@@ -38,6 +38,16 @@ export function ActionIcon({
         <path d="M6 6l1 16h10l1-16" />
         <path d="M10 11v6" />
         <path d="M14 11v6" />
+      </svg>
+    );
+  }
+
+  if (name === "filter") {
+    return (
+      <svg {...sharedProps}>
+        <path d="M4 5h16" />
+        <path d="M7 12h10" />
+        <path d="M10 19h4" />
       </svg>
     );
   }

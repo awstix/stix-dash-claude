@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { DismissibleFilter } from "./DismissibleFilter";
+import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
 import {
   createEmployeeDispositionEntry,
   deleteEmployeeDispositionEntry,
@@ -16,9 +18,18 @@ const dayWidthPx = 48;
 type TimelineBar = {
   id: string;
   employeeId: string;
-  source: "manual" | "crew";
+  source:
+    | "asphalt"
+    | "crew"
+    | "lkw_allocation"
+    | "lkw_long"
+    | "lkw_short"
+    | "manual"
+    | "special_vehicle";
+  sourceLabel: string;
   typeValue: string;
   typeLabel: string;
+  projectText: string | null;
   startDate: Date;
   endDate: Date;
   startTime: string;
@@ -60,6 +71,16 @@ function parseDateParam(value: string | undefined, fallback: Date) {
   }
 
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+function parseWeeksParam(value: string | undefined) {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < 1 || number > 52) {
+    return null;
+  }
+
+  return number;
 }
 
 function formatDateInput(date: Date) {
@@ -131,6 +152,12 @@ function getStatusClass(statusValue: string) {
   return "bg-yellow-100 text-yellow-900";
 }
 
+function isExitedEmployeeStatus(statusValue: string, statusLabel: string | null) {
+  const normalizedStatus = `${statusValue} ${statusLabel ?? ""}`.toLowerCase();
+
+  return statusValue === "left" || normalizedStatus.includes("ausgeschieden");
+}
+
 function getProjectText(row: {
   projectNumber: string;
   projectName: string;
@@ -141,26 +168,132 @@ function getProjectText(row: {
     .join(" · ");
 }
 
+function getAsphaltProjectText(entry: {
+  projectNumber: string;
+  projectName: string;
+}) {
+  return [entry.projectNumber, entry.projectName].filter(Boolean).join(" · ");
+}
+
+function getVehicleText(vehicle: {
+  vehicleNumber: string | null;
+  licensePlate: string | null;
+  vehicleType?: string | null;
+}) {
+  return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatTons(value: number) {
+  return Number(value.toFixed(2)).toLocaleString("de-DE");
+}
+
+function formatQuantity(value: number | null | undefined, unit: string | null | undefined) {
+  if (!value || value <= 0) {
+    return "";
+  }
+
+  return `${formatTons(value)} ${unit ?? ""}`.trim();
+}
+
+function getAsphaltDetailText(entry: {
+  asphaltMixName: string | null;
+  quantityTons: number;
+  tackCoatMaterialName: string | null;
+  tackCoatQuantity: number;
+  tackCoatUnit: string | null;
+}) {
+  const details = [];
+
+  if (entry.asphaltMixName || entry.quantityTons > 0) {
+    details.push(
+      [entry.asphaltMixName, entry.quantityTons > 0 ? `${formatTons(entry.quantityTons)} t` : ""]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
+
+  if (entry.tackCoatMaterialName || entry.tackCoatQuantity > 0) {
+    details.push(
+      [
+        entry.tackCoatMaterialName ?? "Anspritzmittel",
+        entry.tackCoatQuantity > 0
+          ? `${formatTons(entry.tackCoatQuantity)} ${entry.tackCoatUnit ?? "l"}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
+
+  return details.filter(Boolean).join(" · ");
+}
+
+function normalizeFilterText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function buildQueryString(values: Record<string, string | null | undefined>) {
+  const query = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value) {
+      query.set(key, value);
+    }
+  }
+
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
 export default async function EmployeeDispatchPage({
   searchParams,
 }: {
   searchParams: Promise<{
     from?: string;
     to?: string;
+    q?: string;
+    status?: string;
+    type?: string;
+    project?: string;
+    onlyWithEntries?: string;
+    sort?: string;
+    weeks?: string;
   }>;
 }) {
   const params = await searchParams;
   const defaultFrom = startOfWeek(todayUtc());
   const fromDate = parseDateParam(params.from, defaultFrom);
-  const parsedToDate = parseDateParam(params.to, addDays(fromDate, 13));
+  const weeksParam = parseWeeksParam(params.weeks);
+  const parsedToDate = weeksParam
+    ? addDays(fromDate, weeksParam * 7 - 1)
+    : parseDateParam(params.to, addDays(fromDate, 13));
   const toDate = parsedToDate < fromDate ? addDays(fromDate, 13) : parsedToDate;
   const days = buildDays(fromDate, toDate);
+  const currentWeeks = Math.max(1, Math.ceil(days.length / 7));
   const gridTemplateColumns = `repeat(${days.length}, minmax(${dayWidthPx}px, 1fr))`;
+  const searchFilter = String(params.q ?? "").trim();
+  const statusFilter = String(params.status ?? "").trim();
+  const typeFilter = String(params.type ?? "").trim();
+  const projectFilter = String(params.project ?? "").trim();
+  const onlyWithEntries = params.onlyWithEntries === "1";
+  const sortMode = params.sort === "project" ? "project" : "name";
 
   const [
     employees,
     manualEntries,
     crewAssignments,
+    asphaltEntries,
+    asphaltDispatchCrews,
+    shortHaulAssignments,
+    longHaulTruckAssignments,
+    specialVehicleAssignments,
+    asphaltLoadAllocations,
+    tackCoatLoadAllocations,
   ] = await Promise.all([
     prisma.employee.findMany({
       include: {
@@ -219,8 +352,124 @@ export default async function EmployeeDispatchPage({
       },
       orderBy: [{ startDate: "asc" }, { crewName: "asc" }],
     }),
+
+    prisma.asphaltDispatchEntry.findMany({
+      where: {
+        workDate: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { crew: "asc" }, { createdAt: "asc" }],
+    }),
+
+    prisma.crew.findMany({
+      where: {
+        isActive: true,
+        isAsphaltDispatchCrew: true,
+      },
+      include: {
+        members: {
+          where: {
+            isActive: true,
+          },
+          include: {
+            employee: true,
+          },
+        },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+
+    prisma.shortHaulAssignment.findMany({
+      where: {
+        workDate: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        driverId: {
+          not: null,
+        },
+      },
+      include: {
+        tours: {
+          orderBy: [{ startTime: "asc" }, { tourNumber: "asc" }],
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { driverName: "asc" }],
+    }),
+
+    prisma.truckLongHaulTruckAssignment.findMany({
+      where: {
+        driverId: {
+          not: null,
+        },
+        entry: {
+          workDate: {
+            gte: fromDate,
+            lte: toDate,
+          },
+        },
+      },
+      include: {
+        entry: true,
+      },
+      orderBy: [{ createdAt: "asc" }],
+    }),
+
+    prisma.specialVehicleDispatchAssignment.findMany({
+      where: {
+        workDate: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        operatorDriverId: {
+          not: null,
+        },
+      },
+      include: {
+        vehicle: true,
+        transportVehicle: true,
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
+
+    prisma.asphaltLoadAllocation.findMany({
+      where: {
+        workDate: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        driverId: {
+          not: null,
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
+
+    prisma.tackCoatLoadAllocation.findMany({
+      where: {
+        workDate: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        driverId: {
+          not: null,
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
   ]);
 
+  const activeEmployees = employees.filter(
+    (employee) =>
+      !isExitedEmployeeStatus(employee.statusValue, employee.statusLabel),
+  );
+  const employeeByDriverId = new Map(
+    activeEmployees
+      .filter((employee) => employee.driverId)
+      .map((employee) => [employee.driverId as string, employee]),
+  );
   const barsByEmployeeId = new Map<string, TimelineBar[]>();
 
   for (const entry of manualEntries) {
@@ -230,15 +479,17 @@ export default async function EmployeeDispatchPage({
       id: `manual-${entry.id}`,
       employeeId: entry.employeeId,
       source: "manual",
+      sourceLabel: "Manuell",
       typeValue: entry.typeValue,
-      typeLabel: entry.typeLabel,
+      typeLabel: type.label,
+      projectText: null,
       startDate: entry.startDate,
       endDate: entry.endDate,
       startTime: entry.startTime,
       endTime: entry.endTime,
       title: entry.notes
-        ? `${entry.typeLabel} · ${entry.notes}`
-        : entry.typeLabel,
+        ? `${type.label} · ${entry.notes}`
+        : type.label,
       subtitle: `${entry.startTime} – ${entry.endTime}`,
       notes: entry.notes,
       barClass: type.barClass,
@@ -251,6 +502,37 @@ export default async function EmployeeDispatchPage({
   }
 
   const operationType = getEmployeeDispositionType("betrieb");
+  const projectOptionsByText = new Map<string, string>();
+  const projectTextsByEmployeeId = new Map<string, Set<string>>();
+  const primaryProjectByEmployeeId = new Map<
+    string,
+    { projectText: string; startDate: Date }
+  >();
+  const rememberEmployeeProject = (
+    employeeId: string,
+    projectText: string,
+    startDate: Date,
+  ) => {
+    if (!projectText) {
+      return;
+    }
+
+    projectOptionsByText.set(projectText, projectText);
+
+    const employeeProjects =
+      projectTextsByEmployeeId.get(employeeId) ?? new Set<string>();
+    employeeProjects.add(projectText);
+    projectTextsByEmployeeId.set(employeeId, employeeProjects);
+
+    const currentPrimaryProject = primaryProjectByEmployeeId.get(employeeId);
+
+    if (!currentPrimaryProject || startDate < currentPrimaryProject.startDate) {
+      primaryProjectByEmployeeId.set(employeeId, {
+        projectText,
+        startDate,
+      });
+    }
+  };
 
   for (const assignment of crewAssignments) {
     const employeeIds = new Set<string>();
@@ -264,17 +546,43 @@ export default async function EmployeeDispatchPage({
     }
 
     const projectText = getProjectText(assignment.row);
+    if (projectText) {
+      projectOptionsByText.set(projectText, projectText);
+    }
+
     const title = projectText
-      ? `Betrieb · ${projectText}`
-      : `Betrieb · ${assignment.crewName}`;
+      ? `Baustelle · ${projectText}`
+      : `Baustelle · ${assignment.crewName}`;
 
     for (const employeeId of employeeIds) {
+      if (projectText) {
+        const employeeProjects =
+          projectTextsByEmployeeId.get(employeeId) ?? new Set<string>();
+        employeeProjects.add(projectText);
+        projectTextsByEmployeeId.set(employeeId, employeeProjects);
+
+        const currentPrimaryProject =
+          primaryProjectByEmployeeId.get(employeeId);
+
+        if (
+          !currentPrimaryProject ||
+          assignment.startDate < currentPrimaryProject.startDate
+        ) {
+          primaryProjectByEmployeeId.set(employeeId, {
+            projectText,
+            startDate: assignment.startDate,
+          });
+        }
+      }
+
       const bar: TimelineBar = {
         id: `crew-${assignment.id}-${employeeId}`,
         employeeId,
         source: "crew",
+        sourceLabel: "Kolonneneinteilung",
         typeValue: operationType.value,
         typeLabel: operationType.label,
+        projectText,
         startDate: assignment.startDate,
         endDate: assignment.endDate,
         startTime: assignment.startTime,
@@ -292,6 +600,367 @@ export default async function EmployeeDispatchPage({
     }
   }
 
+  const asphaltCrewByName = new Map(
+    asphaltDispatchCrews.map((crew) => [crew.name, crew]),
+  );
+
+  for (const entry of asphaltEntries) {
+    const crew = asphaltCrewByName.get(entry.crew);
+    const employeeIds = new Set(
+      (crew?.members ?? []).map((member) => member.employeeId),
+    );
+    const projectText = getAsphaltProjectText(entry);
+
+    if (projectText) {
+      projectOptionsByText.set(projectText, projectText);
+    }
+
+    const detailText = getAsphaltDetailText(entry);
+    const title = projectText
+      ? `Baustelle · Asphalt · ${projectText}`
+      : `Baustelle · Asphalt · ${entry.crew}`;
+    const subtitle = ["Asphaltdispo", entry.crew, detailText]
+      .filter(Boolean)
+      .join(" · ");
+
+    for (const employeeId of employeeIds) {
+      if (projectText) {
+        const employeeProjects =
+          projectTextsByEmployeeId.get(employeeId) ?? new Set<string>();
+        employeeProjects.add(projectText);
+        projectTextsByEmployeeId.set(employeeId, employeeProjects);
+
+        const currentPrimaryProject =
+          primaryProjectByEmployeeId.get(employeeId);
+
+        if (!currentPrimaryProject || entry.workDate < currentPrimaryProject.startDate) {
+          primaryProjectByEmployeeId.set(employeeId, {
+            projectText,
+            startDate: entry.workDate,
+          });
+        }
+      }
+
+      const bar: TimelineBar = {
+        id: `asphalt-${entry.id}-${employeeId}`,
+        employeeId,
+        source: "asphalt",
+        sourceLabel: "Asphaltdispo",
+        typeValue: operationType.value,
+        typeLabel: operationType.label,
+        projectText: projectText || null,
+        startDate: entry.workDate,
+        endDate: entry.workDate,
+        startTime: "06:30",
+        endTime: "17:00",
+        title,
+        subtitle,
+        notes: entry.notes,
+        barClass: "bg-teal-800 text-white",
+      };
+
+      barsByEmployeeId.set(employeeId, [
+        ...(barsByEmployeeId.get(employeeId) ?? []),
+        bar,
+      ]);
+    }
+  }
+
+  for (const assignment of shortHaulAssignments) {
+    if (!assignment.driverId) {
+      continue;
+    }
+
+    const employee = employeeByDriverId.get(assignment.driverId);
+
+    if (!employee) {
+      continue;
+    }
+
+    const assignmentProjectText = getAsphaltProjectText(assignment);
+    const vehicleText = getVehicleText(assignment);
+    const tours = assignment.tours.length > 0 ? assignment.tours : [null];
+
+    for (const tour of tours) {
+      const projectText = tour
+        ? getAsphaltProjectText({
+            projectNumber: tour.projectNumber || assignment.projectNumber,
+            projectName: tour.projectName || assignment.projectName,
+          })
+        : assignmentProjectText;
+      const startTime = tour?.startTime ?? assignment.startTime;
+      const endTime = tour?.endTime ?? "17:00";
+      const purposeText = tour
+        ? [
+            tour.customPurpose,
+            tour.itemName,
+            tour.material,
+            formatQuantity(tour.quantity, tour.quantityUnit),
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : assignment.material ?? "";
+      const title = projectText
+        ? `LKW Kurzstrecke · ${projectText}`
+        : `LKW Kurzstrecke · ${assignment.driverName ?? ""}`;
+      const subtitle = [
+        vehicleText,
+        tour ? `Tour ${tour.tourNumber}` : "Tageseinteilung",
+        purposeText,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      rememberEmployeeProject(employee.id, projectText, assignment.workDate);
+
+      const bar: TimelineBar = {
+        id: `short-haul-${assignment.id}-${tour?.id ?? "day"}`,
+        employeeId: employee.id,
+        source: "lkw_short",
+        sourceLabel: "LKW Kurzstrecke",
+        typeValue: operationType.value,
+        typeLabel: operationType.label,
+        projectText: projectText || null,
+        startDate: assignment.workDate,
+        endDate: assignment.workDate,
+        startTime,
+        endTime,
+        title,
+        subtitle,
+        notes: tour?.notes ?? assignment.notes,
+        barClass: "bg-blue-800 text-white",
+      };
+
+      barsByEmployeeId.set(employee.id, [
+        ...(barsByEmployeeId.get(employee.id) ?? []),
+        bar,
+      ]);
+    }
+  }
+
+  for (const assignment of longHaulTruckAssignments) {
+    if (!assignment.driverId) {
+      continue;
+    }
+
+    const employee = employeeByDriverId.get(assignment.driverId);
+
+    if (!employee) {
+      continue;
+    }
+
+    const projectText = getAsphaltProjectText(assignment.entry);
+    const vehicleText = getVehicleText(assignment);
+    const materialText = [
+      assignment.entry.materialName,
+      formatQuantity(
+        assignment.plannedTotalTons || assignment.entry.materialQuantity,
+        assignment.entry.materialUnit ?? "t",
+      ),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const title = projectText
+      ? `LKW Langstrecke · ${projectText}`
+      : `LKW Langstrecke · ${assignment.driverName ?? ""}`;
+    const subtitle = [
+      vehicleText,
+      assignment.plannedTourCount > 0
+        ? `${assignment.plannedTourCount} Touren`
+        : "",
+      materialText,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    rememberEmployeeProject(employee.id, projectText, assignment.entry.workDate);
+
+    const bar: TimelineBar = {
+      id: `long-haul-${assignment.id}`,
+      employeeId: employee.id,
+      source: "lkw_long",
+      sourceLabel: "LKW Langstrecke",
+      typeValue: operationType.value,
+      typeLabel: operationType.label,
+      projectText: projectText || null,
+      startDate: assignment.entry.workDate,
+      endDate: assignment.entry.workDate,
+      startTime: assignment.plannedStartTime,
+      endTime: assignment.plannedEndTime,
+      title,
+      subtitle,
+      notes: assignment.plannedNotes ?? assignment.notes ?? assignment.entry.notes,
+      barClass: "bg-violet-800 text-white",
+    };
+
+    barsByEmployeeId.set(employee.id, [
+      ...(barsByEmployeeId.get(employee.id) ?? []),
+      bar,
+    ]);
+  }
+
+  for (const assignment of specialVehicleAssignments) {
+    if (!assignment.operatorDriverId) {
+      continue;
+    }
+
+    const employee = employeeByDriverId.get(assignment.operatorDriverId);
+
+    if (!employee) {
+      continue;
+    }
+
+    const projectText = getAsphaltProjectText(assignment);
+    const vehicleText = assignment.vehicle
+      ? getVehicleText(assignment.vehicle)
+      : assignment.vehicleName;
+    const transportVehicleText = assignment.transportVehicle
+      ? getVehicleText(assignment.transportVehicle)
+      : assignment.transportVehicleName;
+    const materialText = [
+      assignment.materialName,
+      formatQuantity(assignment.quantity, assignment.quantityUnit),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const title = projectText
+      ? `Sonderfahrzeug · ${projectText}`
+      : `Sonderfahrzeug · ${assignment.operatorDriverName ?? ""}`;
+    const subtitle = [
+      vehicleText || "Sonderfahrzeug",
+      assignment.taskText,
+      transportVehicleText ? `Transport ${transportVehicleText}` : "",
+      materialText,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    rememberEmployeeProject(employee.id, projectText, assignment.workDate);
+
+    const bar: TimelineBar = {
+      id: `special-vehicle-${assignment.id}`,
+      employeeId: employee.id,
+      source: "special_vehicle",
+      sourceLabel: "Sonderfahrzeug-Disposition",
+      typeValue: operationType.value,
+      typeLabel: operationType.label,
+      projectText: projectText || null,
+      startDate: assignment.workDate,
+      endDate: assignment.workDate,
+      startTime: assignment.startTime,
+      endTime: assignment.endTime,
+      title,
+      subtitle,
+      notes: assignment.notes,
+      barClass: "bg-purple-800 text-white",
+    };
+
+    barsByEmployeeId.set(employee.id, [
+      ...(barsByEmployeeId.get(employee.id) ?? []),
+      bar,
+    ]);
+  }
+
+  for (const allocation of asphaltLoadAllocations) {
+    if (!allocation.driverId) {
+      continue;
+    }
+
+    const employee = employeeByDriverId.get(allocation.driverId);
+
+    if (!employee) {
+      continue;
+    }
+
+    const projectText = getAsphaltProjectText(allocation);
+    const vehicleText = getVehicleText(allocation);
+    const materialText = [
+      allocation.asphaltMixName,
+      formatQuantity(allocation.totalTons, "t"),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const title = projectText
+      ? `LKW Asphalt · ${projectText}`
+      : `LKW Asphalt · ${allocation.driverName ?? ""}`;
+    const subtitle = [vehicleText, materialText].filter(Boolean).join(" · ");
+
+    rememberEmployeeProject(employee.id, projectText, allocation.workDate);
+
+    const bar: TimelineBar = {
+      id: `asphalt-load-${allocation.id}`,
+      employeeId: employee.id,
+      source: "lkw_allocation",
+      sourceLabel: "LKW Asphalt",
+      typeValue: operationType.value,
+      typeLabel: operationType.label,
+      projectText: projectText || null,
+      startDate: allocation.workDate,
+      endDate: allocation.workDate,
+      startTime: allocation.startTime,
+      endTime: allocation.endTime,
+      title,
+      subtitle,
+      notes: allocation.notes,
+      barClass: "bg-cyan-800 text-white",
+    };
+
+    barsByEmployeeId.set(employee.id, [
+      ...(barsByEmployeeId.get(employee.id) ?? []),
+      bar,
+    ]);
+  }
+
+  for (const allocation of tackCoatLoadAllocations) {
+    if (!allocation.driverId) {
+      continue;
+    }
+
+    const employee = employeeByDriverId.get(allocation.driverId);
+
+    if (!employee) {
+      continue;
+    }
+
+    const projectText = getAsphaltProjectText(allocation);
+    const vehicleText = getVehicleText(allocation);
+    const materialText = [
+      allocation.materialName,
+      formatQuantity(allocation.totalLiters, allocation.quantityUnit),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const title = projectText
+      ? `LKW Anspritzmittel · ${projectText}`
+      : `LKW Anspritzmittel · ${allocation.driverName ?? ""}`;
+    const subtitle = [vehicleText, materialText].filter(Boolean).join(" · ");
+
+    rememberEmployeeProject(employee.id, projectText, allocation.workDate);
+
+    const bar: TimelineBar = {
+      id: `tack-coat-load-${allocation.id}`,
+      employeeId: employee.id,
+      source: "lkw_allocation",
+      sourceLabel: "LKW Anspritzmittel",
+      typeValue: operationType.value,
+      typeLabel: operationType.label,
+      projectText: projectText || null,
+      startDate: allocation.workDate,
+      endDate: allocation.workDate,
+      startTime: allocation.startTime,
+      endTime: allocation.endTime,
+      title,
+      subtitle,
+      notes: allocation.notes,
+      barClass: "bg-slate-800 text-white",
+    };
+
+    barsByEmployeeId.set(employee.id, [
+      ...(barsByEmployeeId.get(employee.id) ?? []),
+      bar,
+    ]);
+  }
+
   for (const [employeeId, bars] of barsByEmployeeId) {
     barsByEmployeeId.set(
       employeeId,
@@ -303,42 +972,190 @@ export default async function EmployeeDispatchPage({
     );
   }
 
+  const statusOptions = Array.from(
+    new Map(
+      activeEmployees.map((employee) => [
+        employee.statusValue,
+        employee.statusLabel || employee.statusValue,
+      ]),
+    ).entries(),
+  ).sort((a, b) => a[1].localeCompare(b[1], "de-DE"));
+  const projectOptions = Array.from(projectOptionsByText.values()).sort((a, b) =>
+    a.localeCompare(b, "de-DE"),
+  );
+  const normalizedSearchFilter = normalizeFilterText(searchFilter);
+
+  const visibleEmployees = activeEmployees
+    .filter((employee) => {
+      const employeeBars = barsByEmployeeId.get(employee.id) ?? [];
+      const employeeProjects = projectTextsByEmployeeId.get(employee.id);
+      const positionText = employee.positions
+        .map((position) => position.positionLabel)
+        .join(" ");
+      const employeeSearchText = normalizeFilterText(
+        [
+          employee.firstName,
+          employee.lastName,
+          employee.statusLabel,
+          positionText,
+          ...(employeeProjects ? Array.from(employeeProjects) : []),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+      if (
+        normalizedSearchFilter &&
+        !employeeSearchText.includes(normalizedSearchFilter)
+      ) {
+        return false;
+      }
+
+      if (statusFilter && employee.statusValue !== statusFilter) {
+        return false;
+      }
+
+      if (
+        typeFilter &&
+        !employeeBars.some((bar) => bar.typeValue === typeFilter)
+      ) {
+        return false;
+      }
+
+      if (projectFilter && !employeeProjects?.has(projectFilter)) {
+        return false;
+      }
+
+      if (onlyWithEntries && employeeBars.length === 0) {
+        return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortMode === "project") {
+        const projectA =
+          primaryProjectByEmployeeId.get(a.id)?.projectText ?? "zzzzzz";
+        const projectB =
+          primaryProjectByEmployeeId.get(b.id)?.projectText ?? "zzzzzz";
+        const byProject = projectA.localeCompare(projectB, "de-DE");
+
+        if (byProject !== 0) {
+          return byProject;
+        }
+      }
+
+      const byLastName = a.lastName.localeCompare(b.lastName, "de-DE");
+      if (byLastName !== 0) return byLastName;
+      return a.firstName.localeCompare(b.firstName, "de-DE");
+    });
+  const visibleEmployeeIds = new Set(
+    visibleEmployees.map((employee) => employee.id),
+  );
+  const visibleBarsByEmployeeId = new Map<string, TimelineBar[]>();
+
+  for (const employee of visibleEmployees) {
+    visibleBarsByEmployeeId.set(
+      employee.id,
+      (barsByEmployeeId.get(employee.id) ?? []).filter((bar) => {
+        if (typeFilter && bar.typeValue !== typeFilter) {
+          return false;
+        }
+
+        if (
+          projectFilter &&
+          bar.projectText !== projectFilter
+        ) {
+          return false;
+        }
+
+        return true;
+      }),
+    );
+  }
+
+  const visibleManualEntries = manualEntries.filter((entry) => {
+    if (!visibleEmployeeIds.has(entry.employeeId)) {
+      return false;
+    }
+
+    if (typeFilter && entry.typeValue !== typeFilter) {
+      return false;
+    }
+
+    return true;
+  });
+
   const previousFrom = addDays(fromDate, -14);
   const previousTo = addDays(toDate, -14);
   const nextFrom = addDays(fromDate, 14);
   const nextTo = addDays(toDate, 14);
+  const currentQueryValues = {
+    from: formatDateInput(fromDate),
+    to: formatDateInput(toDate),
+    q: searchFilter,
+    status: statusFilter,
+    type: typeFilter,
+    project: projectFilter,
+    onlyWithEntries: onlyWithEntries ? "1" : "",
+    sort: sortMode === "project" ? "project" : "",
+  };
+  const buildPageHref = (
+    overrides: Record<string, string | null | undefined>,
+  ) => `/employee-dispatch${buildQueryString({ ...currentQueryValues, ...overrides })}`;
+  const buildExportHref = () =>
+    `/employee-dispatch/export${buildQueryString(currentQueryValues)}`;
+  const hasActiveFilters = Boolean(
+    searchFilter || statusFilter || typeFilter || projectFilter || onlyWithEntries,
+  );
 
   return (
     <AppShell
       title="Mitarbeiterdisposition"
-      description="Mitarbeiter zeilenweise verfolgen: Betrieb aus Kolonneneinteilung plus Urlaub, Krank, Schulung, Werkstatt, Mischanlagen, Schule und Innung."
+      description="Mitarbeiter zeilenweise verfolgen: Baustellen aus Disposition und Einteilungen plus Urlaub, Krank, Schulung, Werkstatt, Mischanlagen, Schule und Innung."
     >
       <div className="mb-6 flex flex-wrap gap-3">
         <Link
-          href={`/employee-dispatch?from=${formatDateInput(
-            previousFrom,
-          )}&to=${formatDateInput(previousTo)}`}
+          href={buildPageHref({
+            from: formatDateInput(previousFrom),
+            to: formatDateInput(previousTo),
+          })}
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
           Zurück
         </Link>
 
         <Link
-          href={`/employee-dispatch?from=${formatDateInput(
-            defaultFrom,
-          )}&to=${formatDateInput(addDays(defaultFrom, 13))}`}
+          href={buildPageHref({
+            from: formatDateInput(defaultFrom),
+            to: formatDateInput(addDays(defaultFrom, 13)),
+          })}
           className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
         >
           Aktuelle 14 Tage
         </Link>
 
         <Link
-          href={`/employee-dispatch?from=${formatDateInput(
-            nextFrom,
-          )}&to=${formatDateInput(nextTo)}`}
+          href={buildPageHref({
+            from: formatDateInput(nextFrom),
+            to: formatDateInput(nextTo),
+          })}
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
           Weiter
+        </Link>
+
+        <Link
+          href={buildPageHref({
+            sort: sortMode === "project" ? "" : "project",
+          })}
+          className={
+            sortMode === "project"
+              ? "rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+              : "rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
+          }
+        >
+          Nach Projekt sortieren
         </Link>
 
         <Link
@@ -347,6 +1164,13 @@ export default async function EmployeeDispatchPage({
         >
           Kolonneneinteilung öffnen
         </Link>
+
+        <a
+          href={buildExportHref()}
+          className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+        >
+          Excel-Export
+        </a>
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -370,7 +1194,7 @@ export default async function EmployeeDispatchPage({
                 Mitarbeiter wählen
               </option>
 
-              {employees.map((employee) => (
+              {activeEmployees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
                   {employee.lastName}, {employee.firstName}
                 </option>
@@ -458,6 +1282,125 @@ export default async function EmployeeDispatchPage({
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
+          <DismissibleFilter defaultOpen={hasActiveFilters}>
+            <form
+              action="/employee-dispatch"
+              className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
+            >
+              <input
+                type="hidden"
+                name="sort"
+                value={sortMode === "project" ? "project" : ""}
+              />
+
+              <label className="text-sm font-medium text-gray-800">
+                Von
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={formatDateInput(fromDate)}
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-gray-800">
+                Bis
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={formatDateInput(toDate)}
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+                Suche
+                <input
+                  name="q"
+                  defaultValue={searchFilter}
+                  placeholder="Name, Berufsgruppe oder Baustelle"
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-gray-800">
+                Status
+                <select
+                  name="status"
+                  defaultValue={statusFilter}
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                >
+                  <option value="">Alle Status</option>
+                  {statusOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-gray-800">
+                Art
+                <select
+                  name="type"
+                  defaultValue={typeFilter}
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                >
+                  <option value="">Alle Arten</option>
+                  {employeeDispositionTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+                Projekt / Baustelle
+                <select
+                  name="project"
+                  defaultValue={projectFilter}
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                >
+                  <option value="">Alle Projekte</option>
+                  {projectOptions.map((project) => (
+                    <option key={project} value={project}>
+                      {project}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-3 pt-7 text-sm font-semibold text-gray-800">
+                <input
+                  type="checkbox"
+                  name="onlyWithEntries"
+                  value="1"
+                  defaultChecked={onlyWithEntries}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                Nur mit Einträgen
+              </label>
+
+              <div className="flex flex-wrap items-end gap-3 xl:col-span-2">
+                <button
+                  type="submit"
+                  className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+                >
+                  Filter anwenden
+                </button>
+                <Link
+                  href={`/employee-dispatch?from=${formatDateInput(
+                    fromDate,
+                  )}&to=${formatDateInput(toDate)}`}
+                  className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                >
+                  Filter zurücksetzen
+                </Link>
+              </div>
+            </form>
+          </DismissibleFilter>
+
           {employeeDispositionTypes.map((type) => (
             <span
               key={type.value}
@@ -478,9 +1421,61 @@ export default async function EmployeeDispatchPage({
               </h2>
               <p className="mt-1 text-sm text-gray-600">
                 {formatGermanDate(fromDate)} – {formatGermanDate(toDate)} ·{" "}
-                {employees.length} Mitarbeiter · Betrieb kommt automatisch aus
-                der Kolonneneinteilung.
+                {visibleEmployees.length} von {activeEmployees.length} Mitarbeitern ·
+                Baustelle kommt automatisch aus Disposition und Einteilungen.
               </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[1, 2, 5].map((weekCount) => (
+                <Link
+                  key={weekCount}
+                  href={buildPageHref({
+                    weeks: String(weekCount),
+                    to: null,
+                  })}
+                  className={
+                    currentWeeks === weekCount
+                      ? "rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                      : "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                  }
+                >
+                  {weekCount} Woche{weekCount === 1 ? "" : "n"}
+                </Link>
+              ))}
+
+              <form
+                action="/employee-dispatch"
+                className="flex items-center gap-2"
+              >
+                <input type="hidden" name="from" value={formatDateInput(fromDate)} />
+                <input
+                  type="hidden"
+                  name="sort"
+                  value={sortMode === "project" ? "project" : ""}
+                />
+                <input type="hidden" name="q" value={searchFilter} />
+                <input type="hidden" name="status" value={statusFilter} />
+                <input type="hidden" name="type" value={typeFilter} />
+                <input type="hidden" name="project" value={projectFilter} />
+                {onlyWithEntries ? (
+                  <input type="hidden" name="onlyWithEntries" value="1" />
+                ) : null}
+                <input
+                  type="number"
+                  name="weeks"
+                  min="1"
+                  max="52"
+                  defaultValue={currentWeeks}
+                  className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-xs font-semibold text-gray-900 outline-none focus:border-gray-900"
+                  aria-label="Wochenanzahl"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                >
+                  Anzeigen
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -510,8 +1505,10 @@ export default async function EmployeeDispatchPage({
               </div>
             </div>
 
-            {employees.map((employee) => {
-              const bars = barsByEmployeeId.get(employee.id) ?? [];
+            {visibleEmployees.map((employee) => {
+              const bars = visibleBarsByEmployeeId.get(employee.id) ?? [];
+              const primaryProject =
+                primaryProjectByEmployeeId.get(employee.id)?.projectText;
               const positionText =
                 employee.positions
                   .map((position) => position.positionLabel)
@@ -523,9 +1520,12 @@ export default async function EmployeeDispatchPage({
                   className="grid grid-cols-[300px_1fr] border-b border-gray-100"
                 >
                   <div className="sticky left-0 z-10 border-r border-gray-200 bg-white p-3">
-                    <div className="text-sm font-bold text-gray-900">
-                      {employee.lastName}, {employee.firstName}
-                    </div>
+                    <EmployeeQuickEntryButton
+                      employeeId={employee.id}
+                      employeeName={`${employee.lastName}, ${employee.firstName}`}
+                      defaultStartDate={formatDateInput(fromDate)}
+                      defaultEndDate={formatDateInput(fromDate)}
+                    />
                     <div className="mt-1 line-clamp-2 text-xs text-gray-500">
                       {positionText}
                     </div>
@@ -536,6 +1536,11 @@ export default async function EmployeeDispatchPage({
                     >
                       {employee.statusLabel}
                     </span>
+                    {primaryProject ? (
+                      <div className="mt-2 line-clamp-2 rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-900">
+                        {primaryProject}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="relative min-h-[56px]">
@@ -567,7 +1572,7 @@ export default async function EmployeeDispatchPage({
                         bars.map((bar) => (
                           <div
                             key={bar.id}
-                            title={`${bar.title}\n${bar.startTime} – ${bar.endTime}${
+                            title={`${bar.sourceLabel}\n${bar.title}\n${bar.startTime} – ${bar.endTime}${
                               bar.subtitle ? `\n${bar.subtitle}` : ""
                             }`}
                             className={`min-h-7 truncate rounded-lg px-2 py-1 text-xs font-semibold shadow-sm ${bar.barClass}`}
@@ -608,40 +1613,48 @@ export default async function EmployeeDispatchPage({
             </thead>
 
             <tbody>
-              {manualEntries.length === 0 ? (
+              {visibleManualEntries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-6 text-center text-gray-500">
                     Keine manuellen Einträge im gewählten Zeitraum.
                   </td>
                 </tr>
               ) : (
-                manualEntries.map((entry) => (
-                  <tr key={entry.id} className="border-t border-gray-100">
-                    <td className="p-3">
-                      <form action={deleteEmployeeDispositionEntry}>
-                        <input type="hidden" name="id" value={entry.id} />
-                        <button
-                          type="submit"
-                          title="Eintrag löschen"
-                          aria-label="Eintrag löschen"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
-                        >
-                          <ActionIcon name="delete" className="h-4 w-4" />
-                        </button>
-                      </form>
-                    </td>
-                    <td className="p-3 font-semibold text-gray-900">
-                      {entry.employee.lastName}, {entry.employee.firstName}
-                    </td>
-                    <td className="p-3">{entry.typeLabel}</td>
-                    <td className="p-3">{formatGermanDate(entry.startDate)}</td>
-                    <td className="p-3">{formatGermanDate(entry.endDate)}</td>
-                    <td className="p-3">
-                      {entry.startTime} – {entry.endTime}
-                    </td>
-                    <td className="p-3 text-gray-600">{entry.notes ?? "-"}</td>
-                  </tr>
-                ))
+                visibleManualEntries.map((entry) => {
+                  const entryType = getEmployeeDispositionType(entry.typeValue);
+
+                  return (
+                    <tr key={entry.id} className="border-t border-gray-100">
+                      <td className="p-3">
+                        <form action={deleteEmployeeDispositionEntry}>
+                          <input type="hidden" name="id" value={entry.id} />
+                          <button
+                            type="submit"
+                            title="Eintrag löschen"
+                            aria-label="Eintrag löschen"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                          >
+                            <ActionIcon name="delete" className="h-4 w-4" />
+                          </button>
+                        </form>
+                      </td>
+                      <td className="p-3 font-semibold text-gray-900">
+                        {entry.employee.lastName}, {entry.employee.firstName}
+                      </td>
+                      <td className="p-3">{entryType.label}</td>
+                      <td className="p-3">
+                        {formatGermanDate(entry.startDate)}
+                      </td>
+                      <td className="p-3">{formatGermanDate(entry.endDate)}</td>
+                      <td className="p-3">
+                        {entry.startTime} – {entry.endTime}
+                      </td>
+                      <td className="p-3 text-gray-600">
+                        {entry.notes ?? "-"}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

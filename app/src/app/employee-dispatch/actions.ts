@@ -30,7 +30,13 @@ function parseTime(value: FormDataEntryValue | null, fallback: string) {
 
 export async function createEmployeeDispositionEntry(formData: FormData) {
   const employeeId = String(formData.get("employeeId") ?? "").trim();
-  const typeValue = String(formData.get("typeValue") ?? "").trim();
+  const typeValues = Array.from(
+    new Set(
+      [...formData.getAll("typeValues"), ...formData.getAll("typeValue")]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
 
@@ -38,8 +44,17 @@ export async function createEmployeeDispositionEntry(formData: FormData) {
     throw new Error("Bitte einen Mitarbeiter auswählen.");
   }
 
-  if (!employeeDispositionTypes.some((type) => type.value === typeValue)) {
-    throw new Error("Bitte eine gültige Art auswählen.");
+  if (typeValues.length === 0) {
+    throw new Error("Bitte mindestens eine Art auswählen.");
+  }
+
+  if (
+    typeValues.some(
+      (typeValue) =>
+        !employeeDispositionTypes.some((type) => type.value === typeValue),
+    )
+  ) {
+    throw new Error("Bitte gültige Arten auswählen.");
   }
 
   if (endDate < startDate) {
@@ -56,20 +71,28 @@ export async function createEmployeeDispositionEntry(formData: FormData) {
     throw new Error("Mitarbeiter wurde nicht gefunden.");
   }
 
-  const type = getEmployeeDispositionType(typeValue);
+  const startTime = parseTime(formData.get("startTime"), "06:30");
+  const endTime = parseTime(formData.get("endTime"), "17:00");
+  const notes = optionalString(formData.get("notes"));
 
-  await prisma.employeeDispositionEntry.create({
-    data: {
-      employeeId,
-      startDate,
-      endDate,
-      startTime: parseTime(formData.get("startTime"), "06:30"),
-      endTime: parseTime(formData.get("endTime"), "17:00"),
-      typeValue: type.value,
-      typeLabel: type.label,
-      notes: optionalString(formData.get("notes")),
-    },
-  });
+  await prisma.$transaction(
+    typeValues.map((typeValue) => {
+      const type = getEmployeeDispositionType(typeValue);
+
+      return prisma.employeeDispositionEntry.create({
+        data: {
+          employeeId,
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+          typeValue: type.value,
+          typeLabel: type.label,
+          notes,
+        },
+      });
+    }),
+  );
 
   revalidatePath("/employee-dispatch");
 }
