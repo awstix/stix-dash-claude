@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ActionIcon } from "@/components/ActionIcon";
 import {
-  cancelProject,
   createProject,
+  deleteProject,
   ProjectFormInput,
   updateProject,
 } from "./actions";
@@ -59,23 +60,34 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
 
         const performanceValue =
           totalContract * (project.progressPercent / 100);
+        const performanceValueWithoutChangeOrders =
+          project.contractValueNet * (project.progressPercent / 100);
 
         // Positiv = Überdeckung
         // Negativ = Unterdeckung
         const difference = project.paymentsNet - performanceValue;
+        const differenceWithoutChangeOrders =
+          project.paymentsNet - performanceValueWithoutChangeOrders;
 
         return {
           totalContract: sum.totalContract + totalContract,
           performanceValue: sum.performanceValue + performanceValue,
+          performanceValueWithoutChangeOrders:
+            sum.performanceValueWithoutChangeOrders +
+            performanceValueWithoutChangeOrders,
           payments: sum.payments + project.paymentsNet,
           difference: sum.difference + difference,
+          differenceWithoutChangeOrders:
+            sum.differenceWithoutChangeOrders + differenceWithoutChangeOrders,
         };
       },
       {
         totalContract: 0,
         performanceValue: 0,
+        performanceValueWithoutChangeOrders: 0,
         payments: 0,
         difference: 0,
+        differenceWithoutChangeOrders: 0,
       }
     );
   }, [projects]);
@@ -118,16 +130,25 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
     });
   }
 
-  function handleCancelProject(id: string) {
+  function handleDeleteProject(project: Project) {
     const confirmed = window.confirm(
-      "Dieses Projekt wirklich als storniert markieren?"
+      `Projekt ${project.projectNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
     );
 
     if (!confirmed) return;
 
     startTransition(async () => {
-      await cancelProject(id);
-      router.refresh();
+      try {
+        await deleteProject(project.id);
+
+        if (editingId === project.id) {
+          resetForm();
+        }
+
+        router.refresh();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Fehler beim Löschen.");
+      }
     });
   }
 
@@ -140,6 +161,17 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
       [key]: value,
     }));
   }
+
+  const formTotalContract = form.contractValueNet + form.changeOrdersNet;
+  const formPerformanceValue =
+    formTotalContract * (form.progressPercent / 100);
+  const formBillingPercent =
+    formTotalContract > 0 ? (form.paymentsNet / formTotalContract) * 100 : 0;
+  const formDifference = form.paymentsNet - formPerformanceValue;
+  const formCoveragePercent =
+    formPerformanceValue > 0
+      ? (formDifference / formPerformanceValue) * 100
+      : 0;
 
   return (
     <>
@@ -158,7 +190,21 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
         />
         <SummaryCard
           label="Über-/Unterdeckung"
-          value={formatEuro(totals.difference)}
+          details={[
+            {
+              label: "ohne Nachträge",
+              value: formatEuro(totals.differenceWithoutChangeOrders),
+              tone:
+                totals.differenceWithoutChangeOrders >= 0
+                  ? "positive"
+                  : "negative",
+            },
+            {
+              label: "mit Nachträgen",
+              value: formatEuro(totals.difference),
+              tone: totals.difference >= 0 ? "positive" : "negative",
+            },
+          ]}
         />
       </div>
 
@@ -251,7 +297,7 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
               onChange={(value) => updateForm("contractValueNet", value)}
             />
             <NumberField
-              label="Nachträge netto"
+              label="Nachträge (beauftragt) netto"
               value={form.changeOrdersNet}
               onChange={(value) => updateForm("changeOrdersNet", value)}
             />
@@ -264,6 +310,29 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
               label="Summe Abschläge netto"
               value={form.paymentsNet}
               onChange={(value) => updateForm("paymentsNet", value)}
+            />
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <FormMetricCard
+              label="Auftragssumme inkl. Nachträge"
+              value={formatEuro(formTotalContract)}
+            />
+            <FormMetricCard
+              label="Leistungsstand IST in €"
+              value={formatEuro(formPerformanceValue)}
+              detail={`${formatPercent(form.progressPercent)} Leistungsstand`}
+            />
+            <FormMetricCard
+              label="Abrechnungsstand (IST in %)"
+              value={formatPercent(formBillingPercent)}
+              detail={formatEuro(form.paymentsNet)}
+            />
+            <FormMetricCard
+              label="Über-/Unterdeckung in %"
+              value={formatPercent(formCoveragePercent)}
+              detail={formatEuro(formDifference)}
+              tone={formCoveragePercent >= 0 ? "positive" : "negative"}
             />
           </div>
 
@@ -307,18 +376,18 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
           <table className="w-full min-w-[1300px] border-collapse text-left text-sm">
             <thead className="bg-gray-50 text-gray-700">
               <tr>
+                <TableHead>Aktion</TableHead>
                 <TableHead>Projekt</TableHead>
                 <TableHead>Bauleiter</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Zeitraum geplant</TableHead>
                 <TableHead>Auftrag</TableHead>
-                <TableHead>Nachträge</TableHead>
+                <TableHead>Nachträge (beauftragt)</TableHead>
                 <TableHead>Gesamt</TableHead>
                 <TableHead>Leistung</TableHead>
                 <TableHead>Abschläge</TableHead>
                 <TableHead>Differenz</TableHead>
                 <TableHead>Über-/Unterdeckung</TableHead>
-                <TableHead>Aktionen</TableHead>
               </tr>
             </thead>
             <tbody>
@@ -347,6 +416,29 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
 
                   return (
                     <tr key={project.id} className="border-t border-gray-100">
+                      <td className="p-4 align-top">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEdit(project)}
+                            title="Projekt bearbeiten"
+                            aria-label="Projekt bearbeiten"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                          >
+                            <ActionIcon name="edit" className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteProject(project)}
+                            title="Projekt löschen"
+                            aria-label="Projekt löschen"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            disabled={isPending}
+                          >
+                            <ActionIcon name="delete" className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+
                       <td className="p-4 align-top">
                         <div className="font-semibold text-gray-900">
                           {project.projectNumber}
@@ -407,25 +499,6 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
                           {coverage.toFixed(1)} %
                         </span>
                       </td>
-
-                      <td className="p-4 align-top">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => startEdit(project)}
-                            className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            Bearbeiten
-                          </button>
-
-                          <button
-                            onClick={() => handleCancelProject(project.id)}
-                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                            disabled={project.status === "CANCELLED"}
-                          >
-                            Stornieren
-                          </button>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })
@@ -438,13 +511,88 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({
+  label,
+  value,
+  valueTone = "neutral",
+  details,
+}: {
+  label: string;
+  value?: string;
+  valueTone?: "negative" | "neutral" | "positive";
+  details?: {
+    label: string;
+    tone?: "negative" | "neutral" | "positive";
+    value: string;
+  }[];
+}) {
+  const valueClass = getToneClass(valueTone);
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-3 text-xl font-bold text-gray-900">{value}</p>
+      {value ? (
+        <p className={`mt-3 text-xl font-bold ${valueClass}`}>{value}</p>
+      ) : null}
+      {details?.length ? (
+        <div
+          className={
+            value
+              ? "mt-3 space-y-1 border-t border-gray-100 pt-3"
+              : "mt-3 space-y-1"
+          }
+        >
+          {details.map((detail) => (
+            <div
+              key={detail.label}
+              className="flex items-center justify-between gap-3 text-xs"
+            >
+              <span className="font-medium text-gray-500">
+                {detail.label}
+              </span>
+              <span className={`font-semibold ${getToneClass(detail.tone)}`}>
+                {detail.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function FormMetricCard({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  tone?: "negative" | "neutral" | "positive";
+}) {
+  const valueClass = getToneClass(tone);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className={`mt-2 text-lg font-bold ${valueClass}`}>{value}</p>
+      {detail ? <p className="mt-1 text-xs text-gray-500">{detail}</p> : null}
+    </div>
+  );
+}
+
+function getToneClass(tone: "negative" | "neutral" | "positive" = "neutral") {
+  if (tone === "positive") {
+    return "text-green-700";
+  }
+
+  if (tone === "negative") {
+    return "text-red-700";
+  }
+
+  return "text-gray-900";
 }
 
 function TextField({
@@ -529,6 +677,10 @@ function formatEuro(value: number) {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatPercent(value: number) {
+  return `${value.toFixed(1)} %`;
 }
 
 function formatDate(value: string) {

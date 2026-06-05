@@ -102,3 +102,13 @@ export async function cancelProject(id: string) {
 
   revalidatePath("/projects");
 }
+
+export async function deleteProject(id: string) {
+  await prisma.project.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidatePath("/projects");
+}
