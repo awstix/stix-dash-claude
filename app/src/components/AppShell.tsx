@@ -2,8 +2,17 @@ import Link from "next/link";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
-  { name: "Projekte", href: "/projects" },
 ];
+
+const projectNavigation = [
+  { name: "Bautagesberichte", href: "/projects/bautagesberichte" },
+  { name: "Dokumente", href: "/projects/dokumente" },
+  { name: "Formulare", href: "/projects/formulare" },
+  { name: "Fotos", href: "/projects/fotos" },
+  { name: "Leistung", href: "/projects/performance" },
+  { name: "Notizen", href: "/projects/notizen" },
+  { name: "Projektübersicht", href: "/projects" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const secondaryNavigation = [
   { name: "Bestellung", href: "/orders" },
@@ -48,6 +57,24 @@ export function AppShell({
                 {item.name}
               </Link>
             ))}
+
+            <details className="group relative">
+              <summary className="cursor-pointer list-none rounded-lg px-3 py-2 hover:bg-gray-100 hover:text-gray-900 marker:content-none [&::-webkit-details-marker]:hidden">
+                Projekte
+              </summary>
+
+              <div className="absolute left-0 top-10 z-50 min-w-[240px] rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                {projectNavigation.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </details>
 
             <details className="group relative">
               <summary className="cursor-pointer list-none rounded-lg px-3 py-2 hover:bg-gray-100 hover:text-gray-900 marker:content-none [&::-webkit-details-marker]:hidden">

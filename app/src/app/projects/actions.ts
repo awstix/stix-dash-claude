@@ -21,6 +21,15 @@ export type ProjectFormInput = {
   notes: string;
 };
 
+export type ProjectMapInput = {
+  id: string;
+  siteAddress: string;
+  mapLatitude: string;
+  mapLongitude: string;
+  mapZoom: string;
+  siteBoundaryGeoJson: string;
+};
+
 function parseDate(value: string) {
   if (!value) return null;
   return new Date(value);
@@ -29,6 +38,42 @@ function parseDate(value: string) {
 function cleanNumber(value: number) {
   if (Number.isNaN(value)) return 0;
   return value;
+}
+
+function cleanOptionalFloat(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function cleanOptionalInt(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
+function cleanBoundaryGeoJson(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    JSON.parse(trimmed);
+  } catch {
+    throw new Error("Baufeld GeoJSON ist kein gültiges JSON.");
+  }
+
+  return trimmed;
+}
+
+function revalidateProjectViews(projectId?: string) {
+  revalidatePath("/projects");
+  revalidatePath("/projects/performance");
+  if (projectId) {
+    revalidatePath(`/projects/${projectId}`);
+  }
 }
 
 export async function createProject(input: ProjectFormInput) {
@@ -54,7 +99,7 @@ export async function createProject(input: ProjectFormInput) {
     },
   });
 
-  revalidatePath("/projects");
+  revalidateProjectViews();
 }
 
 export async function updateProject(input: ProjectFormInput) {
@@ -87,7 +132,28 @@ export async function updateProject(input: ProjectFormInput) {
     },
   });
 
-  revalidatePath("/projects");
+  revalidateProjectViews(input.id);
+}
+
+export async function updateProjectMap(input: ProjectMapInput) {
+  if (!input.id) {
+    throw new Error("Projekt-ID fehlt.");
+  }
+
+  await prisma.project.update({
+    where: {
+      id: input.id,
+    },
+    data: {
+      siteAddress: input.siteAddress || null,
+      mapLatitude: cleanOptionalFloat(input.mapLatitude),
+      mapLongitude: cleanOptionalFloat(input.mapLongitude),
+      mapZoom: cleanOptionalInt(input.mapZoom),
+      siteBoundaryGeoJson: cleanBoundaryGeoJson(input.siteBoundaryGeoJson),
+    },
+  });
+
+  revalidateProjectViews(input.id);
 }
 
 export async function cancelProject(id: string) {
@@ -100,7 +166,7 @@ export async function cancelProject(id: string) {
     },
   });
 
-  revalidatePath("/projects");
+  revalidateProjectViews();
 }
 
 export async function deleteProject(id: string) {
@@ -110,5 +176,5 @@ export async function deleteProject(id: string) {
     },
   });
 
-  revalidatePath("/projects");
+  revalidateProjectViews();
 }

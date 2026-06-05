@@ -30,6 +30,12 @@ model Project {
   progressPercent  Float @default(0)
   paymentsNet      Int   @default(0)
 
+  siteAddress         String?
+  mapLatitude         Float?
+  mapLongitude        Float?
+  mapZoom             Int?
+  siteBoundaryGeoJson String?
+
   notes String?
 
   asphaltDispatchEntries AsphaltDispatchEntry[]
