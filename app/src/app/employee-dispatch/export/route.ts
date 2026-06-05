@@ -1,8 +1,13 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
-import { getEmployeeDispositionType } from "../disposition-types";
+import {
+  employeeDispositionTypes,
+  getEmployeeDispositionType,
+} from "../disposition-types";
 
 export const runtime = "nodejs";
+
+type SortMode = "name" | "project" | "type";
 
 type TimelineBar = {
   id: string;
@@ -59,6 +64,14 @@ function parseDateParam(value: string | null, fallback: Date) {
   }
 
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+function parseSortMode(value: string | null): SortMode {
+  if (value === "project" || value === "type") {
+    return value;
+  }
+
+  return "name";
 }
 
 function formatDateInput(date: Date) {
@@ -220,12 +233,27 @@ export async function GET(request: Request) {
   );
   const toDate = parsedToDate < fromDate ? addDays(fromDate, 13) : parsedToDate;
   const days = buildDays(fromDate, toDate);
-  const searchFilter = String(url.searchParams.get("q") ?? "").trim();
-  const statusFilter = String(url.searchParams.get("status") ?? "").trim();
-  const typeFilter = String(url.searchParams.get("type") ?? "").trim();
-  const projectFilter = String(url.searchParams.get("project") ?? "").trim();
-  const onlyWithEntries = url.searchParams.get("onlyWithEntries") === "1";
-  const sortMode = url.searchParams.get("sort") === "project" ? "project" : "name";
+  const exportScope =
+    url.searchParams.get("scope") === "complete" ? "complete" : "filtered";
+  const searchFilter =
+    exportScope === "complete"
+      ? ""
+      : String(url.searchParams.get("q") ?? "").trim();
+  const statusFilter =
+    exportScope === "complete"
+      ? ""
+      : String(url.searchParams.get("status") ?? "").trim();
+  const typeFilter =
+    exportScope === "complete"
+      ? ""
+      : String(url.searchParams.get("type") ?? "").trim();
+  const projectFilter =
+    exportScope === "complete"
+      ? ""
+      : String(url.searchParams.get("project") ?? "").trim();
+  const onlyWithEntries =
+    exportScope !== "complete" && url.searchParams.get("onlyWithEntries") === "1";
+  const sortMode = parseSortMode(url.searchParams.get("sort"));
 
   const [
     employees,
@@ -948,6 +976,12 @@ export async function GET(request: Request) {
       return true;
     })
     .sort((a, b) => {
+      const compareByName = () => {
+        const byLastName = a.lastName.localeCompare(b.lastName, "de-DE");
+        if (byLastName !== 0) return byLastName;
+        return a.firstName.localeCompare(b.firstName, "de-DE");
+      };
+
       if (sortMode === "project") {
         const projectA =
           primaryProjectByEmployeeId.get(a.id)?.projectText ?? "zzzzzz";
@@ -960,9 +994,50 @@ export async function GET(request: Request) {
         }
       }
 
-      const byLastName = a.lastName.localeCompare(b.lastName, "de-DE");
-      if (byLastName !== 0) return byLastName;
-      return a.firstName.localeCompare(b.firstName, "de-DE");
+      if (sortMode === "type") {
+        const getPrimaryType = (employeeId: string) =>
+          (barsByEmployeeId.get(employeeId) ?? []).find((bar) => {
+            if (typeFilter && bar.typeValue !== typeFilter) {
+              return false;
+            }
+
+            if (projectFilter && bar.projectText !== projectFilter) {
+              return false;
+            }
+
+            return true;
+          });
+        const typeA = getPrimaryType(a.id);
+        const typeB = getPrimaryType(b.id);
+        const rawRankA = typeA
+          ? employeeDispositionTypes.findIndex(
+              (type) => type.value === typeA.typeValue,
+            )
+          : 999;
+        const rawRankB = typeB
+          ? employeeDispositionTypes.findIndex(
+              (type) => type.value === typeB.typeValue,
+            )
+          : 999;
+        const rankA = rawRankA >= 0 ? rawRankA : 999;
+        const rankB = rawRankB >= 0 ? rawRankB : 999;
+        const byTypeRank = rankA - rankB;
+
+        if (byTypeRank !== 0) {
+          return byTypeRank;
+        }
+
+        const byTypeLabel = (typeA?.typeLabel ?? "zzzzzz").localeCompare(
+          typeB?.typeLabel ?? "zzzzzz",
+          "de-DE",
+        );
+
+        if (byTypeLabel !== 0) {
+          return byTypeLabel;
+        }
+      }
+
+      return compareByName();
     });
   const visibleBarsByEmployeeId = new Map<string, TimelineBar[]>();
 
@@ -1009,6 +1084,13 @@ export async function GET(request: Request) {
       Wert: activeEmployees.length,
     },
     {
+      Feld: "Umfang",
+      Wert:
+        exportScope === "complete"
+          ? "Komplette Liste"
+          : "Mit Filtern",
+    },
+    {
       Feld: "Suche",
       Wert: searchFilter || "-",
     },
@@ -1025,8 +1107,17 @@ export async function GET(request: Request) {
       Wert: projectFilter || "-",
     },
     {
+      Feld: "Nur mit Einträgen",
+      Wert: onlyWithEntries ? "ja" : "nein",
+    },
+    {
       Feld: "Sortierung",
-      Wert: sortMode === "project" ? "Projekt" : "Name",
+      Wert:
+        sortMode === "project"
+          ? "Projekt"
+          : sortMode === "type"
+            ? "Art"
+            : "Nachname",
     },
     {
       Feld: "Erstellt am",

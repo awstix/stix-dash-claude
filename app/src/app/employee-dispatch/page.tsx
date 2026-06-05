@@ -3,6 +3,7 @@ import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { DismissibleFilter } from "./DismissibleFilter";
+import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
 import {
   createEmployeeDispositionEntry,
@@ -14,6 +15,8 @@ import {
 } from "./disposition-types";
 
 const dayWidthPx = 48;
+
+type SortMode = "name" | "project" | "type";
 
 type TimelineBar = {
   id: string;
@@ -81,6 +84,14 @@ function parseWeeksParam(value: string | undefined) {
   }
 
   return number;
+}
+
+function parseSortMode(value: string | undefined): SortMode {
+  if (value === "project" || value === "type") {
+    return value;
+  }
+
+  return "name";
 }
 
 function formatDateInput(date: Date) {
@@ -281,7 +292,7 @@ export default async function EmployeeDispatchPage({
   const typeFilter = String(params.type ?? "").trim();
   const projectFilter = String(params.project ?? "").trim();
   const onlyWithEntries = params.onlyWithEntries === "1";
-  const sortMode = params.sort === "project" ? "project" : "name";
+  const sortMode = parseSortMode(params.sort);
 
   const [
     employees,
@@ -1033,6 +1044,12 @@ export default async function EmployeeDispatchPage({
       return true;
     })
     .sort((a, b) => {
+      const compareByName = () => {
+        const byLastName = a.lastName.localeCompare(b.lastName, "de-DE");
+        if (byLastName !== 0) return byLastName;
+        return a.firstName.localeCompare(b.firstName, "de-DE");
+      };
+
       if (sortMode === "project") {
         const projectA =
           primaryProjectByEmployeeId.get(a.id)?.projectText ?? "zzzzzz";
@@ -1045,9 +1062,50 @@ export default async function EmployeeDispatchPage({
         }
       }
 
-      const byLastName = a.lastName.localeCompare(b.lastName, "de-DE");
-      if (byLastName !== 0) return byLastName;
-      return a.firstName.localeCompare(b.firstName, "de-DE");
+      if (sortMode === "type") {
+        const getPrimaryType = (employeeId: string) =>
+          (barsByEmployeeId.get(employeeId) ?? []).find((bar) => {
+            if (typeFilter && bar.typeValue !== typeFilter) {
+              return false;
+            }
+
+            if (projectFilter && bar.projectText !== projectFilter) {
+              return false;
+            }
+
+            return true;
+          });
+        const typeA = getPrimaryType(a.id);
+        const typeB = getPrimaryType(b.id);
+        const rawRankA = typeA
+          ? employeeDispositionTypes.findIndex(
+              (type) => type.value === typeA.typeValue,
+            )
+          : 999;
+        const rawRankB = typeB
+          ? employeeDispositionTypes.findIndex(
+              (type) => type.value === typeB.typeValue,
+            )
+          : 999;
+        const rankA = rawRankA >= 0 ? rawRankA : 999;
+        const rankB = rawRankB >= 0 ? rawRankB : 999;
+        const byTypeRank = rankA - rankB;
+
+        if (byTypeRank !== 0) {
+          return byTypeRank;
+        }
+
+        const byTypeLabel = (typeA?.typeLabel ?? "zzzzzz").localeCompare(
+          typeB?.typeLabel ?? "zzzzzz",
+          "de-DE",
+        );
+
+        if (byTypeLabel !== 0) {
+          return byTypeLabel;
+        }
+      }
+
+      return compareByName();
     });
   const visibleEmployeeIds = new Set(
     visibleEmployees.map((employee) => employee.id),
@@ -1098,15 +1156,18 @@ export default async function EmployeeDispatchPage({
     type: typeFilter,
     project: projectFilter,
     onlyWithEntries: onlyWithEntries ? "1" : "",
-    sort: sortMode === "project" ? "project" : "",
+    sort: sortMode === "name" ? "" : sortMode,
   };
   const buildPageHref = (
     overrides: Record<string, string | null | undefined>,
   ) => `/employee-dispatch${buildQueryString({ ...currentQueryValues, ...overrides })}`;
-  const buildExportHref = () =>
-    `/employee-dispatch/export${buildQueryString(currentQueryValues)}`;
   const hasActiveFilters = Boolean(
-    searchFilter || statusFilter || typeFilter || projectFilter || onlyWithEntries,
+    searchFilter ||
+      statusFilter ||
+      typeFilter ||
+      projectFilter ||
+      onlyWithEntries ||
+      sortMode !== "name",
   );
 
   return (
@@ -1146,31 +1207,36 @@ export default async function EmployeeDispatchPage({
         </Link>
 
         <Link
-          href={buildPageHref({
-            sort: sortMode === "project" ? "" : "project",
-          })}
-          className={
-            sortMode === "project"
-              ? "rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
-              : "rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
-          }
-        >
-          Nach Projekt sortieren
-        </Link>
-
-        <Link
           href="/crew-dispatch"
           className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
         >
           Kolonneneinteilung öffnen
         </Link>
 
-        <a
-          href={buildExportHref()}
-          className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
-        >
-          Excel-Export
-        </a>
+        <EmployeeExportDialog
+          currentFilters={{
+            from: formatDateInput(fromDate),
+            to: formatDateInput(toDate),
+            q: searchFilter,
+            status: statusFilter,
+            type: typeFilter,
+            project: projectFilter,
+            onlyWithEntries,
+            sort: sortMode,
+          }}
+          statusOptions={statusOptions.map(([value, label]) => ({
+            label,
+            value,
+          }))}
+          typeOptions={employeeDispositionTypes.map((type) => ({
+            label: type.label,
+            value: type.value,
+          }))}
+          projectOptions={projectOptions.map((project) => ({
+            label: project,
+            value: project,
+          }))}
+        />
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -1287,12 +1353,6 @@ export default async function EmployeeDispatchPage({
               action="/employee-dispatch"
               className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
             >
-              <input
-                type="hidden"
-                name="sort"
-                value={sortMode === "project" ? "project" : ""}
-              />
-
               <label className="text-sm font-medium text-gray-800">
                 Von
                 <input
@@ -1368,6 +1428,19 @@ export default async function EmployeeDispatchPage({
                       {project}
                     </option>
                   ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-gray-800">
+                <span className="block">Sortierung</span>
+                <select
+                  name="sort"
+                  defaultValue={sortMode}
+                  className="mt-2 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                >
+                  <option value="name">Nach Nachname</option>
+                  <option value="project">Nach Projekt</option>
+                  <option value="type">Nach Art</option>
                 </select>
               </label>
 
@@ -1451,7 +1524,7 @@ export default async function EmployeeDispatchPage({
                 <input
                   type="hidden"
                   name="sort"
-                  value={sortMode === "project" ? "project" : ""}
+                  value={sortMode === "name" ? "" : sortMode}
                 />
                 <input type="hidden" name="q" value={searchFilter} />
                 <input type="hidden" name="status" value={statusFilter} />
