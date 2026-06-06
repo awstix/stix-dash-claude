@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { ProjectDailyReportWeatherEditor } from "../ProjectDailyReportWeatherEditor";
+import { ProjectPhotoGallery } from "../ProjectPhotoGallery";
+import { ProjectInlinePhotoUpload } from "../ProjectInlinePhotoUpload";
 import { ProjectMapEditor } from "../ProjectMapEditor";
+import { ProjectWeatherPanel } from "../ProjectWeatherPanel";
 
 const projectTabs = [
   { label: "Übersicht", href: "#uebersicht" },
@@ -24,6 +28,8 @@ export default async function ProjectDetailPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
   const project = await prisma.project.findUnique({
     where: {
       id: projectId,
@@ -98,12 +104,42 @@ export default async function ProjectDetailPage({
       tackCoatLoadAllocations: {
         orderBy: [{ workDate: "desc" }, { startTime: "asc" }],
       },
+      weatherLogs: {
+        where: {
+          weatherDate: {
+            gte: today,
+          },
+        },
+        orderBy: [{ weatherDate: "asc" }],
+        take: 16,
+      },
+      dailyReports: {
+        where: {
+          reportDate: {
+            gte: today,
+          },
+        },
+        orderBy: [{ reportDate: "asc" }],
+        take: 16,
+      },
+      photos: {
+        orderBy: [{ uploadedAt: "desc" }],
+      },
     },
   });
 
   if (!project) {
     notFound();
   }
+
+  const photoMoveProjects = await prisma.project.findMany({
+    orderBy: [{ projectNumber: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      projectNumber: true,
+    },
+  });
 
   const totalContract = project.contractValueNet + project.changeOrdersNet;
   const performanceValue = totalContract * (project.progressPercent / 100);
@@ -272,6 +308,44 @@ export default async function ProjectDetailPage({
   const truckList = Array.from(trucks.values()).sort((a, b) =>
     a.localeCompare(b, "de-DE"),
   );
+  const weatherEntries = project.weatherLogs.map((entry) => ({
+    currentPrecipitationMm: entry.currentPrecipitationMm,
+    currentTemperatureC: entry.currentTemperatureC,
+    currentWeatherLabel: entry.currentWeatherLabel,
+    currentWindSpeedKmh: entry.currentWindSpeedKmh,
+    fetchedAt: entry.fetchedAt.toISOString(),
+    observedAt: entry.observedAt?.toISOString() ?? null,
+    precipitationMm: entry.precipitationMm,
+    precipitationProbabilityMax: entry.precipitationProbabilityMax,
+    tempMaxC: entry.tempMaxC,
+    tempMinC: entry.tempMinC,
+    weatherCategory: entry.weatherCategory,
+    weatherDate: entry.weatherDate.toISOString(),
+    weatherLabel: entry.weatherLabel,
+    windSpeedMaxKmh: entry.windSpeedMaxKmh,
+  }));
+  const dailyReportByDate = new Map(
+    project.dailyReports.map((report) => [
+      toDateKey(report.reportDate),
+      report,
+    ]),
+  );
+  const dailyReportWeatherRows = project.weatherLogs.map((entry) => {
+    const dateKey = toDateKey(entry.weatherDate);
+    const report = dailyReportByDate.get(dateKey);
+
+    return {
+      reportWeatherCategory: report?.weatherCategory ?? null,
+      reportWeatherNotes: report?.weatherNotes ?? null,
+      reportWeatherSource: report?.weatherSource ?? null,
+      reportWeatherTempMaxC: report?.weatherTempMaxC ?? null,
+      reportWeatherTempMinC: report?.weatherTempMinC ?? null,
+      suggestionCategory: entry.weatherCategory,
+      suggestionTempMaxC: entry.tempMaxC,
+      suggestionTempMinC: entry.tempMinC,
+      weatherDate: dateKey,
+    };
+  });
 
   return (
     <AppShell
@@ -362,6 +436,14 @@ export default async function ProjectDetailPage({
             />
           </div>
         </div>
+
+        <ProjectWeatherPanel
+          entries={weatherEntries}
+          hasCoordinates={
+            project.mapLatitude !== null && project.mapLongitude !== null
+          }
+          projectId={project.id}
+        />
       </section>
 
       <section
@@ -490,10 +572,37 @@ export default async function ProjectDetailPage({
       </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ArchiveSection
-          id="fotos"
-          title="Fotos"
-          text="Projektfotos werden später hochgeladen, nach Datum sortiert und in der Projektakte sichtbar."
+        <ProjectPhotoPreviewSection
+          moveProjects={photoMoveProjects.map((moveProject) => ({
+            id: moveProject.id,
+            label: `${moveProject.projectNumber} · ${moveProject.name}`,
+          }))}
+          photos={project.photos.map((photo) => ({
+            availableForDailyReports: photo.availableForDailyReports,
+            cameraMake: photo.cameraMake,
+            cameraModel: photo.cameraModel,
+            gpsAddressLabel: photo.gpsAddressLabel,
+            gpsCity: photo.gpsCity,
+            gpsCountry: photo.gpsCountry,
+            gpsHouseNumber: photo.gpsHouseNumber,
+            gpsLatitude: photo.gpsLatitude,
+            gpsLongitude: photo.gpsLongitude,
+            gpsPostcode: photo.gpsPostcode,
+            gpsReverseGeocodedAt:
+              photo.gpsReverseGeocodedAt?.toISOString() ?? null,
+            gpsStreet: photo.gpsStreet,
+            id: photo.id,
+            imageHeight: photo.imageHeight,
+            imageWidth: photo.imageWidth,
+            metadataTaken: photo.metadataTaken,
+            notes: photo.notes,
+            originalFileName: photo.originalFileName,
+            publicUrl: photo.publicUrl,
+            capturedAt: photo.capturedAt?.toISOString() ?? null,
+            uploadedAt: photo.uploadedAt.toISOString(),
+          }))}
+          projectId={project.id}
+          projectLabel={`${project.projectNumber} · ${project.name}`}
         />
         <ArchiveSection
           id="dokumente"
@@ -510,11 +619,22 @@ export default async function ProjectDetailPage({
           title="Notizen"
           text="Notizen werden später mit Datum, Benutzer und Sichtbarkeit pro Projekt geführt."
         />
-        <ArchiveSection
+        <section
           id="bautagesberichte"
-          title="Bautagesberichte"
-          text="Bautagesberichte greifen später auf Projekt, Personal, Geräte, Tagesnotizen und Wetter zu."
-        />
+          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2"
+        >
+          <h2 className="text-lg font-semibold text-gray-900">
+            Bautagesberichte
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Wetterwerte werden aus dem Wetterprotokoll vorgeschlagen und können
+            für den Bautagesbericht je Tag überschrieben werden.
+          </p>
+          <ProjectDailyReportWeatherEditor
+            projectId={project.id}
+            rows={dailyReportWeatherRows}
+          />
+        </section>
       </div>
     </AppShell>
   );
@@ -542,6 +662,73 @@ function ListBlock({
         </span>
       ))}
     </div>
+  );
+}
+
+function ProjectPhotoPreviewSection({
+  moveProjects,
+  photos,
+  projectId,
+  projectLabel,
+}: {
+  moveProjects: {
+    id: string;
+    label: string;
+  }[];
+  photos: {
+    availableForDailyReports: boolean;
+    cameraMake: string | null;
+    cameraModel: string | null;
+    capturedAt: string | null;
+    gpsAddressLabel: string | null;
+    gpsCity: string | null;
+    gpsCountry: string | null;
+    gpsHouseNumber: string | null;
+    gpsLatitude: number | null;
+    gpsLongitude: number | null;
+    gpsPostcode: string | null;
+    gpsReverseGeocodedAt: string | null;
+    gpsStreet: string | null;
+    id: string;
+    imageHeight: number | null;
+    imageWidth: number | null;
+    metadataTaken: boolean;
+    notes: string | null;
+    originalFileName: string | null;
+    publicUrl: string;
+    uploadedAt: string;
+  }[];
+  projectId: string;
+  projectLabel: string;
+}) {
+  return (
+    <section
+      id="fotos"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Fotos</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Projektfotos mit Notizen und Bautagesbericht-Freigabe.
+          </p>
+        </div>
+        <Link
+          className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/projects/fotos?projectId=${projectId}`}
+        >
+          Alle Fotos
+        </Link>
+      </div>
+
+      <ProjectInlinePhotoUpload projectId={projectId} projectLabel={projectLabel} />
+
+      <ProjectPhotoGallery
+        currentProjectId={projectId}
+        moveProjects={moveProjects}
+        photos={photos}
+      />
+    </section>
   );
 }
 
@@ -693,4 +880,8 @@ function formatPercent(value: number) {
 function formatDate(value: Date | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("de-DE").format(value);
+}
+
+function toDateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
 }

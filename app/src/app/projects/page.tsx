@@ -290,7 +290,7 @@ export default async function ProjectsPage() {
         <ArchiveSection
           id="fotos"
           title="Fotos"
-          text="Projektfotos werden hier je Baustelle gesammelt. Upload und Vorschau kommen als nächster Baustein."
+          text="Projektfotos können jetzt unter Projekte > Fotos hochgeladen, mit Notizen versehen und für Bautagesberichte vorgemerkt werden."
         />
         <ArchiveSection
           id="dokumente"
