@@ -149,6 +149,8 @@ model ProjectPhoto {
   gpsAddressJson            String?
   metadataJson              String?
   availableForDailyReports  Boolean @default(true)
+  uploadedByUserId          String?
+  uploadedByName            String?
 
   dailyReportLinks ProjectDailyReportPhoto[]
 
@@ -160,6 +162,7 @@ model ProjectPhoto {
   @@index([uploadedAt])
   @@index([capturedAt])
   @@index([gpsCity])
+  @@index([uploadedByUserId])
   @@index([availableForDailyReports])
 }
 

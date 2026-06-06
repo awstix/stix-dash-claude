@@ -410,6 +410,10 @@ export async function saveProjectDailyReportWeather(
 export async function uploadProjectPhotos(formData: FormData) {
   const projectId = cleanFormString(formData.get("projectId"));
   const notes = cleanFormString(formData.get("notes"));
+  const uploadedByName = cleanUploadText(
+    cleanFormString(formData.get("uploadedByName")),
+  );
+  const uploadedByUserId = cleanFormString(formData.get("uploadedByUserId"));
   const takeMetadata = formData.get("takeMetadata") === "on";
   const availableForDailyReports =
     formData.get("availableForDailyReports") === "on";
@@ -509,6 +513,8 @@ export async function uploadProjectPhotos(formData: FormData) {
           ...getPhotoGpsAddressData(gpsAddress),
           metadataJson: metadata.metadataJson ?? null,
           availableForDailyReports,
+          uploadedByName: uploadedByName || null,
+          uploadedByUserId: uploadedByUserId || null,
         },
       });
     } catch (error) {

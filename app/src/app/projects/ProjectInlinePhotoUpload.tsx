@@ -77,6 +77,18 @@ export function ProjectInlinePhotoUpload({
           </label>
 
           <label className="text-sm font-semibold text-gray-800">
+            Hochgeladen von
+            <input
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              name="uploadedByName"
+              placeholder="Name"
+              type="text"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          <label className="text-sm font-semibold text-gray-800">
             Notiz
             <textarea
               className="mt-1 min-h-20 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"

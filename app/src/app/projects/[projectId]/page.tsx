@@ -598,6 +598,8 @@ export default async function ProjectDetailPage({
             notes: photo.notes,
             originalFileName: photo.originalFileName,
             publicUrl: photo.publicUrl,
+            uploadedByName: photo.uploadedByName,
+            uploadedByUserId: photo.uploadedByUserId,
             capturedAt: photo.capturedAt?.toISOString() ?? null,
             uploadedAt: photo.uploadedAt.toISOString(),
           }))}
@@ -696,6 +698,8 @@ function ProjectPhotoPreviewSection({
     notes: string | null;
     originalFileName: string | null;
     publicUrl: string;
+    uploadedByName: string | null;
+    uploadedByUserId: string | null;
     uploadedAt: string;
   }[];
   projectId: string;
@@ -704,7 +708,7 @@ function ProjectPhotoPreviewSection({
   return (
     <section
       id="fotos"
-      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

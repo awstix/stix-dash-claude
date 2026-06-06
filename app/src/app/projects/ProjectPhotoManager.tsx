@@ -38,6 +38,8 @@ export type ProjectPhotoListItem = {
   projectName: string;
   projectNumber: string;
   publicUrl: string;
+  uploadedByName: string | null;
+  uploadedByUserId: string | null;
   uploadedAt: string;
 };
 
@@ -175,6 +177,16 @@ export function ProjectPhotoManager({
                 name="photos"
                 required
                 type="file"
+              />
+            </label>
+
+            <label className="text-sm font-semibold text-gray-800">
+              Hochgeladen von
+              <input
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                name="uploadedByName"
+                placeholder="Name"
+                type="text"
               />
             </label>
           </div>
@@ -388,6 +400,8 @@ function toGalleryPhoto(photo: ProjectPhotoListItem): ProjectPhotoGalleryItem {
     notes: photo.notes,
     originalFileName: photo.originalFileName,
     publicUrl: photo.publicUrl,
+    uploadedByName: photo.uploadedByName,
+    uploadedByUserId: photo.uploadedByUserId,
     uploadedAt: photo.uploadedAt,
   };
 }

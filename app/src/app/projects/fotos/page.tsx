@@ -66,6 +66,8 @@ export default async function ProjectPhotosPage({
           projectName: photo.project.name,
           projectNumber: photo.project.projectNumber,
           publicUrl: photo.publicUrl,
+          uploadedByName: photo.uploadedByName,
+          uploadedByUserId: photo.uploadedByUserId,
           uploadedAt: photo.uploadedAt.toISOString(),
         }))}
         projects={projects.map((project) => ({

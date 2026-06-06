@@ -31,12 +31,33 @@ export type ProjectPhotoGalleryItem = {
   notes: string | null;
   originalFileName: string | null;
   publicUrl: string;
+  uploadedByName: string | null;
+  uploadedByUserId: string | null;
   uploadedAt: string;
 };
 
 export type ProjectPhotoMoveProject = {
   id: string;
   label: string;
+};
+
+type PhotoViewMode = "details" | "large" | "medium" | "small";
+
+const photoViewModes: {
+  label: string;
+  value: PhotoViewMode;
+}[] = [
+  { label: "Details", value: "details" },
+  { label: "Groß", value: "large" },
+  { label: "Mittel", value: "medium" },
+  { label: "Klein", value: "small" },
+];
+
+const photoGridClasses: Record<PhotoViewMode, string> = {
+  details: "mt-4 grid grid-cols-1 gap-3",
+  large: "mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3",
+  medium: "mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5",
+  small: "mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8",
 };
 
 export function ProjectPhotoGallery({
@@ -55,6 +76,7 @@ export function ProjectPhotoGallery({
     () => new Set(),
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<PhotoViewMode>("details");
   const selectedPhoto =
     selectedIndex === null ? null : (photos[selectedIndex] ?? null);
   const hasMultiplePhotos = photos.length > 1;
@@ -218,6 +240,14 @@ export function ProjectPhotoGallery({
     });
   }
 
+  function downloadSelectedPhotos() {
+    for (const photo of photos) {
+      if (selectedPhotoIds.has(photo.id)) {
+        downloadPhoto(photo);
+      }
+    }
+  }
+
   function refreshGpsLocations() {
     startPhotoActionTransition(async () => {
       try {
@@ -274,6 +304,10 @@ export function ProjectPhotoGallery({
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <PhotoViewModeSelector
+              onChange={setViewMode}
+              viewMode={viewMode}
+            />
             <select
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 outline-none focus:border-gray-900 disabled:opacity-60"
               disabled={
@@ -306,6 +340,14 @@ export function ProjectPhotoGallery({
               Verschieben
             </button>
             <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+              disabled={selectedCount === 0 || isPhotoActionPending}
+              onClick={downloadSelectedPhotos}
+              type="button"
+            >
+              Herunterladen
+            </button>
+            <button
               className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
               disabled={selectedCount === 0 || isPhotoActionPending}
               onClick={deleteSelectedPhotos}
@@ -317,90 +359,18 @@ export function ProjectPhotoGallery({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3">
+      <div className={photoGridClasses[viewMode]}>
         {photos.map((photo, index) => (
-          <article
-            className={`overflow-hidden rounded-lg border p-2 transition ${
-              selectedPhotoIds.has(photo.id)
-                ? "border-blue-300 bg-blue-50"
-                : "border-gray-200 bg-gray-50"
-            }`}
+          <PhotoGalleryCard
+            index={index}
             key={photo.id}
-          >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-gray-800">
-                <input
-                  checked={selectedPhotoIds.has(photo.id)}
-                  className="h-4 w-4"
-                  disabled={isPhotoActionPending}
-                  onChange={(event) =>
-                    togglePhotoSelection(photo.id, event.target.checked)
-                  }
-                  type="checkbox"
-                />
-                Markieren
-              </label>
-            </div>
-
-            <button
-              className="grid w-full grid-cols-1 gap-3 text-left transition hover:opacity-90 sm:grid-cols-[150px_1fr]"
-              onClick={() => setSelectedIndex(index)}
-              type="button"
-            >
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
-                <Image
-                  alt="Projektfoto"
-                  className="object-cover"
-                  fill
-                  sizes="150px"
-                  src={photo.publicUrl}
-                  unoptimized
-                />
-              </div>
-
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-xs font-semibold text-gray-900">
-                    Hochgeladen {formatDateTime(photo.uploadedAt)}
-                  </div>
-                  <PhotoPill
-                    label={
-                      photo.metadataTaken
-                        ? "Metadaten übernommen"
-                        : "Ohne Metadaten"
-                    }
-                    tone={photo.metadataTaken ? "green" : "gray"}
-                  />
-                  {photo.availableForDailyReports ? (
-                    <PhotoPill label="Bautagesbericht" tone="blue" />
-                  ) : null}
-                </div>
-
-                <div className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-700">
-                  <span className="font-semibold text-gray-900">Notiz:</span>{" "}
-                  {photo.notes || "Ohne Notiz"}
-                </div>
-
-                <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
-                  <PhotoMetaItem
-                    label="Aufnahme"
-                    value={
-                      photo.capturedAt ? formatDateTime(photo.capturedAt) : "-"
-                    }
-                  />
-                  <PhotoMetaItem label="Kamera" value={getCameraLabel(photo)} />
-                  <PhotoMetaItem
-                    label="GPS-Ort"
-                    value={getGpsSummaryLabel(photo)}
-                  />
-                  <PhotoMetaItem
-                    label="Bildgröße"
-                    value={getImageSizeLabel(photo)}
-                  />
-                </div>
-              </div>
-            </button>
-          </article>
+            isPending={isPhotoActionPending}
+            isSelected={selectedPhotoIds.has(photo.id)}
+            onOpen={() => setSelectedIndex(index)}
+            onToggle={(checked) => togglePhotoSelection(photo.id, checked)}
+            photo={photo}
+            viewMode={viewMode}
+          />
         ))}
       </div>
 
@@ -411,6 +381,7 @@ export function ProjectPhotoGallery({
           isDeleting={isPhotoActionPending}
           onClose={() => setSelectedIndex(null)}
           onDelete={() => deleteSelectedPhoto(selectedPhoto)}
+          onDownload={() => downloadPhoto(selectedPhoto)}
           onNext={() =>
             setSelectedIndex((current) =>
               current === null
@@ -433,12 +404,201 @@ export function ProjectPhotoGallery({
   );
 }
 
+function PhotoViewModeSelector({
+  onChange,
+  viewMode,
+}: {
+  onChange: (viewMode: PhotoViewMode) => void;
+  viewMode: PhotoViewMode;
+}) {
+  return (
+    <div
+      aria-label="Fotoansicht"
+      className="flex w-fit overflow-hidden rounded-lg border border-gray-300 bg-white"
+      role="group"
+    >
+      {photoViewModes.map((mode) => (
+        <button
+          className={`border-r border-gray-200 px-3 py-2 text-xs font-semibold last:border-r-0 ${
+            viewMode === mode.value
+              ? "bg-gray-900 text-white"
+              : "text-gray-800 hover:bg-gray-50"
+          }`}
+          key={mode.value}
+          onClick={() => onChange(mode.value)}
+          type="button"
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PhotoGalleryCard({
+  index,
+  isPending,
+  isSelected,
+  onOpen,
+  onToggle,
+  photo,
+  viewMode,
+}: {
+  index: number;
+  isPending: boolean;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggle: (checked: boolean) => void;
+  photo: ProjectPhotoGalleryItem;
+  viewMode: PhotoViewMode;
+}) {
+  if (viewMode === "details") {
+    return (
+      <article
+        className={`overflow-hidden rounded-lg border p-2 transition ${
+          isSelected ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-gray-50"
+        }`}
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-xs font-semibold text-gray-800">
+            <input
+              checked={isSelected}
+              className="h-4 w-4"
+              disabled={isPending}
+              onChange={(event) => onToggle(event.target.checked)}
+              type="checkbox"
+            />
+            Markieren
+          </label>
+        </div>
+
+        <button
+          className="grid w-full grid-cols-1 gap-3 text-left transition hover:opacity-90 sm:grid-cols-[150px_1fr]"
+          onClick={onOpen}
+          type="button"
+        >
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
+            <Image
+              alt={`Projektfoto ${index + 1}`}
+              className="object-cover"
+              fill
+              sizes="150px"
+              src={photo.publicUrl}
+              unoptimized
+            />
+          </div>
+
+          <div className="min-w-0">
+            <PhotoCardHeader photo={photo} />
+
+            <div className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-700">
+              <span className="font-semibold text-gray-900">Notiz:</span>{" "}
+              {photo.notes || "Ohne Notiz"}
+            </div>
+
+            <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+              <PhotoMetaItem
+                label="Aufnahme"
+                value={photo.capturedAt ? formatDateTime(photo.capturedAt) : "-"}
+              />
+              <PhotoMetaItem label="Kamera" value={getCameraLabel(photo)} />
+              <PhotoMetaItem label="GPS-Ort" value={getGpsSummaryLabel(photo)} />
+              <PhotoMetaItem label="Bildgröße" value={getImageSizeLabel(photo)} />
+            </div>
+          </div>
+        </button>
+      </article>
+    );
+  }
+
+  return (
+    <article
+      className={`relative overflow-hidden rounded-lg border bg-white transition ${
+        isSelected ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200"
+      }`}
+    >
+      <label className="absolute left-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/95 shadow">
+        <span className="sr-only">Foto markieren</span>
+        <input
+          checked={isSelected}
+          className="h-4 w-4"
+          disabled={isPending}
+          onChange={(event) => onToggle(event.target.checked)}
+          type="checkbox"
+        />
+      </label>
+
+      <button
+        className="block w-full text-left transition hover:opacity-90"
+        onClick={onOpen}
+        type="button"
+      >
+        <div className="relative aspect-[4/3] w-full bg-gray-100">
+          <Image
+            alt={`Projektfoto ${index + 1}`}
+            className="object-cover"
+            fill
+            sizes={getPhotoImageSizes(viewMode)}
+            src={photo.publicUrl}
+            unoptimized
+          />
+        </div>
+
+        {viewMode !== "small" ? (
+          <div className="min-w-0 p-2">
+            <div className="truncate text-xs font-semibold text-gray-900">
+              {formatDateTime(photo.uploadedAt)}
+            </div>
+            {viewMode === "large" ? (
+              <>
+                <div className="mt-1 truncate text-xs text-gray-500">
+                  {getUploaderLabel(photo)}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <PhotoPill
+                    label={photo.metadataTaken ? "Metadaten" : "Ohne Metadaten"}
+                    tone={photo.metadataTaken ? "green" : "gray"}
+                  />
+                  {photo.availableForDailyReports ? (
+                    <PhotoPill label="Bericht" tone="blue" />
+                  ) : null}
+                </div>
+                <div className="mt-2 line-clamp-2 text-xs text-gray-600">
+                  {photo.notes || "Ohne Notiz"}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </button>
+    </article>
+  );
+}
+
+function PhotoCardHeader({ photo }: { photo: ProjectPhotoGalleryItem }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="text-xs font-semibold text-gray-900">
+        Hochgeladen {formatDateTime(photo.uploadedAt)} · {getUploaderLabel(photo)}
+      </div>
+      <PhotoPill
+        label={photo.metadataTaken ? "Metadaten übernommen" : "Ohne Metadaten"}
+        tone={photo.metadataTaken ? "green" : "gray"}
+      />
+      {photo.availableForDailyReports ? (
+        <PhotoPill label="Bautagesbericht" tone="blue" />
+      ) : null}
+    </div>
+  );
+}
+
 function PhotoDetailModal({
   currentIndex,
   hasMultiplePhotos,
   isDeleting,
   onClose,
   onDelete,
+  onDownload,
   onNext,
   onPrevious,
   photo,
@@ -449,6 +609,7 @@ function PhotoDetailModal({
   isDeleting: boolean;
   onClose: () => void;
   onDelete: () => void;
+  onDownload: () => void;
   onNext: () => void;
   onPrevious: () => void;
   photo: ProjectPhotoGalleryItem;
@@ -499,26 +660,39 @@ function PhotoDetailModal({
                 Fotodetails
               </h3>
               <p className="mt-1 text-xs font-medium text-gray-500">
-                Foto {currentIndex + 1} von {totalCount} · Hochgeladen{" "}
-                {formatDateTime(photo.uploadedAt)}
+                Foto {currentIndex + 1} von {totalCount}
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button
-                className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                aria-label="Foto herunterladen"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-60"
                 disabled={isDeleting}
-                onClick={onDelete}
+                onClick={onDownload}
+                title="Foto herunterladen"
                 type="button"
               >
-                {isDeleting ? "Löscht..." : "Löschen"}
+                <DownloadIcon />
               </button>
               <button
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                aria-label="Foto löschen"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-60"
                 disabled={isDeleting}
-                onClick={onClose}
+                onClick={onDelete}
+                title="Foto löschen"
                 type="button"
               >
-                Schließen
+                <TrashIcon />
+              </button>
+              <button
+                aria-label="Fotodetails schließen"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={isDeleting}
+                onClick={onClose}
+                title="Schließen"
+                type="button"
+              >
+                <CloseIcon />
               </button>
             </div>
           </div>
@@ -564,6 +738,12 @@ function PhotoDetailModal({
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
+            <DetailRow
+              label="Hochgeladen"
+              value={`${formatDateTime(photo.uploadedAt)} · ${getUploaderLabel(
+                photo,
+              )}`}
+            />
             <DetailRow label="Aufnahme" value={getCapturedAtLabel(photo)} />
             <DetailRow label="Kamera" value={getCameraLabel(photo)} />
             <DetailRow label="Bildgröße" value={getImageSizeLabel(photo)} />
@@ -591,6 +771,64 @@ function PhotoDetailModal({
         </aside>
       </div>
     </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 15H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
   );
 }
 
@@ -687,6 +925,10 @@ function getCameraLabel(photo: ProjectPhotoGalleryItem) {
   return [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ") || "-";
 }
 
+function getUploaderLabel(photo: ProjectPhotoGalleryItem) {
+  return photo.uploadedByName || "Unbekannt";
+}
+
 function getCapturedAtLabel(photo: ProjectPhotoGalleryItem) {
   return photo.capturedAt ? formatDateTime(photo.capturedAt) : "-";
 }
@@ -773,6 +1015,36 @@ function getImageSizeLabel(photo: ProjectPhotoGalleryItem) {
   }
 
   return `${photo.imageWidth} x ${photo.imageHeight}px`;
+}
+
+function getPhotoImageSizes(viewMode: PhotoViewMode) {
+  if (viewMode === "large") {
+    return "(min-width: 1280px) 28vw, (min-width: 768px) 45vw, 100vw";
+  }
+
+  if (viewMode === "medium") {
+    return "(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw";
+  }
+
+  return "(min-width: 1280px) 12vw, (min-width: 640px) 22vw, 33vw";
+}
+
+function downloadPhoto(photo: ProjectPhotoGalleryItem) {
+  const link = document.createElement("a");
+  link.href = photo.publicUrl;
+  link.download = getPhotoDownloadFileName(photo);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function getPhotoDownloadFileName(photo: ProjectPhotoGalleryItem) {
+  if (photo.originalFileName) {
+    return photo.originalFileName;
+  }
+
+  const urlParts = photo.publicUrl.split("/");
+  return urlParts.at(-1) || `projektfoto-${photo.id}`;
 }
 
 function formatDateTime(value: string) {

@@ -198,7 +198,7 @@ export default async function ProjectsPage() {
               key={item.project.id}
               className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
             >
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_1fr_1fr]">
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.65fr)]">
                 <div>
                   <div className="flex flex-wrap items-start gap-3">
                     <div>
@@ -246,39 +246,52 @@ export default async function ProjectsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <div className="text-sm font-semibold text-gray-900">
-                    Personal / Geräte
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(360px,1.15fr)]">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="text-sm font-semibold text-gray-900">
+                      Personal / Geräte
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <MiniMetric
+                        label="Personal"
+                        value={`${item.people.length}`}
+                      />
+                      <MiniMetric
+                        label="Geräte"
+                        value={`${item.equipment.length}`}
+                      />
+                      <MiniMetric label="LKW-Bezug" value={`${item.truckCount}`} />
+                      <MiniMetric
+                        label="Asphaltdispo"
+                        value={`${item.project.asphaltDispatchEntries.length}`}
+                      />
+                    </div>
+                    <p className="mt-3 line-clamp-3 text-xs text-gray-600">
+                      {item.people.length
+                        ? item.people.slice(0, 8).join(", ")
+                        : "Noch kein Personal aus der Disposition zugeordnet."}
+                    </p>
+                    {item.equipment.length ? (
+                      <p className="mt-2 line-clamp-2 text-xs text-gray-600">
+                        {item.equipment.slice(0, 6).join(", ")}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                    <MiniMetric label="Personal" value={`${item.people.length}`} />
-                    <MiniMetric label="Geräte" value={`${item.equipment.length}`} />
-                    <MiniMetric label="LKW-Bezug" value={`${item.truckCount}`} />
-                    <MiniMetric
-                      label="Asphaltdispo"
-                      value={`${item.project.asphaltDispatchEntries.length}`}
+
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="text-sm font-semibold text-gray-900">
+                      Kartenausschnitt
+                    </div>
+                    <ProjectMap
+                      address={item.project.siteAddress}
+                      boundaryGeoJson={item.project.siteBoundaryGeoJson}
+                      className="mt-3"
+                      heightClass="h-48"
+                      latitude={item.project.mapLatitude}
+                      longitude={item.project.mapLongitude}
+                      zoom={item.project.mapZoom}
                     />
                   </div>
-                  <p className="mt-3 line-clamp-2 text-xs text-gray-600">
-                    {item.people.length
-                      ? item.people.slice(0, 6).join(", ")
-                      : "Noch kein Personal aus der Disposition zugeordnet."}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <div className="text-sm font-semibold text-gray-900">
-                    Kartenausschnitt
-                  </div>
-                  <ProjectMap
-                    address={item.project.siteAddress}
-                    boundaryGeoJson={item.project.siteBoundaryGeoJson}
-                    className="mt-3"
-                    heightClass="h-28"
-                    latitude={item.project.mapLatitude}
-                    longitude={item.project.mapLongitude}
-                    zoom={item.project.mapZoom}
-                  />
                 </div>
               </div>
             </article>
