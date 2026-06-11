@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 export type ActionIconName =
+  | "close"
   | "delete"
   | "download"
   | "edit"
@@ -25,6 +26,15 @@ export function ActionIcon({
     viewBox: "0 0 24 24",
     ...props,
   };
+
+  if (name === "close") {
+    return (
+      <svg {...sharedProps}>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    );
+  }
 
   if (name === "edit") {
     return (

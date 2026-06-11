@@ -3,6 +3,7 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadProjectPhotos } from "./actions";
+import { ProjectFileDropInput } from "./ProjectFileDropInput";
 import {
   ProjectPhotoGallery,
   type ProjectPhotoGalleryItem,
@@ -170,13 +171,13 @@ export function ProjectPhotoManager({
 
             <label className="text-sm font-semibold text-gray-800">
               Fotos
-              <input
+              <ProjectFileDropInput
                 accept="image/*"
-                className="mt-1 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-900 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+                emptyLabel="Fotos auswählen oder ablegen"
                 multiple
                 name="photos"
                 required
-                type="file"
+                selectedLabel="Drag & Drop oder Klick zum Auswählen"
               />
             </label>
 

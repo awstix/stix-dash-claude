@@ -3,6 +3,7 @@
 import { FormEvent, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadProjectPhotos } from "./actions";
+import { ProjectFileDropInput } from "./ProjectFileDropInput";
 
 export function ProjectInlinePhotoUpload({
   projectId,
@@ -66,13 +67,13 @@ export function ProjectInlinePhotoUpload({
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1fr]">
           <label className="text-sm font-semibold text-gray-800">
             Fotos
-            <input
+            <ProjectFileDropInput
               accept="image/*"
-              className="mt-1 w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-sm text-gray-900 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+              emptyLabel="Fotos auswählen oder ablegen"
               multiple
               name="photos"
               required
-              type="file"
+              selectedLabel="Drag & Drop oder Klick zum Auswählen"
             />
           </label>
 

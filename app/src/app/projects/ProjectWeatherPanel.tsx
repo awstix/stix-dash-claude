@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { refreshProjectWeather } from "./actions";
+
+const AUTO_REFRESH_COOLDOWN_MS = 60_000;
 
 export type ProjectWeatherEntry = {
   currentPrecipitationMm: number | null;
@@ -52,20 +54,42 @@ export function ProjectWeatherPanel({
   const canGoBack = visibleForecastStartIndex > 1;
   const canGoForward = visibleForecastStartIndex + 5 < entries.length;
 
-  function refreshWeather() {
-    startTransition(async () => {
-      try {
-        await refreshProjectWeather(projectId);
-        router.refresh();
-      } catch (error) {
-        alert(
-          error instanceof Error
-            ? error.message
-            : "Wetterdaten konnten nicht aktualisiert werden.",
-        );
-      }
-    });
-  }
+  const refreshWeather = useCallback(
+    ({ showError = true }: { showError?: boolean } = {}) => {
+      startTransition(async () => {
+        try {
+          await refreshProjectWeather(projectId);
+          router.refresh();
+        } catch (error) {
+          if (!showError) {
+            return;
+          }
+
+          alert(
+            error instanceof Error
+              ? error.message
+              : "Wetterdaten konnten nicht aktualisiert werden.",
+          );
+        }
+      });
+    },
+    [projectId, router],
+  );
+
+  useEffect(() => {
+    if (!hasCoordinates) return;
+
+    const storageKey = `project-weather-auto-refresh:${projectId}`;
+    const lastRefresh = Number(window.sessionStorage.getItem(storageKey) ?? 0);
+    const now = Date.now();
+
+    if (Number.isFinite(lastRefresh) && now - lastRefresh < AUTO_REFRESH_COOLDOWN_MS) {
+      return;
+    }
+
+    window.sessionStorage.setItem(storageKey, String(now));
+    refreshWeather({ showError: false });
+  }, [hasCoordinates, projectId, refreshWeather]);
 
   return (
     <section className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
@@ -79,7 +103,7 @@ export function ProjectWeatherPanel({
         <button
           className="w-fit rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
           disabled={!hasCoordinates || isPending}
-          onClick={refreshWeather}
+          onClick={() => refreshWeather()}
           type="button"
         >
           {isPending ? "Aktualisiert..." : "Wetter aktualisieren"}

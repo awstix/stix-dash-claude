@@ -7,6 +7,14 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { ProjectStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  PROJECT_FORM_FIELD_TYPES,
+  parseProjectFormFields,
+} from "./projectFormTypes";
+import type {
+  ProjectFormFieldDefinition,
+  ProjectFormFieldType,
+} from "./projectFormTypes";
 
 export type ProjectFormInput = {
   id?: string;
@@ -52,6 +60,57 @@ export type ProjectPhotoUpdateInput = {
 export type ProjectPhotosMoveInput = {
   photoIds: string[];
   targetProjectId: string;
+};
+
+export type ProjectDocumentFolderCreateInput = {
+  name: string;
+  projectId: string;
+};
+
+export type ProjectDocumentFolderDeleteInput = {
+  id: string;
+};
+
+export type ProjectDocumentFolderUpdateInput = {
+  id: string;
+  name: string;
+};
+
+export type ProjectDocumentUpdateInput = {
+  displayName: string;
+  id: string;
+};
+
+export type ProjectDocumentsMoveInput = {
+  documentIds: string[];
+  targetFolderId?: string;
+  targetProjectId: string;
+};
+
+export type ProjectFormTemplateCreateInput = {
+  category: string;
+  description: string;
+  fields: Array<{
+    label: string;
+    options?: string[];
+    optionsText?: string;
+    required: boolean;
+    type: string;
+  }>;
+  name: string;
+};
+
+export type ProjectFormSubmissionInput = {
+  createdByName: string;
+  formDate: string;
+  projectId: string;
+  templateId: string;
+  title: string;
+  values: Record<string, boolean | string>;
+};
+
+export type ProjectFormSubmissionDeleteInput = {
+  id: string;
 };
 
 type PhotoGpsAddress = {
@@ -146,6 +205,17 @@ function revalidateProjectViews(projectId?: string) {
 function revalidateProjectPhotoViews(projectId?: string) {
   revalidateProjectViews(projectId);
   revalidatePath("/projects/fotos");
+  revalidatePath("/projects/bautagesberichte");
+}
+
+function revalidateProjectDocumentViews(projectId?: string) {
+  revalidateProjectViews(projectId);
+  revalidatePath("/projects/dokumente");
+}
+
+function revalidateProjectFormViews(projectId?: string) {
+  revalidateProjectViews(projectId);
+  revalidatePath("/projects/formulare");
   revalidatePath("/projects/bautagesberichte");
 }
 
@@ -783,6 +853,599 @@ export async function moveProjectPhotos(input: ProjectPhotosMoveInput) {
   }
 }
 
+export async function createProjectDocumentFolder(
+  input: ProjectDocumentFolderCreateInput,
+) {
+  const projectId = input.projectId.trim();
+  const name = cleanFolderName(input.name);
+
+  if (!projectId) {
+    throw new Error("Bitte ein Projekt auswählen.");
+  }
+
+  if (!name) {
+    throw new Error("Bitte einen Ordnernamen eintragen.");
+  }
+
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!project) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  const sortOrder = await getNextProjectDocumentFolderSortOrder(projectId);
+
+  await prisma.projectDocumentFolder.upsert({
+    where: {
+      projectId_name: {
+        projectId,
+        name,
+      },
+    },
+    create: {
+      projectId,
+      name,
+      sortOrder,
+    },
+    update: {},
+  });
+
+  revalidateProjectDocumentViews(projectId);
+}
+
+export async function deleteProjectDocumentFolder(
+  input: ProjectDocumentFolderDeleteInput,
+) {
+  const folderId = input.id.trim();
+
+  if (!folderId) {
+    throw new Error("Ordner-ID fehlt.");
+  }
+
+  const folder = await prisma.projectDocumentFolder.findUnique({
+    where: {
+      id: folderId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
+
+  if (!folder) {
+    return;
+  }
+
+  await prisma.projectDocumentFolder.delete({
+    where: {
+      id: folderId,
+    },
+  });
+
+  revalidateProjectDocumentViews(folder.projectId);
+}
+
+export async function updateProjectDocumentFolder(
+  input: ProjectDocumentFolderUpdateInput,
+) {
+  const folderId = input.id.trim();
+  const name = cleanFolderName(input.name);
+
+  if (!folderId) {
+    throw new Error("Ordner-ID fehlt.");
+  }
+
+  if (!name) {
+    throw new Error("Bitte einen Ordnernamen eintragen.");
+  }
+
+  const folder = await prisma.projectDocumentFolder.findUnique({
+    where: {
+      id: folderId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Ordner wurde nicht gefunden.");
+  }
+
+  const duplicateFolder = await prisma.projectDocumentFolder.findFirst({
+    where: {
+      id: {
+        not: folderId,
+      },
+      name,
+      projectId: folder.projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (duplicateFolder) {
+    throw new Error("Ein Ordner mit diesem Namen existiert in diesem Projekt schon.");
+  }
+
+  await prisma.projectDocumentFolder.update({
+    where: {
+      id: folderId,
+    },
+    data: {
+      name,
+    },
+  });
+
+  revalidateProjectDocumentViews(folder.projectId);
+}
+
+export async function uploadProjectDocuments(formData: FormData) {
+  const projectId = cleanFormString(formData.get("projectId"));
+  const folderId = cleanFormString(formData.get("folderId"));
+  const displayName = cleanUploadText(
+    cleanFormString(formData.get("displayName")),
+  );
+  const uploadedByName = cleanUploadText(
+    cleanFormString(formData.get("uploadedByName")),
+  );
+  const uploadedByUserId = cleanFormString(formData.get("uploadedByUserId"));
+  const files = formData
+    .getAll("documents")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+  if (!projectId) {
+    throw new Error("Bitte ein Projekt auswählen.");
+  }
+
+  if (files.length === 0) {
+    throw new Error("Bitte mindestens ein Dokument auswählen.");
+  }
+
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!project) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  const targetFolderId = folderId
+    ? await getProjectDocumentFolderId(projectId, folderId)
+    : null;
+
+  for (const file of files) {
+    if (file.size > 100 * 1024 * 1024) {
+      throw new Error(`"${file.name}" ist größer als 100 MB.`);
+    }
+  }
+
+  const uploadDirectory = path.join(
+    process.cwd(),
+    "public",
+    "uploads",
+    "project-documents",
+    projectId,
+  );
+  await mkdir(uploadDirectory, { recursive: true });
+
+  for (const [index, file] of files.entries()) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const extension = getDocumentExtension(file);
+    const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
+    const absolutePath = path.join(uploadDirectory, fileName);
+    const storagePath = path.join(
+      "public",
+      "uploads",
+      "project-documents",
+      projectId,
+      fileName,
+    );
+    const publicUrl = `/uploads/project-documents/${projectId}/${fileName}`;
+    const originalFileName = cleanDocumentFileName(file.name);
+    const documentDisplayName = getDocumentDisplayName(
+      files.length === 1 ? displayName : "",
+      originalFileName,
+      index,
+    );
+
+    await writeFile(absolutePath, buffer);
+
+    try {
+      await prisma.projectDocument.create({
+        data: {
+          projectId,
+          folderId: targetFolderId,
+          displayName: documentDisplayName,
+          fileName,
+          originalFileName,
+          publicUrl,
+          storagePath,
+          mimeType: file.type || "application/octet-stream",
+          fileSizeBytes: file.size,
+          uploadedByName: uploadedByName || null,
+          uploadedByUserId: uploadedByUserId || null,
+        },
+      });
+    } catch (error) {
+      await unlink(absolutePath).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  revalidateProjectDocumentViews(projectId);
+}
+
+export async function updateProjectDocument(input: ProjectDocumentUpdateInput) {
+  if (!input.id) {
+    throw new Error("Dokument-ID fehlt.");
+  }
+
+  const displayName = cleanUploadText(input.displayName);
+
+  if (!displayName) {
+    throw new Error("Name darf nicht leer sein.");
+  }
+
+  const document = await prisma.projectDocument.update({
+    where: {
+      id: input.id,
+    },
+    data: {
+      displayName,
+    },
+    select: {
+      projectId: true,
+    },
+  });
+
+  revalidateProjectDocumentViews(document.projectId);
+}
+
+export async function deleteProjectDocument(id: string) {
+  if (!id) {
+    throw new Error("Dokument-ID fehlt.");
+  }
+
+  const document = await prisma.projectDocument.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      projectId: true,
+      storagePath: true,
+    },
+  });
+
+  if (!document) {
+    return;
+  }
+
+  await prisma.projectDocument.delete({
+    where: {
+      id,
+    },
+  });
+
+  try {
+    await unlink(path.join(process.cwd(), document.storagePath));
+  } catch {
+    // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
+  }
+
+  revalidateProjectDocumentViews(document.projectId);
+}
+
+export async function deleteProjectDocuments(documentIds: string[]) {
+  const uniqueDocumentIds = cleanDocumentIds(documentIds);
+
+  if (uniqueDocumentIds.length === 0) {
+    throw new Error("Bitte mindestens ein Dokument auswählen.");
+  }
+
+  const documents = await prisma.projectDocument.findMany({
+    where: {
+      id: {
+        in: uniqueDocumentIds,
+      },
+    },
+    select: {
+      projectId: true,
+      storagePath: true,
+    },
+  });
+
+  if (documents.length === 0) {
+    return;
+  }
+
+  await prisma.projectDocument.deleteMany({
+    where: {
+      id: {
+        in: uniqueDocumentIds,
+      },
+    },
+  });
+
+  await Promise.all(
+    documents.map(async (document) => {
+      try {
+        await unlink(path.join(process.cwd(), document.storagePath));
+      } catch {
+        // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
+      }
+    }),
+  );
+
+  for (const projectId of new Set(documents.map((document) => document.projectId))) {
+    revalidateProjectDocumentViews(projectId);
+  }
+}
+
+export async function moveProjectDocuments(input: ProjectDocumentsMoveInput) {
+  const uniqueDocumentIds = cleanDocumentIds(input.documentIds);
+  const targetProjectId = input.targetProjectId.trim();
+  const targetFolderId = input.targetFolderId?.trim() || null;
+
+  if (uniqueDocumentIds.length === 0) {
+    throw new Error("Bitte mindestens ein Dokument auswählen.");
+  }
+
+  if (!targetProjectId) {
+    throw new Error("Bitte eine Zielbaustelle auswählen.");
+  }
+
+  const targetProject = await prisma.project.findUnique({
+    where: {
+      id: targetProjectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!targetProject) {
+    throw new Error("Zielbaustelle wurde nicht gefunden.");
+  }
+
+  const resolvedTargetFolderId = targetFolderId
+    ? await getProjectDocumentFolderId(targetProjectId, targetFolderId)
+    : null;
+
+  const documents = await prisma.projectDocument.findMany({
+    where: {
+      id: {
+        in: uniqueDocumentIds,
+      },
+    },
+    select: {
+      fileName: true,
+      id: true,
+      projectId: true,
+      storagePath: true,
+    },
+  });
+
+  if (documents.length === 0) {
+    return;
+  }
+
+  const targetDirectory = path.join(
+    process.cwd(),
+    "public",
+    "uploads",
+    "project-documents",
+    targetProjectId,
+  );
+  await mkdir(targetDirectory, { recursive: true });
+
+  const affectedProjectIds = new Set<string>([targetProjectId]);
+
+  for (const document of documents) {
+    const isProjectChange = document.projectId !== targetProjectId;
+    let targetFileName = document.fileName;
+    let newPublicUrl: string | undefined;
+    let newStoragePath: string | undefined;
+
+    if (isProjectChange) {
+      affectedProjectIds.add(document.projectId);
+      targetFileName = await getAvailableMovedDocumentFileName(
+        targetDirectory,
+        document.fileName,
+      );
+      newStoragePath = path.join(
+        "public",
+        "uploads",
+        "project-documents",
+        targetProjectId,
+        targetFileName,
+      );
+      newPublicUrl = `/uploads/project-documents/${targetProjectId}/${targetFileName}`;
+
+      try {
+        await rename(
+          path.join(process.cwd(), document.storagePath),
+          path.join(process.cwd(), newStoragePath),
+        );
+      } catch {
+        // Wenn die Datei extern fehlt, wird wenigstens die Projektzuordnung korrigiert.
+      }
+    }
+
+    await prisma.projectDocument.update({
+      where: {
+        id: document.id,
+      },
+      data: {
+        fileName: targetFileName,
+        folderId: resolvedTargetFolderId,
+        projectId: targetProjectId,
+        ...(newPublicUrl && newStoragePath
+          ? {
+              publicUrl: newPublicUrl,
+              storagePath: newStoragePath,
+            }
+          : {}),
+      },
+    });
+  }
+
+  for (const projectId of affectedProjectIds) {
+    revalidateProjectDocumentViews(projectId);
+  }
+}
+
+export async function createProjectFormTemplate(
+  input: ProjectFormTemplateCreateInput,
+) {
+  const name = cleanProjectFormText(input.name, 120);
+  const category = cleanProjectFormText(input.category, 80);
+  const description = cleanProjectFormText(input.description, 500);
+  const fields = cleanProjectFormTemplateFields(input.fields);
+
+  if (!name) {
+    throw new Error("Bitte einen Namen für die Formularvorlage eintragen.");
+  }
+
+  if (fields.length === 0) {
+    throw new Error("Bitte mindestens ein Feld für die Vorlage anlegen.");
+  }
+
+  const result = await prisma.projectFormTemplate.aggregate({
+    _max: {
+      sortOrder: true,
+    },
+  });
+
+  await prisma.projectFormTemplate.create({
+    data: {
+      category: category || null,
+      description: description || null,
+      fieldsJson: JSON.stringify(fields),
+      name,
+      sortOrder: (result._max.sortOrder ?? 0) + 10,
+    },
+  });
+
+  revalidateProjectFormViews();
+}
+
+export async function saveProjectFormSubmission(
+  input: ProjectFormSubmissionInput,
+) {
+  const projectId = input.projectId.trim();
+  const templateId = input.templateId.trim();
+
+  if (!projectId) {
+    throw new Error("Bitte ein Projekt auswählen.");
+  }
+
+  if (!templateId) {
+    throw new Error("Bitte eine Formularvorlage auswählen.");
+  }
+
+  const [project, template] = await Promise.all([
+    prisma.project.findUnique({
+      where: {
+        id: projectId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.projectFormTemplate.findFirst({
+      where: {
+        id: templateId,
+        isActive: true,
+      },
+    }),
+  ]);
+
+  if (!project) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  if (!template) {
+    throw new Error("Formularvorlage wurde nicht gefunden.");
+  }
+
+  const fields = parseProjectFormFields(template.fieldsJson);
+
+  if (fields.length === 0) {
+    throw new Error("Diese Formularvorlage hat keine Felder.");
+  }
+
+  const values = cleanProjectFormSubmissionValues(fields, input.values);
+  const formDate = cleanProjectFormDate(input.formDate);
+  const title =
+    cleanProjectFormText(input.title, 140) ||
+    `${template.name}${input.formDate ? ` ${input.formDate}` : ""}`;
+
+  await prisma.projectFormSubmission.create({
+    data: {
+      createdByName: cleanProjectFormText(input.createdByName, 120) || null,
+      formDate,
+      projectId,
+      status: "SAVED",
+      templateId,
+      templateSnapshotJson: JSON.stringify({
+        category: template.category,
+        description: template.description,
+        fields,
+        name: template.name,
+        templateId: template.id,
+      }),
+      title,
+      valuesJson: JSON.stringify(values),
+    },
+  });
+
+  revalidateProjectFormViews(projectId);
+}
+
+export async function deleteProjectFormSubmission(
+  input: ProjectFormSubmissionDeleteInput,
+) {
+  const submissionId = input.id.trim();
+
+  if (!submissionId) {
+    throw new Error("Formular-ID fehlt.");
+  }
+
+  const submission = await prisma.projectFormSubmission.findUnique({
+    where: {
+      id: submissionId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
+
+  if (!submission) {
+    return;
+  }
+
+  await prisma.projectFormSubmission.delete({
+    where: {
+      id: submissionId,
+    },
+  });
+
+  revalidateProjectFormViews(submission.projectId);
+}
+
 export async function cancelProject(id: string) {
   await prisma.project.update({
     where: {
@@ -876,7 +1539,282 @@ function cleanPhotoIds(photoIds: string[]) {
   );
 }
 
+function cleanDocumentIds(documentIds: string[]) {
+  return Array.from(
+    new Set(
+      documentIds
+        .filter((documentId) => typeof documentId === "string")
+        .map((documentId) => documentId.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function cleanFolderName(value: string) {
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned.length > 80 ? cleaned.slice(0, 80) : cleaned;
+}
+
+function cleanDocumentFileName(value: string) {
+  const cleaned =
+    value.replace(/[\u0000-\u001f\u007f]/g, "").trim() || "Dokument";
+  return cleaned.length > 220 ? cleaned.slice(0, 220) : cleaned;
+}
+
+function cleanProjectFormText(value: string, maxLength: number) {
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned.length > maxLength ? cleaned.slice(0, maxLength) : cleaned;
+}
+
+function cleanProjectFormDate(value: string) {
+  const cleaned = value.trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const date = new Date(`${cleaned}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Das Formulardatum ist ungültig.");
+  }
+
+  return date;
+}
+
+function cleanProjectFormTemplateFields(
+  fields: ProjectFormTemplateCreateInput["fields"],
+) {
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+
+  const usedIds = new Set<string>();
+
+  return fields
+    .slice(0, 60)
+    .map((field, index) => {
+      const label = cleanProjectFormText(field.label ?? "", 120);
+
+      if (!label) {
+        return null;
+      }
+
+      const type = PROJECT_FORM_FIELD_TYPES.includes(
+        field.type as ProjectFormFieldType,
+      )
+        ? (field.type as ProjectFormFieldType)
+        : "text";
+      const options =
+        type === "select" ? cleanProjectFormFieldOptions(field) : [];
+
+      if (type === "select" && options.length === 0) {
+        throw new Error(`Auswahlfeld "${label}" braucht mindestens eine Option.`);
+      }
+
+      return {
+        id: getProjectFormFieldId(label, index, usedIds),
+        label,
+        options,
+        required: Boolean(field.required),
+        type,
+      } satisfies ProjectFormFieldDefinition;
+    })
+    .filter((field): field is ProjectFormFieldDefinition => Boolean(field));
+}
+
+function cleanProjectFormFieldOptions(
+  field: ProjectFormTemplateCreateInput["fields"][number],
+) {
+  const rawOptions = [
+    ...(Array.isArray(field.options) ? field.options : []),
+    ...(field.optionsText ? field.optionsText.split(/\r?\n|,/) : []),
+  ];
+  const seen = new Set<string>();
+
+  return rawOptions
+    .map((option) => cleanProjectFormText(option, 80))
+    .filter((option) => {
+      if (!option || seen.has(option.toLowerCase())) {
+        return false;
+      }
+
+      seen.add(option.toLowerCase());
+      return true;
+    })
+    .slice(0, 40);
+}
+
+function getProjectFormFieldId(
+  label: string,
+  index: number,
+  usedIds: Set<string>,
+) {
+  const baseId =
+    label
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || `feld_${index + 1}`;
+  let candidate = baseId;
+  let suffix = 2;
+
+  while (usedIds.has(candidate)) {
+    candidate = `${baseId}_${suffix}`;
+    suffix += 1;
+  }
+
+  usedIds.add(candidate);
+  return candidate;
+}
+
+function cleanProjectFormSubmissionValues(
+  fields: ProjectFormFieldDefinition[],
+  rawValues: Record<string, boolean | string>,
+) {
+  const values: Record<string, boolean | string> = {};
+
+  for (const field of fields) {
+    const rawValue = rawValues[field.id];
+
+    if (field.type === "checkbox") {
+      const checked = rawValue === true || rawValue === "true" || rawValue === "on";
+
+      if (field.required && !checked) {
+        throw new Error(`Pflichtfeld "${field.label}" ist nicht ausgefüllt.`);
+      }
+
+      values[field.id] = checked;
+      continue;
+    }
+
+    const value =
+      typeof rawValue === "string" ? cleanProjectFormText(rawValue, 4000) : "";
+
+    if (field.required && !value) {
+      throw new Error(`Pflichtfeld "${field.label}" ist nicht ausgefüllt.`);
+    }
+
+    if (
+      field.type === "select" &&
+      value &&
+      field.options.length > 0 &&
+      !field.options.includes(value)
+    ) {
+      throw new Error(`Auswahl für "${field.label}" ist ungültig.`);
+    }
+
+    if (
+      field.type === "number" &&
+      value &&
+      !Number.isFinite(Number(value.replace(",", ".")))
+    ) {
+      throw new Error(`"${field.label}" muss eine Zahl sein.`);
+    }
+
+    values[field.id] = value;
+  }
+
+  return values;
+}
+
+function getDocumentDisplayName(
+  displayName: string,
+  originalFileName: string,
+  index: number,
+) {
+  if (displayName) {
+    return displayName;
+  }
+
+  const extension = path.extname(originalFileName);
+  const baseName = cleanUploadText(path.basename(originalFileName, extension));
+
+  if (baseName) {
+    return baseName;
+  }
+
+  return `Dokument ${index + 1}`;
+}
+
+function getDocumentExtension(file: File) {
+  const extensionFromName = path
+    .extname(file.name)
+    .replace(".", "")
+    .toLowerCase();
+  const extensionByMime: Record<string, string> = {
+    "application/msword": "doc",
+    "application/pdf": "pdf",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      "docx",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "text/csv": "csv",
+    "text/plain": "txt",
+  };
+
+  if (/^[a-z0-9]{1,12}$/.test(extensionFromName)) {
+    return extensionFromName === "jpeg" ? "jpg" : extensionFromName;
+  }
+
+  return extensionByMime[file.type] ?? "bin";
+}
+
+async function getProjectDocumentFolderId(projectId: string, folderId: string) {
+  const folder = await prisma.projectDocumentFolder.findFirst({
+    where: {
+      id: folderId,
+      projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Ordner wurde für dieses Projekt nicht gefunden.");
+  }
+
+  return folder.id;
+}
+
+async function getNextProjectDocumentFolderSortOrder(projectId: string) {
+  const result = await prisma.projectDocumentFolder.aggregate({
+    where: {
+      projectId,
+    },
+    _max: {
+      sortOrder: true,
+    },
+  });
+
+  return (result._max.sortOrder ?? 0) + 10;
+}
+
 async function getAvailableMovedPhotoFileName(
+  targetDirectory: string,
+  fileName: string,
+) {
+  const extension = path.extname(fileName);
+  const baseName = path.basename(fileName, extension);
+  let candidate = fileName;
+  let index = 1;
+
+  while (await fileExists(path.join(targetDirectory, candidate))) {
+    candidate = `${baseName}-${index}${extension}`;
+    index += 1;
+  }
+
+  return candidate;
+}
+
+async function getAvailableMovedDocumentFileName(
   targetDirectory: string,
   fileName: string,
 ) {

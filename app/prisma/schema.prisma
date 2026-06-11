@@ -50,6 +50,9 @@ model Project {
   weatherLogs            ProjectWeatherLog[]
   dailyReports           ProjectDailyReport[]
   photos                 ProjectPhoto[]
+  documentFolders        ProjectDocumentFolder[]
+  documents              ProjectDocument[]
+  formSubmissions        ProjectFormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -182,6 +185,102 @@ model ProjectDailyReportPhoto {
   @@unique([dailyReportId, photoId])
   @@index([dailyReportId])
   @@index([photoId])
+}
+
+model ProjectDocumentFolder {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name      String
+  sortOrder Int @default(0)
+
+  documents ProjectDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([sortOrder])
+}
+
+model ProjectDocument {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   ProjectDocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  displayName      String
+  fileName         String
+  originalFileName String
+  publicUrl        String
+  storagePath      String
+  mimeType         String
+  fileSizeBytes    Int
+  uploadedByUserId String?
+  uploadedByName   String?
+
+  uploadedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([folderId])
+  @@index([displayName])
+  @@index([originalFileName])
+  @@index([uploadedAt])
+  @@index([uploadedByUserId])
+}
+
+model ProjectFormTemplate {
+  id          String  @id @default(cuid())
+  name        String
+  category    String?
+  description String?
+  fieldsJson  String
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  submissions ProjectFormSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+  @@index([sortOrder])
+}
+
+model ProjectFormSubmission {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  templateId String?
+  template   ProjectFormTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  title                String
+  formDate             DateTime?
+  valuesJson           String
+  templateSnapshotJson String?
+  status               String   @default("DRAFT")
+  createdByUserId      String?
+  createdByName        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([templateId])
+  @@index([formDate])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Driver {

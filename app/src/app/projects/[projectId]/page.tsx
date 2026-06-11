@@ -4,10 +4,17 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectDailyReportWeatherEditor } from "../ProjectDailyReportWeatherEditor";
+import { ProjectDocumentManager } from "../ProjectDocumentManager";
+import { ProjectFormManager } from "../ProjectFormManager";
 import { ProjectPhotoGallery } from "../ProjectPhotoGallery";
 import { ProjectInlinePhotoUpload } from "../ProjectInlinePhotoUpload";
 import { ProjectMapEditor } from "../ProjectMapEditor";
 import { ProjectWeatherPanel } from "../ProjectWeatherPanel";
+import {
+  parseProjectFormFields,
+  parseProjectFormSnapshotFields,
+  parseProjectFormValues,
+} from "../projectFormTypes";
 
 const projectTabs = [
   { label: "Übersicht", href: "#uebersicht" },
@@ -122,6 +129,21 @@ export default async function ProjectDetailPage({
         orderBy: [{ reportDate: "asc" }],
         take: 16,
       },
+      documentFolders: {
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      },
+      documents: {
+        include: {
+          folder: true,
+        },
+        orderBy: [{ uploadedAt: "desc" }],
+      },
+      formSubmissions: {
+        include: {
+          template: true,
+        },
+        orderBy: [{ createdAt: "desc" }],
+      },
       photos: {
         orderBy: [{ uploadedAt: "desc" }],
       },
@@ -132,14 +154,22 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const photoMoveProjects = await prisma.project.findMany({
-    orderBy: [{ projectNumber: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      projectNumber: true,
-    },
-  });
+  const [photoMoveProjects, documentMoveFolders, formTemplates] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: [{ projectNumber: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        projectNumber: true,
+      },
+    }),
+    prisma.projectDocumentFolder.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.projectFormTemplate.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   const totalContract = project.contractValueNet + project.changeOrdersNet;
   const performanceValue = totalContract * (project.progressPercent / 100);
@@ -606,16 +636,78 @@ export default async function ProjectDetailPage({
           projectId={project.id}
           projectLabel={`${project.projectNumber} · ${project.name}`}
         />
-        <ArchiveSection
-          id="dokumente"
-          title="Dokumente"
-          text="Dokumente wie Auftrag, Nachträge, Pläne und Prüfzeugnisse werden hier je Projekt gesammelt."
+        <ProjectDocumentPreviewSection
+          documents={project.documents.map((document) => ({
+            displayName: document.displayName,
+            fileSizeBytes: document.fileSizeBytes,
+            folderId: document.folderId,
+            folderName: document.folder?.name ?? null,
+            id: document.id,
+            mimeType: document.mimeType,
+            originalFileName: document.originalFileName,
+            projectId: project.id,
+            projectName: project.name,
+            projectNumber: project.projectNumber,
+            publicUrl: document.publicUrl,
+            uploadedAt: document.uploadedAt.toISOString(),
+            uploadedByName: document.uploadedByName,
+            uploadedByUserId: document.uploadedByUserId,
+          }))}
+          folders={documentMoveFolders.map((folder) => ({
+            id: folder.id,
+            name: folder.name,
+            projectId: folder.projectId,
+            sortOrder: folder.sortOrder,
+          }))}
+          projectId={project.id}
+          projects={photoMoveProjects.map((moveProject) => ({
+            id: moveProject.id,
+            label: `${moveProject.projectNumber} · ${moveProject.name}`,
+          }))}
         />
-        <ArchiveSection
-          id="formulare"
-          title="Formulare"
-          text="Formulare bekommen Vorlagen und können später projektbezogen ausgefüllt werden."
-        />
+        <div id="formulare" className="lg:col-span-2">
+          <ProjectFormManager
+            embedded
+            lockedProjectId={project.id}
+            projects={photoMoveProjects.map((moveProject) => ({
+              id: moveProject.id,
+              label: `${moveProject.projectNumber} · ${moveProject.name}`,
+            }))}
+            submissions={project.formSubmissions.map((submission) => {
+              const fallbackFields = parseProjectFormFields(
+                submission.template?.fieldsJson,
+              );
+
+              return {
+                createdAt: submission.createdAt.toISOString(),
+                createdByName: submission.createdByName,
+                fields: parseProjectFormSnapshotFields(
+                  submission.templateSnapshotJson,
+                  fallbackFields,
+                ),
+                formDate: submission.formDate?.toISOString() ?? null,
+                id: submission.id,
+                projectId: submission.projectId,
+                projectLabel: `${project.projectNumber} · ${project.name}`,
+                templateId: submission.templateId,
+                templateName:
+                  submission.template?.name ??
+                  getSnapshotTemplateName(submission.templateSnapshotJson),
+                title: submission.title,
+                values: parseProjectFormValues(submission.valuesJson),
+              };
+            })}
+            templates={formTemplates.map((template) => ({
+              category: template.category,
+              description: template.description,
+              fields: parseProjectFormFields(template.fieldsJson),
+              id: template.id,
+              isActive: template.isActive,
+              name: template.name,
+              sortOrder: template.sortOrder,
+            }))}
+          />
+        </div>
         <ArchiveSection
           id="notizen"
           title="Notizen"
@@ -731,6 +823,71 @@ function ProjectPhotoPreviewSection({
         currentProjectId={projectId}
         moveProjects={moveProjects}
         photos={photos}
+      />
+    </section>
+  );
+}
+
+function ProjectDocumentPreviewSection({
+  documents,
+  folders,
+  projectId,
+  projects,
+}: {
+  documents: {
+    displayName: string;
+    fileSizeBytes: number;
+    folderId: string | null;
+    folderName: string | null;
+    id: string;
+    mimeType: string;
+    originalFileName: string;
+    projectId: string;
+    projectName: string;
+    projectNumber: string;
+    publicUrl: string;
+    uploadedAt: string;
+    uploadedByName: string | null;
+    uploadedByUserId: string | null;
+  }[];
+  folders: {
+    id: string;
+    name: string;
+    projectId: string;
+    sortOrder: number;
+  }[];
+  projectId: string;
+  projects: {
+    id: string;
+    label: string;
+  }[];
+}) {
+  return (
+    <section
+      id="dokumente"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Dokumente</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Projektdateien mit Ordnern, Vorschau, Filter und Download.
+          </p>
+        </div>
+        <Link
+          className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/projects/dokumente?projectId=${projectId}`}
+        >
+          Alle Dokumente
+        </Link>
+      </div>
+
+      <ProjectDocumentManager
+        documents={documents}
+        embedded
+        folders={folders}
+        lockedProjectId={projectId}
+        projects={projects}
       />
     </section>
   );
@@ -855,6 +1012,21 @@ function getTruckLabel(truck: {
   return Array.from(
     new Set([vehicleLabel || ownerLabel, truck.driverName || ownerLabel].filter(Boolean)),
   ).join(" · ");
+}
+
+function getSnapshotTemplateName(snapshotJson: string | null) {
+  if (!snapshotJson) {
+    return "Vorlage entfernt";
+  }
+
+  try {
+    const parsed = JSON.parse(snapshotJson) as { name?: unknown };
+    return typeof parsed.name === "string" && parsed.name.trim()
+      ? parsed.name
+      : "Vorlage entfernt";
+  } catch {
+    return "Vorlage entfernt";
+  }
 }
 
 function getToneClass(tone: "negative" | "neutral" | "positive") {
