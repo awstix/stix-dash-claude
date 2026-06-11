@@ -3383,7 +3383,10 @@ export default async function CrewDispatchPage({
       </div>
 
       <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+        <div
+          data-crew-dispatch-sticky
+          className="sticky top-0 z-40 border-b border-gray-200 bg-white p-4 shadow-sm"
+        >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -4010,7 +4013,7 @@ export default async function CrewDispatchPage({
                         <CrewPopover
                           trigger="+"
                           triggerClassName={getPlusButtonClass(unitCount)}
-                          panelClassName="relative z-50 mt-2 w-[400px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+                          panelClassName="relative z-50 w-[400px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
                         >
                           <CrewPlanningAssignmentFormClient
                             mode="create"
@@ -4658,7 +4661,7 @@ function TimelineSupplementStrip({
         gridColumn,
         gridRow: 1,
         alignSelf: "start",
-        marginTop: `${topOffsetPx}px`,
+        marginTop: `calc(${topOffsetPx}px + var(--crew-popover-offset, 0px))`,
       }}
       label={label}
       text={tooltip}

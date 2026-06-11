@@ -38,6 +38,14 @@ type MixSummaryItem = {
   count: number;
 };
 
+type TackCoatSummaryItem = {
+  materialNumber: string;
+  materialName: string;
+  unit: string;
+  plannedLiters: number;
+  count: number;
+};
+
 type VehiclePayloadSummary = {
   category: string;
   vehicleCount: number;
@@ -313,18 +321,6 @@ export default async function AsphaltDispatchPage({
     (sum, entry) => sum + (entry.tackCoatQuantity ?? 0),
     0,
   );
-  const totalTackCoatSpecialVehicleQuantity = tackCoatOpenPositions.reduce(
-    (sum, position) => sum + position.specialVehicleLiters,
-    0,
-  );
-  const totalTackCoatShortHaulQuantity = tackCoatOpenPositions.reduce(
-    (sum, position) => sum + position.shortHaulLiters,
-    0,
-  );
-  const totalTackCoatOpenQuantity = tackCoatOpenPositions.reduce(
-    (sum, position) => sum + position.openLiters,
-    0,
-  );
 
   const totalOpenTons = asphaltOpenPositionsByDayEntries.reduce(
     (sum, [, positions]) =>
@@ -439,6 +435,47 @@ export default async function AsphaltDispatchPage({
     a.mixNumber.localeCompare(b.mixNumber, "de-DE")
   );
 
+  const tackCoatSummaryMap = new Map<string, TackCoatSummaryItem>();
+  const tackCoatMaterialById = new Map(
+    tackCoatMaterials.map((material) => [material.id, material]),
+  );
+  const tackCoatMaterialByName = new Map(
+    tackCoatMaterials.map((material) => [
+      material.name.trim().toLowerCase(),
+      material,
+    ]),
+  );
+
+  for (const position of tackCoatOpenPositions) {
+    const material =
+      (position.tackCoatMaterialTypeId
+        ? tackCoatMaterialById.get(position.tackCoatMaterialTypeId)
+        : null) ??
+      tackCoatMaterialByName.get(position.materialName.trim().toLowerCase());
+    const materialName = material?.name ?? position.materialName ?? "Ohne Bezeichnung";
+    const materialNumber = material?.materialNumber ?? "-";
+    const unit = normalizeTackCoatUnit(position.quantityUnit);
+    const key = `${materialNumber}-${materialName}-${unit}`;
+    const existing =
+      tackCoatSummaryMap.get(key) ??
+      ({
+        materialNumber,
+        materialName,
+        unit,
+        plannedLiters: 0,
+        count: 0,
+      } satisfies TackCoatSummaryItem);
+
+    existing.plannedLiters += position.plannedLiters;
+    existing.count += 1;
+
+    tackCoatSummaryMap.set(key, existing);
+  }
+
+  const tackCoatSummary = Array.from(tackCoatSummaryMap.values()).sort((a, b) =>
+    a.materialNumber.localeCompare(b.materialNumber, "de-DE"),
+  );
+
   const gridStyle = {
     gridTemplateColumns: `130px repeat(${days.length}, minmax(0, 1fr))`,
   };
@@ -522,19 +559,14 @@ export default async function AsphaltDispatchPage({
         </div>
       ) : null}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
         <SummaryBox label="Einträge" value={String(entries.length)} hint="geplante Asphaltmaßnahmen" />
         <SummaryBox label="Kolonnen" value={String(crews.length)} hint="aktive Asphaltkolonnen aus Admin → Kolonnen" />
         <SummaryBox label="Mischgut gesamt" value={`${formatTons(totalTons)} t`} hint="Gesamtmenge im gewählten Zeitraum" />
         <SummaryBox
-          label="Anspritzmittel"
+          label="Anspritzmittel gesamt"
           value={`${formatLiters(totalTackCoatQuantity)} l`}
-          hint={`Spritzwagen ${formatLiters(totalTackCoatSpecialVehicleQuantity)} l · Kurzstrecke ${formatLiters(totalTackCoatShortHaulQuantity)} l`}
-        />
-        <SummaryBox
-          label="Anspritz offen"
-          value={`${formatLiters(totalTackCoatOpenQuantity)} l`}
-          hint="noch nicht durch Spritzwagen oder Kurzstrecke gedeckt"
+          hint="Rohstoffbedarf im gewählten Zeitraum"
           tone="purple"
         />
         <SummaryBox label="Offen" value={`${formatTons(totalOpenTons)} t`} hint="noch nicht auf LKW verteilt" tone="orange" />
@@ -542,45 +574,110 @@ export default async function AsphaltDispatchPage({
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">
-          Sortenmengen diese Woche
+          Wochenzusammenfassung
         </h2>
 
-        {mixSummary.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">
-            Noch keine Asphalteinträge in dieser Woche.
-          </p>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
-              <thead className="bg-gray-50 text-gray-800">
-                <tr>
-                  <th className="p-3 font-semibold">Sortennummer</th>
-                  <th className="p-3 font-semibold">Bezeichnung</th>
-                  <th className="p-3 font-semibold">Einträge</th>
-                  <th className="p-3 font-semibold">Menge</th>
-                </tr>
-              </thead>
+        <div className="mt-4 grid grid-cols-1 gap-6">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">
+              Sortenmengen Asphalt
+            </h3>
 
-              <tbody>
-                {mixSummary.map((item) => (
-                  <tr
-                    key={`${item.mixNumber}-${item.mixName}`}
-                    className="border-t border-gray-100"
-                  >
-                    <td className="p-3 font-semibold text-gray-900">
-                      {item.mixNumber}
-                    </td>
-                    <td className="p-3 text-gray-700">{item.mixName}</td>
-                    <td className="p-3 text-gray-700">{item.count}</td>
-                    <td className="p-3 font-semibold text-gray-900">
-                      {formatTons(item.quantity)} {item.unit}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {mixSummary.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500">
+                Noch keine Asphalteinträge in dieser Woche.
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[620px] table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-[18%]" />
+                    <col className="w-[52%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <thead className="bg-gray-50 text-gray-800">
+                    <tr>
+                      <th className="p-3 font-semibold">Sortennummer</th>
+                      <th className="p-3 font-semibold">Bezeichnung</th>
+                      <th className="p-3 font-semibold">Einträge</th>
+                      <th className="p-3 font-semibold">Menge</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {mixSummary.map((item) => (
+                      <tr
+                        key={`${item.mixNumber}-${item.mixName}`}
+                        className="border-t border-gray-100"
+                      >
+                        <td className="p-3 font-semibold text-gray-900">
+                          {item.mixNumber}
+                        </td>
+                        <td className="p-3 text-gray-700">{item.mixName}</td>
+                        <td className="p-3 text-gray-700">{item.count}</td>
+                        <td className="p-3 font-semibold text-gray-900">
+                          {formatTons(item.quantity)} {item.unit}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-purple-700">
+              Anspritzmittel-Bedarf
+            </h3>
+
+            {tackCoatSummary.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500">
+                Noch kein Anspritzmittel in dieser Woche.
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[620px] table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-[18%]" />
+                    <col className="w-[52%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <thead className="bg-gray-50 text-gray-800">
+                    <tr>
+                      <th className="p-3 font-semibold">Sortennummer</th>
+                      <th className="p-3 font-semibold">Bezeichnung</th>
+                      <th className="p-3 font-semibold">Einträge</th>
+                      <th className="p-3 font-semibold">Menge</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {tackCoatSummary.map((item) => (
+                      <tr
+                        key={`${item.materialNumber}-${item.materialName}-${item.unit}`}
+                        className="border-t border-gray-100"
+                      >
+                        <td className="p-3 font-semibold text-gray-900">
+                          {item.materialNumber}
+                        </td>
+                        <td className="p-3 text-gray-700">
+                          {item.materialName}
+                        </td>
+                        <td className="p-3 text-gray-700">{item.count}</td>
+                        <td className="p-3 font-semibold text-gray-900">
+                          {formatLiters(item.plannedLiters)} {item.unit}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
