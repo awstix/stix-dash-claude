@@ -97,6 +97,89 @@ export async function createEmployeeDispositionEntry(formData: FormData) {
   revalidatePath("/employee-dispatch");
 }
 
+export async function updateEmployeeDispositionEntry(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const typeValue = String(formData.get("typeValue") ?? "").trim();
+  const startDate = parseDate(formData.get("startDate"), "Startdatum");
+  const endDate = parseDate(formData.get("endDate"), "Enddatum");
+
+  if (!id) {
+    throw new Error("Eintrags-ID fehlt.");
+  }
+
+  if (!employeeId) {
+    throw new Error("Bitte einen Mitarbeiter auswählen.");
+  }
+
+  if (!employeeDispositionTypes.some((type) => type.value === typeValue)) {
+    throw new Error("Bitte eine gültige Art auswählen.");
+  }
+
+  if (endDate < startDate) {
+    throw new Error("Enddatum darf nicht vor Startdatum liegen.");
+  }
+
+  const employee = await prisma.employee.findUnique({
+    where: {
+      id: employeeId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!employee) {
+    throw new Error("Mitarbeiter wurde nicht gefunden.");
+  }
+
+  const type = getEmployeeDispositionType(typeValue);
+
+  await prisma.employeeDispositionEntry.update({
+    where: {
+      id,
+    },
+    data: {
+      employeeId,
+      startDate,
+      endDate,
+      startTime: parseTime(formData.get("startTime"), "06:30"),
+      endTime: parseTime(formData.get("endTime"), "17:00"),
+      typeValue: type.value,
+      typeLabel: type.label,
+      notes: optionalString(formData.get("notes")),
+    },
+  });
+
+  revalidatePath("/employee-dispatch");
+}
+
+export async function updateEmployeeDispositionEntryDates(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const startDate = parseDate(formData.get("startDate"), "Startdatum");
+  const endDate = parseDate(formData.get("endDate"), "Enddatum");
+
+  if (!id) {
+    throw new Error("Eintrags-ID fehlt.");
+  }
+
+  if (endDate < startDate) {
+    throw new Error("Enddatum darf nicht vor Startdatum liegen.");
+  }
+
+  await prisma.employeeDispositionEntry.update({
+    where: {
+      id,
+    },
+    data: {
+      startDate,
+      endDate,
+    },
+  });
+
+  revalidatePath("/employee-dispatch");
+}
+
 export async function deleteEmployeeDispositionEntry(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
 

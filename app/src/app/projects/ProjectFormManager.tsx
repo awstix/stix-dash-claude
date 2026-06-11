@@ -46,6 +46,11 @@ export type ProjectFormSubmissionItem = {
   values: Record<string, boolean | string>;
 };
 
+export type ProjectDailyReportFormPrefill = {
+  title: string;
+  values: Record<string, boolean | string>;
+};
+
 type TemplateDraftField = {
   label: string;
   optionsText: string;
@@ -53,7 +58,15 @@ type TemplateDraftField = {
   type: ProjectFormFieldType;
 };
 
+const inputClassName =
+  "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-900";
+const selectClassName =
+  "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900";
+const textAreaClassName =
+  "mt-1 min-h-24 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-900";
+
 export function ProjectFormManager({
+  dailyReportPrefills = {},
   embedded = false,
   initialProjectId,
   lockedProjectId,
@@ -61,6 +74,7 @@ export function ProjectFormManager({
   submissions,
   templates,
 }: {
+  dailyReportPrefills?: Record<string, ProjectDailyReportFormPrefill>;
   embedded?: boolean;
   initialProjectId?: string;
   lockedProjectId?: string;
@@ -76,6 +90,7 @@ export function ProjectFormManager({
   const [selectedTemplateId, setSelectedTemplateId] = useState(firstTemplateId);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [submissionFormKey, setSubmissionFormKey] = useState(0);
+  const [formDate, setFormDate] = useState(getTodayInputValue());
   const [templateFields, setTemplateFields] = useState<TemplateDraftField[]>([
     getEmptyTemplateField(),
   ]);
@@ -84,6 +99,10 @@ export function ProjectFormManager({
     templates.find((template) => template.id === selectedTemplateId) ??
     templates.find((template) => template.isActive) ??
     null;
+  const selectedDailyReportPrefill =
+    selectedTemplate && isDailyReportTemplate(selectedTemplate)
+      ? dailyReportPrefills[formDate] ?? null
+      : null;
   const visibleSubmissions = useMemo(
     () =>
       submissions.filter((submission) =>
@@ -162,6 +181,10 @@ export function ProjectFormManager({
     });
   }
 
+  function updateFormDate(value: string) {
+    setFormDate(value);
+  }
+
   function deleteSubmission(submission: ProjectFormSubmissionItem) {
     const confirmed = window.confirm(
       `Formular "${submission.title}" wirklich löschen?`,
@@ -210,11 +233,11 @@ export function ProjectFormManager({
               <LabeledInput label="Vorlagenname" name="name" required />
               <LabeledInput label="Kategorie" name="category" />
               <label className="lg:col-span-2">
-                <span className="text-xs font-semibold text-gray-600">
-                  Beschreibung
-                </span>
+                  <span className="text-xs font-semibold text-gray-600">
+                    Beschreibung
+                  </span>
                 <textarea
-                  className="mt-1 min-h-20 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                  className={textAreaClassName}
                   name="description"
                 />
               </label>
@@ -235,7 +258,7 @@ export function ProjectFormManager({
                   >
                     <div className="space-y-2">
                       <input
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                        className={inputClassName}
                         onChange={(event) =>
                           updateTemplateField(index, {
                             label: event.currentTarget.value,
@@ -246,7 +269,7 @@ export function ProjectFormManager({
                       />
                       {field.type === "select" ? (
                         <textarea
-                          className="min-h-16 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                          className={textAreaClassName}
                           onChange={(event) =>
                             updateTemplateField(index, {
                               optionsText: event.currentTarget.value,
@@ -258,7 +281,7 @@ export function ProjectFormManager({
                       ) : null}
                     </div>
                     <select
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                      className={selectClassName}
                       onChange={(event) =>
                         updateTemplateField(index, {
                           type: event.currentTarget.value as ProjectFormFieldType,
@@ -353,7 +376,7 @@ export function ProjectFormManager({
 
         <form
           className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-          key={`${submissionFormKey}-${selectedTemplate?.id ?? "none"}`}
+          key={`${submissionFormKey}-${selectedTemplate?.id ?? "none"}-${formDate}`}
           onSubmit={saveSubmission}
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -382,7 +405,7 @@ export function ProjectFormManager({
                   Projekt
                 </span>
                 <select
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                  className={selectClassName}
                   onChange={(event) => setSelectedProjectId(event.currentTarget.value)}
                   required
                   value={selectedProjectId}
@@ -402,7 +425,7 @@ export function ProjectFormManager({
                 Vorlage
               </span>
               <select
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+                className={selectClassName}
                 onChange={(event) => setSelectedTemplateId(event.currentTarget.value)}
                 required
                 value={selectedTemplateId}
@@ -416,19 +439,34 @@ export function ProjectFormManager({
               </select>
             </label>
 
-            <LabeledInput label="Titel" name="title" />
             <LabeledInput
-              defaultValue={getTodayInputValue()}
-              label="Datum"
-              name="formDate"
-              type="date"
+              defaultValue={selectedDailyReportPrefill?.title ?? ""}
+              label="Titel"
+              name="title"
             />
+            <label>
+              <span className="text-xs font-semibold text-gray-600">
+                Datum
+              </span>
+              <input
+                className={inputClassName}
+                name="formDate"
+                onChange={(event) => updateFormDate(event.currentTarget.value)}
+                onInput={(event) => updateFormDate(event.currentTarget.value)}
+                type="date"
+                value={formDate}
+              />
+            </label>
             <LabeledInput label="Ausgefüllt von" name="createdByName" />
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3">
             {selectedTemplate?.fields.map((field) => (
-              <ProjectFormFieldInput field={field} key={field.id} />
+              <ProjectFormFieldInput
+                defaultValue={selectedDailyReportPrefill?.values[field.id]}
+                field={field}
+                key={field.id}
+              />
             ))}
           </div>
         </form>
@@ -526,15 +564,24 @@ export function ProjectFormManager({
   }
 }
 
-function ProjectFormFieldInput({ field }: { field: ProjectFormFieldDefinition }) {
+function ProjectFormFieldInput({
+  defaultValue,
+  field,
+}: {
+  defaultValue?: boolean | string;
+  field: ProjectFormFieldDefinition;
+}) {
   const name = `field:${field.id}`;
+  const textDefaultValue =
+    typeof defaultValue === "string" ? defaultValue : undefined;
 
   if (field.type === "textarea") {
     return (
       <label>
         <FieldLabel field={field} />
         <textarea
-          className="mt-1 min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+          className={textAreaClassName}
+          defaultValue={textDefaultValue}
           name={name}
           required={field.required}
         />
@@ -547,7 +594,8 @@ function ProjectFormFieldInput({ field }: { field: ProjectFormFieldDefinition })
       <label>
         <FieldLabel field={field} />
         <select
-          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+          className={selectClassName}
+          defaultValue={textDefaultValue ?? ""}
           name={name}
           required={field.required}
         >
@@ -565,7 +613,12 @@ function ProjectFormFieldInput({ field }: { field: ProjectFormFieldDefinition })
   if (field.type === "checkbox") {
     return (
       <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800">
-        <input name={name} required={field.required} type="checkbox" />
+        <input
+          defaultChecked={defaultValue === true}
+          name={name}
+          required={field.required}
+          type="checkbox"
+        />
         {field.label}
       </label>
     );
@@ -575,7 +628,8 @@ function ProjectFormFieldInput({ field }: { field: ProjectFormFieldDefinition })
     <label>
       <FieldLabel field={field} />
       <input
-        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+        className={inputClassName}
+        defaultValue={textDefaultValue}
         name={name}
         required={field.required}
         step={field.type === "number" ? "0.01" : undefined}
@@ -611,7 +665,7 @@ function LabeledInput({
     <label>
       <span className="text-xs font-semibold text-gray-600">{label}</span>
       <input
-        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+        className={inputClassName}
         defaultValue={defaultValue}
         name={name}
         required={required}
@@ -639,6 +693,29 @@ function getInitialProjectId(
   }
 
   return projects[0]?.id ?? "";
+}
+
+function isDailyReportTemplate(template: ProjectFormTemplateItem) {
+  const templateText = normalizeSearchText(
+    [template.name, template.category, template.description].join(" "),
+  );
+  const fieldIds = new Set(template.fields.map((field) => field.id));
+
+  return (
+    templateText.includes("bautagesbericht") ||
+    (fieldIds.has("wetter") &&
+      fieldIds.has("personal") &&
+      fieldIds.has("leistung"))
+  );
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss");
 }
 
 function getTodayInputValue() {

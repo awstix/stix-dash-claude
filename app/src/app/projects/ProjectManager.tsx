@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
 import {
+  cancelProject,
   createProject,
   deleteProject,
   ProjectFormInput,
@@ -51,6 +52,8 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
   const [form, setForm] = useState<ProjectFormInput>(emptyProject);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<Project | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const totals = useMemo(() => {
     return projects.reduce(
@@ -123,6 +126,7 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
         }
 
         resetForm();
+        setFeedbackMessage("Projekt wurde gespeichert.");
         router.refresh();
       } catch (error) {
         alert(error instanceof Error ? error.message : "Fehler beim Speichern.");
@@ -131,12 +135,32 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
   }
 
   function handleDeleteProject(project: Project) {
-    const confirmed = window.confirm(
-      `Projekt ${project.projectNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
-    );
+    setDeleteCandidate(project);
+  }
 
-    if (!confirmed) return;
+  function handleCancelProject(project: Project) {
+    startTransition(async () => {
+      try {
+        await cancelProject(project.id);
 
+        if (editingId === project.id) {
+          resetForm();
+        }
+
+        setDeleteCandidate(null);
+        setFeedbackMessage("Projekt wurde inaktiv/storniert gestellt.");
+        router.refresh();
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Fehler beim Inaktivstellen."
+        );
+      }
+    });
+  }
+
+  function handleConfirmDeleteProject(project: Project) {
     startTransition(async () => {
       try {
         await deleteProject(project.id);
@@ -145,6 +169,8 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
           resetForm();
         }
 
+        setDeleteCandidate(null);
+        setFeedbackMessage("Projekt und zugehörige Daten wurden gelöscht.");
         router.refresh();
       } catch (error) {
         alert(error instanceof Error ? error.message : "Fehler beim Löschen.");
@@ -175,6 +201,79 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
 
   return (
     <>
+      {deleteCandidate ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/40 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
+            <div className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+              Projekt löschen
+            </div>
+
+            <h2 className="mt-4 text-xl font-bold text-gray-900">
+              Sicher, dass das Projekt gelöscht werden soll?
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-gray-700">
+              Beim endgültigen Löschen von{" "}
+              <span className="font-semibold">
+                {deleteCandidate.projectNumber} · {deleteCandidate.name}
+              </span>{" "}
+              werden auch alle dazugehörigen Projektakten-Daten und
+              Dispositionen gelöscht, zum Beispiel Fotos, Dokumente,
+              Formulare, Bautagesberichte, Wetterprotokolle,
+              Asphaltdisposition, LKW-Disposition, Kurzstrecke,
+              Sonderfahrzeuge, Kolonnen- und Gerätedisposition.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+              Alternative: Projekt inaktiv/storniert stellen. Dann bleibt alles
+              erhalten und das Projekt taucht nicht mehr als aktives Projekt auf.
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteCandidate(null)}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                disabled={isPending}
+              >
+                Abbrechen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCancelProject(deleteCandidate)}
+                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                disabled={isPending}
+              >
+                Inaktiv stellen, alles erhalten
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleConfirmDeleteProject(deleteCandidate)}
+                className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                disabled={isPending}
+              >
+                Endgültig löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {feedbackMessage ? (
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-900">
+          <span>{feedbackMessage}</span>
+          <button
+            type="button"
+            onClick={() => setFeedbackMessage(null)}
+            className="rounded-lg border border-green-300 bg-white px-3 py-1 text-xs font-semibold text-green-900 hover:bg-green-100"
+          >
+            Schließen
+          </button>
+        </div>
+      ) : null}
+
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         <SummaryCard
           label="Auftragssumme inkl. Nachträge"

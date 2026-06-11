@@ -5,9 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { DismissibleFilter } from "./DismissibleFilter";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
+import { EmployeeTimelineBar } from "./EmployeeTimelineBar";
+import { EmployeeTimelineSyncedScroll } from "./EmployeeTimelineSyncedScroll";
 import {
   createEmployeeDispositionEntry,
   deleteEmployeeDispositionEntry,
+  updateEmployeeDispositionEntry,
 } from "./actions";
 import {
   employeeDispositionTypes,
@@ -41,6 +44,16 @@ type TimelineBar = {
   subtitle: string;
   notes: string | null;
   barClass: string;
+  manualEntry?: {
+    id: string;
+    employeeId: string;
+    typeValue: string;
+    startDate: Date;
+    endDate: Date;
+    startTime: string;
+    endTime: string;
+    notes: string | null;
+  };
 };
 
 function dateOnly(date: Date) {
@@ -106,13 +119,6 @@ function formatGermanDate(date: Date) {
   }).format(date);
 }
 
-function differenceInDays(start: Date, end: Date) {
-  return Math.round(
-    (dateOnly(end).getTime() - dateOnly(start).getTime()) /
-      (24 * 60 * 60 * 1000),
-  );
-}
-
 function buildDays(fromDate: Date, toDate: Date) {
   const days = [];
   let current = dateOnly(fromDate);
@@ -123,27 +129,6 @@ function buildDays(fromDate: Date, toDate: Date) {
   }
 
   return days;
-}
-
-function clampDate(date: Date, fromDate: Date, toDate: Date) {
-  if (date < fromDate) return fromDate;
-  if (date > toDate) return toDate;
-  return date;
-}
-
-function getBarPosition(bar: TimelineBar, fromDate: Date, toDate: Date) {
-  const startIndex = differenceInDays(
-    fromDate,
-    clampDate(bar.startDate, fromDate, toDate),
-  );
-  const endIndex = differenceInDays(
-    fromDate,
-    clampDate(bar.endDate, fromDate, toDate),
-  );
-
-  return {
-    gridColumn: `${startIndex + 1} / ${endIndex + 2}`,
-  };
 }
 
 function isWeekend(date: Date) {
@@ -285,6 +270,16 @@ export default async function EmployeeDispatchPage({
     : parseDateParam(params.to, addDays(fromDate, 13));
   const toDate = parsedToDate < fromDate ? addDays(fromDate, 13) : parsedToDate;
   const days = buildDays(fromDate, toDate);
+  const timelineUnitsForClient = days.map((day) => {
+    const dateInput = formatDateInput(day);
+
+    return {
+      key: dateInput,
+      label: formatGermanDate(day),
+      defaultStartDate: dateInput,
+      defaultEndDate: dateInput,
+    };
+  });
   const currentWeeks = Math.max(1, Math.ceil(days.length / 7));
   const gridTemplateColumns = `repeat(${days.length}, minmax(${dayWidthPx}px, 1fr))`;
   const searchFilter = String(params.q ?? "").trim();
@@ -504,6 +499,16 @@ export default async function EmployeeDispatchPage({
       subtitle: `${entry.startTime} – ${entry.endTime}`,
       notes: entry.notes,
       barClass: type.barClass,
+      manualEntry: {
+        id: entry.id,
+        employeeId: entry.employeeId,
+        typeValue: entry.typeValue,
+        startDate: entry.startDate,
+        endDate: entry.endDate,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        notes: entry.notes,
+      },
     };
 
     barsByEmployeeId.set(entry.employeeId, [
@@ -1485,7 +1490,7 @@ export default async function EmployeeDispatchPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1553,31 +1558,35 @@ export default async function EmployeeDispatchPage({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <div className="min-w-[1180px]">
-            <div className="grid grid-cols-[300px_1fr] border-b border-gray-200 bg-white">
-              <div className="sticky left-0 z-20 border-r border-gray-200 bg-white p-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Mitarbeiter
-              </div>
-              <div
-                className="grid border-l border-gray-100"
-                style={{ gridTemplateColumns }}
-              >
-                {days.map((day) => (
-                  <div
-                    key={day.toISOString()}
-                    className={
-                      isWeekend(day)
-                        ? "border-r border-gray-100 bg-gray-100 p-2 text-center text-[11px] font-semibold text-gray-500"
-                        : "border-r border-gray-100 bg-white p-2 text-center text-[11px] font-semibold text-gray-500"
-                    }
-                  >
-                    {formatGermanDate(day)}
-                  </div>
-                ))}
+        <EmployeeTimelineSyncedScroll
+          header={
+            <div className="min-w-[1180px]">
+              <div className="grid grid-cols-[300px_1fr] border-b border-gray-200 bg-white">
+                <div className="sticky left-0 z-[90] border-r border-gray-200 bg-white p-3 text-xs font-semibold uppercase tracking-wide text-gray-500 shadow-[6px_0_12px_-12px_rgba(15,23,42,0.65)]">
+                  Mitarbeiter
+                </div>
+                <div
+                  className="grid border-l border-gray-100"
+                  style={{ gridTemplateColumns }}
+                >
+                  {days.map((day) => (
+                    <div
+                      key={day.toISOString()}
+                      className={
+                        isWeekend(day)
+                          ? "border-r border-gray-100 bg-gray-100 p-2 text-center text-[11px] font-semibold text-gray-500"
+                          : "border-r border-gray-100 bg-white p-2 text-center text-[11px] font-semibold text-gray-500"
+                      }
+                    >
+                      {formatGermanDate(day)}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-
+          }
+        >
+          <div className="min-w-[1180px]">
             {visibleEmployees.map((employee) => {
               const bars = visibleBarsByEmployeeId.get(employee.id) ?? [];
               const primaryProject =
@@ -1592,7 +1601,10 @@ export default async function EmployeeDispatchPage({
                   key={employee.id}
                   className="grid grid-cols-[300px_1fr] border-b border-gray-100"
                 >
-                  <div className="sticky left-0 z-10 border-r border-gray-200 bg-white p-3">
+                  <div
+                    data-employee-name-cell="true"
+                    className="sticky left-0 z-[80] border-r border-gray-200 bg-white p-3 shadow-[6px_0_12px_-12px_rgba(15,23,42,0.65)]"
+                  >
                     <EmployeeQuickEntryButton
                       employeeId={employee.id}
                       employeeName={`${employee.lastName}, ${employee.firstName}`}
@@ -1634,6 +1646,7 @@ export default async function EmployeeDispatchPage({
                     </div>
 
                     <div
+                      data-employee-time-grid="true"
                       className="relative grid gap-y-1 px-1 py-2"
                       style={{ gridTemplateColumns }}
                     >
@@ -1642,18 +1655,88 @@ export default async function EmployeeDispatchPage({
                           Keine Einträge im Zeitraum
                         </div>
                       ) : (
-                        bars.map((bar) => (
-                          <div
-                            key={bar.id}
-                            title={`${bar.sourceLabel}\n${bar.title}\n${bar.startTime} – ${bar.endTime}${
-                              bar.subtitle ? `\n${bar.subtitle}` : ""
-                            }`}
-                            className={`min-h-7 truncate rounded-lg px-2 py-1 text-xs font-semibold shadow-sm ${bar.barClass}`}
-                            style={getBarPosition(bar, fromDate, toDate)}
-                          >
-                            <span className="truncate">{bar.title}</span>
-                          </div>
-                        ))
+                        bars.map((bar) => {
+                          const manualEntry = bar.manualEntry;
+
+                          return (
+                            <EmployeeTimelineBar
+                              key={`${bar.id}-${formatDateInput(
+                                bar.startDate,
+                              )}-${formatDateInput(bar.endDate)}`}
+                              id={manualEntry?.id ?? bar.id}
+                              label={bar.title}
+                              sourceLabel={bar.sourceLabel}
+                              startDate={formatDateInput(bar.startDate)}
+                              endDate={formatDateInput(bar.endDate)}
+                              startTime={bar.startTime}
+                              endTime={bar.endTime}
+                              timelineUnits={timelineUnitsForClient}
+                              barClassName={bar.barClass}
+                              readOnly={!manualEntry}
+                            >
+                              <div className="absolute z-40 mt-2 w-[520px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl">
+                                <div className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                  {bar.sourceLabel}
+                                </div>
+                                <div className="mt-3 text-sm font-bold text-gray-900">
+                                  {bar.title}
+                                </div>
+                                {bar.subtitle ? (
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    {bar.subtitle}
+                                  </div>
+                                ) : null}
+                                <div className="mt-2 text-xs font-medium text-gray-600">
+                                  {formatGermanDate(bar.startDate)} –{" "}
+                                  {formatGermanDate(bar.endDate)} ·{" "}
+                                  {bar.startTime} – {bar.endTime}
+                                </div>
+                                {bar.notes ? (
+                                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                                    {bar.notes}
+                                  </div>
+                                ) : null}
+
+                                {manualEntry ? (
+                                  <>
+                                    <EmployeeDispositionEntryForm
+                                      employees={activeEmployees}
+                                      entry={manualEntry}
+                                    />
+
+                                    <form
+                                      action={deleteEmployeeDispositionEntry}
+                                      className="mt-3"
+                                    >
+                                      <input
+                                        type="hidden"
+                                        name="id"
+                                        value={manualEntry.id}
+                                      />
+                                      <button
+                                        type="submit"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                      >
+                                        <ActionIcon
+                                          name="delete"
+                                          className="h-4 w-4"
+                                        />
+                                        Eintrag löschen
+                                      </button>
+                                    </form>
+                                  </>
+                                ) : (
+                                  <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                                    Dieser Balken kommt aus einer anderen
+                                    Disposition und wird hier nur angezeigt.
+                                    Änderungen bitte in der führenden Dispo
+                                    vornehmen.
+                                  </div>
+                                )}
+                              </div>
+                            </EmployeeTimelineBar>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -1661,7 +1744,7 @@ export default async function EmployeeDispatchPage({
               );
             })}
           </div>
-        </div>
+        </EmployeeTimelineSyncedScroll>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -1734,5 +1817,126 @@ export default async function EmployeeDispatchPage({
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function EmployeeDispositionEntryForm({
+  employees,
+  entry,
+}: {
+  employees: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  }[];
+  entry: {
+    id: string;
+    employeeId: string;
+    typeValue: string;
+    startDate: Date;
+    endDate: Date;
+    startTime: string;
+    endTime: string;
+    notes: string | null;
+  };
+}) {
+  return (
+    <form
+      action={updateEmployeeDispositionEntry}
+      className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"
+    >
+      <input type="hidden" name="id" value={entry.id} />
+
+      <label className="text-xs font-semibold text-gray-700 md:col-span-2">
+        Mitarbeiter
+        <select
+          name="employeeId"
+          defaultValue={entry.employeeId}
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+        >
+          {employees.map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.lastName}, {employee.firstName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700 md:col-span-2">
+        Art
+        <select
+          name="typeValue"
+          defaultValue={entry.typeValue}
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+        >
+          {employeeDispositionTypes.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Von
+        <input
+          type="date"
+          name="startDate"
+          required
+          defaultValue={formatDateInput(entry.startDate)}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Bis
+        <input
+          type="date"
+          name="endDate"
+          required
+          defaultValue={formatDateInput(entry.endDate)}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Beginn
+        <input
+          type="time"
+          name="startTime"
+          defaultValue={entry.startTime}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700">
+        Ende
+        <input
+          type="time"
+          name="endTime"
+          defaultValue={entry.endTime}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <label className="text-xs font-semibold text-gray-700 md:col-span-2">
+        Bemerkung
+        <input
+          name="notes"
+          defaultValue={entry.notes ?? ""}
+          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+        />
+      </label>
+
+      <div className="md:col-span-2">
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+        >
+          <ActionIcon name="save" className="h-4 w-4" />
+          Speichern
+        </button>
+      </div>
+    </form>
   );
 }

@@ -5,7 +5,10 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectDailyReportWeatherEditor } from "../ProjectDailyReportWeatherEditor";
 import { ProjectDocumentManager } from "../ProjectDocumentManager";
-import { ProjectFormManager } from "../ProjectFormManager";
+import {
+  ProjectFormManager,
+  type ProjectDailyReportFormPrefill,
+} from "../ProjectFormManager";
 import { ProjectPhotoGallery } from "../ProjectPhotoGallery";
 import { ProjectInlinePhotoUpload } from "../ProjectInlinePhotoUpload";
 import { ProjectMapEditor } from "../ProjectMapEditor";
@@ -154,7 +157,15 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const [photoMoveProjects, documentMoveFolders, formTemplates] = await Promise.all([
+  const prefillFromDate = addDays(today, -60);
+  const prefillToDate = addDays(today, 60);
+  const [
+    photoMoveProjects,
+    documentMoveFolders,
+    formTemplates,
+    dailyReportPrefillWeatherLogs,
+    dailyReportPrefillReports,
+  ] = await Promise.all([
     prisma.project.findMany({
       orderBy: [{ projectNumber: "asc" }],
       select: {
@@ -168,6 +179,26 @@ export default async function ProjectDetailPage({
     }),
     prisma.projectFormTemplate.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.projectWeatherLog.findMany({
+      where: {
+        projectId: project.id,
+        weatherDate: {
+          gte: prefillFromDate,
+          lte: prefillToDate,
+        },
+      },
+      orderBy: [{ weatherDate: "asc" }],
+    }),
+    prisma.projectDailyReport.findMany({
+      where: {
+        projectId: project.id,
+        reportDate: {
+          gte: prefillFromDate,
+          lte: prefillToDate,
+        },
+      },
+      orderBy: [{ reportDate: "asc" }],
     }),
   ]);
 
@@ -375,6 +406,15 @@ export default async function ProjectDetailPage({
       suggestionTempMinC: entry.tempMinC,
       weatherDate: dateKey,
     };
+  });
+  const defaultDailyReportDate =
+    dailyReportWeatherRows[0]?.weatherDate ?? toDateKey(today);
+  const dailyReportFormPrefills = buildDailyReportFormPrefills({
+    dailyReports: dailyReportPrefillReports,
+    fromDate: prefillFromDate,
+    project,
+    toDate: prefillToDate,
+    weatherLogs: dailyReportPrefillWeatherLogs,
   });
 
   return (
@@ -667,6 +707,7 @@ export default async function ProjectDetailPage({
         />
         <div id="formulare" className="lg:col-span-2">
           <ProjectFormManager
+            dailyReportPrefills={dailyReportFormPrefills}
             embedded
             lockedProjectId={project.id}
             projects={photoMoveProjects.map((moveProject) => ({
@@ -724,6 +765,38 @@ export default async function ProjectDetailPage({
             Wetterwerte werden aus dem Wetterprotokoll vorgeschlagen und können
             für den Bautagesbericht je Tag überschrieben werden.
           </p>
+          <form
+            action="/projects/bautagesberichte/export"
+            className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[180px_120px_auto]"
+            method="get"
+          >
+            <input type="hidden" name="projectId" value={project.id} />
+            <label className="text-sm font-medium text-gray-800">
+              Berichtdatum
+              <input
+                type="date"
+                name="date"
+                defaultValue={defaultDailyReportDate}
+                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-800">
+              Blattnr.
+              <input
+                name="blattnr"
+                defaultValue="1"
+                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              >
+                Baubericht PDF
+              </button>
+            </div>
+          </form>
           <ProjectDailyReportWeatherEditor
             projectId={project.id}
             rows={dailyReportWeatherRows}
@@ -972,6 +1045,544 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
       {labelMap[status]}
     </span>
   );
+}
+
+type DailyReportPrefillWeatherLog = {
+  currentTemperatureC: number | null;
+  tempMaxC: number | null;
+  tempMinC: number | null;
+  weatherCategory: string | null;
+  weatherDate: Date;
+  weatherLabel: string | null;
+};
+
+type DailyReportPrefillReport = {
+  reportDate: Date;
+  weatherCategory: string | null;
+  weatherNotes: string | null;
+  weatherTempMaxC: number | null;
+  weatherTempMinC: number | null;
+};
+
+type VehicleLabelInput = {
+  licensePlate: string | null;
+  vehicleNumber: string | null;
+  vehicleType: string | null;
+};
+
+type DailyReportPrefillProject = {
+  asphaltDispatchEntries: {
+    asphaltMixName: string | null;
+    asphaltMixNumber: string | null;
+    notes: string | null;
+    quantityTons: number;
+    tackCoatMaterialName: string | null;
+    tackCoatQuantity: number;
+    tackCoatUnit: string | null;
+    workDate: Date;
+  }[];
+  asphaltLoadAllocations: {
+    asphaltMixName: string | null;
+    asphaltMixNumber: string | null;
+    endTime: string;
+    notes: string | null;
+    startTime: string;
+    totalTons: number;
+    vehicleCategory: string | null;
+    vehicleNumber: string | null;
+    vehicleType: string | null;
+    workDate: Date;
+  }[];
+  crewPlanningRows: {
+    assignments: {
+      crew: {
+        members: {
+          employee: {
+            firstName: string;
+            lastName: string;
+          };
+        }[];
+      } | null;
+      crewName: string;
+      endDate: Date;
+      endTime: string;
+      extraEmployees: {
+        employee: {
+          firstName: string;
+          lastName: string;
+        };
+      }[];
+      extraVehicles: {
+        vehicle: VehicleLabelInput;
+      }[];
+      notes: string | null;
+      startDate: Date;
+      startTime: string;
+    }[];
+  }[];
+  equipmentDispatchAssignments: {
+    endDate: Date;
+    notes: string | null;
+    startDate: Date;
+    vehicle: VehicleLabelInput;
+  }[];
+  name: string;
+  projectNumber: string;
+  shortHaulAssignments: {
+    driverName: string | null;
+    licensePlate: string | null;
+    material: string | null;
+    notes: string | null;
+    startTime: string;
+    vehicleCategory: string | null;
+    vehicleNumber: string | null;
+    vehicleType: string | null;
+    workDate: Date;
+  }[];
+  shortHaulTours: {
+    customPurpose: string | null;
+    endTime: string;
+    itemName: string | null;
+    material: string | null;
+    notes: string | null;
+    purposeType: string;
+    quantity: number | null;
+    quantityUnit: string | null;
+    startTime: string;
+    assignment: {
+      driverName: string | null;
+      licensePlate: string | null;
+      vehicleCategory: string | null;
+      vehicleNumber: string | null;
+      vehicleType: string | null;
+      workDate: Date;
+    };
+  }[];
+  specialVehicleDispatchAssignments: {
+    endTime: string;
+    materialName: string | null;
+    notes: string | null;
+    quantity: number | null;
+    quantityUnit: string | null;
+    startTime: string;
+    taskText: string;
+    transportVehicle: VehicleLabelInput | null;
+    transportVehicleName: string | null;
+    vehicle: VehicleLabelInput | null;
+    vehicleName: string;
+    workDate: Date;
+  }[];
+  tackCoatLoadAllocations: {
+    endTime: string;
+    materialName: string;
+    notes: string | null;
+    quantityUnit: string;
+    startTime: string;
+    totalLiters: number;
+    vehicleCategory: string | null;
+    vehicleNumber: string | null;
+    vehicleType: string | null;
+    workDate: Date;
+  }[];
+  truckLongHaulEntries: {
+    materialName: string | null;
+    materialQuantity: number;
+    materialUnit: string | null;
+    notes: string | null;
+    truckAssignments: {
+      plannedEndTime: string;
+      plannedStartTime: string;
+      vehicleCategory: string;
+      vehicleNumber: string | null;
+      vehicleType: string | null;
+    }[];
+    workDate: Date;
+  }[];
+};
+
+function buildDailyReportFormPrefills({
+  dailyReports,
+  fromDate,
+  project,
+  toDate,
+  weatherLogs,
+}: {
+  dailyReports: DailyReportPrefillReport[];
+  fromDate: Date;
+  project: DailyReportPrefillProject;
+  toDate: Date;
+  weatherLogs: DailyReportPrefillWeatherLog[];
+}) {
+  const weatherByDate = new Map(
+    weatherLogs.map((weatherLog) => [toDateKey(weatherLog.weatherDate), weatherLog]),
+  );
+  const dailyReportByDate = new Map(
+    dailyReports.map((dailyReport) => [
+      toDateKey(dailyReport.reportDate),
+      dailyReport,
+    ]),
+  );
+  const dateKeys = new Set<string>();
+
+  for (
+    let cursor = new Date(fromDate);
+    cursor <= toDate;
+    cursor = addDays(cursor, 1)
+  ) {
+    dateKeys.add(toDateKey(cursor));
+  }
+
+  return Object.fromEntries(
+    Array.from(dateKeys)
+      .sort()
+      .map((dateKey) => [
+        dateKey,
+        buildDailyReportFormPrefillForDate({
+          dailyReport: dailyReportByDate.get(dateKey) ?? null,
+          dateKey,
+          project,
+          weatherLog: weatherByDate.get(dateKey) ?? null,
+        }),
+      ]),
+  );
+}
+
+function buildDailyReportFormPrefillForDate({
+  dailyReport,
+  dateKey,
+  project,
+  weatherLog,
+}: {
+  dailyReport: DailyReportPrefillReport | null;
+  dateKey: string;
+  project: DailyReportPrefillProject;
+  weatherLog: DailyReportPrefillWeatherLog | null;
+}): ProjectDailyReportFormPrefill {
+  const people = new Set<string>();
+  const equipment = new Set<string>();
+  const performanceLines: string[] = [];
+  const materialLines: string[] = [];
+
+  for (const row of project.crewPlanningRows) {
+    for (const assignment of row.assignments) {
+      if (!isDateKeyInRange(dateKey, assignment.startDate, assignment.endDate)) {
+        continue;
+      }
+
+      for (const member of assignment.crew?.members ?? []) {
+        people.add(getEmployeeName(member.employee));
+      }
+
+      for (const extraEmployee of assignment.extraEmployees) {
+        people.add(getEmployeeName(extraEmployee.employee));
+      }
+
+      for (const extraVehicle of assignment.extraVehicles) {
+        addNonEmpty(equipment, getVehicleLabel(extraVehicle.vehicle));
+      }
+
+      if (assignment.notes) {
+        performanceLines.push(
+          `${assignment.crewName || "Kolonne"}: ${assignment.notes}`,
+        );
+      }
+    }
+  }
+
+  for (const assignment of project.equipmentDispatchAssignments) {
+    if (isDateKeyInRange(dateKey, assignment.startDate, assignment.endDate)) {
+      addNonEmpty(equipment, getVehicleLabel(assignment.vehicle));
+    }
+  }
+
+  for (const assignment of project.specialVehicleDispatchAssignments) {
+    if (!isSameDateKey(dateKey, assignment.workDate)) continue;
+
+    addNonEmpty(
+      equipment,
+      assignment.vehicle
+        ? getVehicleLabel(assignment.vehicle)
+        : assignment.vehicleName,
+    );
+    addNonEmpty(
+      equipment,
+      assignment.transportVehicle
+        ? getVehicleLabel(assignment.transportVehicle)
+        : assignment.transportVehicleName,
+    );
+    addNonEmpty(
+      performanceLines,
+      compactLine([
+        assignment.startTime,
+        "-",
+        assignment.endTime,
+        assignment.taskText || "Sonderfahrzeug",
+        formatQuantity(assignment.quantity, assignment.quantityUnit),
+        assignment.notes,
+      ]),
+    );
+  }
+
+  for (const assignment of project.shortHaulAssignments) {
+    if (!isSameDateKey(dateKey, assignment.workDate)) continue;
+
+    addNonEmpty(
+      equipment,
+      getTruckLabel({
+        driverName: assignment.driverName,
+        licensePlate: assignment.licensePlate,
+        ownerType: "OWN",
+        subcontractorName: null,
+        vehicleNumber: assignment.vehicleNumber,
+        vehicleType: assignment.vehicleType,
+      }),
+    );
+    addNonEmpty(materialLines, assignment.material);
+  }
+
+  for (const tour of project.shortHaulTours) {
+    if (!isSameDateKey(dateKey, tour.assignment.workDate)) continue;
+
+    addNonEmpty(
+      equipment,
+      getTruckLabel({
+        driverName: tour.assignment.driverName,
+        licensePlate: tour.assignment.licensePlate,
+        ownerType: "OWN",
+        subcontractorName: null,
+        vehicleNumber: tour.assignment.vehicleNumber,
+        vehicleType: tour.assignment.vehicleType,
+      }),
+    );
+    addNonEmpty(
+      performanceLines,
+      compactLine([
+        tour.startTime,
+        "-",
+        tour.endTime,
+        tour.itemName || tour.customPurpose || tour.purposeType,
+        formatQuantity(tour.quantity, tour.quantityUnit),
+        tour.material,
+        tour.notes,
+      ]),
+    );
+    addNonEmpty(
+      materialLines,
+      compactLine([
+        tour.itemName || tour.customPurpose || tour.material,
+        formatQuantity(tour.quantity, tour.quantityUnit),
+      ]),
+    );
+  }
+
+  for (const entry of project.truckLongHaulEntries) {
+    if (!isSameDateKey(dateKey, entry.workDate)) continue;
+
+    addNonEmpty(
+      materialLines,
+      compactLine([
+        entry.materialName,
+        formatQuantity(entry.materialQuantity, entry.materialUnit),
+      ]),
+    );
+    addNonEmpty(
+      performanceLines,
+      compactLine([
+        entry.materialName,
+        formatQuantity(entry.materialQuantity, entry.materialUnit),
+        entry.notes,
+      ]),
+    );
+
+    for (const truckAssignment of entry.truckAssignments) {
+      addNonEmpty(
+        equipment,
+        [truckAssignment.vehicleNumber, truckAssignment.vehicleType]
+          .filter(Boolean)
+          .join(" · "),
+      );
+    }
+  }
+
+  for (const allocation of project.asphaltLoadAllocations) {
+    if (!isSameDateKey(dateKey, allocation.workDate)) continue;
+
+    addNonEmpty(
+      equipment,
+      [allocation.vehicleNumber, allocation.vehicleType].filter(Boolean).join(" · "),
+    );
+    addNonEmpty(
+      materialLines,
+      compactLine([
+        allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+        `${formatNumberText(allocation.totalTons)} t`,
+      ]),
+    );
+    addNonEmpty(
+      performanceLines,
+      compactLine([
+        allocation.startTime,
+        "-",
+        allocation.endTime,
+        allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+        `${formatNumberText(allocation.totalTons)} t`,
+        allocation.notes,
+      ]),
+    );
+  }
+
+  for (const allocation of project.tackCoatLoadAllocations) {
+    if (!isSameDateKey(dateKey, allocation.workDate)) continue;
+
+    addNonEmpty(
+      materialLines,
+      compactLine([
+        allocation.materialName || "Anspritzmittel",
+        `${formatNumberText(allocation.totalLiters)} ${allocation.quantityUnit}`,
+      ]),
+    );
+    addNonEmpty(
+      performanceLines,
+      compactLine([
+        allocation.startTime,
+        "-",
+        allocation.endTime,
+        allocation.materialName || "Anspritzmittel",
+        `${formatNumberText(allocation.totalLiters)} ${allocation.quantityUnit}`,
+        allocation.notes,
+      ]),
+    );
+  }
+
+  for (const entry of project.asphaltDispatchEntries) {
+    if (!isSameDateKey(dateKey, entry.workDate)) continue;
+
+    addNonEmpty(
+      materialLines,
+      compactLine([
+        entry.asphaltMixName || entry.asphaltMixNumber || "Asphalt",
+        `${formatNumberText(entry.quantityTons)} t`,
+      ]),
+    );
+
+    if (entry.tackCoatQuantity > 0) {
+      addNonEmpty(
+        materialLines,
+        compactLine([
+          entry.tackCoatMaterialName || "Anspritzmittel",
+          `${formatNumberText(entry.tackCoatQuantity)} ${entry.tackCoatUnit || "l"}`,
+        ]),
+      );
+    }
+  }
+
+  const weatherCategory =
+    dailyReport?.weatherCategory ||
+    weatherLog?.weatherCategory ||
+    weatherLog?.weatherLabel ||
+    "";
+  const tempMin =
+    dailyReport?.weatherTempMinC ??
+    weatherLog?.tempMinC ??
+    weatherLog?.currentTemperatureC ??
+    null;
+  const tempMax =
+    dailyReport?.weatherTempMaxC ??
+    weatherLog?.tempMaxC ??
+    weatherLog?.currentTemperatureC ??
+    null;
+
+  return {
+    title: `Bautagesbericht ${project.projectNumber} · ${formatDateKey(dateKey)}`,
+    values: {
+      behinderung: "",
+      geraete: joinSet(equipment),
+      leistung: joinUnique(performanceLines),
+      material: joinUnique(materialLines),
+      personal: joinSet(people),
+      temperatur_max: formatNumberInput(tempMax),
+      temperatur_min: formatNumberInput(tempMin),
+      vorkommnisse: "",
+      wetter: [weatherCategory, dailyReport?.weatherNotes]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  };
+}
+
+function addNonEmpty(target: Set<string> | string[], value: string | null | undefined) {
+  const text = String(value ?? "").trim();
+  if (!text) return;
+
+  if (target instanceof Set) {
+    target.add(text);
+    return;
+  }
+
+  target.push(text);
+}
+
+function compactLine(parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function formatQuantity(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+) {
+  if (value === null || value === undefined) return "";
+  return `${formatNumberText(value)} ${unit ?? ""}`.trim();
+}
+
+function joinSet(values: Set<string>) {
+  return Array.from(values)
+    .sort((a, b) => a.localeCompare(b, "de-DE"))
+    .join("\n");
+}
+
+function joinUnique(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+    .slice(0, 12)
+    .join("\n");
+}
+
+function getEmployeeName(employee: { firstName: string; lastName: string }) {
+  return `${employee.lastName}, ${employee.firstName}`;
+}
+
+function isSameDateKey(dateKey: string, date: Date) {
+  return toDateKey(date) === dateKey;
+}
+
+function isDateKeyInRange(dateKey: string, startDate: Date, endDate: Date) {
+  return toDateKey(startDate) <= dateKey && dateKey <= toDateKey(endDate);
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function formatDateKey(dateKey: string) {
+  return new Intl.DateTimeFormat("de-DE").format(
+    new Date(`${dateKey}T12:00:00.000Z`),
+  );
+}
+
+function formatNumberText(value: number) {
+  return new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+  }).format(value);
+}
+
+function formatNumberInput(value: number | null) {
+  if (value === null) return "";
+  return String(Math.round(value * 10) / 10);
 }
 
 function getVehicleLabel(vehicle: {

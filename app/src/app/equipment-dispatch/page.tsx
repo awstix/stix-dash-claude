@@ -37,13 +37,18 @@ type EquipmentDispatchFilters = {
   licensePlate: string;
   projectId: string;
   q: string;
-  showCars: boolean;
-  showSpecialVehicles: boolean;
-  showTrucks: boolean;
   specialVehicle: SpecialVehicleFilter;
   vehicleNumber: string;
-  vehicleType: string;
+  vehicleTypesTouched: boolean;
+  visibleVehicleTypes: string[];
 };
+
+type VehicleTypeFilterOption = {
+  value: string;
+  label: string;
+};
+
+type SearchParamValue = string | string[] | undefined;
 
 type EquipmentRowBar = {
   id: string;
@@ -466,7 +471,6 @@ function buildEquipmentDispatchHref({
     if (filters.vehicleNumber)
       params.set("vehicleNumber", filters.vehicleNumber);
     if (filters.licensePlate) params.set("licensePlate", filters.licensePlate);
-    if (filters.vehicleType) params.set("vehicleType", filters.vehicleType);
     if (filters.category) params.set("category", filters.category);
     if (filters.specialVehicle !== "all") {
       params.set("specialVehicle", filters.specialVehicle);
@@ -474,14 +478,11 @@ function buildEquipmentDispatchHref({
     if (filters.assignmentSource !== "all") {
       params.set("assignmentSource", filters.assignmentSource);
     }
-    if (filters.showTrucks) {
-      params.set("showTrucks", "1");
-    }
-    if (filters.showSpecialVehicles) {
-      params.set("showSpecialVehicles", "1");
-    }
-    if (filters.showCars) {
-      params.set("showCars", "1");
+    if (filters.vehicleTypesTouched) {
+      params.set("vehicleTypesTouched", "1");
+      for (const vehicleType of filters.visibleVehicleTypes) {
+        params.append("visibleVehicleType", vehicleType);
+      }
     }
   }
 
@@ -551,28 +552,44 @@ function normalizeSearchText(value: string | null | undefined) {
     .replace(/ß/g, "ss");
 }
 
-function getFilterText(value: string | undefined) {
-  return String(value ?? "").trim();
+function getFilterText(value: SearchParamValue) {
+  const selectedValue = Array.isArray(value) ? value[0] : value;
+  return String(selectedValue ?? "").trim();
+}
+
+function getFilterValues(value: SearchParamValue) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+
+  return Array.from(
+    new Set(
+      values
+        .map((item) => String(item ?? "").trim())
+        .filter((item) => item.length > 0),
+    ),
+  );
 }
 
 function getSpecialVehicleFilter(
-  value: string | undefined,
+  value: SearchParamValue,
 ): SpecialVehicleFilter {
-  if (value === "yes" || value === "no") return value;
+  const selectedValue = getFilterText(value);
+  if (selectedValue === "yes" || selectedValue === "no") return selectedValue;
   return "all";
 }
 
 function getEquipmentSourceFilter(
-  value: string | undefined,
+  value: SearchParamValue,
 ): EquipmentSourceFilter {
+  const selectedValue = getFilterText(value);
+
   if (
-    value === "manual" ||
-    value === "default" ||
-    value === "truck" ||
-    value === "special" ||
-    value === "empty"
+    selectedValue === "manual" ||
+    selectedValue === "default" ||
+    selectedValue === "truck" ||
+    selectedValue === "special" ||
+    selectedValue === "empty"
   ) {
-    return value;
+    return selectedValue;
   }
 
   return "all";
@@ -601,15 +618,7 @@ function vehicleMatchesSimpleFilters({
   };
   filters: EquipmentDispatchFilters;
 }) {
-  if (!shouldShowSpecialVehicles(filters) && vehicle.isSpecialVehicle) {
-    return false;
-  }
-
-  if (!shouldShowTrucks(filters) && isTruckVehicle(vehicle)) {
-    return false;
-  }
-
-  if (!shouldShowCars(filters) && isCarVehicle(vehicle)) {
+  if (!filters.visibleVehicleTypes.includes(vehicle.vehicleType)) {
     return false;
   }
 
@@ -629,10 +638,6 @@ function vehicleMatchesSimpleFilters({
     return false;
   }
 
-  if (filters.vehicleType && vehicle.vehicleType !== filters.vehicleType) {
-    return false;
-  }
-
   if (filters.category && vehicle.category !== filters.category) {
     return false;
   }
@@ -646,22 +651,6 @@ function vehicleMatchesSimpleFilters({
   }
 
   return true;
-}
-
-function shouldShowTrucks(filters: EquipmentDispatchFilters) {
-  return filters.showTrucks || filters.assignmentSource === "truck";
-}
-
-function shouldShowSpecialVehicles(filters: EquipmentDispatchFilters) {
-  return (
-    filters.showSpecialVehicles ||
-    filters.assignmentSource === "special" ||
-    filters.specialVehicle === "yes"
-  );
-}
-
-function shouldShowCars(filters: EquipmentDispatchFilters) {
-  return filters.showCars;
 }
 
 function isTruckVehicle(vehicle: {
@@ -704,6 +693,227 @@ function isCarVehicle(vehicle: {
   );
 }
 
+function getVehicleTypeCheckboxOptions({
+  adminOptions,
+  vehicleTypes,
+}: {
+  adminOptions: { value: string; label: string }[];
+  vehicleTypes: (string | null | undefined)[];
+}) {
+  const options: VehicleTypeFilterOption[] = [];
+  const vehicleValues = getUniqueOptions(vehicleTypes);
+  const vehicleValueByKey = new Map(
+    vehicleValues.map((value) => [normalizeSearchText(value), value]),
+  );
+  const seen = new Set<string>();
+
+  for (const option of adminOptions) {
+    const adminValue = option.value.trim();
+    const key = normalizeSearchText(adminValue);
+    if (!adminValue || !key || seen.has(key)) continue;
+
+    const value = vehicleValueByKey.get(key) ?? adminValue;
+
+    options.push({
+      value,
+      label: option.label.trim() || value,
+    });
+    seen.add(key);
+  }
+
+  for (const value of vehicleValues) {
+    const key = normalizeSearchText(value);
+    if (seen.has(key)) continue;
+
+    options.push({
+      value,
+      label: value,
+    });
+    seen.add(key);
+  }
+
+  return options;
+}
+
+function getVehicleTypesForPredicate({
+  options,
+  vehicles,
+  predicate,
+}: {
+  options: VehicleTypeFilterOption[];
+  vehicles: {
+    category: string;
+    isSpecialVehicle: boolean;
+    vehicleNumber: string;
+    vehicleType: string;
+  }[];
+  predicate: (vehicle: {
+    category: string;
+    isSpecialVehicle: boolean;
+    vehicleNumber: string;
+    vehicleType: string;
+  }) => boolean;
+}) {
+  const matchingTypes = new Set(
+    vehicles
+      .filter(predicate)
+      .map((vehicle) => vehicle.vehicleType)
+      .filter(Boolean),
+  );
+
+  return options
+    .map((option) => option.value)
+    .filter((value) => matchingTypes.has(value));
+}
+
+function normalizeSelectedVehicleTypes({
+  options,
+  values,
+}: {
+  options: VehicleTypeFilterOption[];
+  values: string[];
+}) {
+  const allowedValues = new Set(options.map((option) => option.value));
+  const selectedValues = new Set(
+    values
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0 && allowedValues.has(value)),
+  );
+
+  return options
+    .map((option) => option.value)
+    .filter((value) => selectedValues.has(value));
+}
+
+function getDefaultVisibleVehicleTypes({
+  options,
+  vehicles,
+}: {
+  options: VehicleTypeFilterOption[];
+  vehicles: {
+    category: string;
+    isSpecialVehicle: boolean;
+    vehicleNumber: string;
+    vehicleType: string;
+  }[];
+}) {
+  return getVehicleTypesForPredicate({
+    options,
+    vehicles,
+    predicate: (vehicle) =>
+      !vehicle.isSpecialVehicle && !isTruckVehicle(vehicle) && !isCarVehicle(vehicle),
+  });
+}
+
+function getEffectiveVisibleVehicleTypes({
+  assignmentSource,
+  hasTouchedTypes,
+  options,
+  params,
+  selectedTypes,
+  specialVehicle,
+  vehicles,
+}: {
+  assignmentSource: EquipmentSourceFilter;
+  hasTouchedTypes: boolean;
+  options: VehicleTypeFilterOption[];
+  params: {
+    showCars?: SearchParamValue;
+    showSpecialVehicles?: SearchParamValue;
+    showTrucks?: SearchParamValue;
+    vehicleType?: SearchParamValue;
+  };
+  selectedTypes: string[];
+  specialVehicle: SpecialVehicleFilter;
+  vehicles: {
+    category: string;
+    isSpecialVehicle: boolean;
+    vehicleNumber: string;
+    vehicleType: string;
+  }[];
+}) {
+  if (hasTouchedTypes) {
+    const touchedTypes = [...selectedTypes, getFilterText(params.vehicleType)];
+
+    if (getFilterText(params.showTrucks) === "1") {
+      touchedTypes.push(
+        ...getVehicleTypesForPredicate({
+          options,
+          vehicles,
+          predicate: isTruckVehicle,
+        }),
+      );
+    }
+
+    if (getFilterText(params.showCars) === "1") {
+      touchedTypes.push(
+        ...getVehicleTypesForPredicate({
+          options,
+          vehicles,
+          predicate: isCarVehicle,
+        }),
+      );
+    }
+
+    if (getFilterText(params.showSpecialVehicles) === "1") {
+      touchedTypes.push(
+        ...getVehicleTypesForPredicate({
+          options,
+          vehicles,
+          predicate: (vehicle) => vehicle.isSpecialVehicle,
+        }),
+      );
+    }
+
+    return normalizeSelectedVehicleTypes({
+      options,
+      values: touchedTypes,
+    });
+  }
+
+  const defaultTypes = getDefaultVisibleVehicleTypes({ options, vehicles });
+  const extraTypes: string[] = [];
+
+  if (getFilterText(params.showTrucks) === "1" || assignmentSource === "truck") {
+    extraTypes.push(
+      ...getVehicleTypesForPredicate({
+        options,
+        vehicles,
+        predicate: isTruckVehicle,
+      }),
+    );
+  }
+
+  if (getFilterText(params.showCars) === "1") {
+    extraTypes.push(
+      ...getVehicleTypesForPredicate({
+        options,
+        vehicles,
+        predicate: isCarVehicle,
+      }),
+    );
+  }
+
+  if (
+    getFilterText(params.showSpecialVehicles) === "1" ||
+    assignmentSource === "special" ||
+    specialVehicle === "yes"
+  ) {
+    extraTypes.push(
+      ...getVehicleTypesForPredicate({
+        options,
+        vehicles,
+        predicate: (vehicle) => vehicle.isSpecialVehicle,
+      }),
+    );
+  }
+
+  return normalizeSelectedVehicleTypes({
+    options,
+    values: [...defaultTypes, ...extraTypes],
+  });
+}
+
 
 function vehicleMatchesFilters({
   vehicle,
@@ -734,10 +944,6 @@ function vehicleMatchesFilters({
       normalizeSearchText(filters.licensePlate),
     )
   ) {
-    return false;
-  }
-
-  if (filters.vehicleType && vehicle.vehicleType !== filters.vehicleType) {
     return false;
   }
 
@@ -1075,13 +1281,15 @@ export default async function EquipmentDispatchPage({
     projectId?: string;
     vehicleNumber?: string;
     licensePlate?: string;
-    vehicleType?: string;
+    vehicleType?: string | string[];
+    visibleVehicleType?: string | string[];
+    vehicleTypesTouched?: string | string[];
     category?: string;
     specialVehicle?: string;
     assignmentSource?: string;
-    showCars?: string;
-    showSpecialVehicles?: string;
-    showTrucks?: string;
+    showCars?: string | string[];
+    showSpecialVehicles?: string | string[];
+    showTrucks?: string | string[];
     quickVehicleId?: string;
     quickStart?: string;
     quickEnd?: string;
@@ -1090,19 +1298,22 @@ export default async function EquipmentDispatchPage({
   const params = await searchParams;
   const view = getTimelineView(params.view);
   const showWeekend = params.showWeekend === "1";
-  const filters: EquipmentDispatchFilters = {
-    q: getFilterText(params.q),
-    projectId: getFilterText(params.projectId),
-    vehicleNumber: getFilterText(params.vehicleNumber),
-    licensePlate: getFilterText(params.licensePlate),
-    vehicleType: getFilterText(params.vehicleType),
-    category: getFilterText(params.category),
-    showCars: params.showCars === "1",
-    showSpecialVehicles: params.showSpecialVehicles === "1",
-    showTrucks: params.showTrucks === "1",
-    specialVehicle: getSpecialVehicleFilter(params.specialVehicle),
-    assignmentSource: getEquipmentSourceFilter(params.assignmentSource),
-  };
+  const selectedVehicleTypesFromParams = getFilterValues(
+    params.visibleVehicleType,
+  );
+  const specialVehicleFilter = getSpecialVehicleFilter(params.specialVehicle);
+  const assignmentSourceFilter = getEquipmentSourceFilter(
+    params.assignmentSource,
+  );
+  const hasLegacyVehicleTypeFlags =
+    getFilterText(params.showCars) === "1" ||
+    getFilterText(params.showSpecialVehicles) === "1" ||
+    getFilterText(params.showTrucks) === "1";
+  const hasTouchedVehicleTypes =
+    getFilterText(params.vehicleTypesTouched) === "1" ||
+    selectedVehicleTypesFromParams.length > 0 ||
+    Boolean(getFilterText(params.vehicleType)) ||
+    hasLegacyVehicleTypeFlags;
   const { fromDate, toDate } = getSafeDateRange({
     from: params.from,
     to: params.to,
@@ -1174,6 +1385,7 @@ export default async function EquipmentDispatchPage({
     truckLongHaulTruckAssignments,
     asphaltLoadAllocations,
     tackCoatLoadAllocations,
+    vehicleTypeAdminOptions,
   ] = await Promise.all([
     prisma.vehicle.findMany({
       where: {
@@ -1337,7 +1549,51 @@ export default async function EquipmentDispatchPage({
       },
       orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
     }),
+
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "vehicle_type",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        value: true,
+        label: true,
+      },
+    }),
   ]);
+
+  const vehicleTypeOptions = getVehicleTypeCheckboxOptions({
+    adminOptions: vehicleTypeAdminOptions,
+    vehicleTypes: vehicles.map((vehicle) => vehicle.vehicleType),
+  });
+  const visibleVehicleTypes = getEffectiveVisibleVehicleTypes({
+    assignmentSource: assignmentSourceFilter,
+    hasTouchedTypes: hasTouchedVehicleTypes,
+    options: vehicleTypeOptions,
+    params,
+    selectedTypes: selectedVehicleTypesFromParams,
+    specialVehicle: specialVehicleFilter,
+    vehicles,
+  });
+  const defaultVisibleVehicleTypes = getDefaultVisibleVehicleTypes({
+    options: vehicleTypeOptions,
+    vehicles,
+  });
+  const isVehicleTypeFilterActive =
+    hasTouchedVehicleTypes ||
+    visibleVehicleTypes.join("|") !== defaultVisibleVehicleTypes.join("|");
+  const filters: EquipmentDispatchFilters = {
+    q: getFilterText(params.q),
+    projectId: getFilterText(params.projectId),
+    vehicleNumber: getFilterText(params.vehicleNumber),
+    licensePlate: getFilterText(params.licensePlate),
+    category: getFilterText(params.category),
+    specialVehicle: specialVehicleFilter,
+    assignmentSource: assignmentSourceFilter,
+    vehicleTypesTouched: hasTouchedVehicleTypes,
+    visibleVehicleTypes,
+  };
 
   const quickVehicle = quickVehicleId
     ? vehicles.find((vehicle) => vehicle.id === quickVehicleId) ?? null
@@ -1706,9 +1962,6 @@ export default async function EquipmentDispatchPage({
   const vehicleNumberOptions = getUniqueOptions(
     vehicles.map((vehicle) => vehicle.vehicleNumber),
   );
-  const vehicleTypeOptions = getUniqueOptions(
-    vehicles.map((vehicle) => vehicle.vehicleType),
-  );
   const vehicleCategoryOptions = getUniqueOptions(
     vehicles.map((vehicle) => vehicle.category),
   );
@@ -1730,12 +1983,9 @@ export default async function EquipmentDispatchPage({
     filters.projectId,
     filters.vehicleNumber,
     filters.licensePlate,
-    filters.vehicleType,
+    isVehicleTypeFilterActive ? "vehicleTypes" : "",
     filters.category,
     filters.assignmentSource !== "all" ? filters.assignmentSource : "",
-    filters.showCars ? "showCars" : "",
-    filters.showSpecialVehicles ? "showSpecialVehicles" : "",
-    filters.showTrucks ? "showTrucks" : "",
   ].filter(Boolean).length;
 
   const rowLayouts = new Map<string, LaneLayout>();
@@ -1897,7 +2147,7 @@ export default async function EquipmentDispatchPage({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <label className="text-xs font-semibold text-gray-700">
             Baustelle / Projekt
             <select
@@ -1941,22 +2191,6 @@ export default async function EquipmentDispatchPage({
           </label>
 
           <label className="text-xs font-semibold text-gray-700">
-            Gerätetyp
-            <select
-              name="vehicleType"
-              defaultValue={filters.vehicleType}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle Gerätetypen</option>
-              {vehicleTypeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
             Kategorie
             <select
               name="category"
@@ -1989,40 +2223,47 @@ export default async function EquipmentDispatchPage({
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            <input
-              name="showTrucks"
-              type="checkbox"
-              value="1"
-              defaultChecked={shouldShowTrucks(filters)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            LKW aus LKW-/Asphaltdispo anzeigen
-          </label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            <input
-              name="showSpecialVehicles"
-              type="checkbox"
-              value="1"
-              defaultChecked={shouldShowSpecialVehicles(filters)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            Sonderfahrzeuge anzeigen
-          </label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            <input
-              name="showCars"
-              type="checkbox"
-              value="1"
-              defaultChecked={shouldShowCars(filters)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            PKW anzeigen
-          </label>
-          <span className="text-xs font-medium text-gray-500">
-            Standardmäßig bleiben diese Gruppen ausgeblendet, damit die Geräteliste kompakt bleibt.
-          </span>
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <input type="hidden" name="vehicleTypesTouched" value="1" />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Gerätetypen anzeigen
+              </div>
+              <div className="mt-1 text-xs font-medium text-gray-500">
+                Die Liste kommt aus den aktiven Fahrzeugtypen der Auswahllisten.
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-600">
+              {filters.visibleVehicleTypes.length}/{vehicleTypeOptions.length} aktiv
+            </div>
+          </div>
+
+          {vehicleTypeOptions.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {vehicleTypeOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                >
+                  <input
+                    name="visibleVehicleType"
+                    type="checkbox"
+                    value={option.value}
+                    defaultChecked={filters.visibleVehicleTypes.includes(
+                      option.value,
+                    )}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-500">
+              Noch keine Fahrzeugtypen in den Auswahllisten oder im Fahrzeugstamm vorhanden.
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -2214,13 +2455,6 @@ export default async function EquipmentDispatchPage({
                 value={filters.licensePlate}
               />
             ) : null}
-            {filters.vehicleType ? (
-              <input
-                type="hidden"
-                name="vehicleType"
-                value={filters.vehicleType}
-              />
-            ) : null}
             {filters.category ? (
               <input type="hidden" name="category" value={filters.category} />
             ) : null}
@@ -2238,15 +2472,19 @@ export default async function EquipmentDispatchPage({
                 value={filters.assignmentSource}
               />
             ) : null}
-            {filters.showTrucks ? (
-              <input type="hidden" name="showTrucks" value="1" />
+            {filters.vehicleTypesTouched ? (
+              <input type="hidden" name="vehicleTypesTouched" value="1" />
             ) : null}
-            {filters.showSpecialVehicles ? (
-              <input type="hidden" name="showSpecialVehicles" value="1" />
-            ) : null}
-            {filters.showCars ? (
-              <input type="hidden" name="showCars" value="1" />
-            ) : null}
+            {filters.vehicleTypesTouched
+              ? filters.visibleVehicleTypes.map((vehicleType) => (
+                  <input
+                    key={vehicleType}
+                    type="hidden"
+                    name="visibleVehicleType"
+                    value={vehicleType}
+                  />
+                ))
+              : null}
             <label className="text-xs font-semibold text-blue-950">
               Von
               <input

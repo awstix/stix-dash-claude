@@ -1460,13 +1460,104 @@ export async function cancelProject(id: string) {
 }
 
 export async function deleteProject(id: string) {
-  await prisma.project.delete({
-    where: {
-      id,
-    },
+  const [photos, documents] = await Promise.all([
+    prisma.projectPhoto.findMany({
+      where: {
+        projectId: id,
+      },
+      select: {
+        storagePath: true,
+      },
+    }),
+    prisma.projectDocument.findMany({
+      where: {
+        projectId: id,
+      },
+      select: {
+        storagePath: true,
+      },
+    }),
+  ]);
+  const storagePaths = [
+    ...photos.map((photo) => photo.storagePath),
+    ...documents.map((document) => document.storagePath),
+  ];
+
+  await prisma.$transaction(async (tx) => {
+    await tx.shortHaulTour.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.shortHaulAssignment.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.truckLongHaulEntry.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.asphaltDispatchEntry.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.asphaltLoadAllocation.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.tackCoatLoadAllocation.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.specialVehicleDispatchAssignment.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.crewPlanningRow.deleteMany({
+      where: {
+        projectId: id,
+      },
+    });
+
+    await tx.project.delete({
+      where: {
+        id,
+      },
+    });
   });
 
+  await Promise.all(
+    storagePaths.map(async (storagePath) => {
+      try {
+        await unlink(path.join(process.cwd(), storagePath));
+      } catch {
+        // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Projektlöschen nicht.
+      }
+    }),
+  );
+
   revalidateProjectViews();
+  revalidatePath("/asphalt-dispatch");
+  revalidatePath("/truck-dispatch");
+  revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/special-vehicle-dispatch");
+  revalidatePath("/crew-dispatch");
+  revalidatePath("/equipment-dispatch");
+  revalidatePath("/employee-dispatch");
 }
 
 function toWeatherDate(date: string) {

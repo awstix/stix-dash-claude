@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlobalFormFeedback } from "./GlobalFormFeedback";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
@@ -16,8 +17,9 @@ const projectNavigation = [
 
 const secondaryNavigation = [
   { name: "Bestellung", href: "/orders" },
+  { name: "Werkstatt", href: "/workshop" },
   { name: "Admin", href: "/admin" },
-];
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
@@ -117,6 +119,7 @@ export function AppShell({
 
         {children}
       </section>
+      <GlobalFormFeedback />
     </main>
   );
 }
