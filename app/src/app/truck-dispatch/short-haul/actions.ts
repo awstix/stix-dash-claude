@@ -632,6 +632,7 @@ export async function createShortHaulAssignment(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
   revalidatePath("/truck-dispatch");
 }
 
@@ -715,6 +716,7 @@ export async function updateShortHaulAssignment(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
   revalidatePath("/truck-dispatch");
 }
 
@@ -830,6 +832,7 @@ export async function updateShortHaulTourTimeFromTimeline({
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
   revalidatePath("/truck-dispatch");
 }
 
@@ -847,6 +850,7 @@ export async function deleteShortHaulAssignment(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
   revalidatePath("/truck-dispatch");
 }
 
@@ -892,6 +896,7 @@ export async function createSpecialVehicleTask(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
 }
 
 export async function updateSpecialVehicleTask(formData: FormData) {
@@ -912,6 +917,7 @@ export async function updateSpecialVehicleTask(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
 }
 
 export async function deleteSpecialVehicleTask(formData: FormData) {
@@ -928,4 +934,5 @@ export async function deleteSpecialVehicleTask(formData: FormData) {
   });
 
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
 }

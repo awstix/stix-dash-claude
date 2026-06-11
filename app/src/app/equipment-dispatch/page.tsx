@@ -21,23 +21,34 @@ type TimelineUnit = {
 };
 
 type TimelineView = "days" | "weeks" | "months";
-type EquipmentSourceFilter = "all" | "manual" | "default" | "empty";
+type EquipmentBarSource = "default" | "manual" | "special" | "truck";
+type EquipmentSourceFilter =
+  | "all"
+  | "default"
+  | "empty"
+  | "manual"
+  | "special"
+  | "truck";
 type SpecialVehicleFilter = "all" | "yes" | "no";
 
 type EquipmentDispatchFilters = {
-  q: string;
-  projectId: string;
-  vehicleNumber: string;
-  licensePlate: string;
-  vehicleType: string;
-  category: string;
-  specialVehicle: SpecialVehicleFilter;
   assignmentSource: EquipmentSourceFilter;
+  category: string;
+  licensePlate: string;
+  projectId: string;
+  q: string;
+  showCars: boolean;
+  showSpecialVehicles: boolean;
+  showTrucks: boolean;
+  specialVehicle: SpecialVehicleFilter;
+  vehicleNumber: string;
+  vehicleType: string;
 };
 
 type EquipmentRowBar = {
   id: string;
-  source: "manual" | "default";
+  source: EquipmentBarSource;
+  sourceLabel: string;
   vehicleId: string;
   startDate: Date;
   endDate: Date;
@@ -47,6 +58,8 @@ type EquipmentRowBar = {
   crewId: string | null;
   crewName: string | null;
   notes: string | null;
+  detailLines?: string[];
+  href?: string;
   assignment?: {
     id: string;
     vehicleId: string;
@@ -221,48 +234,6 @@ function getSafeDateRange({
     fromDate,
     toDate,
   };
-}
-
-function getBufferValue(value: string | undefined, fallback: number) {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return fallback;
-  }
-
-  return Math.max(0, Math.round(parsed));
-}
-
-const AUTO_TIMELINE_BUFFER_PAGES = 4;
-
-function shiftDateRangeByPages({
-  fromDate,
-  toDate,
-  view,
-  direction,
-  pages,
-}: {
-  fromDate: Date;
-  toDate: Date;
-  view: TimelineView;
-  direction: -1 | 1;
-  pages: number;
-}) {
-  let currentRange = {
-    fromDate,
-    toDate,
-  };
-
-  for (let index = 0; index < pages; index += 1) {
-    currentRange = shiftDateRange({
-      fromDate: currentRange.fromDate,
-      toDate: currentRange.toDate,
-      view,
-      direction,
-    });
-  }
-
-  return currentRange;
 }
 
 function getVisibleDateRange({
@@ -503,6 +474,15 @@ function buildEquipmentDispatchHref({
     if (filters.assignmentSource !== "all") {
       params.set("assignmentSource", filters.assignmentSource);
     }
+    if (filters.showTrucks) {
+      params.set("showTrucks", "1");
+    }
+    if (filters.showSpecialVehicles) {
+      params.set("showSpecialVehicles", "1");
+    }
+    if (filters.showCars) {
+      params.set("showCars", "1");
+    }
   }
 
   return `/equipment-dispatch?${params.toString()}`;
@@ -585,8 +565,16 @@ function getSpecialVehicleFilter(
 function getEquipmentSourceFilter(
   value: string | undefined,
 ): EquipmentSourceFilter {
-  if (value === "manual" || value === "default" || value === "empty")
+  if (
+    value === "manual" ||
+    value === "default" ||
+    value === "truck" ||
+    value === "special" ||
+    value === "empty"
+  ) {
     return value;
+  }
+
   return "all";
 }
 
@@ -613,6 +601,18 @@ function vehicleMatchesSimpleFilters({
   };
   filters: EquipmentDispatchFilters;
 }) {
+  if (!shouldShowSpecialVehicles(filters) && vehicle.isSpecialVehicle) {
+    return false;
+  }
+
+  if (!shouldShowTrucks(filters) && isTruckVehicle(vehicle)) {
+    return false;
+  }
+
+  if (!shouldShowCars(filters) && isCarVehicle(vehicle)) {
+    return false;
+  }
+
   if (
     filters.vehicleNumber &&
     vehicle.vehicleNumber !== filters.vehicleNumber
@@ -646,6 +646,62 @@ function vehicleMatchesSimpleFilters({
   }
 
   return true;
+}
+
+function shouldShowTrucks(filters: EquipmentDispatchFilters) {
+  return filters.showTrucks || filters.assignmentSource === "truck";
+}
+
+function shouldShowSpecialVehicles(filters: EquipmentDispatchFilters) {
+  return (
+    filters.showSpecialVehicles ||
+    filters.assignmentSource === "special" ||
+    filters.specialVehicle === "yes"
+  );
+}
+
+function shouldShowCars(filters: EquipmentDispatchFilters) {
+  return filters.showCars;
+}
+
+function isTruckVehicle(vehicle: {
+  category: string;
+  vehicleNumber?: string | null;
+  vehicleType: string;
+}) {
+  const text = normalizeSearchText(
+    [vehicle.category, vehicle.vehicleType, vehicle.vehicleNumber].join(" "),
+  );
+
+  return (
+    text.includes("lkw") ||
+    text.includes("kipper") ||
+    text.includes("sattel") ||
+    text.includes("auflieger") ||
+    text.includes("anhaenger") ||
+    text.includes("3-achser") ||
+    text.includes("4-achser")
+  );
+}
+
+function isCarVehicle(vehicle: {
+  category: string;
+  vehicleNumber?: string | null;
+  vehicleType: string;
+}) {
+  if (isTruckVehicle(vehicle)) {
+    return false;
+  }
+
+  const text = normalizeSearchText(
+    [vehicle.category, vehicle.vehicleType, vehicle.vehicleNumber].join(" "),
+  );
+
+  return (
+    text.includes("pkw") ||
+    text.includes("personenkraftwagen") ||
+    text.includes("kombi")
+  );
 }
 
 
@@ -715,6 +771,20 @@ function vehicleMatchesFilters({
     return false;
   }
 
+  if (
+    filters.assignmentSource === "truck" &&
+    !bars.some((bar) => bar.source === "truck")
+  ) {
+    return false;
+  }
+
+  if (
+    filters.assignmentSource === "special" &&
+    !bars.some((bar) => bar.source === "special")
+  ) {
+    return false;
+  }
+
   if (filters.assignmentSource === "empty" && bars.length > 0) {
     return false;
   }
@@ -736,11 +806,14 @@ function vehicleMatchesFilters({
       ...bars.flatMap((bar) => [
         bar.source === "manual"
           ? "Gerätedisposition manuell"
-          : "Grundinfo Kolonne",
+          : bar.source === "default"
+            ? "Grundinfo Kolonne"
+            : bar.sourceLabel,
         bar.projectNumber,
         bar.projectName,
         bar.crewName,
         bar.notes,
+        ...(bar.detailLines ?? []),
         formatGermanDate(bar.startDate),
         formatGermanDate(bar.endDate),
       ]),
@@ -750,9 +823,17 @@ function vehicleMatchesFilters({
   return searchableText.includes(query);
 }
 
-function getBarClass(source: "manual" | "default") {
+function getBarClass(source: EquipmentBarSource) {
   if (source === "manual") {
     return "rounded-lg border border-blue-300 bg-blue-100 px-3 py-2 text-xs font-semibold text-blue-950 shadow-sm ring-1 ring-blue-200";
+  }
+
+  if (source === "truck") {
+    return "rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-950 shadow-sm ring-1 ring-emerald-200";
+  }
+
+  if (source === "special") {
+    return "rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-950 shadow-sm ring-1 ring-violet-200";
   }
 
   return "rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm";
@@ -766,7 +847,7 @@ function buildLaneLayout(bars: EquipmentRowBar[]) {
     const startCompare =
       normalizeDay(a.startDate).getTime() - normalizeDay(b.startDate).getTime();
     if (startCompare !== 0) return startCompare;
-    const sourceCompare = a.source.localeCompare(b.source);
+    const sourceCompare = getBarSourceSort(a.source) - getBarSourceSort(b.source);
     if (sourceCompare !== 0) return sourceCompare;
     return (
       normalizeDay(a.endDate).getTime() - normalizeDay(b.endDate).getTime()
@@ -800,6 +881,17 @@ function buildLaneLayout(bars: EquipmentRowBar[]) {
         TIMELINE_BOTTOM_PADDING_PX,
     ),
   } satisfies LaneLayout;
+}
+
+function getBarSourceSort(source: EquipmentBarSource) {
+  const order: Record<EquipmentBarSource, number> = {
+    manual: 10,
+    truck: 20,
+    special: 30,
+    default: 40,
+  };
+
+  return order[source];
 }
 
 function manualAssignmentOverlapsVehicle({
@@ -854,6 +946,7 @@ function buildDefaultBarsForCrewAssignment({
     bars.push({
       id: `default-${assignment.id}-${vehicleId}-${segmentIndex}`,
       source: "default",
+      sourceLabel: "Kolonnen-Grundinfo",
       vehicleId,
       startDate: currentSegmentStart,
       endDate: currentSegmentEnd,
@@ -901,6 +994,74 @@ function buildDefaultBarsForCrewAssignment({
   return bars;
 }
 
+function addEquipmentBarToVehicle(
+  barsByVehicle: Map<string, EquipmentRowBar[]>,
+  visibleVehicleIds: Set<string>,
+  bar: EquipmentRowBar,
+) {
+  if (!visibleVehicleIds.has(bar.vehicleId)) {
+    return false;
+  }
+
+  const vehicleBars = barsByVehicle.get(bar.vehicleId) ?? [];
+  vehicleBars.push(bar);
+  barsByVehicle.set(bar.vehicleId, vehicleBars);
+  return true;
+}
+
+function getProjectNumber(value: string | null | undefined) {
+  return value?.trim() || "ohne Projektnummer";
+}
+
+function getProjectName(value: string | null | undefined) {
+  return value?.trim() || "ohne Baustelle";
+}
+
+function getEquipmentDetailLines(lines: Array<string | null | undefined>) {
+  return lines
+    .map((line) => line?.trim())
+    .filter((line): line is string => Boolean(line));
+}
+
+function formatTimeRange(startTime: string | null | undefined, endTime?: string | null) {
+  const start = startTime?.trim();
+  const end = endTime?.trim();
+
+  if (start && end) {
+    return `${start} – ${end}`;
+  }
+
+  return start || end || null;
+}
+
+function formatOptionalQuantity(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2,
+  }).format(value)} ${unit?.trim() || ""}`.trim();
+}
+
+function getShortHaulHref(date: Date, assignmentId?: string) {
+  const hash = assignmentId ? `#assignment-${assignmentId}` : "";
+  return `/truck-dispatch/short-haul?date=${formatDateInput(date)}${hash}`;
+}
+
+function getLongHaulHref(date: Date) {
+  return `/truck-dispatch/long-haul?week=${formatDateInput(startOfWeek(date))}`;
+}
+
+function getSpecialVehicleHref(date: Date) {
+  return `/special-vehicle-dispatch?from=${formatDateInput(date)}&to=${formatDateInput(
+    date,
+  )}&view=days`;
+}
+
 export default async function EquipmentDispatchPage({
   searchParams,
 }: {
@@ -918,6 +1079,9 @@ export default async function EquipmentDispatchPage({
     category?: string;
     specialVehicle?: string;
     assignmentSource?: string;
+    showCars?: string;
+    showSpecialVehicles?: string;
+    showTrucks?: string;
     quickVehicleId?: string;
     quickStart?: string;
     quickEnd?: string;
@@ -933,6 +1097,9 @@ export default async function EquipmentDispatchPage({
     licensePlate: getFilterText(params.licensePlate),
     vehicleType: getFilterText(params.vehicleType),
     category: getFilterText(params.category),
+    showCars: params.showCars === "1",
+    showSpecialVehicles: params.showSpecialVehicles === "1",
+    showTrucks: params.showTrucks === "1",
     specialVehicle: getSpecialVehicleFilter(params.specialVehicle),
     assignmentSource: getEquipmentSourceFilter(params.assignmentSource),
   };
@@ -1002,6 +1169,11 @@ export default async function EquipmentDispatchPage({
     crews,
     equipmentAssignments,
     crewPlanningAssignments,
+    specialVehicleAssignments,
+    shortHaulAssignments,
+    truckLongHaulTruckAssignments,
+    asphaltLoadAllocations,
+    tackCoatLoadAllocations,
   ] = await Promise.all([
     prisma.vehicle.findMany({
       where: {
@@ -1077,6 +1249,94 @@ export default async function EquipmentDispatchPage({
       },
       orderBy: [{ startDate: "asc" }, { crewName: "asc" }],
     }),
+
+    prisma.specialVehicleDispatchAssignment.findMany({
+      where: {
+        workDate: {
+          gte: periodStart,
+          lt: periodEndExclusive,
+        },
+        OR: [
+          {
+            vehicleId: {
+              not: null,
+            },
+          },
+          {
+            transportVehicleId: {
+              not: null,
+            },
+          },
+        ],
+      },
+      include: {
+        vehicle: true,
+        transportVehicle: true,
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
+
+    prisma.shortHaulAssignment.findMany({
+      where: {
+        workDate: {
+          gte: periodStart,
+          lt: periodEndExclusive,
+        },
+        vehicleId: {
+          not: null,
+        },
+      },
+      include: {
+        tours: {
+          orderBy: [{ tourNumber: "asc" }],
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
+
+    prisma.truckLongHaulTruckAssignment.findMany({
+      where: {
+        vehicleId: {
+          not: null,
+        },
+        entry: {
+          workDate: {
+            gte: periodStart,
+            lt: periodEndExclusive,
+          },
+        },
+      },
+      include: {
+        entry: true,
+      },
+      orderBy: [{ entry: { workDate: "asc" } }, { plannedStartTime: "asc" }],
+    }),
+
+    prisma.asphaltLoadAllocation.findMany({
+      where: {
+        workDate: {
+          gte: periodStart,
+          lt: periodEndExclusive,
+        },
+        vehicleId: {
+          not: null,
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
+
+    prisma.tackCoatLoadAllocation.findMany({
+      where: {
+        workDate: {
+          gte: periodStart,
+          lt: periodEndExclusive,
+        },
+        vehicleId: {
+          not: null,
+        },
+      },
+      orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
+    }),
   ]);
 
   const quickVehicle = quickVehicleId
@@ -1087,6 +1347,7 @@ export default async function EquipmentDispatchPage({
     (assignment) => ({
       id: `manual-${assignment.id}`,
       source: "manual",
+      sourceLabel: "Gerätedisposition",
       vehicleId: assignment.vehicleId,
       startDate: assignment.startDate,
       endDate: assignment.endDate,
@@ -1136,6 +1397,285 @@ export default async function EquipmentDispatchPage({
 
   for (const vehicle of simpleFilteredVehicles) {
     barsByVehicle.set(vehicle.id, [...(manualBarsByVehicle.get(vehicle.id) ?? [])]);
+  }
+
+  const externalBarCounts = {
+    special: 0,
+    truck: 0,
+  };
+
+  for (const assignment of specialVehicleAssignments) {
+    const date = normalizeDay(assignment.workDate);
+    const baseDetails = getEquipmentDetailLines([
+      formatTimeRange(assignment.startTime, assignment.endTime)
+        ? `Zeit: ${formatTimeRange(assignment.startTime, assignment.endTime)}`
+        : null,
+      assignment.taskText ? `Aufgabe: ${assignment.taskText}` : null,
+      formatOptionalQuantity(assignment.quantity, assignment.quantityUnit)
+        ? `Menge: ${formatOptionalQuantity(assignment.quantity, assignment.quantityUnit)}`
+        : null,
+      assignment.operatorDriverName
+        ? `Bediener/Fahrer: ${assignment.operatorDriverName}`
+        : null,
+      assignment.transportVehicleName
+        ? `Transport-LKW: ${assignment.transportVehicleName}`
+        : null,
+    ]);
+
+    if (assignment.vehicleId) {
+      const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+        id: `special-dispatch-${assignment.id}`,
+        source: "special",
+        sourceLabel: "Sonderfahrzeugdisposition",
+        vehicleId: assignment.vehicleId,
+        startDate: date,
+        endDate: date,
+        projectId: assignment.projectId,
+        projectNumber: getProjectNumber(assignment.projectNumber),
+        projectName: getProjectName(assignment.projectName),
+        crewId: assignment.crewId,
+        crewName: assignment.crewName,
+        notes: assignment.notes || assignment.taskText || null,
+        detailLines: baseDetails,
+        href: getSpecialVehicleHref(date),
+      });
+
+      if (added) {
+        externalBarCounts.special += 1;
+      }
+    }
+
+    if (assignment.transportVehicleId) {
+      const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+        id: `special-transport-${assignment.id}`,
+        source: "truck",
+        sourceLabel: "LKW für Sonderfahrzeug",
+        vehicleId: assignment.transportVehicleId,
+        startDate: date,
+        endDate: date,
+        projectId: assignment.projectId,
+        projectNumber: getProjectNumber(assignment.projectNumber),
+        projectName: getProjectName(assignment.projectName),
+        crewId: assignment.crewId,
+        crewName: assignment.crewName,
+        notes: assignment.notes || assignment.taskText || null,
+        detailLines: getEquipmentDetailLines([
+          ...baseDetails,
+          assignment.vehicleName ? `Sonderfahrzeug: ${assignment.vehicleName}` : null,
+        ]),
+        href: getSpecialVehicleHref(date),
+      });
+
+      if (added) {
+        externalBarCounts.truck += 1;
+      }
+    }
+  }
+
+  for (const assignment of shortHaulAssignments) {
+    if (!assignment.vehicleId) continue;
+
+    const date = normalizeDay(assignment.workDate);
+    const tours = assignment.tours.length > 0 ? assignment.tours : null;
+
+    if (!tours) {
+      const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+        id: `truck-short-${assignment.id}`,
+        source: "truck",
+        sourceLabel: "LKW Kurzstrecke",
+        vehicleId: assignment.vehicleId,
+        startDate: date,
+        endDate: date,
+        projectId: assignment.projectId,
+        projectNumber: getProjectNumber(assignment.projectNumber),
+        projectName: getProjectName(assignment.projectName),
+        crewId: null,
+        crewName: assignment.driverName,
+        notes: assignment.notes || assignment.material || null,
+        detailLines: getEquipmentDetailLines([
+          assignment.startTime ? `Start: ${assignment.startTime}` : null,
+          assignment.driverName ? `Fahrer: ${assignment.driverName}` : null,
+          assignment.material ? `Material: ${assignment.material}` : null,
+        ]),
+        href: getShortHaulHref(date, assignment.id),
+      });
+
+      if (added) {
+        externalBarCounts.truck += 1;
+      }
+      continue;
+    }
+
+    for (const tour of tours) {
+      const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+        id: `truck-short-tour-${tour.id}`,
+        source: "truck",
+        sourceLabel: "LKW Kurzstrecke",
+        vehicleId: assignment.vehicleId,
+        startDate: date,
+        endDate: date,
+        projectId: tour.projectId ?? assignment.projectId,
+        projectNumber: getProjectNumber(tour.projectNumber || assignment.projectNumber),
+        projectName: getProjectName(tour.projectName || assignment.projectName),
+        crewId: null,
+        crewName: assignment.driverName,
+        notes: tour.notes || assignment.notes || tour.material || null,
+        detailLines: getEquipmentDetailLines([
+          `Tour ${tour.tourNumber}`,
+          formatTimeRange(tour.startTime, tour.endTime)
+            ? `Zeit: ${formatTimeRange(tour.startTime, tour.endTime)}`
+            : null,
+          assignment.driverName ? `Fahrer: ${assignment.driverName}` : null,
+          tour.itemName || tour.customPurpose
+            ? `Zweck: ${tour.itemName || tour.customPurpose}`
+            : null,
+          formatOptionalQuantity(tour.quantity, tour.quantityUnit)
+            ? `Menge: ${formatOptionalQuantity(tour.quantity, tour.quantityUnit)}`
+            : null,
+          tour.material ? `Material: ${tour.material}` : null,
+        ]),
+        href: getShortHaulHref(date, assignment.id),
+      });
+
+      if (added) {
+        externalBarCounts.truck += 1;
+      }
+    }
+  }
+
+  for (const truckAssignment of truckLongHaulTruckAssignments) {
+    if (!truckAssignment.vehicleId) continue;
+
+    const date = normalizeDay(truckAssignment.entry.workDate);
+    const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+      id: `truck-long-${truckAssignment.id}`,
+      source: "truck",
+      sourceLabel: "LKW Langstrecke",
+      vehicleId: truckAssignment.vehicleId,
+      startDate: date,
+      endDate: date,
+      projectId: truckAssignment.entry.projectId,
+      projectNumber: getProjectNumber(truckAssignment.entry.projectNumber),
+      projectName: getProjectName(truckAssignment.entry.projectName),
+      crewId: null,
+      crewName: truckAssignment.driverName,
+      notes:
+        truckAssignment.plannedNotes ||
+        truckAssignment.notes ||
+        truckAssignment.entry.notes ||
+        null,
+      detailLines: getEquipmentDetailLines([
+        formatTimeRange(
+          truckAssignment.plannedStartTime,
+          truckAssignment.plannedEndTime,
+        )
+          ? `Zeit: ${formatTimeRange(
+              truckAssignment.plannedStartTime,
+              truckAssignment.plannedEndTime,
+            )}`
+          : null,
+        truckAssignment.driverName ? `Fahrer: ${truckAssignment.driverName}` : null,
+        truckAssignment.entry.materialName
+          ? `Material: ${truckAssignment.entry.materialName}`
+          : null,
+        truckAssignment.plannedTourCount > 0
+          ? `Geplant: ${truckAssignment.plannedTourCount} Touren`
+          : null,
+        truckAssignment.plannedTotalTons > 0
+          ? `Menge: ${formatOptionalQuantity(
+              truckAssignment.plannedTotalTons,
+              "t",
+            )}`
+          : null,
+      ]),
+      href: getLongHaulHref(date),
+    });
+
+    if (added) {
+      externalBarCounts.truck += 1;
+    }
+  }
+
+  for (const allocation of asphaltLoadAllocations) {
+    if (!allocation.vehicleId) continue;
+
+    const date = normalizeDay(allocation.workDate);
+    const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+      id: `truck-asphalt-${allocation.id}`,
+      source: "truck",
+      sourceLabel: "Asphaltlieferung",
+      vehicleId: allocation.vehicleId,
+      startDate: date,
+      endDate: date,
+      projectId: allocation.projectId,
+      projectNumber: getProjectNumber(allocation.projectNumber),
+      projectName: getProjectName(allocation.projectName),
+      crewId: null,
+      crewName: allocation.driverName,
+      notes: allocation.notes,
+      detailLines: getEquipmentDetailLines([
+        formatTimeRange(allocation.startTime, allocation.endTime)
+          ? `Zeit: ${formatTimeRange(allocation.startTime, allocation.endTime)}`
+          : null,
+        allocation.driverName ? `Fahrer: ${allocation.driverName}` : null,
+        allocation.asphaltMixNumber || allocation.asphaltMixName
+          ? `Asphalt: ${[allocation.asphaltMixNumber, allocation.asphaltMixName]
+              .filter(Boolean)
+              .join(" · ")}`
+          : null,
+        allocation.tourCount > 0 ? `Touren: ${allocation.tourCount}` : null,
+        allocation.totalTons > 0
+          ? `Menge: ${formatOptionalQuantity(allocation.totalTons, "t")}`
+          : null,
+      ]),
+      href:
+        allocation.sourceType === "LONG"
+          ? getLongHaulHref(date)
+          : getShortHaulHref(date, allocation.shortHaulAssignmentId ?? undefined),
+    });
+
+    if (added) {
+      externalBarCounts.truck += 1;
+    }
+  }
+
+  for (const allocation of tackCoatLoadAllocations) {
+    if (!allocation.vehicleId) continue;
+
+    const date = normalizeDay(allocation.workDate);
+    const added = addEquipmentBarToVehicle(barsByVehicle, visibleVehicleIds, {
+      id: `truck-tack-${allocation.id}`,
+      source: "truck",
+      sourceLabel: "Anspritzmitteltransport",
+      vehicleId: allocation.vehicleId,
+      startDate: date,
+      endDate: date,
+      projectId: allocation.projectId,
+      projectNumber: getProjectNumber(allocation.projectNumber),
+      projectName: getProjectName(allocation.projectName),
+      crewId: null,
+      crewName: allocation.driverName,
+      notes: allocation.notes,
+      detailLines: getEquipmentDetailLines([
+        formatTimeRange(allocation.startTime, allocation.endTime)
+          ? `Zeit: ${formatTimeRange(allocation.startTime, allocation.endTime)}`
+          : null,
+        allocation.driverName ? `Fahrer: ${allocation.driverName}` : null,
+        allocation.materialName ? `Anspritzmittel: ${allocation.materialName}` : null,
+        allocation.tourCount > 0 ? `Touren: ${allocation.tourCount}` : null,
+        allocation.totalLiters > 0
+          ? `Menge: ${formatOptionalQuantity(
+              allocation.totalLiters,
+              allocation.quantityUnit,
+            )}`
+          : null,
+      ]),
+      href: getShortHaulHref(date, allocation.shortHaulAssignmentId ?? undefined),
+    });
+
+    if (added) {
+      externalBarCounts.truck += 1;
+    }
   }
 
   for (const assignment of crewPlanningAssignments) {
@@ -1192,8 +1732,10 @@ export default async function EquipmentDispatchPage({
     filters.licensePlate,
     filters.vehicleType,
     filters.category,
-    filters.specialVehicle !== "all" ? filters.specialVehicle : "",
     filters.assignmentSource !== "all" ? filters.assignmentSource : "",
+    filters.showCars ? "showCars" : "",
+    filters.showSpecialVehicles ? "showSpecialVehicles" : "",
+    filters.showTrucks ? "showTrucks" : "",
   ].filter(Boolean).length;
 
   const rowLayouts = new Map<string, LaneLayout>();
@@ -1245,10 +1787,13 @@ export default async function EquipmentDispatchPage({
           label="Manuelle Dispo"
           value={String(equipmentAssignments.length)}
         />
-        <SummaryCard label="Baustellen" value={String(projects.length)} />
         <SummaryCard
-          label="Kolonnen-Grundinfo"
-          value={String(crewPlanningAssignments.length)}
+          label="LKW-Dispo sichtbar"
+          value={String(externalBarCounts.truck)}
+        />
+        <SummaryCard
+          label="Sonderfahrzeug-Dispo sichtbar"
+          value={String(externalBarCounts.special)}
         />
       </div>
 
@@ -1312,7 +1857,8 @@ export default async function EquipmentDispatchPage({
       <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm font-semibold text-blue-950">
         Blaue Balken sind manuelle Gerätedispositionen und haben Vorrang. Graue
         gestrichelte Balken sind nur Grundinfo aus der Kolonneneinteilung und
-        werden durch manuelle Dispo automatisch ausgeblendet.
+        werden durch manuelle Dispo automatisch ausgeblendet. Grüne Balken kommen
+        aus der LKW-Disposition, violette Balken aus der Sonderfahrzeugdisposition.
       </div>
 
       <form
@@ -1351,7 +1897,7 @@ export default async function EquipmentDispatchPage({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
           <label className="text-xs font-semibold text-gray-700">
             Baustelle / Projekt
             <select
@@ -1427,19 +1973,6 @@ export default async function EquipmentDispatchPage({
           </label>
 
           <label className="text-xs font-semibold text-gray-700">
-            Sonderfahrzeug
-            <select
-              name="specialVehicle"
-              defaultValue={filters.specialVehicle}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="all">Alle</option>
-              <option value="yes">Nur Sonderfahrzeuge</option>
-              <option value="no">Ohne Sonderfahrzeuge</option>
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
             Belegung
             <select
               name="assignmentSource"
@@ -1449,9 +1982,47 @@ export default async function EquipmentDispatchPage({
               <option value="all">Alle Belegungen</option>
               <option value="manual">Nur manuelle Dispo</option>
               <option value="default">Nur Kolonnen-Grundinfo</option>
+              <option value="truck">Nur LKW-Dispo</option>
+              <option value="special">Nur Sonderfahrzeug-Dispo</option>
               <option value="empty">Ohne sichtbare Belegung</option>
             </select>
           </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <input
+              name="showTrucks"
+              type="checkbox"
+              value="1"
+              defaultChecked={shouldShowTrucks(filters)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            LKW aus LKW-/Asphaltdispo anzeigen
+          </label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <input
+              name="showSpecialVehicles"
+              type="checkbox"
+              value="1"
+              defaultChecked={shouldShowSpecialVehicles(filters)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Sonderfahrzeuge anzeigen
+          </label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <input
+              name="showCars"
+              type="checkbox"
+              value="1"
+              defaultChecked={shouldShowCars(filters)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            PKW anzeigen
+          </label>
+          <span className="text-xs font-medium text-gray-500">
+            Standardmäßig bleiben diese Gruppen ausgeblendet, damit die Geräteliste kompakt bleibt.
+          </span>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -1476,7 +2047,7 @@ export default async function EquipmentDispatchPage({
         </div>
       </form>
 
-      <div className="max-w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -1666,6 +2237,15 @@ export default async function EquipmentDispatchPage({
                 name="assignmentSource"
                 value={filters.assignmentSource}
               />
+            ) : null}
+            {filters.showTrucks ? (
+              <input type="hidden" name="showTrucks" value="1" />
+            ) : null}
+            {filters.showSpecialVehicles ? (
+              <input type="hidden" name="showSpecialVehicles" value="1" />
+            ) : null}
+            {filters.showCars ? (
+              <input type="hidden" name="showCars" value="1" />
             ) : null}
             <label className="text-xs font-semibold text-blue-950">
               Von
@@ -1933,6 +2513,83 @@ export default async function EquipmentDispatchPage({
                                     Zuweisung löschen
                                   </button>
                                 </form>
+                              </div>
+                            </EquipmentAssignmentBar>
+                          );
+                        }
+
+                        if (bar.source === "truck" || bar.source === "special") {
+                          return (
+                            <EquipmentAssignmentBar
+                              key={bar.id}
+                              id={bar.id}
+                              crewName={title}
+                              crewTypeValue={`equipment-${bar.source}`}
+                              startDate={formatDateInput(bar.startDate)}
+                              endDate={formatDateInput(bar.endDate)}
+                              timelineUnits={timelineUnitsForClient}
+                              unitCount={unitCount}
+                              topOffsetPx={topOffsetPx}
+                              barClassName={getBarClass(bar.source)}
+                              readOnly
+                            >
+                              <div
+                                className={`absolute z-40 mt-2 w-[440px] max-w-[calc(100vw-3rem)] rounded-xl border bg-white p-4 text-gray-900 shadow-xl ${
+                                  bar.source === "truck"
+                                    ? "border-emerald-200"
+                                    : "border-violet-200"
+                                }`}
+                              >
+                                <div
+                                  className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                                    bar.source === "truck"
+                                      ? "bg-emerald-100 text-emerald-900"
+                                      : "bg-violet-100 text-violet-900"
+                                  }`}
+                                >
+                                  {bar.sourceLabel}
+                                </div>
+                                <div className="mt-3 text-sm font-bold text-gray-900">
+                                  {title}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500">
+                                  {getVehicleLabel(vehicle)}
+                                </div>
+                                <div className="mt-2 text-xs font-medium text-gray-600">
+                                  {formatGermanDate(bar.startDate)}
+                                  {bar.startDate.getTime() !== bar.endDate.getTime()
+                                    ? ` – ${formatGermanDate(bar.endDate)}`
+                                    : ""}
+                                </div>
+                                {bar.crewName ? (
+                                  <div className="mt-2 text-xs text-gray-600">
+                                    Fahrer/Kolonne: {bar.crewName}
+                                  </div>
+                                ) : null}
+                                {bar.detailLines && bar.detailLines.length > 0 ? (
+                                  <div className="mt-3 space-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                                    {bar.detailLines.map((line) => (
+                                      <div key={line}>{line}</div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {bar.notes ? (
+                                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                                    {bar.notes}
+                                  </div>
+                                ) : null}
+                                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                                  Dieser Balken kommt aus einer anderen Disposition
+                                  und wird hier nur angezeigt.
+                                </div>
+                                {bar.href ? (
+                                  <Link
+                                    href={bar.href}
+                                    className="mt-3 inline-flex rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                                  >
+                                    Führende Dispo öffnen
+                                  </Link>
+                                ) : null}
                               </div>
                             </EquipmentAssignmentBar>
                           );

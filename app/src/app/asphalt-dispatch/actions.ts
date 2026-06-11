@@ -84,6 +84,7 @@ function revalidateAsphaltPlanningViews() {
   revalidatePath("/asphalt-dispatch");
   revalidatePath("/special-vehicle-dispatch");
   revalidatePath("/crew-dispatch");
+  revalidatePath("/equipment-dispatch");
 }
 
 export async function createAsphaltDispatchEntry(formData: FormData) {

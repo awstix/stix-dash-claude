@@ -35,6 +35,7 @@ type EquipmentAssignmentBarProps = {
   unitCount: number;
   topOffsetPx: number;
   barClassName: string;
+  readOnly?: boolean;
   supplements?: ReactNode;
   dragCreatePayload?: {
     vehicleId: string;
@@ -364,25 +365,26 @@ export function EquipmentAssignmentBar({
   unitCount,
   topOffsetPx,
   barClassName,
+  readOnly = false,
   supplements = null,
   dragCreatePayload,
   children,
 }: EquipmentAssignmentBarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [displayStartDate, setDisplayStartDate] = useState(startDate);
-  const [displayEndDate, setDisplayEndDate] = useState(endDate);
+  const [draftDateRange, setDraftDateRange] = useState<{
+    endDate: string;
+    startDate: string;
+  } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
-  const isDateEditable = Boolean(dragCreatePayload) || !id.startsWith("default-");
-
-  useEffect(() => {
-    setDisplayStartDate(startDate);
-    setDisplayEndDate(endDate);
-  }, [endDate, startDate]);
+  const isDateEditable =
+    !readOnly && (Boolean(dragCreatePayload) || !id.startsWith("default-"));
+  const displayStartDate = draftDateRange?.startDate ?? startDate;
+  const displayEndDate = draftDateRange?.endDate ?? endDate;
 
   const gridColumn = useMemo(
     () =>
@@ -474,8 +476,7 @@ export function EquipmentAssignmentBar({
         await updateEquipmentDispatchAssignmentDates(formData);
       }
     } catch (error) {
-      setDisplayStartDate(startDate);
-      setDisplayEndDate(endDate);
+      setDraftDateRange(null);
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -588,8 +589,10 @@ export function EquipmentAssignmentBar({
       dragState.currentStartDate = nextStartDate;
       dragState.currentEndDate = nextEndDate;
 
-      setDisplayStartDate(nextStartDate);
-      setDisplayEndDate(nextEndDate);
+      setDraftDateRange({
+        endDate: nextEndDate,
+        startDate: nextStartDate,
+      });
     };
 
     const handleUp = (upEvent: PointerEvent) => {
@@ -613,8 +616,10 @@ export function EquipmentAssignmentBar({
       }
 
       if (!moved) {
-        setDisplayStartDate(dragState.initialStartDate);
-        setDisplayEndDate(dragState.initialEndDate);
+        setDraftDateRange({
+          endDate: dragState.initialEndDate,
+          startDate: dragState.initialStartDate,
+        });
         return;
       }
 

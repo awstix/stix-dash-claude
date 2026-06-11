@@ -59,6 +59,7 @@ function getDayRange(workDate: Date) {
 function revalidateLongHaulConsumers() {
   revalidatePath("/truck-dispatch");
   revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/equipment-dispatch");
   revalidatePath("/orders");
 }
 

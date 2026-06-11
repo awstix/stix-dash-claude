@@ -144,6 +144,7 @@ function revalidateSpecialVehicleConsumers() {
   revalidatePath("/special-vehicle-dispatch");
   revalidatePath("/crew-dispatch");
   revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/equipment-dispatch");
 }
 
 async function getVehicle(vehicleId: string) {
