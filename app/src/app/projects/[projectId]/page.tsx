@@ -797,6 +797,14 @@ export default async function ProjectDetailPage({
               </button>
             </div>
           </form>
+          <div className="mt-3">
+            <Link
+              className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/projects/bautagesberichte?projectId=${project.id}&date=${defaultDailyReportDate}`}
+            >
+              Bautagesbericht prüfen / freigeben
+            </Link>
+          </div>
           <ProjectDailyReportWeatherEditor
             projectId={project.id}
             rows={dailyReportWeatherRows}

@@ -45,6 +45,7 @@ function getVehicleSearchText(vehicle: {
   licensePlate: string | null;
   vehicleType: string;
   category: string;
+  dailyReportMachineLabel: string | null;
   asphaltPayloadTons: number;
   tackCoatTankLiters: number;
   isSpecialVehicle: boolean;
@@ -56,6 +57,7 @@ function getVehicleSearchText(vehicle: {
     vehicle.licensePlate,
     vehicle.vehicleType,
     vehicle.category,
+    vehicle.dailyReportMachineLabel,
     formatTons(vehicle.asphaltPayloadTons),
     formatLiters(vehicle.tackCoatTankLiters),
     vehicle.isSpecialVehicle ? "Sonderfahrzeug" : "kein Sonderfahrzeug",
@@ -67,6 +69,21 @@ function getVehicleSearchText(vehicle: {
     .join(" ")
     .toLowerCase();
 }
+
+const dailyReportMachineLabelOptions = [
+  "Mobilbagger",
+  "Kettenbagger",
+  "LKW 2-Achser",
+  "LKW 3-Achser",
+  "LKW 4-Achser",
+  "LKW Abrollkipper",
+  "LKW Sattelzug",
+  "Planierraupe",
+  "Grader",
+  "Erdbauwalze / Walzenzug",
+  "Kompressor",
+  "Radlader",
+];
 
 export default async function VehiclesPage({
   searchParams,
@@ -135,6 +152,11 @@ export default async function VehiclesPage({
     ...categoryOptions,
     ...vehicles.map((vehicle) => vehicle.category),
   ]);
+  const dailyReportMachineOptions = getUniqueOptions([
+    ...dailyReportMachineLabelOptions,
+    ...categoryOptions,
+    ...vehicles.map((vehicle) => vehicle.dailyReportMachineLabel),
+  ]);
 
   const filteredVehicles = vehicles.filter((vehicle) => {
     const quickMatches = quickSearch
@@ -197,6 +219,11 @@ export default async function VehiclesPage({
           <Input name="vehicleNumber" label="Fahrzeugnummer" required />
           <Input name="notes" label="Bemerkung" />
           <Input name="licensePlate" label="Kennzeichen" />
+          <OptionalSelect
+            name="dailyReportMachineLabel"
+            label="BTB-Bezeichnung"
+            options={dailyReportMachineOptions}
+          />
 
           <Select
             name="vehicleType"
@@ -380,7 +407,7 @@ export default async function VehiclesPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1290px] text-left text-sm">
+          <table className="w-full min-w-[1430px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
                 <th className="sticky left-0 z-20 w-[92px] whitespace-nowrap border-r border-gray-200 bg-gray-50 p-3 text-center font-semibold shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
@@ -391,6 +418,7 @@ export default async function VehiclesPage({
                 <Th>Kennzeichen</Th>
                 <Th>Fahrzeugtyp</Th>
                 <Th>Kategorie</Th>
+                <Th>BTB-Bezeichnung</Th>
                 <th className="w-[105px] whitespace-nowrap p-3 font-semibold">
                   Nutzlast
                 </th>
@@ -405,13 +433,13 @@ export default async function VehiclesPage({
             <tbody className="text-gray-900">
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
+                  <td colSpan={11} className="p-8 text-center text-gray-500">
                     Noch keine Fahrzeuge vorhanden.
                   </td>
                 </tr>
               ) : filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
+                  <td colSpan={11} className="p-8 text-center text-gray-500">
                     Keine Fahrzeuge passend zu den aktuellen Filtern gefunden.
                   </td>
                 </tr>
@@ -490,6 +518,15 @@ export default async function VehiclesPage({
                           name="category"
                           defaultValue={vehicle.category}
                           options={categoryOptions}
+                        />
+                      </Td>
+
+                      <Td>
+                        <SmallOptionalSelect
+                          formId={formId}
+                          name="dailyReportMachineLabel"
+                          defaultValue={vehicle.dailyReportMachineLabel ?? ""}
+                          options={dailyReportMachineOptions}
                         />
                       </Td>
 
@@ -625,6 +662,7 @@ function Input({
   step,
   min,
   placeholder,
+  list,
 }: {
   name: string;
   label: string;
@@ -633,6 +671,7 @@ function Input({
   step?: string;
   min?: string;
   placeholder?: string;
+  list?: string;
 }) {
   return (
     <label className="text-sm font-medium text-gray-800">
@@ -644,6 +683,7 @@ function Input({
         step={step}
         min={min}
         placeholder={placeholder}
+        list={list}
         className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
       />
     </label>
@@ -685,6 +725,35 @@ function Select({
   );
 }
 
+function OptionalSelect({
+  name,
+  label,
+  options,
+}: {
+  name: string;
+  label: string;
+  options: string[];
+}) {
+  return (
+    <label className="text-sm font-medium text-gray-800">
+      {label}
+      <select
+        name={name}
+        defaultValue=""
+        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+      >
+        <option value="">Automatisch ermitteln</option>
+
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function SmallInput({
   formId,
   name,
@@ -692,6 +761,7 @@ function SmallInput({
   type = "text",
   step,
   min,
+  list,
 }: {
   formId: string;
   name: string;
@@ -699,6 +769,7 @@ function SmallInput({
   type?: string;
   step?: string;
   min?: string;
+  list?: string;
 }) {
   return (
     <input
@@ -707,6 +778,7 @@ function SmallInput({
       type={type}
       step={step}
       min={min}
+      list={list}
       defaultValue={defaultValue}
       className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-medium text-gray-900 outline-none focus:border-gray-900"
     />
@@ -732,6 +804,39 @@ function SmallPayloadInput({
       defaultValue={defaultValue}
       className="w-[82px] rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-medium text-gray-900 outline-none focus:border-gray-900"
     />
+  );
+}
+
+function SmallOptionalSelect({
+  formId,
+  name,
+  defaultValue,
+  options,
+}: {
+  formId: string;
+  name: string;
+  defaultValue: string;
+  options: string[];
+}) {
+  const mergedOptions = options.includes(defaultValue)
+    ? options
+    : [defaultValue, ...options].filter(Boolean);
+
+  return (
+    <select
+      form={formId}
+      name={name}
+      defaultValue={defaultValue}
+      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-medium text-gray-900 outline-none focus:border-gray-900"
+    >
+      <option value="">Automatisch</option>
+
+      {mergedOptions.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
   );
 }
 

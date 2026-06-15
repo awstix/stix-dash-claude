@@ -11,6 +11,20 @@ import {
   updateCrew,
 } from "./actions";
 
+const SORT_ORDER_STEP = 5;
+
+function getNextSortOrder(items: { sortOrder: number }[]) {
+  const highestSortOrder = items.reduce(
+    (highest, item) => Math.max(highest, item.sortOrder),
+    0
+  );
+
+  return (
+    Math.ceil(highestSortOrder / SORT_ORDER_STEP) * SORT_ORDER_STEP +
+    SORT_ORDER_STEP
+  );
+}
+
 function getEmployeeName(employee: { firstName: string; lastName: string }) {
   return `${employee.lastName}, ${employee.firstName}`;
 }
@@ -63,6 +77,33 @@ function getOtherCrewNamesForEmployee({
     .filter((crew) =>
       crew.members.some(
         (member) => member.employeeId === employeeId && member.isActive
+      )
+    )
+    .map((crew) => crew.name);
+}
+
+function getOtherCrewNamesForVehicle({
+  currentCrewId,
+  vehicleId,
+  crews,
+}: {
+  currentCrewId: string;
+  vehicleId: string;
+  crews: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    defaultVehicles: {
+      vehicleId: string;
+      isActive: boolean;
+    }[];
+  }[];
+}) {
+  return crews
+    .filter((crew) => crew.id !== currentCrewId && crew.isActive)
+    .filter((crew) =>
+      crew.defaultVehicles.some(
+        (item) => item.vehicleId === vehicleId && item.isActive
       )
     )
     .map((crew) => crew.name);
@@ -144,6 +185,7 @@ export default async function CrewsAdminPage() {
   const asphaltDispatchCrews = crews.filter(
     (crew) => crew.isActive && crew.isAsphaltDispatchCrew
   );
+  const nextCrewSortOrder = getNextSortOrder(crews);
 
   return (
     <AppShell
@@ -209,6 +251,7 @@ export default async function CrewsAdminPage() {
         <CrewForm
           action={createCrew}
           crewTypeOptions={crewTypeOptions}
+          defaultSortOrder={String(nextCrewSortOrder)}
           defaultIsActive
         />
       </details>
@@ -225,15 +268,21 @@ export default async function CrewsAdminPage() {
             Noch keine Kolonnen angelegt.
           </div>
         ) : (
-          crews.map((crew) => (
-            <section
-              key={crew.id}
-              className={
-                crew.isActive
-                  ? "rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
-                  : "rounded-2xl border border-gray-200 bg-gray-50 p-6 opacity-70 shadow-sm"
-              }
-            >
+          crews.map((crew) => {
+            const nextMemberSortOrder = getNextSortOrder(crew.members);
+            const nextDefaultVehicleSortOrder = getNextSortOrder(
+              crew.defaultVehicles
+            );
+
+            return (
+              <section
+                key={crew.id}
+                className={
+                  crew.isActive
+                    ? "rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+                    : "rounded-2xl border border-gray-200 bg-gray-50 p-6 opacity-70 shadow-sm"
+                }
+              >
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -452,7 +501,9 @@ export default async function CrewsAdminPage() {
                         <input
                           name="sortOrder"
                           type="number"
-                          defaultValue="0"
+                          min={0}
+                          step={SORT_ORDER_STEP}
+                          defaultValue={nextMemberSortOrder}
                           className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
                         />
                       </label>
@@ -532,14 +583,45 @@ export default async function CrewsAdminPage() {
                             Gerät/Fahrzeug wählen
                           </option>
 
-                          {vehicles.map((vehicle) => (
-                            <option key={vehicle.id} value={vehicle.id}>
-                              {vehicle.isSpecialVehicle ? "⭐ " : ""}
-                              {getVehicleLabel(vehicle)}
-                            </option>
-                          ))}
+                          {vehicles.map((vehicle) => {
+                            const otherCrewNames =
+                              getOtherCrewNamesForVehicle({
+                                currentCrewId: crew.id,
+                                vehicleId: vehicle.id,
+                                crews,
+                              });
+
+                            const isAssignedToOtherCrew =
+                              otherCrewNames.length > 0;
+
+                            const vehicleLabel = `${
+                              vehicle.isSpecialVehicle ? "⭐ " : ""
+                            }${getVehicleLabel(vehicle)}`;
+
+                            const assignedLabel = isAssignedToOtherCrew
+                              ? `! ${vehicleLabel} · bereits in: ${otherCrewNames.join(
+                                  ", "
+                                )}`
+                              : vehicleLabel;
+
+                            return (
+                              <option
+                                key={vehicle.id}
+                                value={vehicle.id}
+                                disabled={isAssignedToOtherCrew}
+                              >
+                                {assignedLabel}
+                              </option>
+                            );
+                          })}
                         </select>
                       </label>
+
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                        ! = Gerät/Fahrzeug ist bereits in einer anderen aktiven
+                        Kolonne vergeben und kann hier nicht doppelt ausgewählt
+                        werden.
+                      </div>
 
                       <label className="block text-xs font-medium text-gray-700">
                         Bemerkung
@@ -555,7 +637,9 @@ export default async function CrewsAdminPage() {
                         <input
                           name="sortOrder"
                           type="number"
-                          defaultValue="0"
+                          min={0}
+                          step={SORT_ORDER_STEP}
+                          defaultValue={nextDefaultVehicleSortOrder}
                           className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
                         />
                       </label>
@@ -570,8 +654,9 @@ export default async function CrewsAdminPage() {
                   </details>
                 </div>
               </div>
-            </section>
-          ))
+              </section>
+            );
+          })
         )}
       </div>
     </AppShell>
@@ -649,6 +734,8 @@ function CrewForm({
           <input
             name="sortOrder"
             type="number"
+            min={0}
+            step={SORT_ORDER_STEP}
             defaultValue={defaultSortOrder}
             className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
           />

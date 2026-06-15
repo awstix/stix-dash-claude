@@ -11,6 +11,11 @@ import {
   PROJECT_FORM_FIELD_TYPES,
   parseProjectFormFields,
 } from "./projectFormTypes";
+import {
+  dailyReportApprovalFieldIds,
+  type DailyReportCountRow,
+  type DailyReportMaterialRow,
+} from "./dailyReportContext";
 import type {
   ProjectFormFieldDefinition,
   ProjectFormFieldType,
@@ -49,6 +54,35 @@ export type ProjectDailyReportWeatherInput = {
   weatherNotes: string;
   weatherTempMaxC: string;
   weatherTempMinC: string;
+};
+
+export type ProjectDailyReportSaveInput = {
+  approvedByName: string;
+  approvedFields: string[];
+  laborRows: DailyReportCountRow[];
+  machineRows: DailyReportCountRow[];
+  materialRows: DailyReportMaterialRow[];
+  performanceLines: string[];
+  projectId: string;
+  projectName: string;
+  projectNumber: string;
+  reportDate: string;
+  sheetNumber: string;
+  showRealMachineNames: boolean;
+  status: "APPROVED" | "DRAFT";
+  trafficSafetyFirstCheckTime: string;
+  trafficSafetySecondCheckTime: string;
+  weatherCategory: string;
+  weatherNotes: string;
+  weatherTempMaxC: string;
+  weatherTempMinC: string;
+  weekday: string;
+  workEnd: string;
+  workStart: string;
+};
+
+export type ProjectDailyReportDeleteInput = {
+  id: string;
 };
 
 export type ProjectPhotoUpdateInput = {
@@ -216,6 +250,11 @@ function revalidateProjectDocumentViews(projectId?: string) {
 function revalidateProjectFormViews(projectId?: string) {
   revalidateProjectViews(projectId);
   revalidatePath("/projects/formulare");
+  revalidatePath("/projects/bautagesberichte");
+}
+
+function revalidateProjectDailyReportViews(projectId?: string) {
+  revalidateProjectViews(projectId);
   revalidatePath("/projects/bautagesberichte");
 }
 
@@ -474,7 +513,300 @@ export async function saveProjectDailyReportWeather(
     },
   });
 
-  revalidateProjectViews(input.projectId);
+  revalidateProjectDailyReportViews(input.projectId);
+}
+
+export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput) {
+  const projectId = input.projectId.trim();
+  const reportDateKey = input.reportDate.trim();
+
+  if (!projectId || !/^\d{4}-\d{2}-\d{2}$/.test(reportDateKey)) {
+    throw new Error("Projekt und Berichtdatum sind Pflichtfelder.");
+  }
+
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!project) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  const reportDate = toWeatherDate(reportDateKey);
+  const status = input.status === "APPROVED" ? "APPROVED" : "DRAFT";
+  const existingReport = await prisma.projectDailyReport.findUnique({
+    where: {
+      projectId_reportDate: {
+        projectId,
+        reportDate,
+      },
+    },
+    select: {
+      approvedAt: true,
+    },
+  });
+  const approvedAt =
+    status === "APPROVED" ? existingReport?.approvedAt ?? new Date() : null;
+  const approvedByName =
+    status === "APPROVED"
+      ? cleanProjectFormText(input.approvedByName, 120) || null
+      : null;
+  const approvedFieldsJson = JSON.stringify(
+    cleanDailyReportApprovedFields(input.approvedFields),
+  );
+  const laborJson = JSON.stringify(cleanDailyReportCountRows(input.laborRows));
+  const machinesJson = JSON.stringify(
+    cleanDailyReportCountRows(input.machineRows),
+  );
+  const materialJson = JSON.stringify(
+    cleanDailyReportMaterialRows(input.materialRows),
+  );
+  const performanceJson = JSON.stringify(
+    cleanDailyReportLines(input.performanceLines, 6),
+  );
+  const data = {
+    approvedAt,
+    approvedByName,
+    approvedFieldsJson,
+    laborJson,
+    machinesJson,
+    materialJson,
+    performanceJson,
+    reportProjectName: cleanProjectFormText(input.projectName, 180) || null,
+    reportProjectNumber: cleanProjectFormText(input.projectNumber, 80) || null,
+    sheetNumber: cleanProjectFormText(input.sheetNumber, 20) || "1",
+    showRealMachineNames: input.showRealMachineNames === true,
+    status,
+    trafficSafetyFirstCheckTime: cleanDailyReportTime(
+      input.trafficSafetyFirstCheckTime,
+    ),
+    trafficSafetySecondCheckTime: cleanDailyReportTime(
+      input.trafficSafetySecondCheckTime,
+    ),
+    weatherCategory: cleanProjectFormText(input.weatherCategory, 180) || null,
+    weatherNotes: cleanProjectFormText(input.weatherNotes, 1000) || null,
+    weatherSource: "MANUAL",
+    weatherTempMaxC: cleanOptionalFloat(input.weatherTempMaxC),
+    weatherTempMinC: cleanOptionalFloat(input.weatherTempMinC),
+    weekdayLabel: cleanProjectFormText(input.weekday, 30) || null,
+    workEnd: cleanDailyReportTime(input.workEnd),
+    workStart: cleanDailyReportTime(input.workStart),
+  };
+
+  await prisma.projectDailyReport.upsert({
+    where: {
+      projectId_reportDate: {
+        projectId,
+        reportDate,
+      },
+    },
+    create: {
+      ...data,
+      projectId,
+      reportDate,
+    },
+    update: data,
+  });
+
+  await renumberApprovedDailyReports(projectId);
+  revalidateProjectDailyReportViews(projectId);
+}
+
+export async function deleteProjectDailyReport(
+  input: ProjectDailyReportDeleteInput,
+) {
+  const reportId = input.id.trim();
+
+  if (!reportId) {
+    throw new Error("Bautagesbericht-ID fehlt.");
+  }
+
+  const report = await prisma.projectDailyReport.findUnique({
+    where: {
+      id: reportId,
+    },
+    select: {
+      projectId: true,
+    },
+  });
+
+  if (!report) {
+    return;
+  }
+
+  await prisma.projectDailyReport.delete({
+    where: {
+      id: reportId,
+    },
+  });
+
+  await renumberApprovedDailyReports(report.projectId);
+  revalidateProjectDailyReportViews(report.projectId);
+}
+
+async function renumberApprovedDailyReports(projectId: string) {
+  const approvedReports = await prisma.projectDailyReport.findMany({
+    where: {
+      projectId,
+      status: "APPROVED",
+    },
+    orderBy: [{ reportDate: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      reportNumber: true,
+    },
+  });
+
+  const updates = approvedReports
+    .map((report, index) => {
+      const nextNumber = index + 1;
+
+      if (report.reportNumber === nextNumber) {
+        return null;
+      }
+
+      return prisma.projectDailyReport.update({
+        where: {
+          id: report.id,
+        },
+        data: {
+          reportNumber: nextNumber,
+          sheetNumber: String(nextNumber),
+        },
+      });
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  if (updates.length > 0) {
+    await prisma.$transaction(updates);
+  }
+
+  await prisma.projectDailyReport.updateMany({
+    where: {
+      projectId,
+      status: {
+        not: "APPROVED",
+      },
+      reportNumber: {
+        not: null,
+      },
+    },
+    data: {
+      reportNumber: null,
+    },
+  });
+}
+
+function cleanDailyReportApprovedFields(values: string[]) {
+  const allowed = new Set<string>(dailyReportApprovalFieldIds);
+
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter((value) => allowed.has(value)),
+    ),
+  );
+}
+
+function cleanDailyReportCountRows(rows: DailyReportCountRow[]) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows
+    .slice(0, 24)
+    .map((row, index) => {
+      const label = cleanProjectFormText(String(row.label ?? ""), 120);
+      const key =
+        cleanProjectFormText(String(row.key ?? ""), 80) ||
+        `zeile_${index + 1}`;
+
+      if (!label) {
+        return null;
+      }
+
+      return {
+        count: cleanPositiveReportNumber(row.count),
+        hours: cleanPositiveReportNumber(row.hours),
+        key,
+        label,
+      };
+    })
+    .filter((row): row is DailyReportCountRow => Boolean(row));
+}
+
+function cleanDailyReportMaterialRows(rows: DailyReportMaterialRow[]) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows
+    .slice(0, 24)
+    .map((row, index) => {
+      const label = cleanProjectFormText(String(row.label ?? ""), 160);
+      const unit = cleanProjectFormText(String(row.unit ?? ""), 20);
+      const key =
+        cleanProjectFormText(String(row.key ?? ""), 100) ||
+        `material_${index + 1}`;
+
+      if (!label) {
+        return null;
+      }
+
+      return {
+        key,
+        label,
+        quantity: cleanPositiveReportNumber(row.quantity),
+        unit,
+      };
+    })
+    .filter((row): row is DailyReportMaterialRow => Boolean(row));
+}
+
+function cleanDailyReportLines(lines: string[], maxLines: number) {
+  if (!Array.isArray(lines)) {
+    return [];
+  }
+
+  return lines
+    .map((line) => cleanProjectFormText(String(line ?? ""), 500))
+    .filter(Boolean)
+    .slice(0, maxLines);
+}
+
+function cleanDailyReportTime(value: string) {
+  const cleaned = cleanProjectFormText(value, 20);
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    return cleaned;
+  }
+
+  const hours = Math.min(Math.max(Number(match[1]), 0), 23);
+  const minutes = Math.min(Math.max(Number(match[2]), 0), 59);
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function cleanPositiveReportNumber(value: number) {
+  const numberValue = Number(value);
+
+  if (!Number.isFinite(numberValue) || numberValue < 0) {
+    return 0;
+  }
+
+  return Math.round(numberValue * 10) / 10;
 }
 
 export async function uploadProjectPhotos(formData: FormData) {

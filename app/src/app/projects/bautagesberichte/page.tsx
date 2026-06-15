@@ -1,7 +1,17 @@
 import Link from "next/link";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { ProjectDailyReportDeleteButton } from "../ProjectDailyReportDeleteButton";
+import { ProjectDailyReportEditor } from "../ProjectDailyReportEditor";
+import { ProjectDailyReportSelectionForm } from "../ProjectDailyReportSelectionForm";
 import { ProjectNavigation } from "../ProjectNavigation";
+import {
+  addDailyReportDays,
+  buildDailyReportContext,
+  getDailyReportSourceProject,
+  toDailyReportDate,
+} from "../dailyReportContext";
 
 export default async function ProjectDailyReportsPage({
   searchParams,
@@ -23,8 +33,7 @@ export default async function ProjectDailyReportsPage({
   const projects = await prisma.project.findMany({
     include: {
       dailyReports: {
-        orderBy: [{ reportDate: "desc" }],
-        take: 3,
+        orderBy: [{ reportDate: "asc" }, { createdAt: "asc" }],
       },
       weatherLogs: {
         orderBy: [{ weatherDate: "desc" }],
@@ -38,13 +47,26 @@ export default async function ProjectDailyReportsPage({
     projects.find((project) => project.id === selectedProjectId) ??
     projects[0] ??
     null;
-  const exportHref = selectedProject
-    ? buildExportHref({
-        date: selectedDate,
-        projectId: selectedProject.id,
-        sheetNumber,
-      })
-    : "";
+  const reportDate = toDailyReportDate(selectedDate);
+  const selectedReportSource = selectedProject
+    ? await getDailyReportSourceProject(
+        selectedProject.id,
+        reportDate,
+        addDailyReportDays(reportDate, 1),
+      )
+    : null;
+  const dailyReportContext = selectedReportSource
+    ? buildDailyReportContext(selectedReportSource, selectedDate, sheetNumber)
+    : null;
+  const selectionSheetNumber = dailyReportContext?.sheetNumber ?? sheetNumber;
+  const exportHref =
+    selectedProject && dailyReportContext
+      ? buildExportHref({
+          date: selectedDate,
+          projectId: selectedProject.id,
+          sheetNumber: dailyReportContext.sheetNumber,
+        })
+      : "";
 
   return (
     <AppShell
@@ -66,7 +88,7 @@ export default async function ProjectDailyReportsPage({
             </p>
           </div>
 
-          {selectedProject ? (
+          {selectedProject && exportHref ? (
             <a
               href={exportHref}
               className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
@@ -76,56 +98,17 @@ export default async function ProjectDailyReportsPage({
           ) : null}
         </div>
 
-        <form
-          action="/projects/bautagesberichte"
-          className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.6fr)_180px_120px_auto]"
-        >
-          <label className="text-sm font-medium text-gray-800">
-            Projekt
-            <select
-              name="projectId"
-              defaultValue={selectedProject?.id ?? ""}
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              {projects.length === 0 ? (
-                <option value="">Keine Projekte vorhanden</option>
-              ) : null}
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.projectNumber} · {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Datum
-            <input
-              type="date"
-              name="date"
-              defaultValue={selectedDate}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Blattnr.
-            <input
-              name="blattnr"
-              defaultValue={sheetNumber}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </label>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            >
-              Auswahl übernehmen
-            </button>
-          </div>
-        </form>
+        <ProjectDailyReportSelectionForm
+          key={`${selectedProject?.id ?? "ohne"}-${selectedDate}-${selectionSheetNumber}`}
+          projects={projects.map((project) => ({
+            id: project.id,
+            name: project.name,
+            projectNumber: project.projectNumber,
+          }))}
+          selectedDate={selectedDate}
+          selectedProjectId={selectedProject?.id ?? ""}
+          sheetNumber={selectionSheetNumber}
+        />
 
         {selectedProject ? (
           <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
@@ -138,11 +121,158 @@ export default async function ProjectDailyReportsPage({
         ) : null}
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <InfoCard label="Vorlage" value="STIX Baubericht PDF" />
-        <InfoCard label="Wetter" value="Prognose + manuelle Korrektur" />
-        <InfoCard label="Personal" value="Kolonneneinteilung" />
-        <InfoCard label="Geräte/LKW" value="Dispo zusammengeführt" />
+      {selectedProject && dailyReportContext ? (
+        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Bautagesbericht prüfen und freigeben
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm text-gray-600">
+                Die Felder sind aus der Vorlage aufgebaut. Vorschläge können
+                einzeln geprüft, geändert und freigegeben werden.
+              </p>
+            </div>
+            <Link
+              className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/projects/${selectedProject.id}#bautagesberichte`}
+            >
+              Projektakte öffnen
+            </Link>
+          </div>
+          <ProjectDailyReportEditor
+            context={dailyReportContext}
+            exportHref={exportHref}
+            key={`${selectedProject.id}-${selectedDate}-${dailyReportContext.id ?? "neu"}-${dailyReportContext.status}-${dailyReportContext.reportNumber ?? "ohne"}`}
+            projectId={selectedProject.id}
+          />
+        </section>
+      ) : null}
+
+      <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Erstellte Bautagesberichte
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Je Baustelle chronologisch sortiert. Entwürfe und freigegebene
+            Berichte können hier wieder geöffnet und nachbearbeitet werden.
+          </p>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {projects.some((project) => project.dailyReports.length > 0) ? (
+            projects
+              .filter((project) => project.dailyReports.length > 0)
+              .map((project) => (
+                <div className="p-5" key={project.id}>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                    <h3 className="font-semibold text-gray-900">
+                      {project.projectNumber} · {project.name}
+                    </h3>
+                    <span className="text-xs font-semibold text-gray-500">
+                      {project.dailyReports.length} Bericht
+                      {project.dailyReports.length === 1 ? "" : "e"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left text-sm">
+                      <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">Aktion</th>
+                          <th className="px-3 py-2 font-semibold">Nr.</th>
+                          <th className="px-3 py-2 font-semibold">Datum</th>
+                          <th className="px-3 py-2 font-semibold">Status</th>
+                          <th className="px-3 py-2 font-semibold">Wetter</th>
+                          <th className="px-3 py-2 font-semibold">Geändert</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {project.dailyReports.map((report) => {
+                          const reportDateKey = toDateInputValue(
+                            report.reportDate,
+                          );
+                          const reportSheetNumber =
+                            report.reportNumber?.toString() ||
+                            report.sheetNumber ||
+                            "1";
+                          const reportDateLabel = formatDate(reportDateKey);
+
+                          return (
+                            <tr
+                              className="border-t border-gray-100"
+                              key={report.id}
+                            >
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Link
+                                    aria-label="Bautagesbericht bearbeiten"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                    href={buildDailyReportEditHref({
+                                      date: reportDateKey,
+                                      projectId: project.id,
+                                      sheetNumber: reportSheetNumber,
+                                    })}
+                                    title="Bautagesbericht bearbeiten"
+                                  >
+                                    <ActionIcon name="edit" className="h-4 w-4" />
+                                  </Link>
+                                  <a
+                                    aria-label="Bautagesbericht PDF herunterladen"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                    href={buildExportHref({
+                                      date: reportDateKey,
+                                      projectId: project.id,
+                                      sheetNumber: reportSheetNumber,
+                                    })}
+                                    title="Bautagesbericht PDF herunterladen"
+                                  >
+                                    <ActionIcon name="download" className="h-4 w-4" />
+                                  </a>
+                                  <ProjectDailyReportDeleteButton
+                                    dateLabel={reportDateLabel}
+                                    reportId={report.id}
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 font-semibold text-gray-900">
+                                {report.reportNumber
+                                  ? `Nr. ${report.reportNumber}`
+                                  : report.sheetNumber
+                                    ? `Blatt ${report.sheetNumber}`
+                                    : "-"}
+                              </td>
+                              <td className="px-3 py-2 text-gray-800">
+                                {reportDateLabel}
+                              </td>
+                              <td className="px-3 py-2">
+                                <ReportStatusPill status={report.status} />
+                              </td>
+                              <td className="px-3 py-2 text-gray-700">
+                                {formatWeatherSummary({
+                                  category: report.weatherCategory,
+                                  max: report.weatherTempMaxC,
+                                  min: report.weatherTempMinC,
+                                })}
+                              </td>
+                              <td className="px-3 py-2 text-gray-600">
+                                {formatDateTime(report.updatedAt)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))
+          ) : (
+            <div className="p-8 text-center text-sm font-medium text-gray-500">
+              Noch keine Bautagesberichte erstellt.
+            </div>
+          )}
+        </div>
       </section>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -193,17 +323,23 @@ export default async function ProjectDailyReportsPage({
                     <td className="p-4 align-top text-gray-700">
                       {project.dailyReports.length > 0 ? (
                         <div className="space-y-1">
-                          {project.dailyReports.map((report) => (
+                          {project.dailyReports.slice(-3).map((report) => (
                             <div key={report.id}>
+                              {report.reportNumber
+                                ? `Nr. ${report.reportNumber} · `
+                                : ""}
                               {formatDate(toDateInputValue(report.reportDate))}
                               {report.weatherCategory
                                 ? ` · ${report.weatherCategory}`
+                                : ""}
+                              {report.status === "APPROVED"
+                                ? " · freigegeben"
                                 : ""}
                             </div>
                           ))}
                         </div>
                       ) : (
-                        "Noch keine gespeicherten Wetterkorrekturen"
+                        "Noch keine erstellten Bautagesberichte"
                       )}
                     </td>
                     <td className="p-4 align-top">
@@ -237,13 +373,38 @@ export default async function ProjectDailyReportsPage({
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function ReportStatusPill({ status }: { status: string }) {
+  const isApproved = status === "APPROVED";
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-2 text-base font-semibold text-gray-900">{value}</div>
-    </div>
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+        isApproved
+          ? "bg-emerald-100 text-emerald-800"
+          : "bg-amber-100 text-amber-800"
+      }`}
+    >
+      {isApproved ? "freigegeben" : "Entwurf"}
+    </span>
   );
+}
+
+function buildDailyReportEditHref({
+  date,
+  projectId,
+  sheetNumber,
+}: {
+  date: string;
+  projectId: string;
+  sheetNumber: string;
+}) {
+  const params = new URLSearchParams({
+    blattnr: sheetNumber,
+    date,
+    projectId,
+  });
+
+  return `/projects/bautagesberichte?${params.toString()}`;
 }
 
 function buildExportHref({
@@ -264,6 +425,34 @@ function buildExportHref({
   return `/projects/bautagesberichte/export?${params.toString()}`;
 }
 
+function formatWeatherSummary({
+  category,
+  max,
+  min,
+}: {
+  category: string | null;
+  max: number | null;
+  min: number | null;
+}) {
+  const temperatures =
+    min !== null || max !== null
+      ? [formatTemperature(min), formatTemperature(max)]
+          .filter(Boolean)
+          .join(" / ")
+      : "";
+
+  return [category, temperatures].filter(Boolean).join(" · ") || "-";
+}
+
+function formatTemperature(value: number | null) {
+  if (value === null) return "";
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+  }).format(value)} °C`;
+}
+
 function toDateInputValue(date: Date) {
   const adjusted = new Date(date);
   adjusted.setMinutes(adjusted.getMinutes() - adjusted.getTimezoneOffset());
@@ -276,4 +465,14 @@ function formatDate(dateKey: string) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(`${dateKey}T12:00:00.000Z`));
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }

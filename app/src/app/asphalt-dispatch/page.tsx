@@ -328,6 +328,10 @@ export default async function AsphaltDispatchPage({
       positions.reduce((daySum, position) => daySum + position.openTons, 0),
     0
   );
+  const totalOpenTackCoatLiters = tackCoatOpenPositions.reduce(
+    (sum, position) => sum + position.openLiters,
+    0,
+  );
 
   const dayTotals = new Map(
     days.map((day) => {
@@ -562,14 +566,19 @@ export default async function AsphaltDispatchPage({
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
         <SummaryBox label="Einträge" value={String(entries.length)} hint="geplante Asphaltmaßnahmen" />
         <SummaryBox label="Kolonnen" value={String(crews.length)} hint="aktive Asphaltkolonnen aus Admin → Kolonnen" />
-        <SummaryBox label="Mischgut gesamt" value={`${formatTons(totalTons)} t`} hint="Gesamtmenge im gewählten Zeitraum" />
         <SummaryBox
-          label="Anspritzmittel gesamt"
-          value={`${formatLiters(totalTackCoatQuantity)} l`}
-          hint="Rohstoffbedarf im gewählten Zeitraum"
+          label="Asphalt zu vergeben"
+          value={`${formatTons(totalOpenTons)} t`}
+          hint={`${formatTons(totalTons)} t Bedarf gesamt`}
+          tone="orange"
+        />
+        <SummaryBox
+          label="Anspritzmittel zu vergeben"
+          value={`${formatLiters(totalOpenTackCoatLiters)} l`}
+          hint={`${formatLiters(totalTackCoatQuantity)} l Bedarf gesamt`}
           tone="purple"
         />
-        <SummaryBox label="Offen" value={`${formatTons(totalOpenTons)} t`} hint="noch nicht auf LKW verteilt" tone="orange" />
+        <SummaryBox label="Mischgutbedarf gesamt" value={`${formatTons(totalTons)} t`} hint="Gesamtmenge im gewählten Zeitraum" />
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

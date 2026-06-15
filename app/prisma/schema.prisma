@@ -38,21 +38,21 @@ model Project {
 
   notes String?
 
-  asphaltDispatchEntries AsphaltDispatchEntry[]
-  truckLongHaulEntries   TruckLongHaulEntry[]
-  shortHaulAssignments   ShortHaulAssignment[]
-  shortHaulTours         ShortHaulTour[]
-  asphaltLoadAllocations AsphaltLoadAllocation[]
-  tackCoatLoadAllocations TackCoatLoadAllocation[]
+  asphaltDispatchEntries            AsphaltDispatchEntry[]
+  truckLongHaulEntries              TruckLongHaulEntry[]
+  shortHaulAssignments              ShortHaulAssignment[]
+  shortHaulTours                    ShortHaulTour[]
+  asphaltLoadAllocations            AsphaltLoadAllocation[]
+  tackCoatLoadAllocations           TackCoatLoadAllocation[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
-  crewPlanningRows       CrewPlanningRow[]
-  equipmentDispatchAssignments EquipmentDispatchAssignment[]
-  weatherLogs            ProjectWeatherLog[]
-  dailyReports           ProjectDailyReport[]
-  photos                 ProjectPhoto[]
-  documentFolders        ProjectDocumentFolder[]
-  documents              ProjectDocument[]
-  formSubmissions        ProjectFormSubmission[]
+  crewPlanningRows                  CrewPlanningRow[]
+  equipmentDispatchAssignments      EquipmentDispatchAssignment[]
+  weatherLogs                       ProjectWeatherLog[]
+  dailyReports                      ProjectDailyReport[]
+  photos                            ProjectPhoto[]
+  documentFolders                   ProjectDocumentFolder[]
+  documents                         ProjectDocument[]
+  formSubmissions                   ProjectFormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -77,12 +77,12 @@ model ProjectWeatherLog {
   weatherCategory             String?
   weatherCategorySource       String  @default("AUTO")
 
-  currentTemperatureC   Float?
-  currentWeatherCode    Int?
-  currentWeatherLabel   String?
+  currentTemperatureC    Float?
+  currentWeatherCode     Int?
+  currentWeatherLabel    String?
   currentPrecipitationMm Float?
-  currentWindSpeedKmh   Float?
-  observedAt            DateTime?
+  currentWindSpeedKmh    Float?
+  observedAt             DateTime?
 
   fetchedAt DateTime @default(now())
   notes     String?
@@ -102,14 +102,33 @@ model ProjectDailyReport {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  reportDate DateTime
+  reportDate   DateTime
+  reportNumber Int?
+  status       String   @default("DRAFT")
+  sheetNumber  String   @default("1")
 
-  weatherTempMinC  Float?
-  weatherTempMaxC  Float?
-  weatherCategory  String?
-  weatherSource    String  @default("AUTO")
-  weatherNotes     String?
-  photos           ProjectDailyReportPhoto[]
+  reportProjectName   String?
+  reportProjectNumber String?
+  weekdayLabel        String?
+
+  weatherTempMinC              Float?
+  weatherTempMaxC              Float?
+  weatherCategory              String?
+  weatherSource                String                    @default("AUTO")
+  weatherNotes                 String?
+  workStart                    String?
+  workEnd                      String?
+  trafficSafetyFirstCheckTime  String?
+  trafficSafetySecondCheckTime String?
+  laborJson                    String?
+  machinesJson                 String?
+  materialJson                 String?
+  performanceJson              String?
+  showRealMachineNames         Boolean                   @default(false)
+  approvedFieldsJson           String?
+  approvedAt                   DateTime?
+  approvedByName               String?
+  photos                       ProjectDailyReportPhoto[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -117,6 +136,8 @@ model ProjectDailyReport {
   @@unique([projectId, reportDate])
   @@index([projectId])
   @@index([reportDate])
+  @@index([reportNumber])
+  @@index([status])
 }
 
 model ProjectPhoto {
@@ -134,26 +155,26 @@ model ProjectPhoto {
   imageWidth       Int?
   imageHeight      Int?
 
-  notes                     String?
-  metadataTaken             Boolean @default(false)
-  capturedAt                DateTime?
-  cameraMake                String?
-  cameraModel               String?
-  gpsLatitude               Float?
-  gpsLongitude              Float?
-  gpsAddressLabel           String?
-  gpsStreet                 String?
-  gpsHouseNumber            String?
-  gpsPostcode               String?
-  gpsCity                   String?
-  gpsCountry                String?
-  gpsReverseGeocodedAt      DateTime?
-  gpsReverseGeocodeSource   String?
-  gpsAddressJson            String?
-  metadataJson              String?
-  availableForDailyReports  Boolean @default(true)
-  uploadedByUserId          String?
-  uploadedByName            String?
+  notes                    String?
+  metadataTaken            Boolean   @default(false)
+  capturedAt               DateTime?
+  cameraMake               String?
+  cameraModel              String?
+  gpsLatitude              Float?
+  gpsLongitude             Float?
+  gpsAddressLabel          String?
+  gpsStreet                String?
+  gpsHouseNumber           String?
+  gpsPostcode              String?
+  gpsCity                  String?
+  gpsCountry               String?
+  gpsReverseGeocodedAt     DateTime?
+  gpsReverseGeocodeSource  String?
+  gpsAddressJson           String?
+  metadataJson             String?
+  availableForDailyReports Boolean   @default(true)
+  uploadedByUserId         String?
+  uploadedByName           String?
 
   dailyReportLinks ProjectDailyReportPhoto[]
 
@@ -179,7 +200,7 @@ model ProjectDailyReportPhoto {
   photo   ProjectPhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   note      String?
-  sortOrder Int @default(0)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
   @@unique([dailyReportId, photoId])
@@ -194,7 +215,7 @@ model ProjectDocumentFolder {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   name      String
-  sortOrder Int @default(0)
+  sortOrder Int    @default(0)
 
   documents ProjectDocument[]
 
@@ -269,7 +290,7 @@ model ProjectFormSubmission {
   formDate             DateTime?
   valuesJson           String
   templateSnapshotJson String?
-  status               String   @default("DRAFT")
+  status               String    @default("DRAFT")
   createdByUserId      String?
   createdByName        String?
 
@@ -292,11 +313,11 @@ model Driver {
   isActive  Boolean @default(true)
   notes     String?
 
-  shortHaulAssignments          ShortHaulAssignment[]
-  vehicleAssignments            DriverVehicleAssignment[]
-  truckLongHaulTruckAssignments TruckLongHaulTruckAssignment[]
-  asphaltLoadAllocations        AsphaltLoadAllocation[]
-  tackCoatLoadAllocations       TackCoatLoadAllocation[]
+  shortHaulAssignments              ShortHaulAssignment[]
+  vehicleAssignments                DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments     TruckLongHaulTruckAssignment[]
+  asphaltLoadAllocations            AsphaltLoadAllocation[]
+  tackCoatLoadAllocations           TackCoatLoadAllocation[]
   specialVehicleOperatorAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleOperatorDriver")
 
   employee Employee? @relation("EmployeeDriver")
@@ -306,34 +327,37 @@ model Driver {
 }
 
 model Vehicle {
-  id               String  @id @default(cuid())
-  vehicleNumber    String  @unique
-  licensePlate     String? @unique
-  vehicleType      String
-  category         String
-  isSpecialVehicle Boolean @default(false)
-  isActive         Boolean @default(true)
-  notes            String?
+  id                      String  @id @default(cuid())
+  vehicleNumber           String  @unique
+  licensePlate            String? @unique
+  vehicleType             String
+  category                String
+  isSpecialVehicle        Boolean @default(false)
+  isActive                Boolean @default(true)
+  notes                   String?
+  dailyReportMachineLabel String?
 
-  asphaltPayloadTons  Float @default(0)
+  asphaltPayloadTons Float @default(0)
   tackCoatTankLiters Float @default(0)
 
-  shortHaulAssignments           ShortHaulAssignment[]
-  driverAssignments              DriverVehicleAssignment[]
-  truckLongHaulTruckAssignments  TruckLongHaulTruckAssignment[]
-  specialVehicleTasks            SpecialVehicleTask[]
-  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchVehicle")
+  shortHaulAssignments               ShortHaulAssignment[]
+  driverAssignments                  DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments      TruckLongHaulTruckAssignment[]
+  specialVehicleTasks                SpecialVehicleTask[]
+  specialVehicleDispatchAssignments  SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchVehicle")
   specialVehicleTransportAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleTransportVehicle")
-  tours                          ShortHaulTour[]
-  asphaltLoadAllocations         AsphaltLoadAllocation[]
-  tackCoatLoadAllocations        TackCoatLoadAllocation[]
-  crewDefaultVehicles            CrewDefaultVehicle[]
-  crewPlanningAssignmentVehicles CrewPlanningAssignmentVehicle[]
-  equipmentDispatchAssignments    EquipmentDispatchAssignment[]
-  workshopRepairOrders           WorkshopRepairOrder[]
+  tours                              ShortHaulTour[]
+  asphaltLoadAllocations             AsphaltLoadAllocation[]
+  tackCoatLoadAllocations            TackCoatLoadAllocation[]
+  crewDefaultVehicles                CrewDefaultVehicle[]
+  crewPlanningAssignmentVehicles     CrewPlanningAssignmentVehicle[]
+  equipmentDispatchAssignments       EquipmentDispatchAssignment[]
+  workshopRepairOrders               WorkshopRepairOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([dailyReportMachineLabel])
 }
 
 model WorkshopRepairOrder {
@@ -348,10 +372,10 @@ model WorkshopRepairOrder {
 
   title       String
   description String?
-  priority    String @default("NORMAL")
-  status      String @default("OPEN")
+  priority    String  @default("NORMAL")
+  status      String  @default("OPEN")
 
-  reportedAt   DateTime @default(now())
+  reportedAt   DateTime  @default(now())
   plannedStart DateTime?
   plannedEnd   DateTime?
   completedAt  DateTime?
@@ -400,8 +424,8 @@ model MaterialType {
   isActive       Boolean @default(true)
   notes          String?
 
-  truckLongHaulEntries TruckLongHaulEntry[]
-  asphaltTackCoatEntries AsphaltDispatchEntry[]
+  truckLongHaulEntries    TruckLongHaulEntry[]
+  asphaltTackCoatEntries  AsphaltDispatchEntry[]
   tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
@@ -476,20 +500,20 @@ model AsphaltDispatchEntry {
   asphaltMixNumber String?
   asphaltMixName   String?
 
-  quantityTons Float   @default(0)
+  quantityTons Float @default(0)
 
   tackCoatMaterialTypeId String?
   tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
   tackCoatMaterialName   String?
-  tackCoatQuantity       Float   @default(0)
+  tackCoatQuantity       Float         @default(0)
   tackCoatUnit           String?
 
   isForeignMix Boolean @default(false)
 
   notes String?
 
-  truckLongHaulEntries   TruckLongHaulEntry[]
-  asphaltLoadAllocations AsphaltLoadAllocation[]
+  truckLongHaulEntries    TruckLongHaulEntry[]
+  asphaltLoadAllocations  AsphaltLoadAllocation[]
   tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
@@ -618,8 +642,8 @@ model ShortHaulAssignment {
   allowLongHaulConflict Boolean @default(false)
   conflictNote          String?
 
-  tours                  ShortHaulTour[]
-  asphaltLoadAllocations AsphaltLoadAllocation[]
+  tours                   ShortHaulTour[]
+  asphaltLoadAllocations  AsphaltLoadAllocation[]
   tackCoatLoadAllocations TackCoatLoadAllocation[]
 
   createdAt DateTime @default(now())
@@ -704,12 +728,12 @@ model SpecialVehicleDispatchAssignment {
 
   vehicleName String @default("")
 
-  transportVehicleId String?
-  transportVehicle   Vehicle? @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
+  transportVehicleId   String?
+  transportVehicle     Vehicle? @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
   transportVehicleName String?
 
-  operatorDriverId String?
-  operatorDriver   Driver? @relation("SpecialVehicleOperatorDriver", fields: [operatorDriverId], references: [id], onDelete: SetNull)
+  operatorDriverId   String?
+  operatorDriver     Driver? @relation("SpecialVehicleOperatorDriver", fields: [operatorDriverId], references: [id], onDelete: SetNull)
   operatorDriverName String?
 
   projectId String?
@@ -719,7 +743,7 @@ model SpecialVehicleDispatchAssignment {
   projectName   String @default("")
 
   crewId String?
-  crew   Crew? @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  crew   Crew?   @relation(fields: [crewId], references: [id], onDelete: SetNull)
 
   crewName String?
 
@@ -827,8 +851,8 @@ model TackCoatLoadAllocation {
 
   tackCoatMaterialTypeId String?
   tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
-  materialName           String   @default("")
-  quantityUnit           String   @default("l")
+  materialName           String        @default("")
+  quantityUnit           String        @default("l")
 
   shortHaulAssignmentId String?
   shortHaulAssignment   ShortHaulAssignment? @relation(fields: [shortHaulAssignmentId], references: [id], onDelete: Cascade)
@@ -988,14 +1012,14 @@ model Crew {
   colorClass String?
   notes      String?
 
-  isActive  Boolean @default(true)
-  sortOrder Int     @default(0)
+  isActive              Boolean @default(true)
+  sortOrder             Int     @default(0)
   isAsphaltDispatchCrew Boolean @default(false)
 
-  members         CrewMember[]
-  defaultVehicles CrewDefaultVehicle[]
-  assignments     CrewPlanningAssignment[]
-  equipmentDispatchAssignments EquipmentDispatchAssignment[]
+  members                           CrewMember[]
+  defaultVehicles                   CrewDefaultVehicle[]
+  assignments                       CrewPlanningAssignment[]
+  equipmentDispatchAssignments      EquipmentDispatchAssignment[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
 
   createdAt DateTime @default(now())
@@ -1058,7 +1082,7 @@ model EquipmentDispatchAssignment {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   crewId String?
-  crew   Crew? @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  crew   Crew?   @relation(fields: [crewId], references: [id], onDelete: SetNull)
 
   startDate DateTime
   endDate   DateTime

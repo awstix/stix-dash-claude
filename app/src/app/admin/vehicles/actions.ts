@@ -62,6 +62,9 @@ export async function createVehicle(formData: FormData) {
   const licensePlate = normalizeLicensePlate(formData.get("licensePlate"));
   const vehicleType = String(formData.get("vehicleType") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
+  const dailyReportMachineLabel = optionalString(
+    formData.get("dailyReportMachineLabel")
+  );
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
   );
@@ -103,6 +106,7 @@ export async function createVehicle(formData: FormData) {
       licensePlate,
       vehicleType,
       category,
+      dailyReportMachineLabel,
       asphaltPayloadTons,
       tackCoatTankLiters,
       isSpecialVehicle: formData.get("isSpecialVehicle") === "on",
@@ -119,6 +123,9 @@ export async function updateVehicle(formData: FormData) {
   const licensePlate = normalizeLicensePlate(formData.get("licensePlate"));
   const vehicleType = String(formData.get("vehicleType") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
+  const dailyReportMachineLabel = optionalString(
+    formData.get("dailyReportMachineLabel")
+  );
   const asphaltPayloadTons = parsePayloadTons(
     formData.get("asphaltPayloadTons")
   );
@@ -167,6 +174,7 @@ export async function updateVehicle(formData: FormData) {
       licensePlate,
       vehicleType,
       category,
+      dailyReportMachineLabel,
       asphaltPayloadTons,
       tackCoatTankLiters,
       isSpecialVehicle: formData.get("isSpecialVehicle") === "on",
