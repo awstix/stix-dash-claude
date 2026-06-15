@@ -64,9 +64,9 @@ const realMachineSlots = [
   437, 422, 407, 392, 377, 362, 347, 332, 317, 302, 287, 272,
 ] as const;
 
-const materialLineY = [452, 437, 422, 407, 392] as const;
+const materialLineY = [467, 452, 437, 422, 407] as const;
 const sonstigesSlots = [347, 332, 317, 302, 287] as const;
-const performanceLineY = [209, 191, 173, 155, 137, 119] as const;
+const performanceLineY = [239, 221, 203, 185, 167, 149] as const;
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
@@ -293,7 +293,7 @@ function drawPerformanceLines(page: PDFPage, font: PDFFont, lines: string[]) {
 }
 
 function drawPerformanceHeading(page: PDFPage, font: PDFFont) {
-  clearTemplateText(page, 40, 242, 210, 36);
+  clearTemplateText(page, 40, 251, 210, 18);
   drawSingleLine(
     page,
     font,
