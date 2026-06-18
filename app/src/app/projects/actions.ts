@@ -915,6 +915,9 @@ function cleanPositiveReportNumber(value: number) {
 export async function uploadProjectPhotos(formData: FormData) {
   const projectId = cleanFormString(formData.get("projectId"));
   const notes = cleanFormString(formData.get("notes"));
+  const photoNotes = formData
+    .getAll("photoNotes")
+    .map((value) => (typeof value === "string" ? value.trim() : ""));
   const uploadedByName = cleanUploadText(
     cleanFormString(formData.get("uploadedByName")),
   );
@@ -967,7 +970,7 @@ export async function uploadProjectPhotos(formData: FormData) {
   );
   await mkdir(uploadDirectory, { recursive: true });
 
-  for (const file of files) {
+  for (const [fileIndex, file] of files.entries()) {
     const originalBuffer = Buffer.from(await file.arrayBuffer());
     const storedPhoto = compressPhotos
       ? await compressProjectPhoto(originalBuffer, file.type)
@@ -1025,7 +1028,10 @@ export async function uploadProjectPhotos(formData: FormData) {
             storedDimensions.imageWidth ?? metadata.imageWidth ?? null,
           imageHeight:
             storedDimensions.imageHeight ?? metadata.imageHeight ?? null,
-          notes: notes || null,
+          notes:
+            cleanProjectFormText(photoNotes[fileIndex] ?? "", 1500) ||
+            cleanProjectFormText(notes, 1500) ||
+            null,
           metadataTaken: takeMetadata,
           capturedAt: metadata.capturedAt ?? null,
           cameraMake: metadata.cameraMake ?? null,

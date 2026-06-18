@@ -3,7 +3,10 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadProjectPhotos } from "./actions";
-import { ProjectFileDropInput } from "./ProjectFileDropInput";
+import {
+  ProjectFileDropInput,
+  ProjectPhotoNoteFields,
+} from "./ProjectFileDropInput";
 import {
   ProjectPhotoGallery,
   type ProjectPhotoGalleryItem,
@@ -56,6 +59,7 @@ export function ProjectPhotoManager({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -76,6 +80,7 @@ export function ProjectPhotoManager({
       try {
         await uploadProjectPhotos(formData);
         formRef.current?.reset();
+        setSelectedFiles([]);
         router.refresh();
       } catch (error) {
         alert(
@@ -176,6 +181,7 @@ export function ProjectPhotoManager({
                 emptyLabel="Fotos auswählen oder ablegen"
                 multiple
                 name="photos"
+                onFilesSelected={setSelectedFiles}
                 required
                 selectedLabel="Drag & Drop oder Klick zum Auswählen"
               />
@@ -194,13 +200,15 @@ export function ProjectPhotoManager({
 
           <div className="grid grid-cols-1 gap-4">
             <label className="text-sm font-semibold text-gray-800">
-              Notiz für diese Fotos
+              Gemeinsame Notiz als Vorgabe
               <textarea
                 className="mt-1 min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                 name="notes"
-                placeholder="z. B. Einbau Binder, Schadstelle, Lieferscheinbezug ..."
+                placeholder="Optional für alle Fotos ohne eigene Notiz"
               />
             </label>
+
+            <ProjectPhotoNoteFields files={selectedFiles} tone="gray" />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm font-semibold text-gray-800">

@@ -1,9 +1,12 @@
 "use client";
 
-import { FormEvent, useRef, useTransition } from "react";
+import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadProjectPhotos } from "./actions";
-import { ProjectFileDropInput } from "./ProjectFileDropInput";
+import {
+  ProjectFileDropInput,
+  ProjectPhotoNoteFields,
+} from "./ProjectFileDropInput";
 
 export function ProjectInlinePhotoUpload({
   projectId,
@@ -15,6 +18,7 @@ export function ProjectInlinePhotoUpload({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   function uploadPhotos(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,6 +28,7 @@ export function ProjectInlinePhotoUpload({
       try {
         await uploadProjectPhotos(formData);
         formRef.current?.reset();
+        setSelectedFiles([]);
         router.refresh();
       } catch (error) {
         alert(
@@ -72,6 +77,7 @@ export function ProjectInlinePhotoUpload({
               emptyLabel="Fotos auswählen oder ablegen"
               multiple
               name="photos"
+              onFilesSelected={setSelectedFiles}
               required
               selectedLabel="Drag & Drop oder Klick zum Auswählen"
             />
@@ -90,14 +96,16 @@ export function ProjectInlinePhotoUpload({
 
         <div className="grid grid-cols-1 gap-3">
           <label className="text-sm font-semibold text-gray-800">
-            Notiz
+            Gemeinsame Notiz als Vorgabe
             <textarea
               className="mt-1 min-h-20 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
               name="notes"
-              placeholder="z. B. Einbau, Schadstelle, Lieferscheinbezug ..."
+              placeholder="Optional für alle Fotos ohne eigene Notiz"
             />
           </label>
         </div>
+
+        <ProjectPhotoNoteFields files={selectedFiles} />
 
         <div className="flex flex-wrap gap-3">
           <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800">

@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEvent, InputHTMLAttributes, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 type ProjectFileDropInputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
@@ -8,6 +9,7 @@ type ProjectFileDropInputProps = Pick<
 > & {
   compact?: boolean;
   emptyLabel: string;
+  onFilesSelected?: (files: File[]) => void;
   selectedLabel: string;
 };
 
@@ -18,6 +20,7 @@ export function ProjectFileDropInput({
   emptyLabel,
   multiple,
   name,
+  onFilesSelected,
   required,
   selectedLabel,
 }: ProjectFileDropInputProps) {
@@ -42,9 +45,11 @@ export function ProjectFileDropInput({
   function updateSelection(files: FileList | null) {
     if (!files || files.length === 0) {
       setSelectionText("");
+      onFilesSelected?.([]);
       return;
     }
 
+    onFilesSelected?.(Array.from(files));
     setSelectionText(
       files.length === 1
         ? files[0]?.name ?? selectedLabel
@@ -114,6 +119,79 @@ export function ProjectFileDropInput({
         }
       >
         {selectionText ? "Bereit zum Hochladen" : selectedLabel}
+      </span>
+    </label>
+  );
+}
+
+export function ProjectPhotoNoteFields({
+  files,
+  tone = "white",
+}: {
+  files: File[];
+  tone?: "gray" | "white";
+}) {
+  if (files.length === 0) return null;
+
+  return (
+    <div>
+      <div className="text-sm font-semibold text-gray-800">
+        Eigene Notiz je Foto
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+        {files.map((file, index) => (
+          <ProjectPhotoNoteField
+            file={file}
+            index={index}
+            key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+            tone={tone}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectPhotoNoteField({
+  file,
+  index,
+  tone,
+}: {
+  file: File;
+  index: number;
+  tone: "gray" | "white";
+}) {
+  const [previewUrl] = useState(() => URL.createObjectURL(file));
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  return (
+    <label
+      className={`grid grid-cols-[88px_1fr] gap-3 rounded-lg border border-gray-200 p-3 text-xs font-semibold text-gray-800 ${
+        tone === "gray" ? "bg-gray-50" : "bg-white"
+      }`}
+    >
+      <span className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
+        <Image
+          alt={`Vorschau ${file.name}`}
+          className="object-cover"
+          fill
+          sizes="88px"
+          src={previewUrl}
+          unoptimized
+        />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate" title={file.name}>
+          {index + 1}. {file.name}
+        </span>
+        <textarea
+          className="mt-2 min-h-20 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 outline-none focus:border-gray-900"
+          name="photoNotes"
+          placeholder="Notiz nur für dieses Foto"
+        />
       </span>
     </label>
   );
