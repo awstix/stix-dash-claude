@@ -410,6 +410,7 @@ function toGalleryPhoto(photo: ProjectPhotoListItem): ProjectPhotoGalleryItem {
     gpsReverseGeocodedAt: photo.gpsReverseGeocodedAt,
     gpsStreet: photo.gpsStreet,
     id: photo.id,
+    fileSizeBytes: photo.fileSizeBytes,
     imageHeight: photo.imageHeight,
     imageWidth: photo.imageWidth,
     metadataTaken: photo.metadataTaken,

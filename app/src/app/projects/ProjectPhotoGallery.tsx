@@ -25,6 +25,7 @@ export type ProjectPhotoGalleryItem = {
   gpsCountry: string | null;
   gpsReverseGeocodedAt: string | null;
   id: string;
+  fileSizeBytes: number;
   imageHeight: number | null;
   imageWidth: number | null;
   metadataTaken: boolean;
@@ -1010,11 +1011,20 @@ function getOpenStreetMapUrl(photo: ProjectPhotoGalleryItem) {
 }
 
 function getImageSizeLabel(photo: ProjectPhotoGalleryItem) {
+  const fileSize = formatPhotoFileSize(photo.fileSizeBytes);
+
   if (!photo.imageWidth || !photo.imageHeight) {
-    return "-";
+    return fileSize;
   }
 
-  return `${photo.imageWidth} x ${photo.imageHeight}px`;
+  return `${photo.imageWidth} x ${photo.imageHeight}px · ${fileSize}`;
+}
+
+function formatPhotoFileSize(bytes: number) {
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(bytes / (1024 * 1024))} MB`;
 }
 
 function getPhotoImageSizes(viewMode: PhotoViewMode) {

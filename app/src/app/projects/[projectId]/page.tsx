@@ -662,6 +662,7 @@ export default async function ProjectDetailPage({
               photo.gpsReverseGeocodedAt?.toISOString() ?? null,
             gpsStreet: photo.gpsStreet,
             id: photo.id,
+            fileSizeBytes: photo.fileSizeBytes,
             imageHeight: photo.imageHeight,
             imageWidth: photo.imageWidth,
             metadataTaken: photo.metadataTaken,
@@ -865,6 +866,7 @@ function ProjectPhotoPreviewSection({
     gpsReverseGeocodedAt: string | null;
     gpsStreet: string | null;
     id: string;
+    fileSizeBytes: number;
     imageHeight: number | null;
     imageWidth: number | null;
     metadataTaken: boolean;
