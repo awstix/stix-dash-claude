@@ -124,7 +124,12 @@ model ProjectDailyReport {
   machinesJson                 String?
   materialJson                 String?
   performanceJson              String?
+  siteDiscussionNotes          String?
+  siteDiscussionRolesJson      String?
+  siteDiscussionThirdPartyName String?
   showRealMachineNames         Boolean                   @default(false)
+  contractorSignatureDataUrl   String?
+  clientSignatureDataUrl       String?
   approvedFieldsJson           String?
   approvedAt                   DateTime?
   approvedByName               String?

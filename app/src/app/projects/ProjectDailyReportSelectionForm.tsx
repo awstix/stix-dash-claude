@@ -4,8 +4,13 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 type ProjectOption = {
+  dailyReports: {
+    date: string;
+    sheetNumber: string;
+  }[];
   id: string;
   name: string;
+  nextSheetNumber: string;
   projectNumber: string;
 };
 
@@ -98,12 +103,30 @@ export function ProjectDailyReportSelectionForm({
     });
   }
 
+  function getSheetNumberForSelection(projectId: string, date: string) {
+    const project = projects.find((entry) => entry.id === projectId);
+
+    if (!project) return "1";
+
+    const existingReport = project.dailyReports.find(
+      (report) => report.date === date,
+    );
+
+    return existingReport?.sheetNumber || project.nextSheetNumber || "1";
+  }
+
   function changeDate(nextDate: string) {
+    const nextSheetNumber = getSheetNumberForSelection(
+      projectValue,
+      nextDate,
+    );
+
     setDateValue(nextDate);
+    setSheetValue(nextSheetNumber);
     navigate({
       date: nextDate,
       projectId: projectValue,
-      sheetNumber: sheetValue,
+      sheetNumber: nextSheetNumber,
     });
   }
 
@@ -123,11 +146,17 @@ export function ProjectDailyReportSelectionForm({
           value={projectValue}
           onChange={(event) => {
             const nextProjectId = event.currentTarget.value;
+            const nextSheetNumber = getSheetNumberForSelection(
+              nextProjectId,
+              dateValue,
+            );
+
             setProjectValue(nextProjectId);
+            setSheetValue(nextSheetNumber);
             navigate({
               date: dateValue,
               projectId: nextProjectId,
-              sheetNumber: sheetValue,
+              sheetNumber: nextSheetNumber,
             });
           }}
           className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"

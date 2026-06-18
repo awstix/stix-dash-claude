@@ -13,6 +13,7 @@ import {
 } from "./projectFormTypes";
 import {
   dailyReportApprovalFieldIds,
+  dailyReportPerformanceLineLimit,
   type DailyReportCountRow,
   type DailyReportMaterialRow,
 } from "./dailyReportContext";
@@ -68,6 +69,11 @@ export type ProjectDailyReportSaveInput = {
   projectNumber: string;
   reportDate: string;
   sheetNumber: string;
+  siteDiscussionNotes: string;
+  siteDiscussionRoles: string[];
+  siteDiscussionThirdPartyName: string;
+  contractorSignatureDataUrl: string;
+  clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
   status: "APPROVED" | "DRAFT";
   trafficSafetyFirstCheckTime: string;
@@ -567,7 +573,7 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     cleanDailyReportMaterialRows(input.materialRows),
   );
   const performanceJson = JSON.stringify(
-    cleanDailyReportLines(input.performanceLines, 6),
+    cleanDailyReportLines(input.performanceLines, dailyReportPerformanceLineLimit),
   );
   const data = {
     approvedAt,
@@ -580,6 +586,19 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     reportProjectName: cleanProjectFormText(input.projectName, 180) || null,
     reportProjectNumber: cleanProjectFormText(input.projectNumber, 80) || null,
     sheetNumber: cleanProjectFormText(input.sheetNumber, 20) || "1",
+    siteDiscussionNotes:
+      cleanProjectFormText(input.siteDiscussionNotes, 1500) || null,
+    siteDiscussionRolesJson: JSON.stringify(
+      cleanDailyReportSiteDiscussionRoles(input.siteDiscussionRoles),
+    ),
+    siteDiscussionThirdPartyName:
+      cleanProjectFormText(input.siteDiscussionThirdPartyName, 180) || null,
+    contractorSignatureDataUrl: cleanDailyReportSignatureDataUrl(
+      input.contractorSignatureDataUrl,
+    ),
+    clientSignatureDataUrl: cleanDailyReportSignatureDataUrl(
+      input.clientSignatureDataUrl,
+    ),
     showRealMachineNames: input.showRealMachineNames === true,
     status,
     trafficSafetyFirstCheckTime: cleanDailyReportTime(
@@ -636,7 +655,9 @@ export async function deleteProjectDailyReport(
   });
 
   if (!report) {
-    return;
+    return {
+      deleted: false,
+    };
   }
 
   await prisma.projectDailyReport.delete({
@@ -647,6 +668,10 @@ export async function deleteProjectDailyReport(
 
   await renumberApprovedDailyReports(report.projectId);
   revalidateProjectDailyReportViews(report.projectId);
+
+  return {
+    deleted: true,
+  };
 }
 
 async function renumberApprovedDailyReports(projectId: string) {
@@ -779,6 +804,40 @@ function cleanDailyReportLines(lines: string[], maxLines: number) {
     .map((line) => cleanProjectFormText(String(line ?? ""), 500))
     .filter(Boolean)
     .slice(0, maxLines);
+}
+
+function cleanDailyReportSignatureDataUrl(value: string) {
+  const cleaned = String(value ?? "").trim();
+
+  if (!cleaned) return null;
+
+  if (
+    !cleaned.startsWith("data:image/png;base64,") ||
+    cleaned.length > 300_000
+  ) {
+    throw new Error("Unterschrift konnte nicht gespeichert werden.");
+  }
+
+  return cleaned;
+}
+
+function cleanDailyReportSiteDiscussionRoles(values: string[]) {
+  const allowedRoles = new Set([
+    "CLIENT",
+    "SUPERVISOR",
+    "PLANNER",
+    "THIRD_PARTY",
+  ]);
+
+  if (!Array.isArray(values)) return [];
+
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value ?? "").trim())
+        .filter((value) => allowedRoles.has(value)),
+    ),
+  );
 }
 
 function cleanDailyReportTime(value: string) {

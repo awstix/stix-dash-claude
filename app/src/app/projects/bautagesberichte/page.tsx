@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { ProjectDailyReportDeleteButton } from "../ProjectDailyReportDeleteButton";
+import { ProjectDailyReportBulkList } from "../ProjectDailyReportBulkList";
 import { ProjectDailyReportEditor } from "../ProjectDailyReportEditor";
 import { ProjectDailyReportSelectionForm } from "../ProjectDailyReportSelectionForm";
 import { ProjectNavigation } from "../ProjectNavigation";
@@ -28,7 +27,7 @@ export default async function ProjectDailyReportsPage({
     ? String(params.date)
     : today;
   const selectedProjectId = String(params.projectId ?? "");
-  const sheetNumber = String(params.blattnr ?? "1").trim() || "1";
+  const requestedSheetNumber = String(params.blattnr ?? "").trim();
 
   const projects = await prisma.project.findMany({
     include: {
@@ -47,6 +46,9 @@ export default async function ProjectDailyReportsPage({
     projects.find((project) => project.id === selectedProjectId) ??
     projects[0] ??
     null;
+  const sheetNumber =
+    requestedSheetNumber ||
+    getDailyReportSheetNumberForSelection(selectedProject, selectedDate);
   const reportDate = toDailyReportDate(selectedDate);
   const selectedReportSource = selectedProject
     ? await getDailyReportSourceProject(
@@ -67,6 +69,49 @@ export default async function ProjectDailyReportsPage({
           sheetNumber: dailyReportContext.sheetNumber,
         })
       : "";
+  const dailyReportProjects = projects
+    .filter((project) => project.dailyReports.length > 0)
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      projectNumber: project.projectNumber,
+      reports: project.dailyReports.map((report) => {
+        const reportDateKey = toDateInputValue(report.reportDate);
+        const reportSheetNumber =
+          report.reportNumber?.toString() || report.sheetNumber || "1";
+
+        return {
+          dateKey: reportDateKey,
+          dateLabel: formatDate(reportDateKey),
+          downloadHref: buildExportHref({
+            date: reportDateKey,
+            projectId: project.id,
+            sheetNumber: reportSheetNumber,
+          }),
+          editHref: buildDailyReportEditHref({
+            date: reportDateKey,
+            projectId: project.id,
+            sheetNumber: reportSheetNumber,
+          }),
+          id: report.id,
+          isCurrentReport:
+            selectedProject?.id === project.id && selectedDate === reportDateKey,
+          numberLabel: report.reportNumber
+            ? `Nr. ${report.reportNumber}`
+            : report.sheetNumber
+              ? `Blatt ${report.sheetNumber}`
+              : "-",
+          projectId: project.id,
+          status: report.status,
+          updatedAtLabel: formatDateTime(report.updatedAt),
+          weatherSummary: formatWeatherSummary({
+            category: report.weatherCategory,
+            max: report.weatherTempMaxC,
+            min: report.weatherTempMinC,
+          }),
+        };
+      }),
+    }));
 
   return (
     <AppShell
@@ -101,8 +146,14 @@ export default async function ProjectDailyReportsPage({
         <ProjectDailyReportSelectionForm
           key={`${selectedProject?.id ?? "ohne"}-${selectedDate}-${selectionSheetNumber}`}
           projects={projects.map((project) => ({
+            dailyReports: project.dailyReports.map((report) => ({
+              date: toDateInputValue(report.reportDate),
+              sheetNumber:
+                report.reportNumber?.toString() || report.sheetNumber || "1",
+            })),
             id: project.id,
             name: project.name,
+            nextSheetNumber: getNextDailyReportSheetNumber(project),
             projectNumber: project.projectNumber,
           }))}
           selectedDate={selectedDate}
@@ -160,113 +211,16 @@ export default async function ProjectDailyReportsPage({
           </p>
         </div>
 
-        <div className="divide-y divide-gray-100">
-          {projects.some((project) => project.dailyReports.length > 0) ? (
-            projects
-              .filter((project) => project.dailyReports.length > 0)
-              .map((project) => (
-                <div className="p-5" key={project.id}>
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-                    <h3 className="font-semibold text-gray-900">
-                      {project.projectNumber} · {project.name}
-                    </h3>
-                    <span className="text-xs font-semibold text-gray-500">
-                      {project.dailyReports.length} Bericht
-                      {project.dailyReports.length === 1 ? "" : "e"}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                      <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                        <tr>
-                          <th className="px-3 py-2 font-semibold">Aktion</th>
-                          <th className="px-3 py-2 font-semibold">Nr.</th>
-                          <th className="px-3 py-2 font-semibold">Datum</th>
-                          <th className="px-3 py-2 font-semibold">Status</th>
-                          <th className="px-3 py-2 font-semibold">Wetter</th>
-                          <th className="px-3 py-2 font-semibold">Geändert</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {project.dailyReports.map((report) => {
-                          const reportDateKey = toDateInputValue(
-                            report.reportDate,
-                          );
-                          const reportSheetNumber =
-                            report.reportNumber?.toString() ||
-                            report.sheetNumber ||
-                            "1";
-                          const reportDateLabel = formatDate(reportDateKey);
-
-                          return (
-                            <tr
-                              className="border-t border-gray-100"
-                              key={report.id}
-                            >
-                              <td className="px-3 py-2">
-                                <div className="flex flex-wrap gap-1.5">
-                                  <Link
-                                    aria-label="Bautagesbericht bearbeiten"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                                    href={buildDailyReportEditHref({
-                                      date: reportDateKey,
-                                      projectId: project.id,
-                                      sheetNumber: reportSheetNumber,
-                                    })}
-                                    title="Bautagesbericht bearbeiten"
-                                  >
-                                    <ActionIcon name="edit" className="h-4 w-4" />
-                                  </Link>
-                                  <a
-                                    aria-label="Bautagesbericht PDF herunterladen"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                                    href={buildExportHref({
-                                      date: reportDateKey,
-                                      projectId: project.id,
-                                      sheetNumber: reportSheetNumber,
-                                    })}
-                                    title="Bautagesbericht PDF herunterladen"
-                                  >
-                                    <ActionIcon name="download" className="h-4 w-4" />
-                                  </a>
-                                  <ProjectDailyReportDeleteButton
-                                    dateLabel={reportDateLabel}
-                                    reportId={report.id}
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 font-semibold text-gray-900">
-                                {report.reportNumber
-                                  ? `Nr. ${report.reportNumber}`
-                                  : report.sheetNumber
-                                    ? `Blatt ${report.sheetNumber}`
-                                    : "-"}
-                              </td>
-                              <td className="px-3 py-2 text-gray-800">
-                                {reportDateLabel}
-                              </td>
-                              <td className="px-3 py-2">
-                                <ReportStatusPill status={report.status} />
-                              </td>
-                              <td className="px-3 py-2 text-gray-700">
-                                {formatWeatherSummary({
-                                  category: report.weatherCategory,
-                                  max: report.weatherTempMaxC,
-                                  min: report.weatherTempMinC,
-                                })}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600">
-                                {formatDateTime(report.updatedAt)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))
+        <div>
+          {dailyReportProjects.length > 0 ? (
+            <ProjectDailyReportBulkList
+              key={dailyReportProjects
+                .flatMap((project) =>
+                  project.reports.map((report) => report.id),
+                )
+                .join("-")}
+              projects={dailyReportProjects}
+            />
           ) : (
             <div className="p-8 text-center text-sm font-medium text-gray-500">
               Noch keine Bautagesberichte erstellt.
@@ -373,22 +327,6 @@ export default async function ProjectDailyReportsPage({
   );
 }
 
-function ReportStatusPill({ status }: { status: string }) {
-  const isApproved = status === "APPROVED";
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-        isApproved
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-amber-100 text-amber-800"
-      }`}
-    >
-      {isApproved ? "freigegeben" : "Entwurf"}
-    </span>
-  );
-}
-
 function buildDailyReportEditHref({
   date,
   projectId,
@@ -451,6 +389,52 @@ function formatTemperature(value: number | null) {
     maximumFractionDigits: 1,
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
   }).format(value)} °C`;
+}
+
+function getDailyReportSheetNumberForSelection(
+  project:
+    | {
+        dailyReports: {
+          reportDate: Date;
+          reportNumber: number | null;
+          sheetNumber: string;
+        }[];
+      }
+    | null,
+  dateKey: string,
+) {
+  if (!project) return "1";
+
+  const existingReport = project.dailyReports.find(
+    (report) => toDateInputValue(report.reportDate) === dateKey,
+  );
+
+  if (existingReport) {
+    return (
+      existingReport.reportNumber?.toString() ||
+      existingReport.sheetNumber ||
+      "1"
+    );
+  }
+
+  return getNextDailyReportSheetNumber(project);
+}
+
+function getNextDailyReportSheetNumber(project: {
+  dailyReports: {
+    reportNumber: number | null;
+    sheetNumber: string;
+  }[];
+}) {
+  const highestNumber = project.dailyReports.reduce((max, report) => {
+    const sheetNumber = Number.parseInt(report.sheetNumber, 10);
+    const reportNumber = report.reportNumber ?? 0;
+    const numericSheetNumber = Number.isFinite(sheetNumber) ? sheetNumber : 0;
+
+    return Math.max(max, reportNumber, numericSheetNumber);
+  }, 0);
+
+  return String(highestNumber + 1);
 }
 
 function toDateInputValue(date: Date) {

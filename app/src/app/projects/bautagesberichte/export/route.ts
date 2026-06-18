@@ -14,6 +14,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+export type DailyReportPdfResult = {
+  bytes: Uint8Array;
+  fileName: string;
+};
+
 const textColor = rgb(0.08, 0.08, 0.08);
 const white = rgb(1, 1, 1);
 const headerValueOffsetY = 0.35;
@@ -66,7 +71,12 @@ const realMachineSlots = [
 
 const materialLineY = [467, 452, 437, 422, 407] as const;
 const sonstigesSlots = [347, 332, 317, 302, 287] as const;
-const performanceLineY = [239, 221, 203, 185, 167, 149] as const;
+const performanceLineY = [
+  239, 221.25, 203.45, 185.9, 168.35, 150.8, 133.25, 117.95,
+] as const;
+const footerLabelY = 86;
+const footerDateY = 66;
+const footerSignatureY = 28;
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
@@ -79,15 +89,41 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const reportDate = toDailyReportDate(dateKey);
-  const nextDate = addDailyReportDays(reportDate, 1);
-  const project = await getDailyReportSourceProject(projectId, reportDate, nextDate);
+  const result = await generateDailyReportPdf({
+    dateKey,
+    projectId,
+    sheetNumber,
+  });
 
-  if (!project) {
+  if (!result) {
     return new Response("Projekt nicht gefunden.", {
       status: 404,
     });
   }
+
+  return new Response(Buffer.from(result.bytes), {
+    headers: {
+      "Cache-Control": "no-store",
+      "Content-Disposition": `attachment; filename="${result.fileName}"`,
+      "Content-Type": "application/pdf",
+    },
+  });
+}
+
+export async function generateDailyReportPdf({
+  dateKey,
+  projectId,
+  sheetNumber,
+}: {
+  dateKey: string;
+  projectId: string;
+  sheetNumber: string;
+}): Promise<DailyReportPdfResult | null> {
+  const reportDate = toDailyReportDate(dateKey);
+  const nextDate = addDailyReportDays(reportDate, 1);
+  const project = await getDailyReportSourceProject(projectId, reportDate, nextDate);
+
+  if (!project) return null;
 
   const context = buildDailyReportContext(project, dateKey, sheetNumber);
   const templateFileName = context.showRealMachineNames
@@ -112,21 +148,27 @@ export async function GET(request: NextRequest) {
   drawMachineRows(page, fonts.regular, context.machineRows, context.showRealMachineNames);
   drawMaterialRows(page, fonts.regular, context.materialRows);
   drawPerformanceHeading(page, fonts.bold);
-  drawPerformanceLines(page, fonts.regular, context.performanceLines);
-  drawSingleLine(page, fonts.regular, context.dateLabel, 48, 82, 88, reportTextSize);
+  drawPerformanceLines(
+    page,
+    fonts.regular,
+    context.performanceLines,
+    context.siteDiscussionNotes,
+    context.siteDiscussionRoles,
+    context.siteDiscussionThirdPartyName,
+    context.weatherNotes,
+  );
+  drawFooterLabels(page, fonts.regular, context.dateLabel);
+  await drawSignatures(pdfDocument, page, context);
 
   const pdfBytes = await pdfDocument.save();
   const fileName = `Baubericht_${sanitizeFileName(
     context.projectNumber,
   )}_${dateKey}.pdf`;
 
-  return new Response(Buffer.from(pdfBytes), {
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-      "Content-Type": "application/pdf",
-    },
-  });
+  return {
+    bytes: pdfBytes,
+    fileName,
+  };
 }
 
 function drawHeader(
@@ -286,10 +328,162 @@ function drawRealMachineRows(
   });
 }
 
-function drawPerformanceLines(page: PDFPage, font: PDFFont, lines: string[]) {
-  lines.slice(0, performanceLineY.length).forEach((line, index) => {
-    drawSingleLine(page, font, line, 48, performanceLineY[index], 500, reportTextSize);
+function drawPerformanceLines(
+  page: PDFPage,
+  font: PDFFont,
+  lines: string[],
+  siteDiscussionNotes: string,
+  siteDiscussionRoles: string[],
+  siteDiscussionThirdPartyName: string,
+  weatherNotes: string,
+) {
+  const visibleLines = buildPerformanceLines(
+    font,
+    lines,
+    siteDiscussionNotes,
+    siteDiscussionRoles,
+    siteDiscussionThirdPartyName,
+    weatherNotes,
+  );
+
+  visibleLines.forEach((line, index) => {
+    drawSingleLine(
+      page,
+      font,
+      line,
+      48,
+      performanceLineY[index],
+      500,
+      reportTextSize,
+    );
   });
+}
+
+function buildPerformanceLines(
+  font: PDFFont,
+  lines: string[],
+  siteDiscussionNotes: string,
+  siteDiscussionRoles: string[],
+  siteDiscussionThirdPartyName: string,
+  weatherNotes: string,
+) {
+  const siteDiscussionPrefix = formatSiteDiscussionRoles(
+    siteDiscussionRoles,
+    siteDiscussionThirdPartyName,
+  );
+  const supplementalTexts = [
+    siteDiscussionNotes.trim()
+      ? `${siteDiscussionPrefix}: ${siteDiscussionNotes.trim()}`
+      : "",
+    weatherNotes.trim() ? `Wetterbemerkung: ${weatherNotes.trim()}` : "",
+  ].filter(Boolean);
+  const supplementalLines: string[] = [];
+
+  supplementalTexts.forEach((text, index) => {
+    const remainingNotes = supplementalTexts.length - index - 1;
+    const availableLines =
+      performanceLineY.length - supplementalLines.length - remainingNotes;
+
+    supplementalLines.push(
+      ...wrapTextLines([text], font, 500, Math.max(1, availableLines)),
+    );
+  });
+
+  const maxPerformanceLines = Math.max(
+    0,
+    performanceLineY.length - supplementalLines.length,
+  );
+  const result = wrapTextLines(lines, font, 500, maxPerformanceLines);
+  result.push(...supplementalLines);
+
+  return result.slice(0, performanceLineY.length);
+}
+
+function formatSiteDiscussionRoles(
+  roles: string[],
+  thirdPartyName: string,
+) {
+  const labels = roles
+    .map((role) => {
+      if (role === "CLIENT") return "AG";
+      if (role === "SUPERVISOR") return "Bauüberwacher";
+      if (role === "PLANNER") return "Planer";
+      if (role === "THIRD_PARTY") {
+        return thirdPartyName.trim()
+          ? `Dritte (${thirdPartyName.trim()})`
+          : "Dritte";
+      }
+      return "";
+    })
+    .filter(Boolean);
+
+  return labels.length > 0
+    ? labels.join(" / ")
+    : "Auftraggeber/Bauüberwacher/Dritte";
+}
+
+function wrapTextLines(
+  lines: string[],
+  font: PDFFont,
+  maxWidth: number,
+  maxLines: number,
+) {
+  const result: string[] = [];
+
+  for (const line of lines) {
+    if (result.length >= maxLines) break;
+
+    result.push(
+      ...wrapSingleTextLine(
+        String(line ?? ""),
+        font,
+        maxWidth,
+        maxLines - result.length,
+      ),
+    );
+  }
+
+  return result;
+}
+
+function wrapSingleTextLine(
+  value: string,
+  font: PDFFont,
+  maxWidth: number,
+  maxLines: number,
+) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!text || maxLines <= 0) return [];
+
+  const wrappedLines: string[] = [];
+  let currentLine = "";
+
+  for (const word of text.split(" ")) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+    if (font.widthOfTextAtSize(candidate, reportTextSize) <= maxWidth) {
+      currentLine = candidate;
+      continue;
+    }
+
+    if (currentLine) {
+      wrappedLines.push(currentLine);
+      currentLine = word;
+    } else {
+      wrappedLines.push(fitText(word, font, reportTextSize, maxWidth));
+      currentLine = "";
+    }
+
+    if (wrappedLines.length >= maxLines) {
+      return wrappedLines;
+    }
+  }
+
+  if (currentLine && wrappedLines.length < maxLines) {
+    wrappedLines.push(currentLine);
+  }
+
+  return wrappedLines;
 }
 
 function drawPerformanceHeading(page: PDFPage, font: PDFFont) {
@@ -303,6 +497,87 @@ function drawPerformanceHeading(page: PDFPage, font: PDFFont) {
     200,
     reportTextSize,
   );
+}
+
+function drawFooterLabels(page: PDFPage, font: PDFFont, dateLabel: string) {
+  clearTemplateText(page, 40, 90, 505, 22);
+  drawSingleLine(page, font, "Datum", 48, footerLabelY, 88, reportTextSize);
+  drawSingleLine(
+    page,
+    font,
+    "Josef Stix GmbH & Co. KG",
+    183,
+    footerLabelY,
+    190,
+    reportTextSize,
+  );
+  drawSingleLine(
+    page,
+    font,
+    "Auftraggeber",
+    378,
+    footerLabelY,
+    150,
+    reportTextSize,
+  );
+  drawSingleLine(page, font, dateLabel, 48, footerDateY, 88, reportTextSize);
+}
+
+async function drawSignatures(
+  pdfDocument: PDFDocument,
+  page: PDFPage,
+  context: ReturnType<typeof buildDailyReportContext>,
+) {
+  await drawSignatureImage(
+    pdfDocument,
+    page,
+    context.contractorSignatureDataUrl,
+    165,
+    footerSignatureY,
+    195,
+    52,
+  );
+  await drawSignatureImage(
+    pdfDocument,
+    page,
+    context.clientSignatureDataUrl,
+    364,
+    footerSignatureY,
+    180,
+    52,
+  );
+}
+
+async function drawSignatureImage(
+  pdfDocument: PDFDocument,
+  page: PDFPage,
+  dataUrl: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  maxHeight: number,
+) {
+  const pngBytes = getPngBytesFromDataUrl(dataUrl);
+
+  if (!pngBytes) return;
+
+  const image = await pdfDocument.embedPng(pngBytes);
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  page.drawImage(image, {
+    height,
+    width,
+    x: x + (maxWidth - width) / 2,
+    y: y + (maxHeight - height) / 2,
+  });
+}
+
+function getPngBytesFromDataUrl(dataUrl: string) {
+  if (!dataUrl.startsWith("data:image/png;base64,")) return null;
+
+  return Buffer.from(dataUrl.slice("data:image/png;base64,".length), "base64");
 }
 
 function drawMaterialRows(

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { saveProjectDailyReport } from "./actions";
 import type {
@@ -20,6 +20,11 @@ type ReportFormState = {
   projectName: string;
   projectNumber: string;
   sheetNumber: string;
+  siteDiscussionNotes: string;
+  siteDiscussionRoles: string[];
+  siteDiscussionThirdPartyName: string;
+  contractorSignatureDataUrl: string;
+  clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
   trafficSafetyFirstCheckTime: string;
   trafficSafetySecondCheckTime: string;
@@ -38,6 +43,12 @@ const compactInputClassName =
   "w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900";
 const textareaClassName =
   "mt-1 min-h-28 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900";
+const dailyReportPerformanceLineLimit = 8;
+const siteDiscussionRoleOptions = [
+  { label: "Auftraggeber (AG)", value: "CLIENT" },
+  { label: "Bauüberwacher", value: "SUPERVISOR" },
+  { label: "Planer", value: "PLANNER" },
+] as const;
 
 const dirtyWindowKey = "__projectDailyReportDirty";
 
@@ -57,6 +68,7 @@ export function ProjectDailyReportEditor({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [saveMessage, setSaveMessage] = useState("");
   const [form, setForm] = useState<ReportFormState>(() =>
     createInitialState(context),
   );
@@ -68,6 +80,7 @@ export function ProjectDailyReportEditor({
   }, [context.dateKey, context.id, context.projectNumber, context.sheetNumber]);
 
   function markDirty() {
+    setSaveMessage("");
     setDailyReportDirty(true);
   }
 
@@ -127,6 +140,11 @@ export function ProjectDailyReportEditor({
       performanceLines: [...context.suggestions.performanceLines],
       projectName: context.suggestions.projectName,
       projectNumber: context.suggestions.projectNumber,
+      siteDiscussionNotes: current.siteDiscussionNotes,
+      siteDiscussionRoles: current.siteDiscussionRoles,
+      siteDiscussionThirdPartyName: current.siteDiscussionThirdPartyName,
+      contractorSignatureDataUrl: current.contractorSignatureDataUrl,
+      clientSignatureDataUrl: current.clientSignatureDataUrl,
       weatherCategory: context.suggestions.weatherLabel,
       weatherTempMaxC: context.suggestions.tempMax,
       weatherTempMinC: context.suggestions.tempMin,
@@ -150,8 +168,12 @@ export function ProjectDailyReportEditor({
     }));
   }
 
-  function save(status: "APPROVED" | "DRAFT") {
+  function save(
+    status: "APPROVED" | "DRAFT",
+    confirmIncompleteApproval = false,
+  ) {
     if (
+      confirmIncompleteApproval &&
       status === "APPROVED" &&
       form.approvedFields.length < approvalGroups.length
     ) {
@@ -171,6 +193,11 @@ export function ProjectDailyReportEditor({
           status,
         });
         setDailyReportDirty(false);
+        setSaveMessage(
+          status === "APPROVED"
+            ? "Freigegebener Bautagesbericht gespeichert."
+            : "Entwurf gespeichert.",
+        );
         router.refresh();
       } catch (error) {
         alert(
@@ -424,11 +451,95 @@ export function ProjectDailyReportEditor({
           onChange={(event) =>
             updateValue(
               "performanceLines",
-              event.target.value.split(/\r?\n/).slice(0, 6),
+              event.target.value
+                .split(/\r?\n/)
+                .slice(0, dailyReportPerformanceLineLimit),
             )
           }
+          rows={8}
           value={form.performanceLines.join("\n")}
         />
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-gray-900">
+            Auftraggeber (AG), Bauüberwacher, Planer oder Dritte auf der
+            Baustelle gewesen? Wurde etwas angewiesen/besprochen?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {siteDiscussionRoleOptions.map((option) => (
+              <label
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-800"
+                key={option.value}
+              >
+                <input
+                  checked={form.siteDiscussionRoles.includes(option.value)}
+                  onChange={(event) => {
+                    const roles = new Set(form.siteDiscussionRoles);
+
+                    if (event.currentTarget.checked) {
+                      roles.add(option.value);
+                    } else {
+                      roles.delete(option.value);
+                    }
+
+                    updateValue("siteDiscussionRoles", Array.from(roles));
+                  }}
+                  type="checkbox"
+                />
+                {option.label}
+              </label>
+            ))}
+            <label className="inline-flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-800">
+              <span className="shrink-0">Dritte (wer?)</span>
+              <input
+                className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-normal text-gray-900 outline-none focus:border-gray-900"
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  const roles = new Set(form.siteDiscussionRoles);
+
+                  if (value.trim()) {
+                    roles.add("THIRD_PARTY");
+                  } else {
+                    roles.delete("THIRD_PARTY");
+                  }
+
+                  updateValue("siteDiscussionThirdPartyName", value);
+                  updateValue("siteDiscussionRoles", Array.from(roles));
+                }}
+                value={form.siteDiscussionThirdPartyName}
+              />
+            </label>
+          </div>
+          <label className="mt-3 block text-sm font-medium text-gray-800">
+            Bemerkung
+            <textarea
+              className="mt-1 min-h-24 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 outline-none focus:border-gray-900"
+              onChange={(event) =>
+                updateValue("siteDiscussionNotes", event.target.value)
+              }
+              value={form.siteDiscussionNotes}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h3 className="text-base font-semibold text-gray-900">
+          Unterschriften
+        </h3>
+        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SignaturePad
+            label="Josef Stix"
+            onChange={(value) =>
+              updateValue("contractorSignatureDataUrl", value)
+            }
+            value={form.contractorSignatureDataUrl}
+          />
+          <SignaturePad
+            label="Auftraggeber"
+            onChange={(value) => updateValue("clientSignatureDataUrl", value)}
+            value={form.clientSignatureDataUrl}
+          />
+        </div>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -441,20 +552,25 @@ export function ProjectDailyReportEditor({
           <button
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
             disabled={isPending}
-            onClick={() => save("DRAFT")}
+            onClick={() => save(isApproved ? "APPROVED" : "DRAFT")}
             type="button"
           >
-            Entwurf speichern
+            Speichern
           </button>
           <button
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
             disabled={isPending}
-            onClick={() => save("APPROVED")}
+            onClick={() => save("APPROVED", true)}
             type="button"
           >
             Freigeben
           </button>
         </div>
+        {saveMessage ? (
+          <p className="mt-3 text-sm font-semibold text-emerald-700">
+            {saveMessage}
+          </p>
+        ) : null}
       </section>
     </div>
   );
@@ -482,6 +598,11 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     projectName: context.projectName,
     projectNumber: context.projectNumber,
     sheetNumber: context.sheetNumber,
+    siteDiscussionNotes: context.siteDiscussionNotes,
+    siteDiscussionRoles: [...context.siteDiscussionRoles],
+    siteDiscussionThirdPartyName: context.siteDiscussionThirdPartyName,
+    contractorSignatureDataUrl: context.contractorSignatureDataUrl,
+    clientSignatureDataUrl: context.clientSignatureDataUrl,
     showRealMachineNames: context.showRealMachineNames,
     trafficSafetyFirstCheckTime: context.trafficSafetyFirstCheckTime,
     trafficSafetySecondCheckTime: context.trafficSafetySecondCheckTime,
@@ -501,6 +622,129 @@ function cloneRows(rows: DailyReportCountRow[]) {
 
 function cloneMaterialRows(rows: DailyReportMaterialRow[]) {
   return rows.map((row) => ({ ...row }));
+}
+
+function SignaturePad({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!value) return;
+
+    const image = new Image();
+    image.onload = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    };
+    image.src = value;
+  }, [value]);
+
+  function getCanvasPoint(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function startDrawing(event: PointerEvent<HTMLCanvasElement>) {
+    const point = getCanvasPoint(event);
+    if (!point) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isDrawingRef.current = true;
+    lastPointRef.current = point;
+  }
+
+  function draw(event: PointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingRef.current) return;
+
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(event);
+    const lastPoint = lastPointRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context || !point || !lastPoint) return;
+
+    context.strokeStyle = "#111827";
+    context.lineWidth = 5;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.beginPath();
+    context.moveTo(lastPoint.x, lastPoint.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+
+    lastPointRef.current = point;
+  }
+
+  function finishDrawing() {
+    const canvas = canvasRef.current;
+
+    if (!canvas || !isDrawingRef.current) return;
+
+    isDrawingRef.current = false;
+    lastPointRef.current = null;
+    onChange(canvas.toDataURL("image/png"));
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (canvas && context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    onChange("");
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-gray-800">{label}</span>
+        <button
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+          onClick={clearSignature}
+          type="button"
+        >
+          Zurücksetzen
+        </button>
+      </div>
+      <canvas
+        className="block h-36 w-full touch-none rounded-lg border border-gray-300 bg-white shadow-inner"
+        height={220}
+        onPointerCancel={finishDrawing}
+        onPointerDown={startDrawing}
+        onPointerLeave={finishDrawing}
+        onPointerMove={draw}
+        onPointerUp={finishDrawing}
+        ref={canvasRef}
+        width={720}
+      />
+    </div>
+  );
 }
 
 function SectionHeader({

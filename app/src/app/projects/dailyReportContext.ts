@@ -29,6 +29,11 @@ export type DailyReportContext = {
   projectNumber: string;
   reportNumber: number | null;
   sheetNumber: string;
+  siteDiscussionNotes: string;
+  siteDiscussionRoles: string[];
+  siteDiscussionThirdPartyName: string;
+  contractorSignatureDataUrl: string;
+  clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
   status: string;
   suggestions: DailyReportSuggestionValues;
@@ -97,6 +102,8 @@ const rightMachineLabels = [
 ] as const;
 
 const reportStatuses = new Set(["DRAFT", "APPROVED"]);
+
+export const dailyReportPerformanceLineLimit = 8;
 
 export const dailyReportApprovalFieldIds = [
   "project",
@@ -634,7 +641,10 @@ export function buildDailyReportContext(
   const suggestedGroupedMachineRows = buildMachineRows(machines);
   const suggestedMaterialRows = buildMaterialRows(materialRows);
   const suggestedRealMachineRows = buildRealMachineRows(realMachines);
-  const suggestedPerformanceLines = compactUnique(performanceLines).slice(0, 6);
+  const suggestedPerformanceLines = compactUnique(performanceLines).slice(
+    0,
+    dailyReportPerformanceLineLimit,
+  );
   const suggestedWeekday = formatWeekday(dateKey);
   const showRealMachineNames = dailyReport?.showRealMachineNames ?? false;
   const suggestedMachineRows = showRealMachineNames
@@ -667,11 +677,23 @@ export function buildDailyReportContext(
       dailyReport?.materialJson,
       suggestedMaterialRows,
     ),
-    performanceLines: performanceLinesForReport.slice(0, 6),
+    performanceLines: performanceLinesForReport.slice(
+      0,
+      dailyReportPerformanceLineLimit,
+    ),
     projectName: dailyReport?.reportProjectName || project.name,
     projectNumber: dailyReport?.reportProjectNumber || project.projectNumber,
     reportNumber,
     sheetNumber,
+    siteDiscussionNotes: dailyReport?.siteDiscussionNotes ?? "",
+    siteDiscussionRoles: parseStringList(
+      dailyReport?.siteDiscussionRolesJson,
+      [],
+    ),
+    siteDiscussionThirdPartyName:
+      dailyReport?.siteDiscussionThirdPartyName ?? "",
+    contractorSignatureDataUrl: dailyReport?.contractorSignatureDataUrl ?? "",
+    clientSignatureDataUrl: dailyReport?.clientSignatureDataUrl ?? "",
     showRealMachineNames,
     status: reportStatuses.has(dailyReport?.status ?? "")
       ? dailyReport?.status ?? "DRAFT"
