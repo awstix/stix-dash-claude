@@ -9,6 +9,7 @@ import type {
   DailyReportContext,
   DailyReportCountRow,
   DailyReportMaterialRow,
+  DailyReportPhotoGridLayout,
 } from "./dailyReportContext";
 
 type ReportFormState = {
@@ -19,6 +20,7 @@ type ReportFormState = {
   materialRows: DailyReportMaterialRow[];
   performanceLines: string[];
   photoIds: string[];
+  photoGridLayout: DailyReportPhotoGridLayout;
   projectName: string;
   projectNumber: string;
   sheetNumber: string;
@@ -298,19 +300,39 @@ export function ProjectDailyReportEditor({
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 className="text-base font-semibold text-gray-900">
               Fotodokumentation
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Ausgewählte Fotos erscheinen ab Seite 2 mit bis zu acht Bildern
-              je Seite.
+              Ausgewählte Fotos erscheinen ab Seite 2 in der gewählten,
+              gleichbleibenden Rastergröße.
             </p>
           </div>
-          <span className="text-xs font-semibold text-gray-500">
-            {form.photoIds.length} ausgewählt
-          </span>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-semibold text-gray-700">
+              Raster im PDF
+              <select
+                className="mt-1 block rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                onChange={(event) =>
+                  updateValue(
+                    "photoGridLayout",
+                    event.currentTarget.value as DailyReportPhotoGridLayout,
+                  )
+                }
+                value={form.photoGridLayout}
+              >
+                <option value="1x2">1 × 2 (2 Fotos)</option>
+                <option value="2x2">2 × 2 (4 Fotos)</option>
+                <option value="2x3">2 × 3 (6 Fotos)</option>
+                <option value="2x4">2 × 4 (8 Fotos)</option>
+              </select>
+            </label>
+            <span className="pb-2 text-xs font-semibold text-gray-500">
+              {form.photoIds.length} ausgewählt
+            </span>
+          </div>
         </div>
 
         {context.photos.length > 0 ? (
@@ -681,6 +703,7 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     photoIds: context.photos
       .filter((photo) => photo.selected)
       .map((photo) => photo.id),
+    photoGridLayout: context.photoGridLayout,
     projectName: context.projectName,
     projectNumber: context.projectNumber,
     sheetNumber: context.sheetNumber,

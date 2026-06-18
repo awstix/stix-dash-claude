@@ -525,6 +525,7 @@ async function drawReportAppendixPages(
   lines: string[],
 ) {
   const photos = context.photos.filter((photo) => photo.selected);
+  const photoGrid = getPhotoGridDefinition(context.photoGridLayout);
   const continuationPages = chunkItems(lines, continuationLinesPerPage);
   let remainingPhotos = [...photos];
   let appendixPageNumber = 2;
@@ -553,7 +554,10 @@ async function drawReportAppendixPages(
     });
 
     if (isLastContinuationPage && remainingPhotos.length > 0) {
-      const photoLayout = getContinuationPhotoLayout(pageLines.length);
+      const photoLayout = getContinuationPhotoLayout(
+        pageLines.length,
+        photoGrid,
+      );
 
       if (photoLayout.capacity > 0) {
         const pagePhotos = remainingPhotos.slice(0, photoLayout.capacity);
@@ -565,10 +569,7 @@ async function drawReportAppendixPages(
           pagePhotos,
           photoLayout.contentTop,
           54,
-          Math.min(
-            photoLayout.rowCount,
-            Math.ceil(pagePhotos.length / 2),
-          ),
+          photoGrid,
           true,
         );
       }
@@ -578,7 +579,7 @@ async function drawReportAppendixPages(
     appendixPageNumber += 1;
   }
 
-  for (const pagePhotos of chunkItems(remainingPhotos, 8)) {
+  for (const pagePhotos of chunkItems(remainingPhotos, photoGrid.capacity)) {
     const page = pdfDocument.addPage([595.28, 841.89]);
     drawAppendixHeader(page, fonts, context, "Fotodokumentation");
     await drawPhotoGrid(
@@ -588,7 +589,7 @@ async function drawReportAppendixPages(
       pagePhotos,
       718,
       54,
-      4,
+      photoGrid,
       false,
     );
     drawAppendixPageNumber(page, fonts.regular, appendixPageNumber);
@@ -655,7 +656,34 @@ function drawContinuationTextLines(page: PDFPage, lineCount: number) {
   }
 }
 
-function getContinuationPhotoLayout(textLineCount: number) {
+type PhotoGridDefinition = {
+  capacity: number;
+  columns: number;
+  rows: number;
+};
+
+function getPhotoGridDefinition(
+  layout: ReturnType<typeof buildDailyReportContext>["photoGridLayout"],
+): PhotoGridDefinition {
+  if (layout === "1x2") {
+    return { capacity: 2, columns: 1, rows: 2 };
+  }
+
+  if (layout === "2x2") {
+    return { capacity: 4, columns: 2, rows: 2 };
+  }
+
+  if (layout === "2x3") {
+    return { capacity: 6, columns: 2, rows: 3 };
+  }
+
+  return { capacity: 8, columns: 2, rows: 4 };
+}
+
+function getContinuationPhotoLayout(
+  textLineCount: number,
+  grid: PhotoGridDefinition,
+) {
   const lastTextY =
     textLineCount > 0
       ? 695 - (textLineCount - 1) * continuationLineHeight
@@ -664,22 +692,22 @@ function getContinuationPhotoLayout(textLineCount: number) {
   const contentTop = headingY - 24;
   const contentBottom = 54;
   const rowGap = 12;
-  const minimumRowHeight = 145;
-  const rowCount = Math.max(
+  const fullPageCellHeight =
+    (718 - contentBottom - rowGap * (grid.rows - 1)) / grid.rows;
+  const fittingRows = Math.max(
     0,
     Math.min(
-      4,
+      grid.rows,
       Math.floor(
         (contentTop - contentBottom + rowGap) /
-          (minimumRowHeight + rowGap),
+          (fullPageCellHeight + rowGap),
       ),
     ),
   );
 
   return {
-    capacity: rowCount * 2,
+    capacity: fittingRows * grid.columns,
     contentTop,
-    rowCount,
   };
 }
 
@@ -690,19 +718,18 @@ async function drawPhotoGrid(
   photos: ReturnType<typeof buildDailyReportContext>["photos"],
   contentTop: number,
   contentBottom: number,
-  rowCount: number,
+  grid: PhotoGridDefinition,
   showHeading: boolean,
 ) {
-  if (photos.length === 0 || rowCount === 0) return;
+  if (photos.length === 0) return;
 
   const pageMargin = 42;
   const columnGap = 14;
   const rowGap = 12;
-  const columnCount = 2;
   const cellWidth =
-    (595.28 - pageMargin * 2 - columnGap * (columnCount - 1)) / columnCount;
+    (595.28 - pageMargin * 2 - columnGap * (grid.columns - 1)) / grid.columns;
   const cellHeight =
-    (contentTop - contentBottom - rowGap * (rowCount - 1)) / rowCount;
+    (718 - contentBottom - rowGap * (grid.rows - 1)) / grid.rows;
 
   if (showHeading) {
     page.drawText("Fotodokumentation", {
@@ -716,8 +743,8 @@ async function drawPhotoGrid(
 
   for (let photoIndex = 0; photoIndex < photos.length; photoIndex += 1) {
     const photo = photos[photoIndex];
-    const column = photoIndex % columnCount;
-    const row = Math.floor(photoIndex / columnCount);
+    const column = photoIndex % grid.columns;
+    const row = Math.floor(photoIndex / grid.columns);
     const x = pageMargin + column * (cellWidth + columnGap);
     const y = contentTop - (row + 1) * cellHeight - row * rowGap;
 

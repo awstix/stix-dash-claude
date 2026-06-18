@@ -17,6 +17,7 @@ import {
   dailyReportPerformanceLineLimit,
   type DailyReportCountRow,
   type DailyReportMaterialRow,
+  type DailyReportPhotoGridLayout,
 } from "./dailyReportContext";
 import type {
   ProjectFormFieldDefinition,
@@ -66,6 +67,7 @@ export type ProjectDailyReportSaveInput = {
   materialRows: DailyReportMaterialRow[];
   performanceLines: string[];
   photoIds: string[];
+  photoGridLayout: DailyReportPhotoGridLayout;
   projectId: string;
   projectName: string;
   projectNumber: string;
@@ -585,6 +587,7 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     machinesJson,
     materialJson,
     performanceJson,
+    photoGridLayout: cleanDailyReportPhotoGridLayout(input.photoGridLayout),
     reportProjectName: cleanProjectFormText(input.projectName, 180) || null,
     reportProjectNumber: cleanProjectFormText(input.projectNumber, 80) || null,
     sheetNumber: cleanProjectFormText(input.sheetNumber, 20) || "1",
@@ -863,6 +866,17 @@ function cleanDailyReportSignatureDataUrl(value: string) {
   }
 
   return cleaned;
+}
+
+function cleanDailyReportPhotoGridLayout(
+  value: DailyReportPhotoGridLayout,
+): DailyReportPhotoGridLayout {
+  return value === "1x2" ||
+    value === "2x2" ||
+    value === "2x3" ||
+    value === "2x4"
+    ? value
+    : "2x4";
 }
 
 function cleanDailyReportSiteDiscussionRoles(values: string[]) {

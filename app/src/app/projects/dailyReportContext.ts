@@ -22,6 +22,8 @@ export type DailyReportPhoto = {
   selected: boolean;
 };
 
+export type DailyReportPhotoGridLayout = "1x2" | "2x2" | "2x3" | "2x4";
+
 export type DailyReportContext = {
   approvedAt: Date | null;
   approvedByName: string;
@@ -33,6 +35,7 @@ export type DailyReportContext = {
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
   photos: DailyReportPhoto[];
+  photoGridLayout: DailyReportPhotoGridLayout;
   performanceLines: string[];
   projectName: string;
   projectNumber: string;
@@ -712,6 +715,7 @@ export function buildDailyReportContext(
       publicUrl: photo.publicUrl,
       selected: selectedPhotoIds.has(photo.id),
     })),
+    photoGridLayout: parsePhotoGridLayout(dailyReport?.photoGridLayout),
     performanceLines: performanceLinesForReport.slice(
       0,
       dailyReportPerformanceLineLimit,
@@ -761,6 +765,17 @@ export function buildDailyReportContext(
     workEnd: dailyReport?.workEnd || suggestedWorkEnd,
     workStart: dailyReport?.workStart || suggestedWorkStart,
   };
+}
+
+function parsePhotoGridLayout(
+  value: string | null | undefined,
+): DailyReportPhotoGridLayout {
+  return value === "1x2" ||
+    value === "2x2" ||
+    value === "2x3" ||
+    value === "2x4"
+    ? value
+    : "2x4";
 }
 
 function buildLaborRows(map: Map<string, CountHours>) {
