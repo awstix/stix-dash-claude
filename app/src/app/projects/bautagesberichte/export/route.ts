@@ -166,13 +166,11 @@ export async function generateDailyReportPdf({
   );
   drawFooterLabels(page, fonts.regular, context.dateLabel);
   await drawSignatures(pdfDocument, page, context);
-  const photoPageCount = await drawPhotoPages(pdfDocument, fonts, context);
-  drawPerformanceContinuationPages(
+  await drawReportAppendixPages(
     pdfDocument,
     fonts,
     context,
     continuationLines,
-    photoPageCount,
   );
 
   const pdfBytes = await pdfDocument.save();
@@ -520,56 +518,28 @@ function splitWordForWidth(
   return parts;
 }
 
-function drawPerformanceContinuationPages(
+async function drawReportAppendixPages(
   pdfDocument: PDFDocument,
   fonts: ReportFonts,
   context: ReturnType<typeof buildDailyReportContext>,
   lines: string[],
-  photoPageCount: number,
 ) {
-  if (lines.length === 0) return;
+  const photos = context.photos.filter((photo) => photo.selected);
+  const continuationPages = chunkItems(lines, continuationLinesPerPage);
+  let remainingPhotos = [...photos];
+  let appendixPageNumber = 2;
 
-  const totalContinuationPages = Math.ceil(
-    lines.length / continuationLinesPerPage,
-  );
-
-  for (let pageIndex = 0; pageIndex < totalContinuationPages; pageIndex += 1) {
+  for (
+    let pageIndex = 0;
+    pageIndex < continuationPages.length;
+    pageIndex += 1
+  ) {
     const page = pdfDocument.addPage([595.28, 841.89]);
-    const pageLines = lines.slice(
-      pageIndex * continuationLinesPerPage,
-      (pageIndex + 1) * continuationLinesPerPage,
-    );
+    const pageLines = continuationPages[pageIndex];
+    const isLastContinuationPage =
+      pageIndex === continuationPages.length - 1;
 
-    page.drawText("Baubericht – Fortsetzung", {
-      color: textColor,
-      font: fonts.bold,
-      size: 16,
-      x: 48,
-      y: 786,
-    });
-    page.drawText(
-      `${context.projectNumber} · ${context.projectName} · ${context.dateLabel}`,
-      {
-        color: textColor,
-        font: fonts.regular,
-        size: 11,
-        x: 48,
-        y: 764,
-      },
-    );
-    page.drawText("Sonstige Bauleistung / Bemerkungen", {
-      color: textColor,
-      font: fonts.bold,
-      size: 12,
-      x: 48,
-      y: 730,
-    });
-    page.drawLine({
-      color: rgb(0.75, 0.75, 0.75),
-      end: { x: 547, y: 720 },
-      start: { x: 48, y: 720 },
-      thickness: 0.75,
-    });
+    drawAppendixHeader(page, fonts, context, "Baubericht – Fortsetzung");
 
     pageLines.forEach((line, lineIndex) => {
       page.drawText(line, {
@@ -581,33 +551,33 @@ function drawPerformanceContinuationPages(
       });
     });
 
-    page.drawText(
-      `Seite ${pageIndex + photoPageCount + 2} von ${
-        totalContinuationPages + photoPageCount + 1
-      }`,
-      {
-        color: textColor,
-        font: fonts.regular,
-        size: 9,
-        x: 470,
-        y: 34,
-      },
-    );
+    if (isLastContinuationPage && remainingPhotos.length > 0) {
+      const photoLayout = getContinuationPhotoLayout(pageLines.length);
+
+      if (photoLayout.capacity > 0) {
+        const pagePhotos = remainingPhotos.slice(0, photoLayout.capacity);
+        remainingPhotos = remainingPhotos.slice(photoLayout.capacity);
+        await drawPhotoGrid(
+          pdfDocument,
+          page,
+          fonts,
+          pagePhotos,
+          photoLayout.contentTop,
+          54,
+          Math.min(
+            photoLayout.rowCount,
+            Math.ceil(pagePhotos.length / 2),
+          ),
+          true,
+        );
+      }
+    }
+
+    drawAppendixPageNumber(page, fonts.regular, appendixPageNumber);
+    appendixPageNumber += 1;
   }
-}
 
-async function drawPhotoPages(
-  pdfDocument: PDFDocument,
-  fonts: ReportFonts,
-  context: ReturnType<typeof buildDailyReportContext>,
-) {
-  const photos = context.photos.filter((photo) => photo.selected);
-  if (photos.length === 0) return 0;
-
-  const pages = chunkItems(photos, 8);
-
-  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
-    const pagePhotos = pages[pageIndex];
+  for (const pagePhotos of chunkItems(remainingPhotos, 8)) {
     const page = pdfDocument.addPage([595.28, 841.89]);
     const rowCount =
       pagePhotos.length <= 2
@@ -617,109 +587,194 @@ async function drawPhotoPages(
           : pagePhotos.length <= 6
             ? 3
             : 4;
-    const columnCount = pagePhotos.length === 1 ? 1 : 2;
-    const pageMargin = 42;
-    const columnGap = 14;
-    const rowGap = 12;
-    const contentTop = 718;
-    const contentBottom = 54;
-    const cellWidth =
-      (595.28 - pageMargin * 2 - columnGap * (columnCount - 1)) / columnCount;
-    const cellHeight =
-      (contentTop - contentBottom - rowGap * (rowCount - 1)) / rowCount;
-
-    page.drawText("Fotodokumentation", {
-      color: textColor,
-      font: fonts.bold,
-      size: 16,
-      x: pageMargin,
-      y: 786,
-    });
-    page.drawText(
-      `${context.projectNumber} · ${context.projectName} · ${context.dateLabel}`,
-      {
-        color: textColor,
-        font: fonts.regular,
-        size: 11,
-        x: pageMargin,
-        y: 764,
-      },
+    drawAppendixHeader(page, fonts, context, "Fotodokumentation");
+    await drawPhotoGrid(
+      pdfDocument,
+      page,
+      fonts,
+      pagePhotos,
+      718,
+      54,
+      rowCount,
+      false,
     );
-    page.drawLine({
-      color: rgb(0.75, 0.75, 0.75),
-      end: { x: 595.28 - pageMargin, y: 746 },
-      start: { x: pageMargin, y: 746 },
-      thickness: 0.75,
-    });
+    drawAppendixPageNumber(page, fonts.regular, appendixPageNumber);
+    appendixPageNumber += 1;
+  }
+}
 
-    for (let photoIndex = 0; photoIndex < pagePhotos.length; photoIndex += 1) {
-      const photo = pagePhotos[photoIndex];
-      const column = photoIndex % columnCount;
-      const row = Math.floor(photoIndex / columnCount);
-      const x = pageMargin + column * (cellWidth + columnGap);
-      const y = contentTop - (row + 1) * cellHeight - row * rowGap;
-
-      page.drawRectangle({
-        borderColor: rgb(0.82, 0.82, 0.82),
-        borderWidth: 0.75,
-        height: cellHeight,
-        width: cellWidth,
-        x,
-        y,
-      });
-
-      const captionLines = wrapTextLines(
-        [
-          [photo.capturedAtLabel, photo.notes].filter(Boolean).join(" · ") ||
-            "Projektfoto",
-        ],
-        fonts.regular,
-        cellWidth - 16,
-        9,
-      ).slice(0, 2);
-      const captionHeight = captionLines.length > 1 ? 30 : 20;
-      const image = await embedProjectPhoto(pdfDocument, photo);
-      const imageBox = {
-        height: cellHeight - captionHeight - 12,
-        width: cellWidth - 12,
-        x: x + 6,
-        y: y + captionHeight + 6,
-      };
-      const scale = Math.min(
-        imageBox.width / image.width,
-        imageBox.height / image.height,
-      );
-      const imageWidth = image.width * scale;
-      const imageHeight = image.height * scale;
-
-      page.drawImage(image, {
-        height: imageHeight,
-        width: imageWidth,
-        x: imageBox.x + (imageBox.width - imageWidth) / 2,
-        y: imageBox.y + (imageBox.height - imageHeight) / 2,
-      });
-
-      captionLines.forEach((line, captionIndex) => {
-        page.drawText(line, {
-          color: textColor,
-          font: fonts.regular,
-          size: 9,
-          x: x + 8,
-          y: y + captionHeight - 12 - captionIndex * 11,
-        });
-      });
-    }
-
-    page.drawText(`Seite ${pageIndex + 2}`, {
+function drawAppendixHeader(
+  page: PDFPage,
+  fonts: ReportFonts,
+  context: ReturnType<typeof buildDailyReportContext>,
+  title: string,
+) {
+  page.drawText(title, {
+    color: textColor,
+    font: fonts.bold,
+    size: 16,
+    x: 48,
+    y: 786,
+  });
+  page.drawText(
+    `${context.projectNumber} · ${context.projectName} · ${context.dateLabel}`,
+    {
       color: textColor,
       font: fonts.regular,
-      size: 9,
-      x: 510,
-      y: 34,
+      size: 11,
+      x: 48,
+      y: 764,
+    },
+  );
+
+  if (title === "Baubericht – Fortsetzung") {
+    page.drawText("Sonstige Bauleistung / Bemerkungen", {
+      color: textColor,
+      font: fonts.bold,
+      size: 12,
+      x: 48,
+      y: 730,
     });
   }
 
-  return pages.length;
+  page.drawLine({
+    color: rgb(0.75, 0.75, 0.75),
+    end: { x: 547, y: title === "Baubericht – Fortsetzung" ? 720 : 746 },
+    start: { x: 48, y: title === "Baubericht – Fortsetzung" ? 720 : 746 },
+    thickness: 0.75,
+  });
+}
+
+function getContinuationPhotoLayout(textLineCount: number) {
+  const lastTextY =
+    textLineCount > 0
+      ? 695 - (textLineCount - 1) * continuationLineHeight
+      : 720;
+  const headingY = lastTextY - 32;
+  const contentTop = headingY - 24;
+  const contentBottom = 54;
+  const rowGap = 12;
+  const minimumRowHeight = 145;
+  const rowCount = Math.max(
+    0,
+    Math.min(
+      4,
+      Math.floor(
+        (contentTop - contentBottom + rowGap) /
+          (minimumRowHeight + rowGap),
+      ),
+    ),
+  );
+
+  return {
+    capacity: rowCount * 2,
+    contentTop,
+    rowCount,
+  };
+}
+
+async function drawPhotoGrid(
+  pdfDocument: PDFDocument,
+  page: PDFPage,
+  fonts: ReportFonts,
+  photos: ReturnType<typeof buildDailyReportContext>["photos"],
+  contentTop: number,
+  contentBottom: number,
+  rowCount: number,
+  showHeading: boolean,
+) {
+  if (photos.length === 0 || rowCount === 0) return;
+
+  const pageMargin = 42;
+  const columnGap = 14;
+  const rowGap = 12;
+  const columnCount = photos.length === 1 ? 1 : 2;
+  const cellWidth =
+    (595.28 - pageMargin * 2 - columnGap * (columnCount - 1)) / columnCount;
+  const cellHeight =
+    (contentTop - contentBottom - rowGap * (rowCount - 1)) / rowCount;
+
+  if (showHeading) {
+    page.drawText("Fotodokumentation", {
+      color: textColor,
+      font: fonts.bold,
+      size: 11,
+      x: pageMargin,
+      y: contentTop + 8,
+    });
+  }
+
+  for (let photoIndex = 0; photoIndex < photos.length; photoIndex += 1) {
+    const photo = photos[photoIndex];
+    const column = photoIndex % columnCount;
+    const row = Math.floor(photoIndex / columnCount);
+    const x = pageMargin + column * (cellWidth + columnGap);
+    const y = contentTop - (row + 1) * cellHeight - row * rowGap;
+
+    page.drawRectangle({
+      borderColor: rgb(0.82, 0.82, 0.82),
+      borderWidth: 0.75,
+      height: cellHeight,
+      width: cellWidth,
+      x,
+      y,
+    });
+
+    const captionLines = wrapTextLines(
+      [
+        [photo.capturedAtLabel, photo.notes].filter(Boolean).join(" · ") ||
+          "Projektfoto",
+      ],
+      fonts.regular,
+      cellWidth - 16,
+      9,
+    ).slice(0, 2);
+    const captionHeight = captionLines.length > 1 ? 30 : 20;
+    const image = await embedProjectPhoto(pdfDocument, photo);
+    const imageBox = {
+      height: cellHeight - captionHeight - 12,
+      width: cellWidth - 12,
+      x: x + 6,
+      y: y + captionHeight + 6,
+    };
+    const scale = Math.min(
+      imageBox.width / image.width,
+      imageBox.height / image.height,
+    );
+    const imageWidth = image.width * scale;
+    const imageHeight = image.height * scale;
+
+    page.drawImage(image, {
+      height: imageHeight,
+      width: imageWidth,
+      x: imageBox.x + (imageBox.width - imageWidth) / 2,
+      y: imageBox.y + (imageBox.height - imageHeight) / 2,
+    });
+
+    captionLines.forEach((line, captionIndex) => {
+      page.drawText(line, {
+        color: textColor,
+        font: fonts.regular,
+        size: 9,
+        x: x + 8,
+        y: y + captionHeight - 12 - captionIndex * 11,
+      });
+    });
+  }
+}
+
+function drawAppendixPageNumber(
+  page: PDFPage,
+  font: PDFFont,
+  pageNumber: number,
+) {
+  page.drawText(`Seite ${pageNumber}`, {
+    color: textColor,
+    font,
+    size: 9,
+    x: 510,
+    y: 34,
+  });
 }
 
 async function embedProjectPhoto(
