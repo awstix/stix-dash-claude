@@ -540,6 +540,7 @@ async function drawReportAppendixPages(
       pageIndex === continuationPages.length - 1;
 
     drawAppendixHeader(page, fonts, context, "Baubericht – Fortsetzung");
+    drawContinuationTextLines(page, pageLines.length);
 
     pageLines.forEach((line, lineIndex) => {
       page.drawText(line, {
@@ -579,14 +580,6 @@ async function drawReportAppendixPages(
 
   for (const pagePhotos of chunkItems(remainingPhotos, 8)) {
     const page = pdfDocument.addPage([595.28, 841.89]);
-    const rowCount =
-      pagePhotos.length <= 2
-        ? 1
-        : pagePhotos.length <= 4
-          ? 2
-          : pagePhotos.length <= 6
-            ? 3
-            : 4;
     drawAppendixHeader(page, fonts, context, "Fotodokumentation");
     await drawPhotoGrid(
       pdfDocument,
@@ -595,7 +588,7 @@ async function drawReportAppendixPages(
       pagePhotos,
       718,
       54,
-      rowCount,
+      4,
       false,
     );
     drawAppendixPageNumber(page, fonts.regular, appendixPageNumber);
@@ -645,6 +638,23 @@ function drawAppendixHeader(
   });
 }
 
+function drawContinuationTextLines(page: PDFPage, lineCount: number) {
+  if (lineCount === 0) return;
+
+  const topLineY = 708;
+
+  for (let lineIndex = 0; lineIndex <= lineCount; lineIndex += 1) {
+    const y = topLineY - lineIndex * continuationLineHeight;
+
+    page.drawLine({
+      color: rgb(0.82, 0.82, 0.82),
+      end: { x: 547, y },
+      start: { x: 42, y },
+      thickness: 0.5,
+    });
+  }
+}
+
 function getContinuationPhotoLayout(textLineCount: number) {
   const lastTextY =
     textLineCount > 0
@@ -688,7 +698,7 @@ async function drawPhotoGrid(
   const pageMargin = 42;
   const columnGap = 14;
   const rowGap = 12;
-  const columnCount = photos.length === 1 ? 1 : 2;
+  const columnCount = 2;
   const cellWidth =
     (595.28 - pageMargin * 2 - columnGap * (columnCount - 1)) / columnCount;
   const cellHeight =
