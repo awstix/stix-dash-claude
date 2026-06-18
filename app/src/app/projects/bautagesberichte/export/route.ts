@@ -77,6 +77,8 @@ const performanceLineY = [
 const footerLabelY = 86;
 const footerDateY = 66;
 const footerSignatureY = 28;
+const continuationLineHeight = 16;
+const continuationLinesPerPage = 40;
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
@@ -148,8 +150,7 @@ export async function generateDailyReportPdf({
   drawMachineRows(page, fonts.regular, context.machineRows, context.showRealMachineNames);
   drawMaterialRows(page, fonts.regular, context.materialRows);
   drawPerformanceHeading(page, fonts.bold);
-  drawPerformanceLines(
-    page,
+  const performanceLines = buildPerformanceLines(
     fonts.regular,
     context.performanceLines,
     context.siteDiscussionNotes,
@@ -157,8 +158,19 @@ export async function generateDailyReportPdf({
     context.siteDiscussionThirdPartyName,
     context.weatherNotes,
   );
+  const continuationLines = drawPerformanceLines(
+    page,
+    fonts.regular,
+    performanceLines,
+  );
   drawFooterLabels(page, fonts.regular, context.dateLabel);
   await drawSignatures(pdfDocument, page, context);
+  drawPerformanceContinuationPages(
+    pdfDocument,
+    fonts,
+    context,
+    continuationLines,
+  );
 
   const pdfBytes = await pdfDocument.save();
   const fileName = `Baubericht_${sanitizeFileName(
@@ -332,19 +344,12 @@ function drawPerformanceLines(
   page: PDFPage,
   font: PDFFont,
   lines: string[],
-  siteDiscussionNotes: string,
-  siteDiscussionRoles: string[],
-  siteDiscussionThirdPartyName: string,
-  weatherNotes: string,
 ) {
-  const visibleLines = buildPerformanceLines(
-    font,
-    lines,
-    siteDiscussionNotes,
-    siteDiscussionRoles,
-    siteDiscussionThirdPartyName,
-    weatherNotes,
-  );
+  const hasContinuation = lines.length > performanceLineY.length;
+  const visibleLineCount = hasContinuation
+    ? performanceLineY.length - 1
+    : performanceLineY.length;
+  const visibleLines = lines.slice(0, visibleLineCount);
 
   visibleLines.forEach((line, index) => {
     drawSingleLine(
@@ -357,6 +362,20 @@ function drawPerformanceLines(
       reportTextSize,
     );
   });
+
+  if (hasContinuation) {
+    drawSingleLine(
+      page,
+      font,
+      "Fortsetzung siehe nächste Seite",
+      48,
+      performanceLineY[performanceLineY.length - 1],
+      500,
+      reportTextSize,
+    );
+  }
+
+  return lines.slice(visibleLineCount);
 }
 
 function buildPerformanceLines(
@@ -377,26 +396,7 @@ function buildPerformanceLines(
       : "",
     weatherNotes.trim() ? `Wetterbemerkung: ${weatherNotes.trim()}` : "",
   ].filter(Boolean);
-  const supplementalLines: string[] = [];
-
-  supplementalTexts.forEach((text, index) => {
-    const remainingNotes = supplementalTexts.length - index - 1;
-    const availableLines =
-      performanceLineY.length - supplementalLines.length - remainingNotes;
-
-    supplementalLines.push(
-      ...wrapTextLines([text], font, 500, Math.max(1, availableLines)),
-    );
-  });
-
-  const maxPerformanceLines = Math.max(
-    0,
-    performanceLineY.length - supplementalLines.length,
-  );
-  const result = wrapTextLines(lines, font, 500, maxPerformanceLines);
-  result.push(...supplementalLines);
-
-  return result.slice(0, performanceLineY.length);
+  return wrapTextLines([...lines, ...supplementalTexts], font, 500);
 }
 
 function formatSiteDiscussionRoles(
@@ -426,21 +426,11 @@ function wrapTextLines(
   lines: string[],
   font: PDFFont,
   maxWidth: number,
-  maxLines: number,
 ) {
   const result: string[] = [];
 
   for (const line of lines) {
-    if (result.length >= maxLines) break;
-
-    result.push(
-      ...wrapSingleTextLine(
-        String(line ?? ""),
-        font,
-        maxWidth,
-        maxLines - result.length,
-      ),
-    );
+    result.push(...wrapSingleTextLine(String(line ?? ""), font, maxWidth));
   }
 
   return result;
@@ -450,40 +440,150 @@ function wrapSingleTextLine(
   value: string,
   font: PDFFont,
   maxWidth: number,
-  maxLines: number,
 ) {
   const text = value.replace(/\s+/g, " ").trim();
-  if (!text || maxLines <= 0) return [];
+  if (!text) return [];
 
   const wrappedLines: string[] = [];
   let currentLine = "";
 
-  for (const word of text.split(" ")) {
-    const candidate = currentLine ? `${currentLine} ${word}` : word;
+  for (const sourceWord of text.split(" ")) {
+    const wordParts = splitWordForWidth(
+      sourceWord,
+      font,
+      reportTextSize,
+      maxWidth,
+    );
 
-    if (font.widthOfTextAtSize(candidate, reportTextSize) <= maxWidth) {
-      currentLine = candidate;
-      continue;
-    }
+    for (const word of wordParts) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
 
-    if (currentLine) {
-      wrappedLines.push(currentLine);
-      currentLine = word;
-    } else {
-      wrappedLines.push(fitText(word, font, reportTextSize, maxWidth));
-      currentLine = "";
-    }
+      if (font.widthOfTextAtSize(candidate, reportTextSize) <= maxWidth) {
+        currentLine = candidate;
+        continue;
+      }
 
-    if (wrappedLines.length >= maxLines) {
-      return wrappedLines;
+      if (currentLine) {
+        wrappedLines.push(currentLine);
+        currentLine = word;
+      } else {
+        wrappedLines.push(word);
+      }
     }
   }
 
-  if (currentLine && wrappedLines.length < maxLines) {
+  if (currentLine) {
     wrappedLines.push(currentLine);
   }
 
   return wrappedLines;
+}
+
+function splitWordForWidth(
+  word: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number,
+) {
+  if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+    return [word];
+  }
+
+  const parts: string[] = [];
+  let currentPart = "";
+
+  for (const character of word) {
+    const candidate = `${currentPart}${character}`;
+
+    if (
+      currentPart &&
+      font.widthOfTextAtSize(`${candidate}-`, size) > maxWidth
+    ) {
+      parts.push(`${currentPart}-`);
+      currentPart = character;
+    } else {
+      currentPart = candidate;
+    }
+  }
+
+  if (currentPart) {
+    parts.push(currentPart);
+  }
+
+  return parts;
+}
+
+function drawPerformanceContinuationPages(
+  pdfDocument: PDFDocument,
+  fonts: ReportFonts,
+  context: ReturnType<typeof buildDailyReportContext>,
+  lines: string[],
+) {
+  if (lines.length === 0) return;
+
+  const totalContinuationPages = Math.ceil(
+    lines.length / continuationLinesPerPage,
+  );
+
+  for (let pageIndex = 0; pageIndex < totalContinuationPages; pageIndex += 1) {
+    const page = pdfDocument.addPage([595.28, 841.89]);
+    const pageLines = lines.slice(
+      pageIndex * continuationLinesPerPage,
+      (pageIndex + 1) * continuationLinesPerPage,
+    );
+
+    page.drawText("Baubericht – Fortsetzung", {
+      color: textColor,
+      font: fonts.bold,
+      size: 16,
+      x: 48,
+      y: 786,
+    });
+    page.drawText(
+      `${context.projectNumber} · ${context.projectName} · ${context.dateLabel}`,
+      {
+        color: textColor,
+        font: fonts.regular,
+        size: 11,
+        x: 48,
+        y: 764,
+      },
+    );
+    page.drawText("Sonstige Bauleistung / Bemerkungen", {
+      color: textColor,
+      font: fonts.bold,
+      size: 12,
+      x: 48,
+      y: 730,
+    });
+    page.drawLine({
+      color: rgb(0.75, 0.75, 0.75),
+      end: { x: 547, y: 720 },
+      start: { x: 48, y: 720 },
+      thickness: 0.75,
+    });
+
+    pageLines.forEach((line, lineIndex) => {
+      page.drawText(line, {
+        color: textColor,
+        font: fonts.regular,
+        size: reportTextSize,
+        x: 48,
+        y: 695 - lineIndex * continuationLineHeight,
+      });
+    });
+
+    page.drawText(
+      `Seite ${pageIndex + 2} von ${totalContinuationPages + 1}`,
+      {
+        color: textColor,
+        font: fonts.regular,
+        size: 9,
+        x: 470,
+        y: 34,
+      },
+    );
+  }
 }
 
 function drawPerformanceHeading(page: PDFPage, font: PDFFont) {

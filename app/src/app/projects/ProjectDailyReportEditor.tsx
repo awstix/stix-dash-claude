@@ -459,6 +459,10 @@ export function ProjectDailyReportEditor({
           rows={8}
           value={form.performanceLines.join("\n")}
         />
+        <p className="mt-2 text-xs text-gray-500">
+          Langer Text wird im PDF automatisch auf Fortsetzungsseiten
+          weitergeführt.
+        </p>
         <div className="mt-4">
           <p className="text-sm font-semibold text-gray-900">
             Auftraggeber (AG), Bauüberwacher, Planer oder Dritte auf der
