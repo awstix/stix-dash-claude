@@ -100,6 +100,20 @@ export function ProjectInlinePhotoUpload({
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800">
+            <input
+              className="mt-0.5 h-4 w-4"
+              name="compressPhotos"
+              type="checkbox"
+            />
+            <span>
+              Dateigröße reduzieren
+              <span className="block font-medium text-gray-500">
+                EXIF und GPS bleiben erhalten.
+              </span>
+            </span>
+          </label>
+
           <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800">
             <input
               className="h-4 w-4"

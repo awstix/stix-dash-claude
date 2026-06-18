@@ -6,6 +6,7 @@ import { access, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { ProjectStatus } from "@prisma/client";
+import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import {
   PROJECT_FORM_FIELD_TYPES,
@@ -919,6 +920,7 @@ export async function uploadProjectPhotos(formData: FormData) {
   );
   const uploadedByUserId = cleanFormString(formData.get("uploadedByUserId"));
   const takeMetadata = formData.get("takeMetadata") === "on";
+  const compressPhotos = formData.get("compressPhotos") === "on";
   const availableForDailyReports =
     formData.get("availableForDailyReports") === "on";
   const files = formData
@@ -951,8 +953,8 @@ export async function uploadProjectPhotos(formData: FormData) {
       throw new Error(`"${file.name}" ist keine Bilddatei.`);
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      throw new Error(`"${file.name}" ist größer als 15 MB.`);
+    if (file.size > 50 * 1024 * 1024) {
+      throw new Error(`"${file.name}" ist größer als 50 MB.`);
     }
   }
 
@@ -966,9 +968,19 @@ export async function uploadProjectPhotos(formData: FormData) {
   await mkdir(uploadDirectory, { recursive: true });
 
   for (const file of files) {
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const originalBuffer = Buffer.from(await file.arrayBuffer());
+    const storedPhoto = compressPhotos
+      ? await compressProjectPhoto(originalBuffer, file.type)
+      : {
+          buffer: originalBuffer,
+          extension: getPhotoExtension(file),
+          mimeType: file.type || "application/octet-stream",
+        };
+    const buffer = storedPhoto.buffer;
     const extension = getPhotoExtension(file);
-    const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
+    const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${
+      storedPhoto.extension || extension
+    }`;
     const absolutePath = path.join(uploadDirectory, fileName);
     const storagePath = path.join(
       "public",
@@ -979,11 +991,15 @@ export async function uploadProjectPhotos(formData: FormData) {
     );
     const publicUrl = `/uploads/project-photos/${projectId}/${fileName}`;
     const metadata = takeMetadata
-      ? extractPhotoMetadata(buffer, file.type, {
+      ? extractPhotoMetadata(originalBuffer, file.type, {
           fileLastModified: file.lastModified,
           originalFileName: file.name,
         })
       : {};
+    const storedDimensions = readImageDimensions(
+      buffer,
+      storedPhoto.mimeType,
+    );
     const gpsAddress =
       typeof metadata.gpsLatitude === "number" &&
       typeof metadata.gpsLongitude === "number"
@@ -1003,10 +1019,12 @@ export async function uploadProjectPhotos(formData: FormData) {
           originalFileName: takeMetadata ? cleanUploadText(file.name) : null,
           publicUrl,
           storagePath,
-          mimeType: file.type || "application/octet-stream",
-          fileSizeBytes: file.size,
-          imageWidth: metadata.imageWidth ?? null,
-          imageHeight: metadata.imageHeight ?? null,
+          mimeType: storedPhoto.mimeType,
+          fileSizeBytes: buffer.length,
+          imageWidth:
+            storedDimensions.imageWidth ?? metadata.imageWidth ?? null,
+          imageHeight:
+            storedDimensions.imageHeight ?? metadata.imageHeight ?? null,
           notes: notes || null,
           metadataTaken: takeMetadata,
           capturedAt: metadata.capturedAt ?? null,
@@ -2051,6 +2069,40 @@ function getPhotoExtension(file: File) {
   }
 
   return extensionByMime[file.type] ?? "jpg";
+}
+
+async function compressProjectPhoto(buffer: Buffer, mimeType: string) {
+  if (!["image/jpeg", "image/png", "image/webp", "image/heic"].includes(mimeType)) {
+    throw new Error(
+      "Komprimierung wird für JPEG, PNG, WebP und HEIC unterstützt.",
+    );
+  }
+
+  try {
+    const compressedBuffer = await sharp(buffer)
+      .resize({
+        fit: "inside",
+        height: 2560,
+        width: 2560,
+        withoutEnlargement: true,
+      })
+      .keepMetadata()
+      .jpeg({
+        mozjpeg: true,
+        quality: 82,
+      })
+      .toBuffer();
+
+    return {
+      buffer: compressedBuffer,
+      extension: "jpg",
+      mimeType: "image/jpeg",
+    };
+  } catch {
+    throw new Error(
+      "Mindestens ein Foto konnte nicht komprimiert werden. Bitte als Original hochladen.",
+    );
+  }
 }
 
 function cleanPhotoIds(photoIds: string[]) {

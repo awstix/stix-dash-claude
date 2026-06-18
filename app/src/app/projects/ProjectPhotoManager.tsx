@@ -206,6 +206,21 @@ export function ProjectPhotoManager({
               <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm font-semibold text-gray-800">
                 <input
                   className="mt-1 h-4 w-4"
+                  name="compressPhotos"
+                  type="checkbox"
+                />
+                <span>
+                  Dateigröße reduzieren
+                  <span className="block text-xs font-medium text-gray-500">
+                    Original bleibt Standard. Bei Komprimierung bleiben EXIF,
+                    Aufnahmedatum und GPS erhalten.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm font-semibold text-gray-800">
+                <input
+                  className="mt-1 h-4 w-4"
                   defaultChecked
                   name="takeMetadata"
                   type="checkbox"
