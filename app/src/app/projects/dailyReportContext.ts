@@ -14,6 +14,14 @@ export type DailyReportMaterialRow = {
   unit: string;
 };
 
+export type DailyReportPhoto = {
+  capturedAtLabel: string;
+  id: string;
+  notes: string;
+  publicUrl: string;
+  selected: boolean;
+};
+
 export type DailyReportContext = {
   approvedAt: Date | null;
   approvedByName: string;
@@ -24,6 +32,7 @@ export type DailyReportContext = {
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
+  photos: DailyReportPhoto[];
   performanceLines: string[];
   projectName: string;
   projectNumber: string;
@@ -231,6 +240,11 @@ export async function getDailyReportSourceProject(
         where: {
           reportDate,
         },
+        include: {
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+        },
         take: 1,
       },
       equipmentDispatchAssignments: {
@@ -302,6 +316,15 @@ export async function getDailyReportSourceProject(
           weatherDate: reportDate,
         },
         take: 1,
+      },
+      photos: {
+        where: {
+          availableForDailyReports: true,
+          mimeType: {
+            in: ["image/jpeg", "image/png"],
+          },
+        },
+        orderBy: [{ capturedAt: "desc" }, { uploadedAt: "desc" }],
       },
     },
   });
@@ -663,6 +686,9 @@ export function buildDailyReportContext(
   const performanceLinesForReport = dailyReport?.materialJson
     ? storedPerformanceLines
     : filterLegacyMaterialPerformanceLines(storedPerformanceLines);
+  const selectedPhotoIds = new Set(
+    dailyReport?.photos.map((photo) => photo.photoId) ?? [],
+  );
 
   return {
     approvedAt: dailyReport?.approvedAt ?? null,
@@ -677,6 +703,15 @@ export function buildDailyReportContext(
       dailyReport?.materialJson,
       suggestedMaterialRows,
     ),
+    photos: project.photos.map((photo) => ({
+      capturedAtLabel: photo.capturedAt
+        ? formatDateLabel(photo.capturedAt.toISOString().slice(0, 10))
+        : "",
+      id: photo.id,
+      notes: photo.notes ?? "",
+      publicUrl: photo.publicUrl,
+      selected: selectedPhotoIds.has(photo.id),
+    })),
     performanceLines: performanceLinesForReport.slice(
       0,
       dailyReportPerformanceLineLimit,

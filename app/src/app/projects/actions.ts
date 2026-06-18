@@ -64,6 +64,7 @@ export type ProjectDailyReportSaveInput = {
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
   performanceLines: string[];
+  photoIds: string[];
   projectId: string;
   projectName: string;
   projectNumber: string;
@@ -617,19 +618,61 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     workStart: cleanDailyReportTime(input.workStart),
   };
 
-  await prisma.projectDailyReport.upsert({
-    where: {
-      projectId_reportDate: {
+  const photoIds = cleanPhotoIds(input.photoIds);
+  const validPhotos =
+    photoIds.length > 0
+      ? await prisma.projectPhoto.findMany({
+          where: {
+            availableForDailyReports: true,
+            id: {
+              in: photoIds,
+            },
+            mimeType: {
+              in: ["image/jpeg", "image/png"],
+            },
+            projectId,
+          },
+          select: {
+            id: true,
+          },
+        })
+      : [];
+
+  await prisma.$transaction(async (transaction) => {
+    const report = await transaction.projectDailyReport.upsert({
+      where: {
+        projectId_reportDate: {
+          projectId,
+          reportDate,
+        },
+      },
+      create: {
+        ...data,
         projectId,
         reportDate,
       },
-    },
-    create: {
-      ...data,
-      projectId,
-      reportDate,
-    },
-    update: data,
+      update: data,
+    });
+
+    await transaction.projectDailyReportPhoto.deleteMany({
+      where: {
+        dailyReportId: report.id,
+      },
+    });
+
+    if (validPhotos.length > 0) {
+      const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
+
+      await transaction.projectDailyReportPhoto.createMany({
+        data: photoIds
+          .filter((photoId) => validPhotoIds.has(photoId))
+          .map((photoId, index) => ({
+            dailyReportId: report.id,
+            photoId,
+            sortOrder: index,
+          })),
+      });
+    }
   });
 
   await renumberApprovedDailyReports(projectId);

@@ -3,6 +3,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { NextRequest } from "next/server";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import sharp from "sharp";
 import {
   addDailyReportDays,
   buildDailyReportContext,
@@ -165,11 +166,13 @@ export async function generateDailyReportPdf({
   );
   drawFooterLabels(page, fonts.regular, context.dateLabel);
   await drawSignatures(pdfDocument, page, context);
+  const photoPageCount = await drawPhotoPages(pdfDocument, fonts, context);
   drawPerformanceContinuationPages(
     pdfDocument,
     fonts,
     context,
     continuationLines,
+    photoPageCount,
   );
 
   const pdfBytes = await pdfDocument.save();
@@ -426,11 +429,14 @@ function wrapTextLines(
   lines: string[],
   font: PDFFont,
   maxWidth: number,
+  size = reportTextSize,
 ) {
   const result: string[] = [];
 
   for (const line of lines) {
-    result.push(...wrapSingleTextLine(String(line ?? ""), font, maxWidth));
+    result.push(
+      ...wrapSingleTextLine(String(line ?? ""), font, maxWidth, size),
+    );
   }
 
   return result;
@@ -440,6 +446,7 @@ function wrapSingleTextLine(
   value: string,
   font: PDFFont,
   maxWidth: number,
+  size = reportTextSize,
 ) {
   const text = value.replace(/\s+/g, " ").trim();
   if (!text) return [];
@@ -451,14 +458,14 @@ function wrapSingleTextLine(
     const wordParts = splitWordForWidth(
       sourceWord,
       font,
-      reportTextSize,
+      size,
       maxWidth,
     );
 
     for (const word of wordParts) {
       const candidate = currentLine ? `${currentLine} ${word}` : word;
 
-      if (font.widthOfTextAtSize(candidate, reportTextSize) <= maxWidth) {
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
         currentLine = candidate;
         continue;
       }
@@ -518,6 +525,7 @@ function drawPerformanceContinuationPages(
   fonts: ReportFonts,
   context: ReturnType<typeof buildDailyReportContext>,
   lines: string[],
+  photoPageCount: number,
 ) {
   if (lines.length === 0) return;
 
@@ -574,7 +582,9 @@ function drawPerformanceContinuationPages(
     });
 
     page.drawText(
-      `Seite ${pageIndex + 2} von ${totalContinuationPages + 1}`,
+      `Seite ${pageIndex + photoPageCount + 2} von ${
+        totalContinuationPages + photoPageCount + 1
+      }`,
       {
         color: textColor,
         font: fonts.regular,
@@ -584,6 +594,176 @@ function drawPerformanceContinuationPages(
       },
     );
   }
+}
+
+async function drawPhotoPages(
+  pdfDocument: PDFDocument,
+  fonts: ReportFonts,
+  context: ReturnType<typeof buildDailyReportContext>,
+) {
+  const photos = context.photos.filter((photo) => photo.selected);
+  if (photos.length === 0) return 0;
+
+  const pages = chunkItems(photos, 8);
+
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const pagePhotos = pages[pageIndex];
+    const page = pdfDocument.addPage([595.28, 841.89]);
+    const rowCount =
+      pagePhotos.length <= 2
+        ? 1
+        : pagePhotos.length <= 4
+          ? 2
+          : pagePhotos.length <= 6
+            ? 3
+            : 4;
+    const columnCount = pagePhotos.length === 1 ? 1 : 2;
+    const pageMargin = 42;
+    const columnGap = 14;
+    const rowGap = 12;
+    const contentTop = 718;
+    const contentBottom = 54;
+    const cellWidth =
+      (595.28 - pageMargin * 2 - columnGap * (columnCount - 1)) / columnCount;
+    const cellHeight =
+      (contentTop - contentBottom - rowGap * (rowCount - 1)) / rowCount;
+
+    page.drawText("Fotodokumentation", {
+      color: textColor,
+      font: fonts.bold,
+      size: 16,
+      x: pageMargin,
+      y: 786,
+    });
+    page.drawText(
+      `${context.projectNumber} · ${context.projectName} · ${context.dateLabel}`,
+      {
+        color: textColor,
+        font: fonts.regular,
+        size: 11,
+        x: pageMargin,
+        y: 764,
+      },
+    );
+    page.drawLine({
+      color: rgb(0.75, 0.75, 0.75),
+      end: { x: 595.28 - pageMargin, y: 746 },
+      start: { x: pageMargin, y: 746 },
+      thickness: 0.75,
+    });
+
+    for (let photoIndex = 0; photoIndex < pagePhotos.length; photoIndex += 1) {
+      const photo = pagePhotos[photoIndex];
+      const column = photoIndex % columnCount;
+      const row = Math.floor(photoIndex / columnCount);
+      const x = pageMargin + column * (cellWidth + columnGap);
+      const y = contentTop - (row + 1) * cellHeight - row * rowGap;
+
+      page.drawRectangle({
+        borderColor: rgb(0.82, 0.82, 0.82),
+        borderWidth: 0.75,
+        height: cellHeight,
+        width: cellWidth,
+        x,
+        y,
+      });
+
+      const captionLines = wrapTextLines(
+        [
+          [photo.capturedAtLabel, photo.notes].filter(Boolean).join(" · ") ||
+            "Projektfoto",
+        ],
+        fonts.regular,
+        cellWidth - 16,
+        9,
+      ).slice(0, 2);
+      const captionHeight = captionLines.length > 1 ? 30 : 20;
+      const image = await embedProjectPhoto(pdfDocument, photo);
+      const imageBox = {
+        height: cellHeight - captionHeight - 12,
+        width: cellWidth - 12,
+        x: x + 6,
+        y: y + captionHeight + 6,
+      };
+      const scale = Math.min(
+        imageBox.width / image.width,
+        imageBox.height / image.height,
+      );
+      const imageWidth = image.width * scale;
+      const imageHeight = image.height * scale;
+
+      page.drawImage(image, {
+        height: imageHeight,
+        width: imageWidth,
+        x: imageBox.x + (imageBox.width - imageWidth) / 2,
+        y: imageBox.y + (imageBox.height - imageHeight) / 2,
+      });
+
+      captionLines.forEach((line, captionIndex) => {
+        page.drawText(line, {
+          color: textColor,
+          font: fonts.regular,
+          size: 9,
+          x: x + 8,
+          y: y + captionHeight - 12 - captionIndex * 11,
+        });
+      });
+    }
+
+    page.drawText(`Seite ${pageIndex + 2}`, {
+      color: textColor,
+      font: fonts.regular,
+      size: 9,
+      x: 510,
+      y: 34,
+    });
+  }
+
+  return pages.length;
+}
+
+async function embedProjectPhoto(
+  pdfDocument: PDFDocument,
+  photo: ReturnType<typeof buildDailyReportContext>["photos"][number],
+) {
+  if (!photo.publicUrl.startsWith("/uploads/project-photos/")) {
+    throw new Error("Ungültiger Pfad für Berichtsfoto.");
+  }
+
+  const absolutePath = path.resolve(
+    process.cwd(),
+    "public",
+    photo.publicUrl.replace(/^\/+/, ""),
+  );
+  const bytes = await readFile(absolutePath);
+  const optimizedBytes = await sharp(bytes)
+    .rotate()
+    .resize({
+      fit: "inside",
+      height: 1000,
+      width: 1400,
+      withoutEnlargement: true,
+    })
+    .flatten({
+      background: "#ffffff",
+    })
+    .jpeg({
+      mozjpeg: true,
+      quality: 78,
+    })
+    .toBuffer();
+
+  return pdfDocument.embedJpg(optimizedBytes);
+}
+
+function chunkItems<Item>(items: Item[], chunkSize: number) {
+  const chunks: Item[][] = [];
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
 }
 
 function drawPerformanceHeading(page: PDFPage, font: PDFFont) {

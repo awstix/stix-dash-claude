@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { PointerEvent, ReactNode } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { saveProjectDailyReport } from "./actions";
 import type {
@@ -17,6 +18,7 @@ type ReportFormState = {
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
   performanceLines: string[];
+  photoIds: string[];
   projectName: string;
   projectNumber: string;
   sheetNumber: string;
@@ -293,6 +295,83 @@ export function ProjectDailyReportEditor({
             value={form.sheetNumber}
           />
         </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">
+              Fotodokumentation
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Ausgewählte Fotos erscheinen ab Seite 2 mit bis zu acht Bildern
+              je Seite.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-gray-500">
+            {form.photoIds.length} ausgewählt
+          </span>
+        </div>
+
+        {context.photos.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {context.photos.map((photo) => {
+              const selected = form.photoIds.includes(photo.id);
+
+              return (
+                <label
+                  className={`cursor-pointer overflow-hidden rounded-xl border bg-white ${
+                    selected
+                      ? "border-blue-500 ring-2 ring-blue-100"
+                      : "border-gray-200"
+                  }`}
+                  key={photo.id}
+                >
+                  <Image
+                    alt={photo.notes || "Projektfoto"}
+                    className="aspect-[4/3] w-full object-cover"
+                    height={360}
+                    src={photo.publicUrl}
+                    width={480}
+                  />
+                  <span className="flex items-start gap-2 p-2 text-xs text-gray-700">
+                    <input
+                      checked={selected}
+                      className="mt-0.5"
+                      onChange={(event) => {
+                        const photoIds = new Set(form.photoIds);
+
+                        if (event.currentTarget.checked) {
+                          photoIds.add(photo.id);
+                        } else {
+                          photoIds.delete(photo.id);
+                        }
+
+                        updateValue("photoIds", Array.from(photoIds));
+                      }}
+                      type="checkbox"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-semibold">
+                        {photo.capturedAtLabel || "Ohne Aufnahmedatum"}
+                      </span>
+                      {photo.notes ? (
+                        <span className="mt-0.5 block line-clamp-2">
+                          {photo.notes}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Für dieses Projekt sind noch keine Fotos als „Für
+            Bautagesbericht“ markiert.
+          </p>
+        )}
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -599,6 +678,9 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     machineRows: cloneRows(context.machineRows),
     materialRows: cloneMaterialRows(context.materialRows),
     performanceLines: [...context.performanceLines],
+    photoIds: context.photos
+      .filter((photo) => photo.selected)
+      .map((photo) => photo.id),
     projectName: context.projectName,
     projectNumber: context.projectNumber,
     sheetNumber: context.sheetNumber,
@@ -652,7 +734,7 @@ function SignaturePad({
 
     if (!value) return;
 
-    const image = new Image();
+    const image = new window.Image();
     image.onload = () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
