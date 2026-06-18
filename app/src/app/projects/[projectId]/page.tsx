@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { ProjectDailyReportWeatherEditor } from "../ProjectDailyReportWeatherEditor";
 import { ProjectDocumentManager } from "../ProjectDocumentManager";
 import {
   ProjectFormManager,
@@ -513,6 +512,7 @@ export default async function ProjectDetailPage({
             project.mapLatitude !== null && project.mapLongitude !== null
           }
           projectId={project.id}
+          reportWeatherRows={dailyReportWeatherRows}
         />
       </section>
 
@@ -806,10 +806,6 @@ export default async function ProjectDetailPage({
               Bautagesbericht prüfen / freigeben
             </Link>
           </div>
-          <ProjectDailyReportWeatherEditor
-            projectId={project.id}
-            rows={dailyReportWeatherRows}
-          />
         </section>
       </div>
     </AppShell>

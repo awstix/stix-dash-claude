@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { refreshProjectWeather } from "./actions";
+import {
+  ProjectDailyReportWeatherEditor,
+  type ProjectDailyReportWeatherRow,
+} from "./ProjectDailyReportWeatherEditor";
 
 const AUTO_REFRESH_COOLDOWN_MS = 60_000;
 
@@ -27,10 +31,12 @@ export function ProjectWeatherPanel({
   entries,
   hasCoordinates,
   projectId,
+  reportWeatherRows,
 }: {
   entries: ProjectWeatherEntry[];
   hasCoordinates: boolean;
   projectId: string;
+  reportWeatherRows: ProjectDailyReportWeatherRow[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -97,7 +103,7 @@ export function ProjectWeatherPanel({
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Wetter</h3>
           <p className="mt-0.5 text-xs text-gray-500">
-            Aktuell, 5-Tage-Prognose und Bautagesbericht-Werte
+            Aktuell und 5-Tage-Prognose
           </p>
         </div>
         <button
@@ -248,6 +254,22 @@ export function ProjectWeatherPanel({
           {formatDateTime(current.fetchedAt)}
         </div>
       ) : null}
+
+      <details className="mt-3 rounded-lg border border-gray-200 bg-gray-50">
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-gray-800">
+          Wetterverlauf und gespeicherte BTB-Werte
+        </summary>
+        <div className="border-t border-gray-200 bg-white px-3 pb-3">
+          <p className="mt-3 text-xs text-gray-600">
+            Protokollierte Tageswerte und manuelle BTB-Anpassungen.
+            Standardmäßig bleibt dieser Bereich geschlossen.
+          </p>
+          <ProjectDailyReportWeatherEditor
+            projectId={projectId}
+            rows={reportWeatherRows}
+          />
+        </div>
+      </details>
     </section>
   );
 }
