@@ -8,6 +8,7 @@ import {
   deleteProjectPhotos,
   moveProjectPhotos,
   refreshProjectPhotoLocations,
+  updateProjectPhoto,
 } from "./actions";
 
 export type ProjectPhotoGalleryItem = {
@@ -154,6 +155,25 @@ export function ProjectPhotoGallery({
           error instanceof Error
             ? error.message
             : "Foto konnte nicht gelöscht werden.",
+        );
+      }
+    });
+  }
+
+  function savePhotoNote(photo: ProjectPhotoGalleryItem, notes: string) {
+    startPhotoActionTransition(async () => {
+      try {
+        await updateProjectPhoto({
+          availableForDailyReports: photo.availableForDailyReports,
+          id: photo.id,
+          notes,
+        });
+        router.refresh();
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Notiz konnte nicht gespeichert werden.",
         );
       }
     });
@@ -380,6 +400,7 @@ export function ProjectPhotoGallery({
           currentIndex={selectedIndex ?? 0}
           hasMultiplePhotos={hasMultiplePhotos}
           isDeleting={isPhotoActionPending}
+          key={selectedPhoto.id}
           onClose={() => setSelectedIndex(null)}
           onDelete={() => deleteSelectedPhoto(selectedPhoto)}
           onDownload={() => downloadPhoto(selectedPhoto)}
@@ -397,6 +418,7 @@ export function ProjectPhotoGallery({
                 : getPreviousPhotoIndex(current, photos.length),
             )
           }
+          onSaveNote={(notes) => savePhotoNote(selectedPhoto, notes)}
           photo={selectedPhoto}
           totalCount={photos.length}
         />
@@ -602,6 +624,7 @@ function PhotoDetailModal({
   onDownload,
   onNext,
   onPrevious,
+  onSaveNote,
   photo,
   totalCount,
 }: {
@@ -613,9 +636,12 @@ function PhotoDetailModal({
   onDownload: () => void;
   onNext: () => void;
   onPrevious: () => void;
+  onSaveNote: (notes: string) => void;
   photo: ProjectPhotoGalleryItem;
   totalCount: number;
 }) {
+  const [notes, setNotes] = useState(photo.notes ?? "");
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -729,14 +755,26 @@ function PhotoDetailModal({
             </div>
           ) : null}
 
-          <div className="mt-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
-            <div className="text-xs font-semibold uppercase text-gray-500">
+          <label className="mt-4 block rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+            <span className="text-xs font-semibold uppercase text-gray-500">
               Notiz
-            </div>
-            <div className="mt-1 whitespace-pre-wrap">
-              {photo.notes || "Ohne Notiz"}
-            </div>
-          </div>
+            </span>
+            <textarea
+              className="mt-2 min-h-28 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              disabled={isDeleting}
+              onChange={(event) => setNotes(event.currentTarget.value)}
+              placeholder="Notiz zum Foto"
+              value={notes}
+            />
+            <button
+              className="mt-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
+              disabled={isDeleting || notes.trim() === (photo.notes ?? "").trim()}
+              onClick={() => onSaveNote(notes)}
+              type="button"
+            >
+              {isDeleting ? "Speichert..." : "Notiz speichern"}
+            </button>
+          </label>
 
           <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
             <DetailRow
