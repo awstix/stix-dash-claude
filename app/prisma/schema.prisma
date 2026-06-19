@@ -14,6 +14,36 @@ enum ProjectStatus {
   CANCELLED
 }
 
+model CompanyInfo {
+  id String @id @default("default")
+
+  companyName      String
+  legalName        String?
+  street           String?
+  postalCode       String?
+  city             String?
+  country          String?
+  phone            String?
+  mobile           String?
+  email            String?
+  website          String?
+  instagramUrl     String?
+  linkedinUrl      String?
+  facebookUrl      String?
+  youtubeUrl       String?
+  tiktokUrl        String?
+  managingDirector String?
+  registryCourt    String?
+  registryNumber   String?
+  vatId            String?
+  taxNumber        String?
+  logoPublicUrl    String?
+  logoStoragePath  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Project {
   id                  String        @id @default(cuid())
   projectNumber       String        @unique
@@ -272,6 +302,8 @@ model ProjectFormTemplate {
   fieldsJson  String
   isActive    Boolean @default(true)
   sortOrder   Int     @default(0)
+  paperSize   String  @default("A4")
+  paperOrientation String @default("PORTRAIT")
 
   submissions ProjectFormSubmission[]
 

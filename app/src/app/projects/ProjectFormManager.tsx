@@ -25,6 +25,8 @@ import {
 } from "./projectFormTypes";
 import type {
   ProjectFormFieldDefinition,
+  ProjectFormPaperOrientation,
+  ProjectFormPaperSize,
   ProjectFormFieldType,
 } from "./projectFormTypes";
 
@@ -40,6 +42,8 @@ export type ProjectFormTemplateItem = {
   id: string;
   isActive: boolean;
   name: string;
+  paperOrientation: ProjectFormPaperOrientation;
+  paperSize: ProjectFormPaperSize;
   sortOrder: number;
 };
 
@@ -49,6 +53,8 @@ export type ProjectFormSubmissionItem = {
   fields: ProjectFormFieldDefinition[];
   formDate: string | null;
   id: string;
+  paperOrientation: ProjectFormPaperOrientation;
+  paperSize: ProjectFormPaperSize;
   projectId: string;
   projectLabel: string;
   templateId: string | null;
@@ -60,6 +66,25 @@ export type ProjectFormSubmissionItem = {
 export type ProjectDailyReportFormPrefill = {
   title: string;
   values: Record<string, boolean | string>;
+};
+
+export type ProjectFormCompanyInfo = {
+  city: string | null;
+  companyName: string;
+  country: string | null;
+  email: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  legalName: string | null;
+  linkedinUrl: string | null;
+  logoPublicUrl: string | null;
+  mobile: string | null;
+  phone: string | null;
+  postalCode: string | null;
+  street: string | null;
+  tiktokUrl: string | null;
+  website: string | null;
+  youtubeUrl: string | null;
 };
 
 type TemplateDraftField = {
@@ -95,11 +120,12 @@ const projectFormFieldTypeGroups: Array<{
   },
   {
     label: "Aufbau und Logik",
-    types: ["divider", "subform", "formula"],
+    types: ["companydata", "divider", "subform", "formula"],
   },
 ];
 
 export function ProjectFormManager({
+  companyInfo,
   dailyReportPrefills = {},
   embedded = false,
   initialProjectId,
@@ -108,6 +134,7 @@ export function ProjectFormManager({
   submissions,
   templates,
 }: {
+  companyInfo: ProjectFormCompanyInfo;
   dailyReportPrefills?: Record<string, ProjectDailyReportFormPrefill>;
   embedded?: boolean;
   initialProjectId?: string;
@@ -132,6 +159,7 @@ export function ProjectFormManager({
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(
     null,
   );
+  const [showSubmissionForm, setShowSubmissionForm] = useState(!embedded);
   const [submissionFormKey, setSubmissionFormKey] = useState(0);
   const [formDate, setFormDate] = useState(getTodayInputValue());
   const [templateFields, setTemplateFields] = useState<TemplateDraftField[]>([]);
@@ -169,6 +197,8 @@ export function ProjectFormManager({
           description: String(formData.get("description") ?? ""),
           fields: templateFields,
           name: String(formData.get("name") ?? ""),
+          paperOrientation: String(formData.get("paperOrientation") ?? ""),
+          paperSize: String(formData.get("paperSize") ?? ""),
         };
 
         if (editingTemplateId) {
@@ -256,6 +286,9 @@ export function ProjectFormManager({
         });
         form.reset();
         setEditingSubmissionId(null);
+        if (embedded) {
+          setShowSubmissionForm(false);
+        }
         setFormDate(getTodayInputValue());
         setSubmissionFormKey((current) => current + 1);
         router.refresh();
@@ -368,16 +401,31 @@ export function ProjectFormManager({
         : getTodayInputValue(),
     );
     setSubmissionFormKey((current) => current + 1);
+    setShowSubmissionForm(true);
   }
 
-  function cancelSubmissionEdit() {
+  function closeSubmissionForm() {
     setEditingSubmissionId(null);
+    setShowSubmissionForm(!embedded);
     setFormDate(getTodayInputValue());
     setSubmissionFormKey((current) => current + 1);
   }
 
+  function openSubmissionForm() {
+    if (!selectedTemplate) {
+      alert("Bitte zuerst eine Formularvorlage auswählen.");
+      return;
+    }
+
+    setEditingSubmissionId(null);
+    setFormDate(getTodayInputValue());
+    setSubmissionFormKey((current) => current + 1);
+    setShowSubmissionForm(true);
+  }
+
   return (
     <div className="space-y-5">
+      {!embedded ? (
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -436,6 +484,34 @@ export function ProjectFormManager({
                   defaultValue={editingTemplate?.description ?? undefined}
                   name="description"
                 />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-600">
+                  Papierformat
+                </span>
+                <select
+                  className={selectClassName}
+                  defaultValue={editingTemplate?.paperSize ?? "A4"}
+                  name="paperSize"
+                >
+                  <option value="A4">DIN A4</option>
+                  <option value="A5">DIN A5</option>
+                </select>
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-600">
+                  Ausrichtung
+                </span>
+                <select
+                  className={selectClassName}
+                  defaultValue={
+                    editingTemplate?.paperOrientation ?? "PORTRAIT"
+                  }
+                  name="paperOrientation"
+                >
+                  <option value="PORTRAIT">Hochformat</option>
+                  <option value="LANDSCAPE">Querformat</option>
+                </select>
               </label>
             </div>
 
@@ -526,8 +602,70 @@ export function ProjectFormManager({
           </form>
         ) : null}
       </section>
+      ) : null}
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <section
+        className={
+          embedded
+            ? ""
+            : "grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]"
+        }
+      >
+        {embedded ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Formulare
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Vorlage auswählen und kompakt in einem eigenen Fenster ausfüllen.
+                </p>
+                <label className="mt-4 block max-w-2xl">
+                  <span className="text-xs font-semibold text-gray-600">
+                    Formularvorlage
+                  </span>
+                  <select
+                    className={selectClassName}
+                    onChange={(event) => {
+                      setSelectedTemplateId(event.currentTarget.value);
+                      setEditingSubmissionId(null);
+                    }}
+                    value={selectedTemplateId}
+                  >
+                    <option value="">Vorlage auswählen</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                        {template.category ? ` · ${template.category}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedTemplate ? (
+                  <p className="mt-2 text-xs text-gray-500">
+                    {selectedTemplate.fields.length} Felder ·{" "}
+                    {selectedTemplate.paperSize}{" "}
+                    {selectedTemplate.paperOrientation === "LANDSCAPE"
+                      ? "quer"
+                      : "hoch"}
+                    {selectedTemplate.description
+                      ? ` · ${selectedTemplate.description}`
+                      : ""}
+                  </p>
+                ) : null}
+              </div>
+              <button
+                className="w-fit rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+                disabled={!selectedTemplate}
+                onClick={openSubmissionForm}
+                type="button"
+              >
+                Formular ausfüllen
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">Vorlagen</h3>
           <div className="mt-4 space-y-2">
@@ -553,7 +691,10 @@ export function ProjectFormManager({
                     <span className="font-semibold">{template.name}</span>
                     <span className="mt-1 block text-xs opacity-75">
                       {template.category || "ohne Kategorie"} ·{" "}
-                      {template.fields.length} Felder
+                      {template.fields.length} Felder · {template.paperSize}{" "}
+                      {template.paperOrientation === "LANDSCAPE"
+                        ? "quer"
+                        : "hoch"}
                     </span>
                   </button>
                   <button
@@ -577,9 +718,22 @@ export function ProjectFormManager({
             )}
           </div>
         </div>
+        )}
 
+        {showSubmissionForm ? (
+        <div
+          className={
+            embedded
+              ? "fixed inset-0 z-[190] flex items-end justify-center bg-gray-950/50 p-0 sm:items-center sm:p-5"
+              : ""
+          }
+        >
         <form
-          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          className={
+            embedded
+              ? "max-h-[94vh] w-full overflow-y-auto rounded-t-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:max-w-5xl sm:rounded-2xl"
+              : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          }
           key={`${submissionFormKey}-${selectedTemplate?.id ?? "none"}-${formDate}`}
           onSubmit={saveSubmission}
         >
@@ -593,22 +747,24 @@ export function ProjectFormManager({
                   "Vorlage wählen und direkt für die Baustelle speichern."}
               </p>
             </div>
-            <button
-              className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
-              disabled={isPending || !selectedTemplate || !effectiveProjectId}
-              type="submit"
-            >
-              {editingSubmission ? "Änderungen speichern" : "Formular speichern"}
-            </button>
-            {editingSubmission ? (
+            <div className="flex flex-wrap gap-2">
+              {embedded || editingSubmission ? (
               <button
                 className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                onClick={cancelSubmissionEdit}
+                onClick={closeSubmissionForm}
                 type="button"
               >
-                Abbrechen
+                {embedded ? "Fenster schließen" : "Abbrechen"}
               </button>
-            ) : null}
+              ) : null}
+              <button
+                className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
+                disabled={isPending || !selectedTemplate || !effectiveProjectId}
+                type="submit"
+              >
+                {editingSubmission ? "Änderungen speichern" : "Formular speichern"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -685,6 +841,7 @@ export function ProjectFormManager({
             {selectedTemplate?.fields.map((field) => (
               <div className={getFieldWidthClass(field.width)} key={field.id}>
                 <ProjectFormFieldInput
+                  companyInfo={companyInfo}
                   defaultValue={
                     editingSubmission?.values[field.id] ??
                     selectedDailyReportPrefill?.values[field.id]
@@ -695,6 +852,8 @@ export function ProjectFormManager({
             ))}
           </div>
         </form>
+        </div>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -737,6 +896,13 @@ export function ProjectFormManager({
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
+                    <a
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                      href={`/projects/formulare/${submission.id}/pdf`}
+                      title="Formular als PDF herunterladen"
+                    >
+                      <ActionIcon className="h-4 w-4" name="download" />
+                    </a>
                     <button
                       className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={!submission.templateId}
@@ -1016,6 +1182,24 @@ function TemplateFieldPreview({
 }
 
 function TemplateFieldMock({ field }: { field: TemplateDraftField }) {
+  if (field.type === "companydata") {
+    return (
+      <span className="grid grid-cols-[64px_1fr] items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <span className="flex h-12 items-center justify-center rounded bg-white text-xs font-black text-gray-700">
+          LOGO
+        </span>
+        <span>
+          <span className="block text-xs font-semibold text-gray-700">
+            Firmenname und Anschrift
+          </span>
+          <span className="mt-1 block text-[10px] text-gray-400">
+            Kontakt · Website · Social Media
+          </span>
+        </span>
+      </span>
+    );
+  }
+
   if (field.type === "divider") {
     return <span className="block border-t-2 border-gray-300" />;
   }
@@ -1155,6 +1339,10 @@ function TemplateFieldEditor({
                 className={selectClassName}
                 onChange={(event) =>
                   onChange({
+                    ...(!field.label &&
+                    event.currentTarget.value === "companydata"
+                      ? { label: "Firmendaten" }
+                      : {}),
                     type: event.currentTarget.value as ProjectFormFieldType,
                   })
                 }
@@ -1283,15 +1471,21 @@ function TemplateFieldEditor({
 }
 
 function ProjectFormFieldInput({
+  companyInfo,
   defaultValue,
   field,
 }: {
+  companyInfo: ProjectFormCompanyInfo;
   defaultValue?: boolean | string;
   field: ProjectFormFieldDefinition;
 }) {
   const name = `field:${field.id}`;
   const textDefaultValue =
     typeof defaultValue === "string" ? defaultValue : undefined;
+
+  if (field.type === "companydata") {
+    return <CompanyInfoBlock companyInfo={companyInfo} />;
+  }
 
   if (field.type === "divider") {
     return (
@@ -1442,6 +1636,193 @@ function ProjectFormFieldInput({
         type={getHtmlInputType(field.type)}
       />
     </label>
+  );
+}
+
+function CompanyInfoBlock({
+  companyInfo,
+}: {
+  companyInfo: ProjectFormCompanyInfo;
+}) {
+  const address = [
+    companyInfo.street,
+    [companyInfo.postalCode, companyInfo.city].filter(Boolean).join(" "),
+  ].filter(Boolean);
+  const contacts = [
+    companyInfo.phone,
+    companyInfo.mobile,
+    companyInfo.email,
+    companyInfo.website ? formatWebsiteLabel(companyInfo.website) : null,
+  ].filter(Boolean);
+  const socials = [
+    { name: "Instagram", type: "instagram", url: companyInfo.instagramUrl },
+    { name: "LinkedIn", type: "linkedin", url: companyInfo.linkedinUrl },
+    { name: "Facebook", type: "facebook", url: companyInfo.facebookUrl },
+    { name: "YouTube", type: "youtube", url: companyInfo.youtubeUrl },
+    { name: "TikTok", type: "tiktok", url: companyInfo.tiktokUrl },
+  ].filter(
+    (
+      social,
+    ): social is {
+      name: string;
+      type: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube";
+      url: string;
+    } => Boolean(social.url),
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:grid-cols-[160px_1fr] sm:items-center">
+      <div className="flex min-h-24 items-center justify-center rounded-lg bg-white p-3">
+        {companyInfo.logoPublicUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={`${companyInfo.companyName} Logo`}
+            className="max-h-20 max-w-full object-contain"
+            src={companyInfo.logoPublicUrl}
+          />
+        ) : (
+          <span className="text-xl font-black tracking-wide text-gray-800">
+            {companyInfo.companyName}
+          </span>
+        )}
+      </div>
+      <div className="text-sm text-gray-700">
+        <div className="font-semibold text-gray-900">
+          {companyInfo.companyName}
+        </div>
+        {companyInfo.legalName ? <div>{companyInfo.legalName}</div> : null}
+        {address.length ? <div className="mt-1">{address.join(" · ")}</div> : null}
+        {contacts.length ? <div className="mt-1">{contacts.join(" · ")}</div> : null}
+        {socials.length ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {socials.map((social) => (
+              <a
+                aria-label={social.name}
+                className="inline-flex h-8 items-center gap-2 rounded-full border border-gray-300 bg-white px-2.5 text-gray-700 transition hover:border-gray-500 hover:bg-gray-100"
+                href={social.url}
+                key={social.type}
+                rel="noreferrer"
+                target="_blank"
+                title={social.name}
+              >
+                <SocialMediaIcon type={social.type} />
+                <span className="text-xs font-semibold">
+                  {getSocialMediaAccountName(social.type, social.url)}
+                </span>
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatWebsiteLabel(value: string) {
+  try {
+    return new URL(
+      /^https?:\/\//i.test(value) ? value : `https://${value}`,
+    ).hostname.replace(/^www\./i, "");
+  } catch {
+    return value
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .replace(/\/+$/, "");
+  }
+}
+
+function getSocialMediaAccountName(
+  type: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube",
+  value: string,
+) {
+  try {
+    const url = new URL(value);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const rawName =
+      type === "linkedin" && segments[0] === "company"
+        ? segments[1]
+        : segments[0];
+
+    if (!rawName) {
+      return url.hostname.replace(/^www\./, "");
+    }
+
+    const decoded = decodeURIComponent(rawName);
+    return decoded.startsWith("@") ? decoded : `@${decoded}`;
+  } catch {
+    const cleaned = value.trim().replace(/^@/, "");
+    return cleaned ? `@${cleaned}` : "";
+  }
+}
+
+function SocialMediaIcon({
+  type,
+}: {
+  type: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube";
+}) {
+  if (type === "linkedin") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+        <path
+          d="M6.5 8.4H3.3V21h3.2ZM4.9 3A1.9 1.9 0 1 0 5 6.8 1.9 1.9 0 0 0 4.9 3ZM21 13.8c0-3.8-2-5.6-4.7-5.6-2.2 0-3.1 1.2-3.7 2v-1.7H9.4V21h3.2v-6.2c0-1.6.3-3.2 2.3-3.2 2 0 2 1.8 2 3.3V21H20Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "facebook") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+        <path
+          d="M14 8.5V6.7c0-.8.5-1 1-1h2V3h-2.8C11.4 3 11 5.1 11 6.5v2H9v3h2V21h3v-9.5h2.7l.4-3Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "youtube") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+        <path
+          d="M21 7.2a2.5 2.5 0 0 0-1.8-1.8C17.6 5 12 5 12 5s-5.6 0-7.2.4A2.5 2.5 0 0 0 3 7.2 26 26 0 0 0 2.6 12 26 26 0 0 0 3 16.8a2.5 2.5 0 0 0 1.8 1.8C6.4 19 12 19 12 19s5.6 0 7.2-.4a2.5 2.5 0 0 0 1.8-1.8 26 26 0 0 0 .4-4.8 26 26 0 0 0-.4-4.8ZM10 15V9l5.2 3Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "tiktok") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+        <path
+          d="M15 3c.3 2.1 1.5 3.4 3.5 3.8v3a8 8 0 0 1-3.5-1v6.1A6.1 6.1 0 1 1 9.7 9v3.1a3.1 3.1 0 1 0 2.3 3V3Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <rect
+        height="16"
+        rx="4"
+        stroke="currentColor"
+        strokeWidth="2"
+        width="16"
+        x="4"
+        y="4"
+      />
+      <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="17.5" cy="6.5" fill="currentColor" r="1" />
+    </svg>
   );
 }
 

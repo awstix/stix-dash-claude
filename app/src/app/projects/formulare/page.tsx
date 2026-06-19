@@ -5,6 +5,7 @@ import { ProjectNavigation } from "../ProjectNavigation";
 import {
   parseProjectFormFields,
   parseProjectFormSnapshotFields,
+  parseProjectFormSnapshotSettings,
   parseProjectFormValues,
 } from "../projectFormTypes";
 
@@ -14,7 +15,7 @@ export default async function ProjectFormsPage({
   searchParams?: Promise<{ projectId?: string }>;
 }) {
   const initialProjectId = (await searchParams)?.projectId ?? "";
-  const [projects, templates, submissions] = await Promise.all([
+  const [projects, templates, submissions, companyInfo] = await Promise.all([
     prisma.project.findMany({
       orderBy: [{ projectNumber: "asc" }],
       select: {
@@ -38,6 +39,9 @@ export default async function ProjectFormsPage({
       },
       orderBy: [{ createdAt: "desc" }],
     }),
+    prisma.companyInfo.findUnique({
+      where: { id: "default" },
+    }),
   ]);
 
   return (
@@ -48,6 +52,7 @@ export default async function ProjectFormsPage({
       <ProjectNavigation active="forms" />
 
       <ProjectFormManager
+        companyInfo={getCompanyInfo(companyInfo)}
         initialProjectId={initialProjectId}
         projects={projects.map((project) => ({
           id: project.id,
@@ -56,6 +61,10 @@ export default async function ProjectFormsPage({
         submissions={submissions.map((submission) => {
           const fallbackFields = parseProjectFormFields(
             submission.template?.fieldsJson,
+          );
+          const snapshotSettings = parseProjectFormSnapshotSettings(
+            submission.templateSnapshotJson,
+            submission.template,
           );
 
           return {
@@ -67,6 +76,8 @@ export default async function ProjectFormsPage({
             ),
             formDate: submission.formDate?.toISOString() ?? null,
             id: submission.id,
+            paperOrientation: snapshotSettings.paperOrientation,
+            paperSize: snapshotSettings.paperSize,
             projectId: submission.projectId,
             projectLabel: `${submission.project.projectNumber} · ${submission.project.name}`,
             templateId: submission.templateId,
@@ -84,11 +95,39 @@ export default async function ProjectFormsPage({
           id: template.id,
           isActive: template.isActive,
           name: template.name,
+          paperOrientation:
+            template.paperOrientation === "LANDSCAPE"
+              ? "LANDSCAPE"
+              : "PORTRAIT",
+          paperSize: template.paperSize === "A5" ? "A5" : "A4",
           sortOrder: template.sortOrder,
         }))}
       />
     </AppShell>
   );
+}
+
+function getCompanyInfo(
+  company: Awaited<ReturnType<typeof prisma.companyInfo.findUnique>>,
+) {
+  return {
+    city: company?.city ?? "Niedernberg",
+    companyName: company?.companyName ?? "Josef Stix GmbH & Co. KG",
+    country: company?.country ?? "Deutschland",
+    email: company?.email ?? "info@stix-bau.de",
+    facebookUrl: company?.facebookUrl ?? null,
+    instagramUrl: company?.instagramUrl ?? null,
+    legalName: company?.legalName ?? null,
+    linkedinUrl: company?.linkedinUrl ?? null,
+    logoPublicUrl: company?.logoPublicUrl ?? null,
+    mobile: company?.mobile ?? null,
+    phone: company?.phone ?? "06028 4076000",
+    postalCode: company?.postalCode ?? "63843",
+    street: company?.street ?? "Depotstraße 2",
+    tiktokUrl: company?.tiktokUrl ?? null,
+    website: company?.website ?? "https://www.stix-bau.de",
+    youtubeUrl: company?.youtubeUrl ?? null,
+  };
 }
 
 function getSnapshotTemplateName(snapshotJson: string | null) {

@@ -17,6 +17,7 @@ import { ProjectWeatherPanel } from "../ProjectWeatherPanel";
 import {
   parseProjectFormFields,
   parseProjectFormSnapshotFields,
+  parseProjectFormSnapshotSettings,
   parseProjectFormValues,
 } from "../projectFormTypes";
 
@@ -184,6 +185,7 @@ export default async function ProjectDetailPage({
     photoMoveProjects,
     documentMoveFolders,
     formTemplates,
+    companyInfo,
     dailyReportPrefillWeatherLogs,
     dailyReportPrefillReports,
   ] = await Promise.all([
@@ -200,6 +202,9 @@ export default async function ProjectDetailPage({
     }),
     prisma.projectFormTemplate.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.companyInfo.findUnique({
+      where: { id: "default" },
     }),
     prisma.projectWeatherLog.findMany({
       where: {
@@ -796,6 +801,7 @@ export default async function ProjectDetailPage({
         />
         <div id="formulare" className="lg:col-span-2">
           <ProjectFormManager
+            companyInfo={getCompanyInfo(companyInfo)}
             dailyReportPrefills={dailyReportFormPrefills}
             embedded
             lockedProjectId={project.id}
@@ -807,6 +813,10 @@ export default async function ProjectDetailPage({
               const fallbackFields = parseProjectFormFields(
                 submission.template?.fieldsJson,
               );
+              const snapshotSettings = parseProjectFormSnapshotSettings(
+                submission.templateSnapshotJson,
+                submission.template,
+              );
 
               return {
                 createdAt: submission.createdAt.toISOString(),
@@ -817,6 +827,8 @@ export default async function ProjectDetailPage({
                 ),
                 formDate: submission.formDate?.toISOString() ?? null,
                 id: submission.id,
+                paperOrientation: snapshotSettings.paperOrientation,
+                paperSize: snapshotSettings.paperSize,
                 projectId: submission.projectId,
                 projectLabel: `${project.projectNumber} · ${project.name}`,
                 templateId: submission.templateId,
@@ -834,6 +846,11 @@ export default async function ProjectDetailPage({
               id: template.id,
               isActive: template.isActive,
               name: template.name,
+              paperOrientation:
+                template.paperOrientation === "LANDSCAPE"
+                  ? "LANDSCAPE"
+                  : "PORTRAIT",
+              paperSize: template.paperSize === "A5" ? "A5" : "A4",
               sortOrder: template.sortOrder,
             }))}
           />
@@ -852,6 +869,29 @@ export default async function ProjectDetailPage({
       </div>
     </AppShell>
   );
+}
+
+function getCompanyInfo(
+  company: Awaited<ReturnType<typeof prisma.companyInfo.findUnique>>,
+) {
+  return {
+    city: company?.city ?? "Niedernberg",
+    companyName: company?.companyName ?? "Josef Stix GmbH & Co. KG",
+    country: company?.country ?? "Deutschland",
+    email: company?.email ?? "info@stix-bau.de",
+    facebookUrl: company?.facebookUrl ?? null,
+    instagramUrl: company?.instagramUrl ?? null,
+    legalName: company?.legalName ?? null,
+    linkedinUrl: company?.linkedinUrl ?? null,
+    logoPublicUrl: company?.logoPublicUrl ?? null,
+    mobile: company?.mobile ?? null,
+    phone: company?.phone ?? "06028 4076000",
+    postalCode: company?.postalCode ?? "63843",
+    street: company?.street ?? "Depotstraße 2",
+    tiktokUrl: company?.tiktokUrl ?? null,
+    website: company?.website ?? "https://www.stix-bau.de",
+    youtubeUrl: company?.youtubeUrl ?? null,
+  };
 }
 
 function getNextDailyReportSheetNumber(

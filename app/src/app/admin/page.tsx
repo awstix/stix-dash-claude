@@ -15,6 +15,19 @@ type AdminSection = {
 
 const adminSections: AdminSection[] = [
   {
+    title: "Unternehmen",
+    description:
+      "Zentrale Firmenangaben für Formulare, PDF-Ausgaben und Außenkommunikation.",
+    items: [
+      {
+        title: "Firmeninfos",
+        description:
+          "Logo, Anschrift, Kontakt, Website, Social Media und rechtliche Angaben zentral pflegen.",
+        href: "/admin/company-info",
+      },
+    ],
+  },
+  {
     title: "Mitarbeiter",
     description:
       "Mitarbeiter, Arbeitszeiten, Berufsgruppen, Kolonnen und zentrale Stammdaten.",

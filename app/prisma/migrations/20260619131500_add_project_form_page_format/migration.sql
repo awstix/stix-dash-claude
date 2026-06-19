@@ -1,0 +1,2 @@
+ALTER TABLE "ProjectFormTemplate" ADD COLUMN "paperSize" TEXT NOT NULL DEFAULT 'A4';
+ALTER TABLE "ProjectFormTemplate" ADD COLUMN "paperOrientation" TEXT NOT NULL DEFAULT 'PORTRAIT';

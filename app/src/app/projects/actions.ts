@@ -147,6 +147,8 @@ export type ProjectFormTemplateCreateInput = {
     width?: number;
   }>;
   name: string;
+  paperOrientation: string;
+  paperSize: string;
 };
 
 export type ProjectFormTemplateUpdateInput = ProjectFormTemplateCreateInput & {
@@ -1945,6 +1947,8 @@ export async function createProjectFormTemplate(
   const category = cleanProjectFormText(input.category, 80);
   const description = cleanProjectFormText(input.description, 500);
   const fields = cleanProjectFormTemplateFields(input.fields);
+  const paperOrientation = cleanProjectFormPaperOrientation(input.paperOrientation);
+  const paperSize = cleanProjectFormPaperSize(input.paperSize);
 
   if (!name) {
     throw new Error("Bitte einen Namen für die Formularvorlage eintragen.");
@@ -1966,6 +1970,8 @@ export async function createProjectFormTemplate(
       description: description || null,
       fieldsJson: JSON.stringify(fields),
       name,
+      paperOrientation,
+      paperSize,
       sortOrder: (result._max.sortOrder ?? 0) + 10,
     },
   });
@@ -1981,6 +1987,8 @@ export async function updateProjectFormTemplate(
   const category = cleanProjectFormText(input.category, 80);
   const description = cleanProjectFormText(input.description, 500);
   const fields = cleanProjectFormTemplateFields(input.fields);
+  const paperOrientation = cleanProjectFormPaperOrientation(input.paperOrientation);
+  const paperSize = cleanProjectFormPaperSize(input.paperSize);
 
   if (!templateId) {
     throw new Error("Vorlagen-ID fehlt.");
@@ -2003,6 +2011,8 @@ export async function updateProjectFormTemplate(
       description: description || null,
       fieldsJson: JSON.stringify(fields),
       name,
+      paperOrientation,
+      paperSize,
     },
   });
 
@@ -2102,6 +2112,8 @@ export async function saveProjectFormSubmission(
       description: template.description,
       fields,
       name: template.name,
+      paperOrientation: template.paperOrientation,
+      paperSize: template.paperSize,
       templateId: template.id,
     }),
     title,
@@ -2427,6 +2439,14 @@ function cleanDocumentFileName(value: string) {
 function cleanProjectFormText(value: string, maxLength: number) {
   const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   return cleaned.length > maxLength ? cleaned.slice(0, maxLength) : cleaned;
+}
+
+function cleanProjectFormPaperSize(value: string) {
+  return value === "A5" ? "A5" : "A4";
+}
+
+function cleanProjectFormPaperOrientation(value: string) {
+  return value === "LANDSCAPE" ? "LANDSCAPE" : "PORTRAIT";
 }
 
 function cleanProjectFormDate(value: string) {

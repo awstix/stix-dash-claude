@@ -17,9 +17,12 @@ export const PROJECT_FORM_FIELD_TYPES = [
   "chart",
   "subform",
   "formula",
+  "companydata",
 ] as const;
 
 export type ProjectFormFieldType = (typeof PROJECT_FORM_FIELD_TYPES)[number];
+export type ProjectFormPaperSize = "A4" | "A5";
+export type ProjectFormPaperOrientation = "LANDSCAPE" | "PORTRAIT";
 
 export type ProjectFormFieldDefinition = {
   description: string;
@@ -54,6 +57,7 @@ export function getProjectFormFieldTypeLabel(type: ProjectFormFieldType) {
     barcode: "Barcode",
     chart: "Grafik",
     checkbox: "Checkbox",
+    companydata: "Firmendaten",
     date: "Datum",
     divider: "Trennlinie",
     formula: "Formel",
@@ -79,7 +83,7 @@ export function projectFormFieldUsesOptions(type: ProjectFormFieldType) {
 }
 
 export function projectFormFieldCollectsValue(type: ProjectFormFieldType) {
-  return type !== "divider";
+  return type !== "divider" && type !== "companydata";
 }
 
 export function getProjectFormPresetOptions(type: ProjectFormFieldType) {
@@ -138,6 +142,39 @@ export function parseProjectFormSnapshotFields(
   } catch {
     return fallbackFields;
   }
+}
+
+export function parseProjectFormSnapshotSettings(
+  snapshotJson: string | null | undefined,
+  fallback?: {
+    paperOrientation?: string | null;
+    paperSize?: string | null;
+  } | null,
+) {
+  let snapshot: { paperOrientation?: unknown; paperSize?: unknown } = {};
+
+  if (snapshotJson) {
+    try {
+      const parsed = JSON.parse(snapshotJson) as unknown;
+      if (parsed && typeof parsed === "object") {
+        snapshot = parsed as typeof snapshot;
+      }
+    } catch {
+      snapshot = {};
+    }
+  }
+
+  return {
+    paperOrientation:
+      snapshot.paperOrientation === "LANDSCAPE" ||
+      fallback?.paperOrientation === "LANDSCAPE"
+        ? ("LANDSCAPE" as const)
+        : ("PORTRAIT" as const),
+    paperSize:
+      snapshot.paperSize === "A5" || fallback?.paperSize === "A5"
+        ? ("A5" as const)
+        : ("A4" as const),
+  };
 }
 
 function normalizeField(value: unknown) {
