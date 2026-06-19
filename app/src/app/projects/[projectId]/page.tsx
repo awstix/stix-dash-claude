@@ -4,6 +4,7 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectDocumentManager } from "../ProjectDocumentManager";
+import { ProjectDailyReportOverview } from "../ProjectDailyReportOverview";
 import {
   ProjectFormManager,
   type ProjectDailyReportFormPrefill,
@@ -123,13 +124,7 @@ export default async function ProjectDetailPage({
         take: 16,
       },
       dailyReports: {
-        where: {
-          reportDate: {
-            gte: today,
-          },
-        },
-        orderBy: [{ reportDate: "asc" }],
-        take: 16,
+        orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
       },
       documentFolders: {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -406,8 +401,41 @@ export default async function ProjectDetailPage({
       weatherDate: dateKey,
     };
   });
-  const defaultDailyReportDate =
-    dailyReportWeatherRows[0]?.weatherDate ?? toDateKey(today);
+  const defaultDailyReportDate = getNextAvailableDailyReportDate(
+    today,
+    project.dailyReports,
+  );
+  const nextDailyReportSheetNumber = getNextDailyReportSheetNumber(
+    project.dailyReports,
+  );
+  const dailyReportOverviewItems = project.dailyReports.map((report) => {
+    const dateKey = toDateKey(report.reportDate);
+    const sheetNumber =
+      report.reportNumber?.toString() || report.sheetNumber || "1";
+    const searchParams = new URLSearchParams({
+      blattnr: sheetNumber,
+      date: dateKey,
+      projectId: project.id,
+    });
+
+    return {
+      dateLabel: formatDate(report.reportDate),
+      downloadHref: `/projects/bautagesberichte/export?${searchParams.toString()}`,
+      editHref: `/projects/bautagesberichte?${searchParams.toString()}`,
+      id: report.id,
+      numberLabel: report.reportNumber
+        ? `Nr. ${report.reportNumber}`
+        : report.sheetNumber
+          ? `Blatt ${report.sheetNumber}`
+          : "-",
+      status: report.status,
+      weatherSummary: formatDailyReportWeather({
+        category: report.weatherCategory,
+        max: report.weatherTempMaxC,
+        min: report.weatherTempMinC,
+      }),
+    };
+  });
   const dailyReportFormPrefills = buildDailyReportFormPrefills({
     dailyReports: dailyReportPrefillReports,
     fromDate: prefillFromDate,
@@ -755,61 +783,86 @@ export default async function ProjectDetailPage({
           title="Notizen"
           text="Notizen werden später mit Datum, Benutzer und Sichtbarkeit pro Projekt geführt."
         />
-        <section
-          id="bautagesberichte"
-          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2"
-        >
-          <h2 className="text-lg font-semibold text-gray-900">
-            Bautagesberichte
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Wetterwerte werden aus dem Wetterprotokoll vorgeschlagen und können
-            für den Bautagesbericht je Tag überschrieben werden.
-          </p>
-          <form
-            action="/projects/bautagesberichte/export"
-            className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[180px_120px_auto]"
-            method="get"
-          >
-            <input type="hidden" name="projectId" value={project.id} />
-            <label className="text-sm font-medium text-gray-800">
-              Berichtdatum
-              <input
-                type="date"
-                name="date"
-                defaultValue={defaultDailyReportDate}
-                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-              />
-            </label>
-            <label className="text-sm font-medium text-gray-800">
-              Blattnr.
-              <input
-                name="blattnr"
-                defaultValue="1"
-                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-              />
-            </label>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-              >
-                Baubericht PDF
-              </button>
-            </div>
-          </form>
-          <div className="mt-3">
-            <Link
-              className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              href={`/projects/bautagesberichte?projectId=${project.id}&date=${defaultDailyReportDate}`}
-            >
-              Bautagesbericht prüfen / freigeben
-            </Link>
-          </div>
-        </section>
+        <ProjectDailyReportOverview
+          defaultDate={defaultDailyReportDate}
+          nextSheetNumber={nextDailyReportSheetNumber}
+          projectId={project.id}
+          reports={dailyReportOverviewItems}
+        />
       </div>
     </AppShell>
   );
+}
+
+function getNextDailyReportSheetNumber(
+  reports: {
+    reportNumber: number | null;
+    sheetNumber: string;
+  }[],
+) {
+  const highestNumber = reports.reduce((max, report) => {
+    const parsedSheetNumber = Number.parseInt(report.sheetNumber, 10);
+
+    return Math.max(
+      max,
+      report.reportNumber ?? 0,
+      Number.isFinite(parsedSheetNumber) ? parsedSheetNumber : 0,
+    );
+  }, 0);
+
+  return String(highestNumber + 1);
+}
+
+function getNextAvailableDailyReportDate(
+  startDate: Date,
+  reports: {
+    reportDate: Date;
+  }[],
+) {
+  const usedDates = new Set(
+    reports.map((report) => toDateKey(report.reportDate)),
+  );
+  const candidate = new Date(startDate);
+
+  for (let offset = 0; offset < 366; offset += 1) {
+    const dateKey = toDateKey(candidate);
+
+    if (!usedDates.has(dateKey)) {
+      return dateKey;
+    }
+
+    candidate.setUTCDate(candidate.getUTCDate() + 1);
+  }
+
+  return toDateKey(startDate);
+}
+
+function formatDailyReportWeather({
+  category,
+  max,
+  min,
+}: {
+  category: string | null;
+  max: number | null;
+  min: number | null;
+}) {
+  const temperatures =
+    min !== null || max !== null
+      ? [formatTemperature(min), formatTemperature(max)]
+          .filter(Boolean)
+          .join(" / ")
+      : "";
+
+  return [category, temperatures].filter(Boolean).join(" · ") || "-";
+}
+
+function formatTemperature(value: number | null) {
+  if (value === null) return "";
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+  }).format(value)} °C`;
 }
 
 function ListBlock({
