@@ -932,7 +932,9 @@ model Employee {
   driverId String? @unique
   driver   Driver? @relation("EmployeeDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
-  positions EmployeePositionAssignment[]
+  positions              EmployeePositionAssignment[]
+  qualifications         EmployeeQualification[]
+  qualificationDocuments EmployeeQualificationDocument[]
 
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
@@ -992,6 +994,78 @@ model EmployeePositionAssignment {
   @@unique([employeeId, positionValue])
   @@index([employeeId])
   @@index([positionValue])
+}
+
+model EmployeeQualificationType {
+  id String @id @default(cuid())
+
+  name        String
+  category    String  @default("OTHER")
+  description String?
+
+  reviewIntervalMonths Int     @default(6)
+  isActive             Boolean @default(true)
+  sortOrder            Int     @default(0)
+
+  qualifications EmployeeQualification[]
+  documents      EmployeeQualificationDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@index([category])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model EmployeeQualification {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  qualificationTypeId String
+  qualificationType   EmployeeQualificationType @relation(fields: [qualificationTypeId], references: [id], onDelete: Cascade)
+
+  lastReviewedAt DateTime?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, qualificationTypeId])
+  @@index([employeeId])
+  @@index([qualificationTypeId])
+  @@index([lastReviewedAt])
+}
+
+model EmployeeQualificationDocument {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  qualificationTypeId String?
+  qualificationType   EmployeeQualificationType? @relation(fields: [qualificationTypeId], references: [id], onDelete: SetNull)
+
+  documentType     String @default("OTHER")
+  displayName      String
+  fileName         String
+  originalFileName String
+  publicUrl        String
+  storagePath      String
+  mimeType         String
+  fileSizeBytes    Int
+
+  uploadedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([qualificationTypeId])
+  @@index([documentType])
+  @@index([uploadedAt])
 }
 
 model WorkTimePreset {

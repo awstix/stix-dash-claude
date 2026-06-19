@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { getDefaultWorkTime } from "@/lib/work-time";
 import { ProjectDailyReportBulkList } from "../ProjectDailyReportBulkList";
 import { ProjectDailyReportEditor } from "../ProjectDailyReportEditor";
 import { ProjectDailyReportSelectionForm } from "../ProjectDailyReportSelectionForm";
 import { ProjectNavigation } from "../ProjectNavigation";
+import { ensureProjectWeatherForDate } from "../actions";
 import {
   addDailyReportDays,
   buildDailyReportContext,
@@ -50,15 +52,28 @@ export default async function ProjectDailyReportsPage({
     requestedSheetNumber ||
     getDailyReportSheetNumberForSelection(selectedProject, selectedDate);
   const reportDate = toDailyReportDate(selectedDate);
-  const selectedReportSource = selectedProject
-    ? await getDailyReportSourceProject(
-        selectedProject.id,
-        reportDate,
-        addDailyReportDays(reportDate, 1),
-      )
-    : null;
+
+  if (selectedProject) {
+    await ensureProjectWeatherForDate(selectedProject.id, selectedDate);
+  }
+
+  const [selectedReportSource, defaultWorkTime] = await Promise.all([
+    selectedProject
+      ? getDailyReportSourceProject(
+          selectedProject.id,
+          reportDate,
+          addDailyReportDays(reportDate, 1),
+        )
+      : Promise.resolve(null),
+    getDefaultWorkTime(),
+  ]);
   const dailyReportContext = selectedReportSource
-    ? buildDailyReportContext(selectedReportSource, selectedDate, sheetNumber)
+    ? buildDailyReportContext(
+        selectedReportSource,
+        selectedDate,
+        sheetNumber,
+        defaultWorkTime,
+      )
     : null;
   const selectionSheetNumber = dailyReportContext?.sheetNumber ?? sheetNumber;
   const exportHref =

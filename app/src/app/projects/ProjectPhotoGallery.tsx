@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -44,6 +44,10 @@ export type ProjectPhotoMoveProject = {
 };
 
 type PhotoViewMode = "details" | "large" | "medium" | "small";
+
+const minimumPhotoZoom = 1;
+const maximumPhotoZoom = 4;
+const photoZoomStep = 0.5;
 
 const photoViewModes: {
   label: string;
@@ -642,25 +646,178 @@ function PhotoDetailModal({
 }) {
   const [notes, setNotes] = useState(photo.notes ?? "");
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [zoom, setZoom] = useState(minimumPhotoZoom);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const photoViewportRef = useRef<HTMLDivElement | null>(null);
+  const photoDragRef = useRef({
+    pointerId: -1,
+    scrollLeft: 0,
+    scrollTop: 0,
+    x: 0,
+    y: 0,
+  });
+
+  function changeZoom(nextZoom: number) {
+    setZoom(
+      Math.min(
+        maximumPhotoZoom,
+        Math.max(minimumPhotoZoom, nextZoom),
+      ),
+    );
+  }
+
+  function handlePhotoWheel(event: React.WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+    changeZoom(zoom + (event.deltaY < 0 ? photoZoomStep : -photoZoomStep));
+  }
+
+  function startPhotoDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const viewport = photoViewportRef.current;
+
+    if (
+      !viewport ||
+      zoom <= minimumPhotoZoom ||
+      event.button !== 0 ||
+      (event.target instanceof Element &&
+        Boolean(event.target.closest("button, a, input, textarea, select")))
+    ) {
+      return;
+    }
+
+    photoDragRef.current = {
+      pointerId: event.pointerId,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    viewport.setPointerCapture(event.pointerId);
+    setIsDraggingPhoto(true);
+    event.preventDefault();
+  }
+
+  function movePhoto(event: React.PointerEvent<HTMLDivElement>) {
+    const viewport = photoViewportRef.current;
+    const drag = photoDragRef.current;
+
+    if (
+      !viewport ||
+      !isDraggingPhoto ||
+      drag.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    viewport.scrollLeft = drag.scrollLeft - (event.clientX - drag.x);
+    viewport.scrollTop = drag.scrollTop - (event.clientY - drag.y);
+    event.preventDefault();
+  }
+
+  function stopPhotoDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const viewport = photoViewportRef.current;
+
+    if (photoDragRef.current.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (viewport?.hasPointerCapture(event.pointerId)) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+
+    photoDragRef.current.pointerId = -1;
+    setIsDraggingPhoto(false);
+  }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div
         className="grid max-h-[92vh] w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-[1.4fr_0.8fr]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="relative min-h-[320px] bg-black lg:min-h-[640px]">
-          <Image
-            alt="Projektfoto groß"
-            className="object-contain"
-            fill
-            sizes="(min-width: 1024px) 65vw, 100vw"
-            src={photo.publicUrl}
-            unoptimized
-          />
+        <div
+          className={`relative min-h-[320px] overflow-auto bg-black lg:min-h-[640px] ${
+            zoom > minimumPhotoZoom
+              ? isDraggingPhoto
+                ? "cursor-grabbing select-none"
+                : "cursor-grab"
+              : ""
+          }`}
+          onDoubleClick={(event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.closest("button, a")
+            ) {
+              return;
+            }
+
+            changeZoom(zoom === minimumPhotoZoom ? 2 : minimumPhotoZoom);
+          }}
+          onPointerCancel={stopPhotoDrag}
+          onPointerDown={startPhotoDrag}
+          onPointerMove={movePhoto}
+          onPointerUp={stopPhotoDrag}
+          onWheel={handlePhotoWheel}
+          ref={photoViewportRef}
+          style={{ touchAction: zoom > minimumPhotoZoom ? "none" : "auto" }}
+        >
+          <div
+            className="absolute left-0 top-0 min-h-full min-w-full"
+            style={{
+              height: `${zoom * 100}%`,
+              width: `${zoom * 100}%`,
+            }}
+          >
+            <Image
+              alt={`Projektfoto groß, Zoom ${Math.round(zoom * 100)} Prozent`}
+              className="object-contain"
+              fill
+              sizes="(min-width: 1024px) 65vw, 100vw"
+              src={photo.publicUrl}
+              unoptimized
+              draggable={false}
+            />
+          </div>
+
+          <div className="sticky left-3 top-3 z-20 flex w-fit items-center overflow-hidden rounded-lg border border-white/30 bg-black/70 text-white shadow-lg backdrop-blur">
+            <button
+              aria-label="Foto verkleinern"
+              className="h-9 w-10 text-lg font-semibold hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={zoom <= minimumPhotoZoom}
+              onClick={() => changeZoom(zoom - photoZoomStep)}
+              title="Verkleinern"
+              type="button"
+            >
+              −
+            </button>
+            <button
+              aria-label="Foto auf Originalansicht zurücksetzen"
+              className="h-9 min-w-16 border-x border-white/20 px-2 text-xs font-semibold hover:bg-white/15"
+              onClick={() => changeZoom(minimumPhotoZoom)}
+              title="Zoom zurücksetzen"
+              type="button"
+            >
+              {Math.round(zoom * 100)} %
+            </button>
+            <button
+              aria-label="Foto vergrößern"
+              className="h-9 w-10 text-lg font-semibold hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={zoom >= maximumPhotoZoom}
+              onClick={() => changeZoom(zoom + photoZoomStep)}
+              title="Vergrößern"
+              type="button"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/65 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
+            Mausrad oder Doppelklick zum Zoomen
+            {zoom > minimumPhotoZoom ? " · Bild anfassen und ziehen" : ""}
+          </div>
+
           {hasMultiplePhotos ? (
             <>
               <button

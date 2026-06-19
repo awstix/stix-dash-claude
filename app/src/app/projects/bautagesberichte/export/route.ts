@@ -4,6 +4,8 @@ import fontkit from "@pdf-lib/fontkit";
 import { NextRequest } from "next/server";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import sharp from "sharp";
+import { getDefaultWorkTime } from "@/lib/work-time";
+import { ensureProjectWeatherForDate } from "../../actions";
 import {
   addDailyReportDays,
   buildDailyReportContext,
@@ -124,11 +126,22 @@ export async function generateDailyReportPdf({
 }): Promise<DailyReportPdfResult | null> {
   const reportDate = toDailyReportDate(dateKey);
   const nextDate = addDailyReportDays(reportDate, 1);
-  const project = await getDailyReportSourceProject(projectId, reportDate, nextDate);
+
+  await ensureProjectWeatherForDate(projectId, dateKey);
+
+  const [project, defaultWorkTime] = await Promise.all([
+    getDailyReportSourceProject(projectId, reportDate, nextDate),
+    getDefaultWorkTime(),
+  ]);
 
   if (!project) return null;
 
-  const context = buildDailyReportContext(project, dateKey, sheetNumber);
+  const context = buildDailyReportContext(
+    project,
+    dateKey,
+    sheetNumber,
+    defaultWorkTime,
+  );
   const templateFileName = context.showRealMachineNames
     ? "stix_baubericht_ohne_geraete.pdf"
     : "stix_baubericht_mit_geraete.pdf";

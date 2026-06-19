@@ -9,6 +9,7 @@ import type {
   DailyReportContext,
   DailyReportCountRow,
   DailyReportMaterialRow,
+  DailyReportPhoto,
   DailyReportPhotoGridLayout,
 } from "./dailyReportContext";
 
@@ -73,9 +74,16 @@ export function ProjectDailyReportEditor({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saveMessage, setSaveMessage] = useState("");
+  const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
   const [form, setForm] = useState<ReportFormState>(() =>
     createInitialState(context),
   );
+  const reportDayPhotos = context.photos.filter(
+    (photo) => photo.dateKey === context.dateKey,
+  );
+  const suggestedPhotos = (
+    reportDayPhotos.length > 0 ? reportDayPhotos : context.photos
+  ).slice(0, 4);
 
   useEffect(() => {
     setDailyReportDirty(false);
@@ -132,6 +140,18 @@ export function ProjectDailyReportEditor({
     }));
   }
 
+  function togglePhoto(photoId: string, checked: boolean) {
+    const photoIds = new Set(form.photoIds);
+
+    if (checked) {
+      photoIds.add(photoId);
+    } else {
+      photoIds.delete(photoId);
+    }
+
+    updateValue("photoIds", Array.from(photoIds));
+  }
+
   function useSuggestions() {
     markDirty();
     setForm((current) => ({
@@ -152,10 +172,8 @@ export function ProjectDailyReportEditor({
       weatherCategory: context.suggestions.weatherLabel,
       weatherTempMaxC: context.suggestions.tempMax,
       weatherTempMinC: context.suggestions.tempMin,
-      trafficSafetyFirstCheckTime:
-        context.trafficSafetyFirstCheckTime || context.suggestions.workStart,
-      trafficSafetySecondCheckTime:
-        context.trafficSafetySecondCheckTime || context.suggestions.workEnd,
+      trafficSafetyFirstCheckTime: current.trafficSafetyFirstCheckTime,
+      trafficSafetySecondCheckTime: current.trafficSafetySecondCheckTime,
       weekday: context.suggestions.weekday,
       workEnd: context.suggestions.workEnd,
       workStart: context.suggestions.workStart,
@@ -309,6 +327,13 @@ export function ProjectDailyReportEditor({
               Ausgewählte Fotos erscheinen ab Seite 2 in der gewählten,
               gleichbleibenden Rastergröße.
             </p>
+            {context.photos.length > 0 ? (
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                {reportDayPhotos.length > 0
+                  ? `${Math.min(reportDayPhotos.length, 4)} von ${reportDayPhotos.length} Fotos vom Berichtstag`
+                  : "Keine Fotos vom Berichtstag · die 4 neuesten werden vorgeschlagen"}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-xs font-semibold text-gray-700">
@@ -332,59 +357,30 @@ export function ProjectDailyReportEditor({
             <span className="pb-2 text-xs font-semibold text-gray-500">
               {form.photoIds.length} ausgewählt
             </span>
+            {context.photos.length > 0 ? (
+              <button
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                onClick={() => setIsPhotoGalleryOpen(true)}
+                type="button"
+              >
+                Fotogalerie öffnen
+              </button>
+            ) : null}
           </div>
         </div>
 
         {context.photos.length > 0 ? (
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {context.photos.map((photo) => {
+            {suggestedPhotos.map((photo) => {
               const selected = form.photoIds.includes(photo.id);
 
               return (
-                <label
-                  className={`cursor-pointer overflow-hidden rounded-xl border bg-white ${
-                    selected
-                      ? "border-blue-500 ring-2 ring-blue-100"
-                      : "border-gray-200"
-                  }`}
+                <DailyReportPhotoOption
                   key={photo.id}
-                >
-                  <Image
-                    alt={photo.notes || "Projektfoto"}
-                    className="aspect-[4/3] w-full object-cover"
-                    height={360}
-                    src={photo.publicUrl}
-                    width={480}
-                  />
-                  <span className="flex items-start gap-2 p-2 text-xs text-gray-700">
-                    <input
-                      checked={selected}
-                      className="mt-0.5"
-                      onChange={(event) => {
-                        const photoIds = new Set(form.photoIds);
-
-                        if (event.currentTarget.checked) {
-                          photoIds.add(photo.id);
-                        } else {
-                          photoIds.delete(photo.id);
-                        }
-
-                        updateValue("photoIds", Array.from(photoIds));
-                      }}
-                      type="checkbox"
-                    />
-                    <span className="min-w-0">
-                      <span className="block font-semibold">
-                        {photo.capturedAtLabel || "Ohne Aufnahmedatum"}
-                      </span>
-                      {photo.notes ? (
-                        <span className="mt-0.5 block line-clamp-2">
-                          {photo.notes}
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                </label>
+                  onToggle={(checked) => togglePhoto(photo.id, checked)}
+                  photo={photo}
+                  selected={selected}
+                />
               );
             })}
           </div>
@@ -395,6 +391,17 @@ export function ProjectDailyReportEditor({
           </p>
         )}
       </section>
+
+      {isPhotoGalleryOpen ? (
+        <DailyReportPhotoGallery
+          onClose={() => setIsPhotoGalleryOpen(false)}
+          onToggle={togglePhoto}
+          photos={context.photos}
+          reportDateLabel={context.dateLabel}
+          reportDateKey={context.dateKey}
+          selectedPhotoIds={form.photoIds}
+        />
+      ) : null}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <SectionHeader
@@ -415,9 +422,9 @@ export function ProjectDailyReportEditor({
           </div>
         ) : (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-            Für dieses Projekt und Datum ist noch kein Wetterprotokoll
-            gespeichert. Wetter erst in der Projektakte aktualisieren oder hier
-            manuell eintragen.
+            Für dieses Projekt und Datum konnten keine Wetterdaten automatisch
+            ermittelt werden. Bitte Koordinaten in der Projektakte prüfen oder
+            das Wetter hier manuell eintragen.
           </div>
         )}
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_120px_120px]">
@@ -723,6 +730,177 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     workEnd: context.workEnd,
     workStart: context.workStart,
   };
+}
+
+function DailyReportPhotoOption({
+  onToggle,
+  photo,
+  selected,
+}: {
+  onToggle: (checked: boolean) => void;
+  photo: DailyReportPhoto;
+  selected: boolean;
+}) {
+  return (
+    <label
+      className={`cursor-pointer overflow-hidden rounded-xl border bg-white ${
+        selected
+          ? "border-blue-500 ring-2 ring-blue-100"
+          : "border-gray-200"
+      }`}
+    >
+      <Image
+        alt={photo.notes || "Projektfoto"}
+        className="aspect-[4/3] w-full object-cover"
+        height={360}
+        src={photo.publicUrl}
+        width={480}
+      />
+      <span className="flex items-start gap-2 p-2 text-xs text-gray-700">
+        <input
+          checked={selected}
+          className="mt-0.5"
+          onChange={(event) => onToggle(event.currentTarget.checked)}
+          type="checkbox"
+        />
+        <span className="min-w-0">
+          <span className="block font-semibold">
+            {photo.capturedAtLabel || "Ohne Aufnahmedatum"}
+          </span>
+          {photo.notes ? (
+            <span className="mt-0.5 block line-clamp-2">{photo.notes}</span>
+          ) : null}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function DailyReportPhotoGallery({
+  onClose,
+  onToggle,
+  photos,
+  reportDateKey,
+  reportDateLabel,
+  selectedPhotoIds,
+}: {
+  onClose: () => void;
+  onToggle: (photoId: string, checked: boolean) => void;
+  photos: DailyReportPhoto[];
+  reportDateKey: string;
+  reportDateLabel: string;
+  selectedPhotoIds: string[];
+}) {
+  const [filter, setFilter] = useState<"all" | "report-date">("all");
+  const [visibleCount, setVisibleCount] = useState(40);
+  const reportDatePhotos = photos.filter(
+    (photo) => photo.dateKey === reportDateKey,
+  );
+  const filteredPhotos = filter === "report-date" ? reportDatePhotos : photos;
+  const visiblePhotos = filteredPhotos.slice(0, visibleCount);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Fotos für den Bautagesbericht auswählen
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              {selectedPhotoIds.length} ausgewählt · Bericht vom{" "}
+              {reportDateLabel}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                filter === "report-date"
+                  ? "bg-gray-900 text-white"
+                  : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+              }`}
+              onClick={() => {
+                setFilter("report-date");
+                setVisibleCount(40);
+              }}
+              type="button"
+            >
+              Berichtstag ({reportDatePhotos.length})
+            </button>
+            <button
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                filter === "all"
+                  ? "bg-gray-900 text-white"
+                  : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+              }`}
+              onClick={() => {
+                setFilter("all");
+                setVisibleCount(40);
+              }}
+              type="button"
+            >
+              Alle Fotos ({photos.length})
+            </button>
+            <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+              onClick={onClose}
+              type="button"
+            >
+              Fertig
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto p-4">
+          {visiblePhotos.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {visiblePhotos.map((photo) => (
+                <DailyReportPhotoOption
+                  key={photo.id}
+                  onToggle={(checked) => onToggle(photo.id, checked)}
+                  photo={photo}
+                  selected={selectedPhotoIds.includes(photo.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm font-medium text-gray-500">
+              Für den Berichtstag sind keine Fotos vorhanden.
+            </p>
+          )}
+
+          {visibleCount < filteredPhotos.length ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                onClick={() => setVisibleCount((current) => current + 40)}
+                type="button"
+              >
+                Weitere Fotos anzeigen
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function cloneRows(rows: DailyReportCountRow[]) {

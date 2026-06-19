@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { WorkTimeSettings } from "@/lib/work-time";
 
 export type DailyReportCountRow = {
   count: number;
@@ -16,6 +17,7 @@ export type DailyReportMaterialRow = {
 
 export type DailyReportPhoto = {
   capturedAtLabel: string;
+  dateKey: string;
   id: string;
   notes: string;
   publicUrl: string;
@@ -341,6 +343,7 @@ export function buildDailyReportContext(
   project: ReportProject,
   dateKey: string,
   requestedSheetNumber: string,
+  defaultWorkTime: WorkTimeSettings,
 ): DailyReportContext {
   const labor = new Map<string, CountHours>();
   const materialRows = new Map<string, DailyReportMaterialRow>();
@@ -661,8 +664,11 @@ export function buildDailyReportContext(
     weatherLog?.tempMinC ?? weatherLog?.currentTemperatureC ?? null;
   const suggestedTempMax =
     weatherLog?.tempMaxC ?? weatherLog?.currentTemperatureC ?? null;
-  const suggestedWorkStart = earliestTime(workTimes.map((time) => time.start));
-  const suggestedWorkEnd = latestTime(workTimes.map((time) => time.end));
+  const suggestedWorkStart =
+    defaultWorkTime.startTime ||
+    earliestTime(workTimes.map((time) => time.start));
+  const suggestedWorkEnd =
+    defaultWorkTime.endTime || latestTime(workTimes.map((time) => time.end));
   const suggestedLaborRows = buildLaborRows(labor);
   const suggestedGroupedMachineRows = buildMachineRows(machines);
   const suggestedMaterialRows = buildMaterialRows(materialRows);
@@ -710,6 +716,9 @@ export function buildDailyReportContext(
       capturedAtLabel: photo.capturedAt
         ? formatDateLabel(photo.capturedAt.toISOString().slice(0, 10))
         : "",
+      dateKey: (photo.capturedAt ?? photo.uploadedAt)
+        .toISOString()
+        .slice(0, 10),
       id: photo.id,
       notes: photo.notes ?? "",
       publicUrl: photo.publicUrl,
@@ -756,9 +765,9 @@ export function buildDailyReportContext(
     tempMax: formatTemperature(dailyReport?.weatherTempMaxC ?? suggestedTempMax),
     tempMin: formatTemperature(dailyReport?.weatherTempMinC ?? suggestedTempMin),
     trafficSafetyFirstCheckTime:
-      dailyReport?.trafficSafetyFirstCheckTime ?? suggestedWorkStart,
+      dailyReport?.trafficSafetyFirstCheckTime ?? "",
     trafficSafetySecondCheckTime:
-      dailyReport?.trafficSafetySecondCheckTime ?? suggestedWorkEnd,
+      dailyReport?.trafficSafetySecondCheckTime ?? "",
     weatherLabel: dailyReport?.weatherCategory || suggestedWeatherLabel,
     weatherNotes: dailyReport?.weatherNotes ?? "",
     weekday: dailyReport?.weekdayLabel || suggestedWeekday,

@@ -47,6 +47,7 @@ function revalidateWorkingTimeConsumers() {
   revalidatePath("/truck-dispatch");
   revalidatePath("/truck-dispatch/short-haul");
   revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/projects/bautagesberichte");
   revalidatePath("/api/work-time");
 }
 

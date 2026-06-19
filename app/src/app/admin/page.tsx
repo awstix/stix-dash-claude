@@ -26,6 +26,12 @@ const adminSections: AdminSection[] = [
         href: "/admin/employees",
       },
       {
+        title: "Führerscheine & Maschinenscheine",
+        description:
+          "Berechtigungen je Mitarbeiter per Checkbox pflegen, Prüfintervalle überwachen und Nachweise hochladen.",
+        href: "/admin/employee-qualifications",
+      },
+      {
         title: "Kolonnen",
         description:
           "Kolonnen aus Mitarbeitern anhand Berufsgruppen erstellen, Standardpersonen und spätere Gerätezuordnungen verwalten.",

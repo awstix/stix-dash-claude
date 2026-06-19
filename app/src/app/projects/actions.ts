@@ -491,6 +491,148 @@ export async function refreshProjectWeather(projectId: string) {
   revalidateProjectViews(projectId);
 }
 
+export async function ensureProjectWeatherForDate(
+  projectId: string,
+  dateKey: string,
+) {
+  if (!projectId || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return false;
+  }
+
+  const weatherDate = toWeatherDate(dateKey);
+  const existingWeather = await prisma.projectWeatherLog.findUnique({
+    where: {
+      projectId_weatherDate: {
+        projectId,
+        weatherDate,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingWeather) {
+    return true;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      mapLatitude: true,
+      mapLongitude: true,
+    },
+  });
+
+  if (
+    !project ||
+    project.mapLatitude === null ||
+    project.mapLongitude === null
+  ) {
+    return false;
+  }
+
+  const todayKey = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+  }).format(new Date());
+  const dayDifference = getDateKeyDifference(todayKey, dateKey);
+
+  if (dayDifference > 15) {
+    return false;
+  }
+
+  const isForecastRange = dayDifference >= -92;
+  const url = new URL(
+    isForecastRange
+      ? "https://api.open-meteo.com/v1/forecast"
+      : "https://archive-api.open-meteo.com/v1/archive",
+  );
+  url.searchParams.set("latitude", project.mapLatitude.toString());
+  url.searchParams.set("longitude", project.mapLongitude.toString());
+  url.searchParams.set(
+    "daily",
+    [
+      "weather_code",
+      "temperature_2m_max",
+      "temperature_2m_min",
+      "precipitation_sum",
+      "wind_speed_10m_max",
+      ...(isForecastRange ? ["precipitation_probability_max"] : []),
+    ].join(","),
+  );
+  url.searchParams.set("timezone", "Europe/Berlin");
+
+  if (isForecastRange) {
+    url.searchParams.set("past_days", String(Math.max(0, -dayDifference)));
+    url.searchParams.set(
+      "forecast_days",
+      String(Math.max(1, dayDifference + 1)),
+    );
+  } else {
+    url.searchParams.set("start_date", dateKey);
+    url.searchParams.set("end_date", dateKey);
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const weather = (await response.json()) as OpenMeteoForecast;
+    const index = (weather.daily?.time ?? []).indexOf(dateKey);
+
+    if (index < 0) {
+      return false;
+    }
+
+    const weatherCode = toNullableInteger(weather.daily?.weather_code?.[index]);
+    const tempMinC = toNullableNumber(
+      weather.daily?.temperature_2m_min?.[index],
+    );
+    const tempMaxC = toNullableNumber(
+      weather.daily?.temperature_2m_max?.[index],
+    );
+    const weatherLabel = getWeatherCodeLabel(weatherCode);
+
+    await prisma.projectWeatherLog.create({
+      data: {
+        fetchedAt: new Date(),
+        precipitationMm:
+          toNullableNumber(weather.daily?.precipitation_sum?.[index]) ?? 0,
+        precipitationProbabilityMax: toNullableInteger(
+          weather.daily?.precipitation_probability_max?.[index],
+        ),
+        projectId,
+        source: isForecastRange ? "OPEN_METEO" : "OPEN_METEO_ARCHIVE",
+        tempMaxC,
+        tempMinC,
+        weatherCategory: weatherLabel,
+        weatherCategorySource: "AUTO",
+        weatherCode,
+        weatherDate,
+        weatherLabel,
+        windSpeedMaxKmh: toNullableNumber(
+          weather.daily?.wind_speed_10m_max?.[index],
+        ),
+      },
+    });
+
+    revalidateProjectViews(projectId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveProjectDailyReportWeather(
   input: ProjectDailyReportWeatherInput,
 ) {
@@ -2034,6 +2176,15 @@ export async function deleteProject(id: string) {
 
 function toWeatherDate(date: string) {
   return new Date(`${date}T00:00:00.000Z`);
+}
+
+function getDateKeyDifference(fromDateKey: string, toDateKey: string) {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+  return Math.round(
+    (toWeatherDate(toDateKey).getTime() - toWeatherDate(fromDateKey).getTime()) /
+      millisecondsPerDay,
+  );
 }
 
 function toNullableNumber(value: number | null | undefined) {
