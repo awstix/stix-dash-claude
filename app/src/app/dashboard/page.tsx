@@ -96,47 +96,16 @@ export default async function DashboardPage() {
             Aktuell sind keine Prüfungen fällig.
           </p>
         ) : (
-          <>
-            <div className="grid grid-cols-1 gap-3 border-b border-gray-100 bg-gray-50 p-4 sm:grid-cols-2">
-              <InfoCard
-                title="Überfällig oder ungeprüft"
-                value={`${overdueCount}`}
-              />
-              <InfoCard
-                title="Insgesamt bis 30 Tage"
-                value={`${dueQualifications.length}`}
-              />
-            </div>
-            <div className="divide-y divide-gray-100">
-              {dueQualifications.slice(0, 20).map((entry) => (
-                <div
-                  className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
-                  key={`${entry.employeeName}-${entry.qualificationName}`}
-                >
-                  <div>
-                    <span className="font-semibold text-gray-900">
-                      {entry.employeeName}
-                    </span>
-                    <span className="text-gray-600">
-                      {" "}
-                      · {entry.qualificationName}
-                    </span>
-                  </div>
-                  <span
-                    className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                      !entry.dueDate || entry.dueDate < startOfToday()
-                        ? "bg-red-100 text-red-800"
-                        : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {entry.dueDate
-                      ? `Prüfung bis ${formatDate(entry.dueDate)}`
-                      : "Noch nicht geprüft"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 gap-3 bg-gray-50 p-4 sm:grid-cols-2">
+            <InfoCard
+              title="Überfällig oder ungeprüft"
+              value={`${overdueCount}`}
+            />
+            <InfoCard
+              title="Insgesamt bis 30 Tage"
+              value={`${dueQualifications.length}`}
+            />
+          </div>
         )}
       </section>
     </AppShell>
@@ -168,12 +137,4 @@ function startOfToday() {
   const result = new Date();
   result.setHours(0, 0, 0, 0);
   return result;
-}
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
 }

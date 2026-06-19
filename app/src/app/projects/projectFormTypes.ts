@@ -1,21 +1,34 @@
 export const PROJECT_FORM_FIELD_TYPES = [
+  "select",
+  "checkbox",
+  "photo",
+  "masterdata",
   "text",
   "textarea",
   "number",
   "date",
   "time",
-  "checkbox",
-  "select",
+  "divider",
+  "qrcode",
+  "barcode",
+  "trafficlight",
+  "signature",
+  "grade",
+  "chart",
+  "subform",
+  "formula",
 ] as const;
 
 export type ProjectFormFieldType = (typeof PROJECT_FORM_FIELD_TYPES)[number];
 
 export type ProjectFormFieldDefinition = {
+  description: string;
   id: string;
   label: string;
   options: string[];
   required: boolean;
   type: ProjectFormFieldType;
+  width: number;
 };
 
 export function parseProjectFormFields(value: string | null | undefined) {
@@ -38,16 +51,47 @@ export function parseProjectFormFields(value: string | null | undefined) {
 
 export function getProjectFormFieldTypeLabel(type: ProjectFormFieldType) {
   const labels: Record<ProjectFormFieldType, string> = {
-    checkbox: "Ja/Nein",
+    barcode: "Barcode",
+    chart: "Grafik",
+    checkbox: "Checkbox",
     date: "Datum",
-    number: "Zahl",
-    select: "Auswahl",
-    text: "Text",
-    textarea: "Langtext",
-    time: "Uhrzeit",
+    divider: "Trennlinie",
+    formula: "Formel",
+    grade: "Noten",
+    masterdata: "Stammdatenauswahl",
+    number: "Zahleneingabe",
+    photo: "Foto",
+    qrcode: "QR-Code",
+    select: "Auswahlfeld",
+    signature: "Unterschrift",
+    subform: "Unterformular",
+    text: "Texteingabe",
+    textarea: "Textfeld",
+    time: "Zeit",
+    trafficlight: "Ampelbewertung",
   };
 
   return labels[type];
+}
+
+export function projectFormFieldUsesOptions(type: ProjectFormFieldType) {
+  return type === "select" || type === "masterdata";
+}
+
+export function projectFormFieldCollectsValue(type: ProjectFormFieldType) {
+  return type !== "divider";
+}
+
+export function getProjectFormPresetOptions(type: ProjectFormFieldType) {
+  if (type === "trafficlight") {
+    return ["Grün", "Gelb", "Rot"];
+  }
+
+  if (type === "grade") {
+    return ["1", "2", "3", "4", "5", "6"];
+  }
+
+  return [];
 }
 
 export function parseProjectFormValues(value: string | null | undefined) {
@@ -113,6 +157,8 @@ function normalizeField(value: unknown) {
   }
 
   return {
+    description:
+      typeof raw.description === "string" ? raw.description.trim() : "",
     id,
     label,
     options: Array.isArray(raw.options)
@@ -123,5 +169,12 @@ function normalizeField(value: unknown) {
       : [],
     required: Boolean(raw.required),
     type,
+    width:
+      typeof raw.width === "number" &&
+      Number.isInteger(raw.width) &&
+      raw.width >= 1 &&
+      raw.width <= 6
+        ? raw.width
+        : 6,
   };
 }

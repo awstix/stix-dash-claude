@@ -9,6 +9,7 @@ import {
   updateQualificationType,
   uploadEmployeeQualificationDocuments,
 } from "./actions";
+import { EmployeeQualificationDocumentsButton } from "./EmployeeQualificationDocumentsButton";
 
 const categoryLabels: Record<string, string> = {
   DRIVER_LICENSE: "Führerschein",
@@ -101,7 +102,6 @@ export default async function EmployeeQualificationsPage({
         qualificationType: true,
       },
       orderBy: [{ uploadedAt: "desc" }],
-      take: 100,
     }),
   ]);
   const pageCount = Math.max(1, Math.ceil(employeeCount / pageSize));
@@ -114,16 +114,19 @@ export default async function EmployeeQualificationsPage({
       title="Mitarbeiter-Führerscheine und Maschinenscheine"
       description="Berechtigungen einfach per Checkbox pflegen, regelmäßig prüfen und Nachweise ablegen."
     >
-      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Berechtigungsarten und Prüfintervalle
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Das Intervall bestimmt, wann nach der letzten Kontrolle erneut eine
-          Dashboard-Meldung erscheint.
-        </p>
+      <details className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <summary className="cursor-pointer list-none p-5">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Berechtigungsarten und Prüfintervalle
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Zum Bearbeiten aufklappen. Das Intervall bestimmt, wann erneut eine
+            Dashboard-Meldung erscheint.
+          </p>
+        </summary>
 
-        <div className="mt-4 space-y-3">
+        <div className="border-t border-gray-200 p-5">
+          <div className="space-y-3">
           {qualificationTypes.map((type) => (
             <form
               action={updateQualificationType}
@@ -187,9 +190,9 @@ export default async function EmployeeQualificationsPage({
               </div>
             </form>
           ))}
-        </div>
+          </div>
 
-        <details className="mt-4 rounded-xl border border-dashed border-gray-300 p-4">
+          <details className="mt-4 rounded-xl border border-dashed border-gray-300 p-4">
           <summary className="cursor-pointer font-semibold text-gray-900">
             Neue Berechtigungsart anlegen
           </summary>
@@ -235,8 +238,9 @@ export default async function EmployeeQualificationsPage({
               </button>
             </div>
           </form>
-        </details>
-      </section>
+          </details>
+        </div>
+      </details>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 bg-gray-50 p-5">
@@ -297,53 +301,59 @@ export default async function EmployeeQualificationsPage({
               employee.qualifications,
               today,
             );
+            const employeeDocuments = documents.filter(
+              (document) => document.employeeId === employee.id,
+            );
             const formId = `qualifications-${employee.id}`;
 
             return (
-              <div className="p-5" key={employee.id}>
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-[220px]">
-                    <div className="font-semibold text-gray-900">
-                      {employee.lastName}, {employee.firstName}
+              <div className="px-4 py-3" key={employee.id}>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[200px_minmax(0,1fr)_170px] lg:items-start">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-semibold text-gray-900">
+                        {employee.lastName}, {employee.firstName}
+                      </div>
+                      <ReviewBadge state={reviewState} />
                     </div>
                     <div className="mt-1 text-xs text-gray-500">
                       {employee.departmentLabel || "Ohne Abteilung"}
                     </div>
-                    <ReviewBadge state={reviewState} />
                   </div>
 
                   <form
                     action={saveEmployeeQualifications}
-                    className="flex-1"
+                    className="min-w-0"
                     id={formId}
                   >
-                    <input
-                      name="employeeId"
-                      type="hidden"
-                      value={employee.id}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {activeTypes.map((type) => (
-                        <label
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-800"
-                          key={type.id}
-                          title={`${categoryLabels[type.category] ?? type.category} · Prüfung alle ${type.reviewIntervalMonths} Monate`}
-                        >
-                          <input
-                            defaultChecked={assignedTypeIds.has(type.id)}
-                            name="qualificationTypeIds"
-                            type="checkbox"
-                            value={type.id}
-                          />
-                          {type.name}
-                        </label>
-                      ))}
-                    </div>
+                      <input
+                        name="employeeId"
+                        type="hidden"
+                        value={employee.id}
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeTypes.map((type) => (
+                          <label
+                            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-semibold text-gray-800"
+                            key={type.id}
+                            title={`${categoryLabels[type.category] ?? type.category} · Prüfung alle ${type.reviewIntervalMonths} Monate`}
+                          >
+                            <input
+                              className="h-3.5 w-3.5"
+                              defaultChecked={assignedTypeIds.has(type.id)}
+                              name="qualificationTypeIds"
+                              type="checkbox"
+                              value={type.id}
+                            />
+                            {type.name}
+                          </label>
+                        ))}
+                      </div>
                   </form>
 
-                  <div className="flex shrink-0 flex-wrap gap-2">
+                  <div className="flex flex-col gap-1.5">
                     <button
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                      className="w-full rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
                       form={formId}
                       type="submit"
                     >
@@ -356,7 +366,7 @@ export default async function EmployeeQualificationsPage({
                         value={employee.id}
                       />
                       <button
-                        className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                        className="w-full rounded-md bg-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                         disabled={employee.qualifications.length === 0}
                         title={
                           employee.qualifications.length === 0
@@ -365,9 +375,21 @@ export default async function EmployeeQualificationsPage({
                         }
                         type="submit"
                       >
-                        Prüfung heute bestätigen
+                        Prüfung bestätigen
                       </button>
                     </form>
+                    <EmployeeQualificationDocumentsButton
+                      documents={employeeDocuments.map((document) => ({
+                        displayName: document.displayName,
+                        documentType: document.documentType,
+                        id: document.id,
+                        mimeType: document.mimeType,
+                        publicUrl: document.publicUrl,
+                        uploadedAtLabel: formatDate(document.uploadedAt),
+                      }))}
+                      employeeId={employee.id}
+                      employeeName={`${employee.lastName}, ${employee.firstName}`}
+                    />
                   </div>
                 </div>
               </div>

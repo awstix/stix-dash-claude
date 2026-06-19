@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import { prisma } from "@/lib/prisma";
 import { ProjectDocumentManager } from "../ProjectDocumentManager";
 import { ProjectDailyReportOverview } from "../ProjectDailyReportOverview";
@@ -59,14 +60,40 @@ export default async function ProjectDetailPage({
                       isActive: true,
                     },
                     include: {
-                      employee: true,
+                      employee: {
+                        include: {
+                          qualifications: {
+                            include: {
+                              qualificationType: true,
+                            },
+                            orderBy: {
+                              qualificationType: {
+                                sortOrder: "asc",
+                              },
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                 },
               },
               extraEmployees: {
                 include: {
-                  employee: true,
+                  employee: {
+                    include: {
+                      qualifications: {
+                        include: {
+                          qualificationType: true,
+                        },
+                        orderBy: {
+                          qualificationType: {
+                            sortOrder: "asc",
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
               extraVehicles: {
@@ -208,7 +235,18 @@ export default async function ProjectDetailPage({
   const coverage =
     performanceValue > 0 ? (difference / performanceValue) * 100 : 0;
 
-  const people = new Map<string, string>();
+  const people = new Map<
+    string,
+    {
+      name: string;
+      qualifications: {
+        category: string;
+        lastReviewedAt: Date | null;
+        name: string;
+        reviewIntervalMonths: number;
+      }[];
+    }
+  >();
   const equipment = new Map<string, string>();
   const trucks = new Map<string, string>();
   const crewRows: {
@@ -223,13 +261,35 @@ export default async function ProjectDetailPage({
 
       for (const member of assignment.crew?.members ?? []) {
         const name = `${member.employee.lastName}, ${member.employee.firstName}`;
-        people.set(member.employee.id, name);
+        people.set(member.employee.id, {
+          name,
+          qualifications: member.employee.qualifications.map(
+            (qualification) => ({
+              category: qualification.qualificationType.category,
+              lastReviewedAt: qualification.lastReviewedAt,
+              name: qualification.qualificationType.name,
+              reviewIntervalMonths:
+                qualification.qualificationType.reviewIntervalMonths,
+            }),
+          ),
+        });
         assignmentPeople.add(name);
       }
 
       for (const extraEmployee of assignment.extraEmployees) {
         const name = `${extraEmployee.employee.lastName}, ${extraEmployee.employee.firstName}`;
-        people.set(extraEmployee.employee.id, name);
+        people.set(extraEmployee.employee.id, {
+          name,
+          qualifications: extraEmployee.employee.qualifications.map(
+            (qualification) => ({
+              category: qualification.qualificationType.category,
+              lastReviewedAt: qualification.lastReviewedAt,
+              name: qualification.qualificationType.name,
+              reviewIntervalMonths:
+                qualification.qualificationType.reviewIntervalMonths,
+            }),
+          ),
+        });
         assignmentPeople.add(name);
       }
 
@@ -355,7 +415,7 @@ export default async function ProjectDetailPage({
   }
 
   const peopleList = Array.from(people.values()).sort((a, b) =>
-    a.localeCompare(b, "de-DE"),
+    a.name.localeCompare(b.name, "de-DE"),
   );
   const equipmentList = Array.from(equipment.values()).sort((a, b) =>
     a.localeCompare(b, "de-DE"),
@@ -600,9 +660,9 @@ export default async function ProjectDetailPage({
           <p className="mt-1 text-sm text-gray-600">
             Aktuell aus Kolonneneinteilung und Zusatzpersonal abgeleitet.
           </p>
-          <ListBlock
+          <EmployeeQualificationList
             emptyText="Noch kein Personal über Disposition zugeordnet."
-            items={peopleList}
+            people={peopleList}
           />
         </section>
 
@@ -885,6 +945,46 @@ function ListBlock({
         >
           {item}
         </span>
+      ))}
+    </div>
+  );
+}
+
+function EmployeeQualificationList({
+  emptyText,
+  people,
+}: {
+  emptyText: string;
+  people: {
+    name: string;
+    qualifications: {
+      category: string;
+      lastReviewedAt: Date | null;
+      name: string;
+      reviewIntervalMonths: number;
+    }[];
+  }[];
+}) {
+  if (people.length === 0) {
+    return <p className="mt-4 text-sm text-gray-500">{emptyText}</p>;
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      {people.slice(0, 24).map((person) => (
+        <div
+          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+          key={person.name}
+        >
+          <div className="text-xs font-semibold text-gray-900">
+            {person.name}
+          </div>
+          <div className="mt-1.5">
+            <EmployeeQualificationBadges
+              qualifications={person.qualifications}
+            />
+          </div>
+        </div>
       ))}
     </div>
   );

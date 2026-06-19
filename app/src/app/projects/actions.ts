@@ -9,8 +9,11 @@ import { ProjectStatus } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import {
+  getProjectFormPresetOptions,
   PROJECT_FORM_FIELD_TYPES,
   parseProjectFormFields,
+  projectFormFieldCollectsValue,
+  projectFormFieldUsesOptions,
 } from "./projectFormTypes";
 import {
   dailyReportApprovalFieldIds,
@@ -135,18 +138,29 @@ export type ProjectFormTemplateCreateInput = {
   category: string;
   description: string;
   fields: Array<{
+    description?: string;
     label: string;
     options?: string[];
     optionsText?: string;
     required: boolean;
     type: string;
+    width?: number;
   }>;
   name: string;
+};
+
+export type ProjectFormTemplateUpdateInput = ProjectFormTemplateCreateInput & {
+  id: string;
+};
+
+export type ProjectFormTemplateDeleteInput = {
+  id: string;
 };
 
 export type ProjectFormSubmissionInput = {
   createdByName: string;
   formDate: string;
+  id?: string;
   projectId: string;
   templateId: string;
   title: string;
@@ -1125,6 +1139,7 @@ export async function uploadProjectPhotos(formData: FormData) {
     projectId,
   );
   await mkdir(uploadDirectory, { recursive: true });
+  const uploadedPublicUrls: string[] = [];
 
   for (const [fileIndex, file] of files.entries()) {
     const originalBuffer = Buffer.from(await file.arrayBuffer());
@@ -1201,6 +1216,7 @@ export async function uploadProjectPhotos(formData: FormData) {
           uploadedByUserId: uploadedByUserId || null,
         },
       });
+      uploadedPublicUrls.push(publicUrl);
     } catch (error) {
       await unlink(absolutePath).catch(() => undefined);
       throw error;
@@ -1208,6 +1224,7 @@ export async function uploadProjectPhotos(formData: FormData) {
   }
 
   revalidateProjectPhotoViews(projectId);
+  return uploadedPublicUrls;
 }
 
 export async function updateProjectPhoto(input: ProjectPhotoUpdateInput) {
@@ -1956,6 +1973,73 @@ export async function createProjectFormTemplate(
   revalidateProjectFormViews();
 }
 
+export async function updateProjectFormTemplate(
+  input: ProjectFormTemplateUpdateInput,
+) {
+  const templateId = input.id.trim();
+  const name = cleanProjectFormText(input.name, 120);
+  const category = cleanProjectFormText(input.category, 80);
+  const description = cleanProjectFormText(input.description, 500);
+  const fields = cleanProjectFormTemplateFields(input.fields);
+
+  if (!templateId) {
+    throw new Error("Vorlagen-ID fehlt.");
+  }
+
+  if (!name) {
+    throw new Error("Bitte einen Namen für die Formularvorlage eintragen.");
+  }
+
+  if (fields.length === 0) {
+    throw new Error("Bitte mindestens ein Feld für die Vorlage anlegen.");
+  }
+
+  await prisma.projectFormTemplate.update({
+    where: {
+      id: templateId,
+    },
+    data: {
+      category: category || null,
+      description: description || null,
+      fieldsJson: JSON.stringify(fields),
+      name,
+    },
+  });
+
+  revalidateProjectFormViews();
+}
+
+export async function deleteProjectFormTemplate(
+  input: ProjectFormTemplateDeleteInput,
+) {
+  const templateId = input.id.trim();
+
+  if (!templateId) {
+    throw new Error("Vorlagen-ID fehlt.");
+  }
+
+  const template = await prisma.projectFormTemplate.findUnique({
+    where: {
+      id: templateId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!template) {
+    return;
+  }
+
+  await prisma.projectFormTemplate.delete({
+    where: {
+      id: templateId,
+    },
+  });
+
+  revalidateProjectFormViews();
+}
+
 export async function saveProjectFormSubmission(
   input: ProjectFormSubmissionInput,
 ) {
@@ -2007,24 +2091,55 @@ export async function saveProjectFormSubmission(
     cleanProjectFormText(input.title, 140) ||
     `${template.name}${input.formDate ? ` ${input.formDate}` : ""}`;
 
-  await prisma.projectFormSubmission.create({
-    data: {
-      createdByName: cleanProjectFormText(input.createdByName, 120) || null,
-      formDate,
-      projectId,
-      status: "SAVED",
-      templateId,
-      templateSnapshotJson: JSON.stringify({
-        category: template.category,
-        description: template.description,
-        fields,
-        name: template.name,
-        templateId: template.id,
-      }),
-      title,
-      valuesJson: JSON.stringify(values),
-    },
-  });
+  const data = {
+    createdByName: cleanProjectFormText(input.createdByName, 120) || null,
+    formDate,
+    projectId,
+    status: "SAVED",
+    templateId,
+    templateSnapshotJson: JSON.stringify({
+      category: template.category,
+      description: template.description,
+      fields,
+      name: template.name,
+      templateId: template.id,
+    }),
+    title,
+    valuesJson: JSON.stringify(values),
+  };
+
+  const submissionId = input.id?.trim();
+
+  if (submissionId) {
+    const existingSubmission = await prisma.projectFormSubmission.findUnique({
+      where: {
+        id: submissionId,
+      },
+      select: {
+        id: true,
+        projectId: true,
+      },
+    });
+
+    if (!existingSubmission) {
+      throw new Error("Das Formular wurde nicht gefunden.");
+    }
+
+    await prisma.projectFormSubmission.update({
+      where: {
+        id: submissionId,
+      },
+      data,
+    });
+
+    if (existingSubmission.projectId !== projectId) {
+      revalidateProjectFormViews(existingSubmission.projectId);
+    }
+  } else {
+    await prisma.projectFormSubmission.create({
+      data,
+    });
+  }
 
   revalidateProjectFormViews(projectId);
 }
@@ -2353,19 +2468,28 @@ function cleanProjectFormTemplateFields(
       )
         ? (field.type as ProjectFormFieldType)
         : "text";
-      const options =
-        type === "select" ? cleanProjectFormFieldOptions(field) : [];
+      const options = projectFormFieldUsesOptions(type)
+        ? cleanProjectFormFieldOptions(field)
+        : getProjectFormPresetOptions(type);
 
-      if (type === "select" && options.length === 0) {
+      if (projectFormFieldUsesOptions(type) && options.length === 0) {
         throw new Error(`Auswahlfeld "${label}" braucht mindestens eine Option.`);
       }
 
       return {
+        description: cleanProjectFormText(field.description ?? "", 300),
         id: getProjectFormFieldId(label, index, usedIds),
         label,
         options,
         required: Boolean(field.required),
         type,
+        width:
+          typeof field.width === "number" &&
+          Number.isInteger(field.width) &&
+          field.width >= 1 &&
+          field.width <= 6
+            ? field.width
+            : 6,
       } satisfies ProjectFormFieldDefinition;
     })
     .filter((field): field is ProjectFormFieldDefinition => Boolean(field));
@@ -2424,6 +2548,11 @@ function cleanProjectFormSubmissionValues(
   const values: Record<string, boolean | string> = {};
 
   for (const field of fields) {
+    if (!projectFormFieldCollectsValue(field.type)) {
+      values[field.id] = "";
+      continue;
+    }
+
     const rawValue = rawValues[field.id];
 
     if (field.type === "checkbox") {
@@ -2445,7 +2574,9 @@ function cleanProjectFormSubmissionValues(
     }
 
     if (
-      field.type === "select" &&
+      (projectFormFieldUsesOptions(field.type) ||
+        field.type === "trafficlight" ||
+        field.type === "grade") &&
       value &&
       field.options.length > 0 &&
       !field.options.includes(value)

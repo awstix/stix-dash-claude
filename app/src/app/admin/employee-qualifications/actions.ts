@@ -167,16 +167,10 @@ export async function confirmEmployeeQualificationReview(formData: FormData) {
   });
 
   if (result.count === 0) {
-    return {
-      reviewed: false,
-    };
+    return;
   }
 
   revalidateQualificationViews();
-
-  return {
-    reviewed: true,
-  };
 }
 
 export async function uploadEmployeeQualificationDocuments(formData: FormData) {
@@ -299,6 +293,30 @@ export async function deleteEmployeeQualificationDocument(formData: FormData) {
   } catch {
     // Die Datenbank bleibt führend, falls eine Datei bereits extern fehlt.
   }
+
+  revalidateQualificationViews();
+}
+
+export async function updateEmployeeQualificationDocument(formData: FormData) {
+  const id = text(formData.get("id"));
+  const requestedDocumentType = text(formData.get("documentType"));
+  const documentType =
+    requestedDocumentType in documentTypeLabels ? requestedDocumentType : "OTHER";
+  const displayName = text(formData.get("displayName"));
+
+  if (!id || !displayName) {
+    throw new Error("Dokument und Bezeichnung sind Pflichtfelder.");
+  }
+
+  await prisma.employeeQualificationDocument.update({
+    where: {
+      id,
+    },
+    data: {
+      displayName,
+      documentType,
+    },
+  });
 
   revalidateQualificationViews();
 }

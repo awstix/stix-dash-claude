@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import { prisma } from "@/lib/prisma";
 import {
   addCrewDefaultVehicle,
@@ -121,6 +122,16 @@ export default async function CrewsAdminPage() {
                   positions: {
                     orderBy: {
                       sortOrder: "asc",
+                    },
+                  },
+                  qualifications: {
+                    include: {
+                      qualificationType: true,
+                    },
+                    orderBy: {
+                      qualificationType: {
+                        sortOrder: "asc",
+                      },
                     },
                   },
                 },
@@ -392,6 +403,23 @@ export default async function CrewsAdminPage() {
                                 Berufsbezeichnung: {member.roleText}
                               </div>
                             ) : null}
+
+                            <div className="mt-2">
+                              <EmployeeQualificationBadges
+                                qualifications={member.employee.qualifications.map(
+                                  (qualification) => ({
+                                    category:
+                                      qualification.qualificationType.category,
+                                    lastReviewedAt:
+                                      qualification.lastReviewedAt,
+                                    name: qualification.qualificationType.name,
+                                    reviewIntervalMonths:
+                                      qualification.qualificationType
+                                        .reviewIntervalMonths,
+                                  }),
+                                )}
+                              />
+                            </div>
                           </div>
 
                           <form action={removeCrewMember}>
