@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
+import {
+  WORKSHOP_REPAIR_SYSTEM_FIELD_IDS,
+  WORKSHOP_REPAIR_TEMPLATE_ID,
+} from "./repairOrderTemplate";
 
 const statusOptions = ["OPEN", "IN_PROGRESS", "WAITING", "DONE", "CANCELLED"];
 const priorityOptions = ["LOW", "NORMAL", "HIGH", "URGENT"];
@@ -72,11 +77,32 @@ async function getVehicleSnapshot(vehicleId: string | null) {
   };
 }
 
+async function getCustomValues(formData: FormData) {
+  const template = await prisma.workshopFormTemplate.findUnique({
+    where: { id: WORKSHOP_REPAIR_TEMPLATE_ID },
+    select: { fieldsJson: true },
+  });
+  const customFields = parseProjectFormFields(template?.fieldsJson).filter(
+    (field) => !WORKSHOP_REPAIR_SYSTEM_FIELD_IDS.has(field.id),
+  );
+
+  return Object.fromEntries(
+    customFields.map((field) => {
+      const entry = formData.get(`custom:${field.id}`);
+      return [
+        field.id,
+        field.type === "checkbox" ? entry === "on" : String(entry ?? ""),
+      ];
+    }),
+  );
+}
+
 export async function createWorkshopRepairOrder(formData: FormData) {
   const vehicleId = optionalString(formData.get("vehicleId"));
   const vehicleSnapshot = await getVehicleSnapshot(vehicleId);
   const completedAt = optionalDate(formData.get("completedAt"));
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
+  const customValues = await getCustomValues(formData);
 
   await prisma.workshopRepairOrder.create({
     data: {
@@ -91,6 +117,7 @@ export async function createWorkshopRepairOrder(formData: FormData) {
       plannedEnd: optionalDate(formData.get("plannedEnd")),
       completedAt: status === "DONE" ? completedAt ?? new Date() : null,
       assignedTo: optionalString(formData.get("assignedTo")),
+      customValuesJson: JSON.stringify(customValues),
       notes: optionalString(formData.get("notes")),
     },
   });
@@ -104,6 +131,7 @@ export async function updateWorkshopRepairOrder(formData: FormData) {
   const vehicleSnapshot = await getVehicleSnapshot(vehicleId);
   const completedAt = optionalDate(formData.get("completedAt"));
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
+  const customValues = await getCustomValues(formData);
 
   await prisma.workshopRepairOrder.update({
     where: {
@@ -121,6 +149,7 @@ export async function updateWorkshopRepairOrder(formData: FormData) {
       plannedEnd: optionalDate(formData.get("plannedEnd")),
       completedAt: status === "DONE" ? completedAt ?? new Date() : null,
       assignedTo: optionalString(formData.get("assignedTo")),
+      customValuesJson: JSON.stringify(customValues),
       notes: optionalString(formData.get("notes")),
     },
   });

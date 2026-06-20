@@ -391,6 +391,7 @@ model Vehicle {
   crewPlanningAssignmentVehicles     CrewPlanningAssignmentVehicle[]
   equipmentDispatchAssignments       EquipmentDispatchAssignment[]
   workshopRepairOrders               WorkshopRepairOrder[]
+  workshopFormSubmissions            WorkshopFormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -420,6 +421,7 @@ model WorkshopRepairOrder {
 
   assignedTo String?
   notes      String?
+  customValuesJson String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -430,6 +432,54 @@ model WorkshopRepairOrder {
   @@index([reportedAt])
   @@index([plannedStart])
   @@index([completedAt])
+}
+
+model WorkshopFormTemplate {
+  id               String  @id @default(cuid())
+  name             String
+  category         String?
+  description      String?
+  fieldsJson       String
+  isActive         Boolean @default(true)
+  sortOrder        Int     @default(0)
+  paperSize        String  @default("A4")
+  paperOrientation String  @default("PORTRAIT")
+
+  submissions WorkshopFormSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model WorkshopFormSubmission {
+  id String @id @default(cuid())
+
+  templateId String?
+  template   WorkshopFormTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  templateKind         String
+  title                String
+  priority             String   @default("NORMAL")
+  formDate             DateTime?
+  valuesJson           String
+  templateSnapshotJson String?
+  createdByName        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([vehicleId])
+  @@index([templateKind])
+  @@index([priority])
+  @@index([formDate])
+  @@index([createdAt])
 }
 
 model DriverVehicleAssignment {

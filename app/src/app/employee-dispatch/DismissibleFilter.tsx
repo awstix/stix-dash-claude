@@ -39,7 +39,11 @@ export function DismissibleFilter({
   }, [open]);
 
   return (
-    <details ref={containerRef} className="relative" open={open}>
+    <details
+      ref={containerRef}
+      className={`relative ${open ? "z-[200]" : ""}`}
+      open={open}
+    >
       <summary
         onClick={(event) => {
           event.preventDefault();
@@ -52,7 +56,7 @@ export function DismissibleFilter({
       </summary>
 
       {open ? (
-        <div className="absolute left-0 top-10 z-40 w-[calc(100vw-4rem)] max-w-5xl rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
+        <div className="absolute left-0 top-10 z-[210] w-[calc(100vw-4rem)] max-w-5xl rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
           {children}
         </div>
       ) : null}

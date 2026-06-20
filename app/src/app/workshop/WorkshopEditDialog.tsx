@@ -47,7 +47,7 @@ export function WorkshopEditDialog({
     >
       <div
         ref={dialogRef}
-        className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 text-gray-950 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-label="Reparaturauftrag bearbeiten"

@@ -27,9 +27,11 @@ function getFormControlValue(control: Element | RadioNodeList | null) {
 export function WorkshopStatusFields({
   defaultCompletedAt,
   defaultStatus,
+  statusLabel = "Status",
 }: {
   defaultCompletedAt: string;
   defaultStatus: string;
+  statusLabel?: string;
 }) {
   const [status, setStatus] = useState(defaultStatus);
   const [completedAt, setCompletedAt] = useState(defaultCompletedAt);
@@ -79,7 +81,7 @@ export function WorkshopStatusFields({
   return (
     <>
       <label className="text-sm font-medium text-gray-800">
-        Status
+        {statusLabel}
         <select
           name="status"
           value={status}
