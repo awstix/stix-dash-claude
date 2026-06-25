@@ -18,7 +18,9 @@ type ReportFormState = {
   approvedFields: string[];
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
+  machineRowsBeforeRealNames: DailyReportCountRow[] | null;
   materialRows: DailyReportMaterialRow[];
+  otherRows: DailyReportMaterialRow[];
   performanceLines: string[];
   photoIds: string[];
   photoGridLayout: DailyReportPhotoGridLayout;
@@ -28,6 +30,7 @@ type ReportFormState = {
   siteDiscussionNotes: string;
   siteDiscussionRoles: string[];
   siteDiscussionThirdPartyName: string;
+  subcontractorRows: DailyReportCountRow[];
   contractorSignatureDataUrl: string;
   clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
@@ -125,19 +128,43 @@ export function ProjectDailyReportEditor({
     });
   }
 
-  function getSuggestedMachineRows(showRealMachineNames: boolean) {
-    return showRealMachineNames
-      ? context.suggestions.realMachineRows
-      : context.suggestions.groupedMachineRows;
-  }
-
   function toggleRealMachineNames(checked: boolean) {
     markDirty();
-    setForm((current) => ({
-      ...current,
-      machineRows: cloneRows(getSuggestedMachineRows(checked)),
-      showRealMachineNames: checked,
-    }));
+    setForm((current) => {
+      if (checked) {
+        const groupedRows = current.showRealMachineNames
+          ? current.machineRowsBeforeRealNames ??
+            context.suggestions.groupedMachineRows
+          : current.machineRows;
+
+        return {
+          ...current,
+          machineRows: mergeMachineRowsForDisplay(
+            context.suggestions.realMachineRows,
+            groupedRows,
+            {
+              appendUnmatchedRows: true,
+              includeEmptyUnmatchedRows: true,
+            },
+          ),
+          machineRowsBeforeRealNames: cloneRows(groupedRows),
+          showRealMachineNames: true,
+        };
+      }
+
+      const groupedRows =
+        current.machineRowsBeforeRealNames ??
+        context.suggestions.groupedMachineRows;
+
+      return {
+        ...current,
+        machineRows: mergeMachineRowsForDisplay(groupedRows, current.machineRows, {
+          appendUnmatchedRows: false,
+        }),
+        machineRowsBeforeRealNames: null,
+        showRealMachineNames: false,
+      };
+    });
   }
 
   function togglePhoto(photoId: string, checked: boolean) {
@@ -158,9 +185,11 @@ export function ProjectDailyReportEditor({
       ...current,
       laborRows: cloneRows(context.suggestions.laborRows),
       materialRows: cloneMaterialRows(context.suggestions.materialRows),
-      machineRows: cloneRows(
-        getSuggestedMachineRows(current.showRealMachineNames),
+      machineRows: getSuggestionMachineRowsForDisplay(
+        context,
+        current.showRealMachineNames,
       ),
+      otherRows: cloneMaterialRows(context.suggestions.otherRows),
       performanceLines: [...context.suggestions.performanceLines],
       projectName: context.suggestions.projectName,
       projectNumber: context.suggestions.projectNumber,
@@ -170,8 +199,10 @@ export function ProjectDailyReportEditor({
       contractorSignatureDataUrl: current.contractorSignatureDataUrl,
       clientSignatureDataUrl: current.clientSignatureDataUrl,
       weatherCategory: context.suggestions.weatherLabel,
+      weatherNotes: context.suggestions.weatherNotes,
       weatherTempMaxC: context.suggestions.tempMax,
       weatherTempMinC: context.suggestions.tempMin,
+      subcontractorRows: cloneRows(context.suggestions.subcontractorRows),
       trafficSafetyFirstCheckTime: current.trafficSafetyFirstCheckTime,
       trafficSafetySecondCheckTime: current.trafficSafetySecondCheckTime,
       weekday: context.suggestions.weekday,
@@ -185,9 +216,30 @@ export function ProjectDailyReportEditor({
     setForm((current) => ({
       ...current,
       weatherCategory: context.suggestions.weatherLabel,
+      weatherNotes: context.suggestions.weatherNotes,
       weatherTempMaxC: context.suggestions.tempMax,
       weatherTempMinC: context.suggestions.tempMin,
     }));
+  }
+
+  function addProjectNotesToPerformance() {
+    if (context.projectNoteLines.length === 0) return;
+
+    markDirty();
+    setForm((current) => {
+      const lines = [...current.performanceLines];
+
+      for (const noteLine of context.projectNoteLines) {
+        if (!lines.some((line) => line.trim() === noteLine.trim())) {
+          lines.push(noteLine);
+        }
+      }
+
+      return {
+        ...current,
+        performanceLines: lines.slice(0, dailyReportPerformanceLineLimit),
+      };
+    });
   }
 
   function save(
@@ -519,6 +571,16 @@ export function ProjectDailyReportEditor({
       />
 
       <CountRowsSection
+        allowCustomRows
+        approved={form.approvedFields.includes("labor")}
+        fieldId="labor"
+        onRowsChange={(rows) => updateValue("subcontractorRows", rows)}
+        onToggle={toggleApproval}
+        rows={form.subcontractorRows}
+        title="Nachunternehmer"
+      />
+
+      <CountRowsSection
         approved={form.approvedFields.includes("machines")}
         fieldId="machines"
         headerAddon={
@@ -545,7 +607,50 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("materialRows", rows)}
         onToggle={toggleApproval}
         rows={form.materialRows}
+        title="Material"
       />
+
+      <MaterialRowsSection
+        approved={form.approvedFields.includes("materials")}
+        fieldId="materials"
+        onRowsChange={(rows) => updateValue("otherRows", rows)}
+        onToggle={toggleApproval}
+        rows={form.otherRows}
+        title="Sonstiges"
+      />
+
+      {context.projectNoteLines.length > 0 ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-amber-950">
+                Notizen für diesen BTB
+              </h3>
+              <p className="mt-1 text-sm text-amber-900">
+                Diese Notizen passen zum Berichtdatum und sind für BTB/Dispo
+                freigegeben.
+              </p>
+            </div>
+            <button
+              className="w-fit rounded-lg bg-amber-900 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800"
+              onClick={addProjectNotesToPerformance}
+              type="button"
+            >
+              In sonstige Bauleistung übernehmen
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {context.projectNoteLines.map((line) => (
+              <p
+                className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-950"
+                key={line}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <SectionHeader
@@ -705,7 +810,9 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     approvedFields: [...context.approvedFields],
     laborRows: cloneRows(context.laborRows),
     machineRows: cloneRows(context.machineRows),
+    machineRowsBeforeRealNames: null,
     materialRows: cloneMaterialRows(context.materialRows),
+    otherRows: cloneMaterialRows(context.otherRows),
     performanceLines: [...context.performanceLines],
     photoIds: context.photos
       .filter((photo) => photo.selected)
@@ -717,6 +824,7 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     siteDiscussionNotes: context.siteDiscussionNotes,
     siteDiscussionRoles: [...context.siteDiscussionRoles],
     siteDiscussionThirdPartyName: context.siteDiscussionThirdPartyName,
+    subcontractorRows: cloneRows(context.subcontractorRows),
     contractorSignatureDataUrl: context.contractorSignatureDataUrl,
     clientSignatureDataUrl: context.clientSignatureDataUrl,
     showRealMachineNames: context.showRealMachineNames,
@@ -905,6 +1013,102 @@ function DailyReportPhotoGallery({
 
 function cloneRows(rows: DailyReportCountRow[]) {
   return rows.map((row) => ({ ...row }));
+}
+
+function getSuggestionMachineRowsForDisplay(
+  context: DailyReportContext,
+  showRealMachineNames: boolean,
+) {
+  if (!showRealMachineNames) {
+    return cloneRows(context.suggestions.groupedMachineRows);
+  }
+
+  return mergeMachineRowsForDisplay(
+    context.suggestions.realMachineRows,
+    context.suggestions.groupedMachineRows,
+    {
+      appendUnmatchedRows: true,
+      includeEmptyUnmatchedRows: true,
+    },
+  );
+}
+
+function mergeMachineRowsForDisplay(
+  suggestedRows: DailyReportCountRow[],
+  currentRows: DailyReportCountRow[],
+  options: {
+    appendUnmatchedRows?: boolean;
+    includeEmptyUnmatchedRows?: boolean;
+    sortByLabel?: boolean;
+  } = {},
+) {
+  const {
+    appendUnmatchedRows = true,
+    includeEmptyUnmatchedRows = false,
+    sortByLabel = false,
+  } = options;
+  const merged = cloneRows(suggestedRows);
+
+  for (const currentRow of currentRows) {
+    if (!includeEmptyUnmatchedRows && !hasCountRowValue(currentRow)) continue;
+
+    const matchingRow = merged.find((row) => areSameMachineRows(row, currentRow));
+
+    if (matchingRow) {
+      if (hasCountRowValue(currentRow)) {
+        matchingRow.count = currentRow.count;
+        matchingRow.hours = currentRow.hours;
+      }
+      continue;
+    }
+
+    if (!appendUnmatchedRows) continue;
+
+    if (isCoveredByDetailedMachineRow(currentRow, merged)) continue;
+
+    merged.push({ ...currentRow });
+  }
+
+  if (!sortByLabel) return merged;
+
+  return merged.sort((firstRow, secondRow) =>
+    firstRow.label.localeCompare(secondRow.label, "de-DE", { numeric: true }),
+  );
+}
+
+function hasCountRowValue(row: DailyReportCountRow) {
+  return row.count > 0 || row.hours > 0;
+}
+
+function areSameMachineRows(
+  firstRow: DailyReportCountRow,
+  secondRow: DailyReportCountRow,
+) {
+  return (
+    firstRow.key === secondRow.key ||
+    normalizeMachineRowLabel(firstRow.label) ===
+      normalizeMachineRowLabel(secondRow.label)
+  );
+}
+
+function isCoveredByDetailedMachineRow(
+  row: DailyReportCountRow,
+  suggestedRows: DailyReportCountRow[],
+) {
+  const label = normalizeMachineRowLabel(row.label);
+  if (!label) return false;
+
+  return suggestedRows.some((suggestedRow) => {
+    if (!hasCountRowValue(suggestedRow)) return false;
+
+    const suggestedLabel = normalizeMachineRowLabel(suggestedRow.label);
+
+    return suggestedLabel.startsWith(`${label} ·`);
+  });
+}
+
+function normalizeMachineRowLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de-DE");
 }
 
 function cloneMaterialRows(rows: DailyReportMaterialRow[]) {
@@ -1102,18 +1306,31 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function parseOptionalNumber(value: string) {
+  const cleaned = value.trim();
+  if (!cleaned) return 0;
+
+  return Number(cleaned.replace(",", ".")) || 0;
+}
+
+function formatEditableNumber(value: number) {
+  return value > 0 ? String(value) : "";
+}
+
 function MaterialRowsSection({
   approved,
   fieldId,
   onRowsChange,
   onToggle,
   rows,
+  title,
 }: {
   approved: boolean;
   fieldId: string;
   onRowsChange: (rows: DailyReportMaterialRow[]) => void;
   onToggle: (fieldId: string, checked: boolean) => void;
   rows: DailyReportMaterialRow[];
+  title: string;
 }) {
   function updateRow(
     index: number,
@@ -1127,7 +1344,7 @@ function MaterialRowsSection({
         if (key === "quantity") {
           return {
             ...row,
-            quantity: Number(value.replace(",", ".")) || 0,
+            quantity: parseOptionalNumber(value),
           };
         }
 
@@ -1161,7 +1378,7 @@ function MaterialRowsSection({
         approved={approved}
         fieldId={fieldId}
         onToggle={onToggle}
-        title="Material"
+        title={title}
       />
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
@@ -1185,7 +1402,7 @@ function MaterialRowsSection({
                     }
                     step="0.1"
                     type="number"
-                    value={row.quantity}
+                    value={formatEditableNumber(row.quantity)}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -1225,13 +1442,14 @@ function MaterialRowsSection({
         onClick={addEmptyRow}
         type="button"
       >
-        Materialzeile hinzufügen
+        Zeile hinzufügen
       </button>
     </section>
   );
 }
 
 function CountRowsSection({
+  allowCustomRows = false,
   approved,
   fieldId,
   headerAddon,
@@ -1240,6 +1458,7 @@ function CountRowsSection({
   rows,
   title,
 }: {
+  allowCustomRows?: boolean;
   approved: boolean;
   fieldId: string;
   headerAddon?: ReactNode;
@@ -1266,10 +1485,26 @@ function CountRowsSection({
 
         return {
           ...row,
-          [key]: Number(value.replace(",", ".")) || 0,
+          [key]: parseOptionalNumber(value),
         };
       }),
     );
+  }
+
+  function addEmptyRow() {
+    onRowsChange([
+      ...rows,
+      {
+        count: 1,
+        hours: 0,
+        key: `count_${rows.length + 1}_${Date.now()}`,
+        label: "",
+      },
+    ]);
+  }
+
+  function removeRow(index: number) {
+    onRowsChange(rows.filter((_, rowIndex) => rowIndex !== index));
   }
 
   return (
@@ -1288,6 +1523,9 @@ function CountRowsSection({
               <th className="px-3 py-2 font-semibold">Anzahl</th>
               <th className="px-3 py-2 font-semibold">Bezeichnung</th>
               <th className="px-3 py-2 font-semibold">Ges. Std.</th>
+              {allowCustomRows ? (
+                <th className="px-3 py-2 font-semibold">Aktion</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -1301,7 +1539,7 @@ function CountRowsSection({
                       updateRow(index, "count", event.currentTarget.value)
                     }
                     type="number"
-                    value={row.count}
+                    value={formatEditableNumber(row.count)}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -1322,14 +1560,34 @@ function CountRowsSection({
                     }
                     step="0.5"
                     type="number"
-                    value={row.hours}
+                    value={formatEditableNumber(row.hours)}
                   />
                 </td>
+                {allowCustomRows ? (
+                  <td className="w-24 px-3 py-2">
+                    <button
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                      onClick={() => removeRow(index)}
+                      type="button"
+                    >
+                      Löschen
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {allowCustomRows ? (
+        <button
+          className="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+          onClick={addEmptyRow}
+          type="button"
+        >
+          Zeile hinzufügen
+        </button>
+      ) : null}
     </section>
   );
 }

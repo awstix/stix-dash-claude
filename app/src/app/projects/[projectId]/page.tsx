@@ -172,6 +172,9 @@ export default async function ProjectDetailPage({
       photos: {
         orderBy: [{ uploadedAt: "desc" }],
       },
+      projectNotes: {
+        orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+      },
     },
   });
 
@@ -580,7 +583,7 @@ export default async function ProjectDetailPage({
               />
             </div>
 
-            {project.notes ? (
+            {project.projectNotes.length === 0 && project.notes ? (
               <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
                 {project.notes}
               </div>
@@ -855,10 +858,18 @@ export default async function ProjectDetailPage({
             }))}
           />
         </div>
-        <ArchiveSection
-          id="notizen"
-          title="Notizen"
-          text="Notizen werden später mit Datum, Benutzer und Sichtbarkeit pro Projekt geführt."
+        <ProjectNotesPreviewSection
+          notes={project.projectNotes.map((note) => ({
+            category: note.category,
+            content: note.content,
+            createdByName: note.createdByName,
+            id: note.id,
+            includeInDailyReport: note.includeInDailyReport,
+            noteDate: note.noteDate,
+            title: note.title,
+            visibility: note.visibility,
+          }))}
+          projectId={project.id}
         />
         <ProjectDailyReportOverview
           defaultDate={defaultDailyReportDate}
@@ -1165,24 +1176,120 @@ function ProjectDocumentPreviewSection({
   );
 }
 
-function ArchiveSection({
-  id,
-  title,
-  text,
+function ProjectNotesPreviewSection({
+  notes,
+  projectId,
 }: {
-  id: string;
-  title: string;
-  text: string;
+  notes: {
+    category: string;
+    content: string;
+    createdByName: string | null;
+    id: string;
+    includeInDailyReport: boolean;
+    noteDate: Date;
+    title: string | null;
+    visibility: string;
+  }[];
+  projectId: string;
 }) {
+  const visibleNotes = notes.slice(0, 8);
+
   return (
     <section
-      id={id}
+      id="notizen"
       className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
     >
-      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-      <p className="mt-2 text-sm text-gray-600">{text}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Notizen</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Projektbezogene Hinweise für Disposition, Kolonnenverteilung und
+            Bautagesberichte.
+          </p>
+        </div>
+        <Link
+          className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+          href={`/projects/notizen?projectId=${projectId}`}
+        >
+          Notiz erfassen
+        </Link>
+      </div>
+
+      {visibleNotes.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+          Noch keine Notizen für dieses Projekt erfasst.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {visibleNotes.map((note) => (
+            <article
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              key={note.id}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                  {getProjectNoteCategoryLabel(note.category)}
+                </span>
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900">
+                  {getProjectNoteVisibilityLabel(note.visibility)}
+                </span>
+                {note.includeInDailyReport ? (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                    BTB
+                  </span>
+                ) : null}
+              </div>
+              <h3 className="mt-3 text-sm font-semibold text-gray-900">
+                {note.title || formatDate(note.noteDate)}
+              </h3>
+              <p className="mt-1 text-xs font-semibold text-gray-500">
+                {formatDate(note.noteDate)}
+                {note.createdByName ? ` · ${note.createdByName}` : ""}
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
+                {note.content}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {notes.length > visibleNotes.length ? (
+        <Link
+          className="mt-4 inline-flex text-xs font-semibold text-gray-700 underline-offset-4 hover:underline"
+          href={`/projects/notizen?projectId=${projectId}`}
+        >
+          Alle {notes.length} Notizen öffnen
+        </Link>
+      ) : null}
     </section>
   );
+}
+
+function getProjectNoteCategoryLabel(value: string) {
+  switch (value) {
+    case "OBSTRUCTION":
+      return "Behinderung";
+    case "INCIDENT":
+      return "Vorkommnis";
+    case "CLIENT":
+      return "Auftraggeber / Bauleiter";
+    case "INTERNAL":
+      return "Intern";
+    default:
+      return "Allgemein";
+  }
+}
+
+function getProjectNoteVisibilityLabel(value: string) {
+  switch (value) {
+    case "DISPATCH":
+      return "Disposition";
+    case "BTB":
+      return "BTB / Bericht";
+    default:
+      return "Intern";
+  }
 }
 
 function SummaryCard({
@@ -1326,6 +1433,15 @@ type DailyReportPrefillProject = {
     vehicle: VehicleLabelInput;
   }[];
   name: string;
+  notes: string | null;
+  projectNotes: {
+    category: string;
+    content: string;
+    includeInDailyReport: boolean;
+    noteDate: Date;
+    title: string | null;
+    visibility: string;
+  }[];
   projectNumber: string;
   shortHaulAssignments: {
     driverName: string | null;
@@ -1690,6 +1806,27 @@ function buildDailyReportFormPrefillForDate({
     weatherLog?.tempMaxC ??
     weatherLog?.currentTemperatureC ??
     null;
+  const incidentLines = dailyReport
+    ? []
+    : project.projectNotes
+        .filter(
+          (note) =>
+            note.includeInDailyReport &&
+            note.visibility !== "INTERNAL" &&
+            toDateKey(note.noteDate) === dateKey,
+        )
+        .map((note) =>
+          compactLine([
+            getProjectNoteCategoryLabel(note.category),
+            note.title,
+            note.content,
+          ]),
+        )
+        .filter((line): line is string => Boolean(line?.trim()));
+
+  if (!dailyReport && incidentLines.length === 0 && project.notes?.trim()) {
+    incidentLines.push(project.notes.trim());
+  }
 
   return {
     title: `Bautagesbericht ${project.projectNumber} · ${formatDateKey(dateKey)}`,
@@ -1701,7 +1838,7 @@ function buildDailyReportFormPrefillForDate({
       personal: joinSet(people),
       temperatur_max: formatNumberInput(tempMax),
       temperatur_min: formatNumberInput(tempMin),
-      vorkommnisse: "",
+      vorkommnisse: joinUnique(incidentLines),
       wetter: [weatherCategory, dailyReport?.weatherNotes]
         .filter(Boolean)
         .join("\n"),

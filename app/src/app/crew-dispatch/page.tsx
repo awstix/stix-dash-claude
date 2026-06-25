@@ -182,6 +182,14 @@ type CrewDispatchEquipmentTimelineStrip = {
   extraCount: number;
 };
 
+type CrewDispatchNoteTimelineStrip = {
+  id: string;
+  gridColumn: string;
+  text: string;
+  tooltipText: string;
+  extraCount: number;
+};
+
 type ProjectMaterialReference = {
   projectId?: string | null;
   projectNumber: string;
@@ -1423,6 +1431,118 @@ function getEquipmentTimelineStripsForProject({
   return strips;
 }
 
+function getProjectNoteForReference({
+  projectNotesById,
+  projectNotesByKey,
+  reference,
+}: {
+  projectNotesById: Map<string, string>;
+  projectNotesByKey: Map<string, string>;
+  reference: ProjectMaterialReference;
+}) {
+  if (reference.projectId) {
+    const note = projectNotesById.get(reference.projectId);
+    if (note) return note;
+  }
+
+  for (const key of getProjectMaterialKeys(reference)) {
+    const note = projectNotesByKey.get(key);
+    if (note) return note;
+  }
+
+  return null;
+}
+
+function getDispatchProjectNoteText(project: {
+  notes: string | null;
+  projectNotes?: {
+    category: string;
+    content: string;
+    noteDate: Date;
+    title: string | null;
+  }[];
+}) {
+  const noteLines =
+    project.projectNotes
+      ?.map((note) =>
+        [
+          formatShortDate(note.noteDate),
+          getCrewDispatchNoteCategoryLabel(note.category),
+          note.title,
+          note.content,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      )
+      .filter(Boolean) ?? [];
+
+  if (noteLines.length > 0) {
+    return noteLines.join("\n");
+  }
+
+  return project.notes?.trim() ?? "";
+}
+
+function getCrewDispatchNoteCategoryLabel(value: string) {
+  switch (value) {
+    case "OBSTRUCTION":
+      return "Behinderung";
+    case "INCIDENT":
+      return "Vorkommnis";
+    case "CLIENT":
+      return "Auftraggeber";
+    case "INTERNAL":
+      return "Intern";
+    default:
+      return "Notiz";
+  }
+}
+
+function getNoteTimelineStripForProject({
+  reference,
+  rowNotes,
+  projectNotesById,
+  projectNotesByKey,
+  gridColumn,
+}: {
+  reference: ProjectMaterialReference;
+  rowNotes?: string | null;
+  projectNotesById: Map<string, string>;
+  projectNotesByKey: Map<string, string>;
+  gridColumn: string | null;
+}): CrewDispatchNoteTimelineStrip | null {
+  if (!gridColumn) return null;
+
+  const notes = [
+    getProjectNoteForReference({
+      projectNotesById,
+      projectNotesByKey,
+      reference,
+    }),
+    rowNotes,
+  ]
+    .map((note) => String(note ?? "").trim())
+    .filter(Boolean);
+  const uniqueNotes = Array.from(new Set(notes));
+
+  if (uniqueNotes.length === 0) return null;
+
+  const text = uniqueNotes[0];
+  const tooltipText = uniqueNotes
+    .map((note, index) => `${index + 1}. ${note}`)
+    .join("\n");
+
+  return {
+    extraCount: Math.max(0, uniqueNotes.length - 1),
+    gridColumn,
+    id: `notes-${
+      getProjectMaterialKeys(reference)[0] ?? reference.projectId ?? "project"
+    }`,
+    text,
+    tooltipText,
+  };
+}
+
 function getTimelineGridColumnForDateRange({
   startDate,
   endDate,
@@ -1609,6 +1729,7 @@ function buildCrewDispatchHref({
   showTrucks,
   showSpecialVehicles,
   showMaterial,
+  showNotes,
   focusDate,
   highlightCrewId,
 }: {
@@ -1626,6 +1747,7 @@ function buildCrewDispatchHref({
   showTrucks: boolean;
   showSpecialVehicles: boolean;
   showMaterial: boolean;
+  showNotes: boolean;
   focusDate?: Date | string;
   highlightCrewId?: string | null;
 }) {
@@ -1665,6 +1787,10 @@ function buildCrewDispatchHref({
 
   if (showMaterial) {
     params.set("showMaterial", "1");
+  }
+
+  if (showNotes) {
+    params.set("showNotes", "1");
   }
 
   if (focusDate) {
@@ -1879,17 +2005,20 @@ function getSupplementLayerCount({
   showTrucks,
   showSpecialVehicles,
   showMaterial,
+  showNotes,
 }: {
   showEquipment: boolean;
   showTrucks: boolean;
   showSpecialVehicles: boolean;
   showMaterial: boolean;
+  showNotes: boolean;
 }) {
   return (
     Number(showEquipment) +
     Number(showTrucks) +
     Number(showSpecialVehicles) +
-    Number(showMaterial)
+    Number(showMaterial) +
+    Number(showNotes)
   );
 }
 
@@ -1897,12 +2026,14 @@ function getLayerIndex({
   showEquipment,
   showTrucks,
   showSpecialVehicles,
+  showMaterial,
   layer,
 }: {
   showEquipment: boolean;
   showTrucks: boolean;
   showSpecialVehicles: boolean;
-  layer: "equipment" | "truck" | "special" | "material";
+  showMaterial: boolean;
+  layer: "equipment" | "truck" | "special" | "material" | "notes";
 }) {
   if (layer === "equipment") {
     return 0;
@@ -1916,7 +2047,18 @@ function getLayerIndex({
     return Number(showEquipment) + Number(showTrucks);
   }
 
-  return Number(showEquipment) + Number(showTrucks) + Number(showSpecialVehicles);
+  if (layer === "material") {
+    return (
+      Number(showEquipment) + Number(showTrucks) + Number(showSpecialVehicles)
+    );
+  }
+
+  return (
+    Number(showEquipment) +
+    Number(showTrucks) +
+    Number(showSpecialVehicles) +
+    Number(showMaterial)
+  );
 }
 
 function getCrewTimelineLaneHeight(layerCount: number) {
@@ -2694,6 +2836,7 @@ export default async function CrewDispatchPage({
     showTrucks?: string;
     showSpecialVehicles?: string;
     showMaterial?: string;
+    showNotes?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -2708,11 +2851,13 @@ export default async function CrewDispatchPage({
   const showTrucks = params.showTrucks === "1";
   const showSpecialVehicles = params.showSpecialVehicles === "1";
   const showMaterial = params.showMaterial === "1";
+  const showNotes = params.showNotes === "1";
   const supplementalLayerCount = getSupplementLayerCount({
     showEquipment,
     showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
   });
   const crewTimelineLaneHeight = getCrewTimelineLaneHeight(supplementalLayerCount);
   const highlightedCrewId = params.highlightCrew ?? null;
@@ -2858,6 +3003,16 @@ export default async function CrewDispatchPage({
               ProjectStatus.ACTIVE,
               ProjectStatus.PAUSED,
             ],
+          },
+        },
+        include: {
+          projectNotes: {
+            where: {
+              visibility: {
+                in: ["DISPATCH", "BTB"],
+              },
+            },
+            orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
           },
         },
         orderBy: [{ projectNumber: "asc" }],
@@ -3118,6 +3273,28 @@ export default async function CrewDispatchPage({
     defaultStartTime: getProjectDefaultStartTime(project),
     defaultEndTime: getProjectDefaultEndTime(project),
   }));
+  const projectNotesById = new Map(
+    projects
+      .map(
+        (project) =>
+          [project.id, getDispatchProjectNoteText(project)] as const,
+      )
+      .filter(([, note]) => Boolean(note)),
+  );
+  const projectNotesByKey = new Map<string, string>();
+
+  for (const project of projects) {
+    const note = getDispatchProjectNoteText(project);
+    if (!note) continue;
+
+    for (const key of getProjectMaterialKeys({
+      projectId: project.id,
+      projectName: project.name,
+      projectNumber: project.projectNumber,
+    })) {
+      projectNotesByKey.set(key, note);
+    }
+  }
 
   const assignmentsWithRows = planningRows.flatMap((row) =>
     row.assignments.map((assignment) => ({
@@ -3179,6 +3356,7 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
   };
 
   const previousHref = buildCrewDispatchHref({
@@ -3218,6 +3396,7 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3237,6 +3416,7 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3256,6 +3436,7 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3275,6 +3456,7 @@ export default async function CrewDispatchPage({
     showTrucks: !showTrucks,
     showSpecialVehicles,
     showMaterial,
+    showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3294,6 +3476,7 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles: !showSpecialVehicles,
     showMaterial,
+    showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3313,6 +3496,27 @@ export default async function CrewDispatchPage({
     showTrucks,
     showSpecialVehicles,
     showMaterial: !showMaterial,
+    showNotes,
+    highlightCrewId: highlightedCrewId,
+  });
+
+  const notesToggleHref = buildCrewDispatchHref({
+    fromDate,
+    toDate,
+    focusDate,
+    view,
+    range,
+    customCount,
+    customUnit,
+    showWeekend,
+    bufferBack,
+    bufferForward,
+    showAsphaltDispatchCrews,
+    showEquipment,
+    showTrucks,
+    showSpecialVehicles,
+    showMaterial,
+    showNotes: !showNotes,
     highlightCrewId: highlightedCrewId,
   });
 
@@ -3457,6 +3661,7 @@ export default async function CrewDispatchPage({
                       showTrucks,
                       showSpecialVehicles,
                       showMaterial,
+                      showNotes,
                       focusDate,
                       highlightCrewId: highlightedCrewId,
                     })}
@@ -3550,6 +3755,19 @@ export default async function CrewDispatchPage({
                   <span className="mr-1">{showMaterial ? "☑" : "☐"}</span>
                   Material
                 </Link>
+
+                <Link
+                  href={notesToggleHref}
+                  scroll={false}
+                  className={
+                    showNotes
+                      ? "ml-1 rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+                      : "ml-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                  }
+                >
+                  <span className="mr-1">{showNotes ? "☑" : "☐"}</span>
+                  Notizen
+                </Link>
               </div>
 
               <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
@@ -3593,6 +3811,7 @@ export default async function CrewDispatchPage({
                         showTrucks,
                         showSpecialVehicles,
                         showMaterial,
+                        showNotes,
                         focusDate: presetStart,
                         highlightCrewId: highlightedCrewId,
                       })}
@@ -3643,6 +3862,10 @@ export default async function CrewDispatchPage({
 
               {showMaterial ? (
                 <input type="hidden" name="showMaterial" value="1" />
+              ) : null}
+
+              {showNotes ? (
+                <input type="hidden" name="showNotes" value="1" />
               ) : null}
 
               {highlightedCrewId ? (
@@ -3799,6 +4022,7 @@ export default async function CrewDispatchPage({
                   showTrucks,
                   showSpecialVehicles,
                   showMaterial,
+                  showNotes,
                   focusDate: crewFocusDate,
                   highlightCrewId: crew.id,
                 });
@@ -4083,6 +4307,23 @@ export default async function CrewDispatchPage({
                             groups: materialDayGroups,
                             timelineUnits,
                           });
+                          const noteStrip = showNotes
+                            ? getNoteTimelineStripForProject({
+                                gridColumn: getTimelineGridColumnForDateRange({
+                                  endDate: assignment.endDate,
+                                  startDate: assignment.startDate,
+                                  timelineUnits,
+                                }),
+                                projectNotesById,
+                                projectNotesByKey,
+                                reference: {
+                                  projectId: row.projectId,
+                                  projectNumber: row.projectNumber,
+                                  projectName: row.projectName,
+                                },
+                                rowNotes: row.notes,
+                              })
+                            : null;
 
                           const truckDayGroups = showTrucks
                             ? getTruckDayGroupsForProject(projectTruckMap, {
@@ -4228,6 +4469,7 @@ export default async function CrewDispatchPage({
                                           showEquipment,
                                           showTrucks,
                                           showSpecialVehicles,
+                                          showMaterial,
                                           layer: "equipment",
                                         }),
                                       })}
@@ -4251,6 +4493,7 @@ export default async function CrewDispatchPage({
                                           showEquipment,
                                           showTrucks,
                                           showSpecialVehicles,
+                                          showMaterial,
                                           layer: "truck",
                                         }),
                                       })}
@@ -4274,6 +4517,7 @@ export default async function CrewDispatchPage({
                                           showEquipment,
                                           showTrucks,
                                           showSpecialVehicles,
+                                          showMaterial,
                                           layer: "special",
                                         }),
                                       })}
@@ -4297,6 +4541,7 @@ export default async function CrewDispatchPage({
                                           showEquipment,
                                           showTrucks,
                                           showSpecialVehicles,
+                                          showMaterial,
                                           layer: "material",
                                         }),
                                       })}
@@ -4308,6 +4553,28 @@ export default async function CrewDispatchPage({
                                     />
                                   ))
                                 : null}
+
+                              {noteStrip ? (
+                                <TimelineSupplementStrip
+                                  key={`${assignment.id}-${noteStrip.id}`}
+                                  gridColumn={noteStrip.gridColumn}
+                                  topOffsetPx={getSupplementTopOffsetPx({
+                                    baseTopOffsetPx,
+                                    layerIndex: getLayerIndex({
+                                      showEquipment,
+                                      showTrucks,
+                                      showSpecialVehicles,
+                                      showMaterial,
+                                      layer: "notes",
+                                    }),
+                                  })}
+                                  tone="notes"
+                                  label="Notiz"
+                                  text={noteStrip.text}
+                                  extraCount={noteStrip.extraCount}
+                                  tooltipText={noteStrip.tooltipText}
+                                />
+                              ) : null}
                             </Fragment>
                           );
                         },
@@ -4378,6 +4645,22 @@ export default async function CrewDispatchPage({
                           groups: specialVehicleDayGroups,
                           timelineUnits,
                         });
+                        const noteStrip = showNotes
+                          ? getNoteTimelineStripForProject({
+                              gridColumn: getTimelineGridColumnForDateRange({
+                                endDate: bar.endDate,
+                                startDate: bar.startDate,
+                                timelineUnits,
+                              }),
+                              projectNotesById,
+                              projectNotesByKey,
+                              reference: {
+                                projectId: bar.projectId,
+                                projectNumber: bar.projectNumber,
+                                projectName: bar.projectName,
+                              },
+                            })
+                          : null;
 
                         return (
                           <Fragment key={bar.id}>
@@ -4486,6 +4769,7 @@ export default async function CrewDispatchPage({
                                         showEquipment,
                                         showTrucks,
                                         showSpecialVehicles,
+                                        showMaterial,
                                         layer: "equipment",
                                       }),
                                     })}
@@ -4509,6 +4793,7 @@ export default async function CrewDispatchPage({
                                         showEquipment,
                                         showTrucks,
                                         showSpecialVehicles,
+                                        showMaterial,
                                         layer: "truck",
                                       }),
                                     })}
@@ -4532,6 +4817,7 @@ export default async function CrewDispatchPage({
                                         showEquipment,
                                         showTrucks,
                                         showSpecialVehicles,
+                                        showMaterial,
                                         layer: "special",
                                       }),
                                     })}
@@ -4555,6 +4841,7 @@ export default async function CrewDispatchPage({
                                         showEquipment,
                                         showTrucks,
                                         showSpecialVehicles,
+                                        showMaterial,
                                         layer: "material",
                                       }),
                                     })}
@@ -4566,6 +4853,28 @@ export default async function CrewDispatchPage({
                                   />
                                 ))
                               : null}
+
+                            {noteStrip ? (
+                              <TimelineSupplementStrip
+                                key={`${bar.id}-${noteStrip.id}`}
+                                gridColumn={noteStrip.gridColumn}
+                                topOffsetPx={getSupplementTopOffsetPx({
+                                  baseTopOffsetPx,
+                                  layerIndex: getLayerIndex({
+                                    showEquipment,
+                                    showTrucks,
+                                    showSpecialVehicles,
+                                    showMaterial,
+                                    layer: "notes",
+                                  }),
+                                })}
+                                tone="notes"
+                                label="Notiz"
+                                text={noteStrip.text}
+                                extraCount={noteStrip.extraCount}
+                                tooltipText={noteStrip.tooltipText}
+                              />
+                            ) : null}
                           </Fragment>
                         );
                       })}
@@ -4588,7 +4897,7 @@ function TimelineInlineSupplementStrip({
   extraCount,
   tooltipText,
 }: {
-  tone: "equipment" | "truck" | "special" | "material";
+  tone: "equipment" | "truck" | "special" | "material" | "notes";
   label: string;
   text: string;
   extraCount: number;
@@ -4602,7 +4911,9 @@ function TimelineInlineSupplementStrip({
         ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-sky-200 bg-sky-50 px-2 text-[10px] font-semibold leading-none text-sky-950 shadow-sm"
         : tone === "special"
           ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-violet-200 bg-violet-50 px-2 text-[10px] font-semibold leading-none text-violet-950 shadow-sm"
-          : "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold leading-none text-emerald-950 shadow-sm";
+          : tone === "material"
+            ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold leading-none text-emerald-950 shadow-sm"
+            : "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-amber-200 bg-amber-50 px-2 text-[10px] font-semibold leading-none text-amber-950 shadow-sm";
 
   return (
     <CrewTimelineMouseTooltip
@@ -4638,7 +4949,7 @@ function TimelineSupplementStrip({
 }: {
   gridColumn: string;
   topOffsetPx: number;
-  tone: "equipment" | "truck" | "special" | "material";
+  tone: "equipment" | "truck" | "special" | "material" | "notes";
   label: string;
   text: string;
   extraCount: number;
@@ -4652,7 +4963,9 @@ function TimelineSupplementStrip({
         ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-sky-200 bg-sky-50 px-2 text-[10px] font-semibold leading-none text-sky-950 shadow-sm"
         : tone === "special"
           ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-violet-200 bg-violet-50 px-2 text-[10px] font-semibold leading-none text-violet-950 shadow-sm"
-          : "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold leading-none text-emerald-950 shadow-sm";
+          : tone === "material"
+            ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-semibold leading-none text-emerald-950 shadow-sm"
+            : "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-amber-200 bg-amber-50 px-2 text-[10px] font-semibold leading-none text-amber-950 shadow-sm";
 
   return (
     <CrewTimelineMouseTooltip

@@ -80,12 +80,38 @@ model Project {
   weatherLogs                       ProjectWeatherLog[]
   dailyReports                      ProjectDailyReport[]
   photos                            ProjectPhoto[]
+  projectNotes                      ProjectNote[]
   documentFolders                   ProjectDocumentFolder[]
   documents                         ProjectDocument[]
   formSubmissions                   ProjectFormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProjectNote {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  noteDate DateTime @default(now())
+  category String   @default("GENERAL")
+  title    String?
+  content  String
+
+  visibility           String  @default("INTERNAL")
+  includeInDailyReport Boolean @default(true)
+  createdByName        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([noteDate])
+  @@index([category])
+  @@index([includeInDailyReport])
+  @@index([visibility])
 }
 
 model ProjectWeatherLog {
@@ -113,6 +139,7 @@ model ProjectWeatherLog {
   currentPrecipitationMm Float?
   currentWindSpeedKmh    Float?
   observedAt             DateTime?
+  hourlyJson             String?
 
   fetchedAt DateTime @default(now())
   notes     String?
@@ -151,8 +178,10 @@ model ProjectDailyReport {
   trafficSafetyFirstCheckTime  String?
   trafficSafetySecondCheckTime String?
   laborJson                    String?
+  subcontractorJson            String?
   machinesJson                 String?
   materialJson                 String?
+  otherJson                    String?
   performanceJson              String?
   siteDiscussionNotes          String?
   siteDiscussionRolesJson      String?

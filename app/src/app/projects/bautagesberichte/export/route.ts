@@ -54,6 +54,7 @@ const laborSlots = [
   { label: "LKW-Fahrer", y: 513 },
   { label: "Baugeräteführer", y: 498 },
 ] as const;
+const subcontractorSlots = [573, 558, 543, 528, 513] as const;
 
 const groupedMachineSlots = [
   { label: "Mobilbagger", y: 437 },
@@ -66,6 +67,7 @@ const groupedMachineSlots = [
   { label: "Planierraupe / Grader", sourceLabels: ["Planierraupe", "Grader"], y: 332 },
   { label: "Erdbauwalze / Walzenzug", y: 317 },
   { label: "Radlader", y: 302 },
+  { label: "Kompressor", y: 287 },
 ] as const;
 
 const realMachineSlots = [
@@ -161,8 +163,10 @@ export async function generateDailyReportPdf({
 
   drawHeader(page, fonts, context);
   drawLaborRows(page, fonts.regular, context.laborRows);
+  drawSubcontractorRows(page, fonts.regular, context.subcontractorRows);
   drawMachineRows(page, fonts.regular, context.machineRows, context.showRealMachineNames);
   drawMaterialRows(page, fonts.regular, context.materialRows);
+  drawOtherRows(page, fonts.regular, context.otherRows);
   drawPerformanceHeading(page, fonts.bold);
   const performanceLines = buildPerformanceLines(
     fonts.regular,
@@ -275,6 +279,41 @@ function drawLaborRows(
   }
 }
 
+function drawSubcontractorRows(
+  page: PDFPage,
+  font: PDFFont,
+  rows: DailyReportCountRow[],
+) {
+  const visibleRows = rows.filter((row) => row.count > 0 || row.hours > 0);
+
+  subcontractorSlots.forEach((y, index) => {
+    const row = visibleRows[index];
+    if (!row) return;
+
+    drawAlignedLine(
+      page,
+      font,
+      formatPositiveNumber(row.count),
+      308,
+      y,
+      36,
+      reportTextSize,
+      "right",
+    );
+    drawSingleLine(page, font, row.label, 356, y, 136, reportTextSize);
+    drawAlignedLine(
+      page,
+      font,
+      formatPositiveNumber(row.hours),
+      506,
+      y,
+      42,
+      reportTextSize,
+      "right",
+    );
+  });
+}
+
 function drawMachineRows(
   page: PDFPage,
   font: PDFFont,
@@ -286,29 +325,12 @@ function drawMachineRows(
     return;
   }
 
-  const usedLabels = new Set<string>();
-  const rowByLabel = new Map(rows.map((row) => [row.label, row]));
-
   for (const slot of groupedMachineSlots) {
     const sourceLabels = "sourceLabels" in slot ? slot.sourceLabels : [slot.label];
     const row = combineRows(rows, slot.label, sourceLabels);
 
-    sourceLabels.forEach((label) => usedLabels.add(label));
     drawCountAndHours(page, font, row, slot.y, 48, 244);
   }
-
-  const kompressor = rowByLabel.get("Kompressor");
-  usedLabels.add("Kompressor");
-  drawSonstigesRow(page, font, kompressor, "Kompressor", sonstigesSlots[0]);
-
-  const overflowRows = rows
-    .filter((row) => !usedLabels.has(row.label))
-    .filter((row) => row.count > 0 || row.hours > 0)
-    .slice(0, sonstigesSlots.length - 1);
-
-  overflowRows.forEach((row, index) => {
-    drawSonstigesRow(page, font, row, row.label, sonstigesSlots[index + 1]);
-  });
 }
 
 function drawRealMachineRows(
@@ -1023,38 +1045,37 @@ function drawCountAndHours(
   );
 }
 
-function drawSonstigesRow(
+function drawOtherRows(
   page: PDFPage,
   font: PDFFont,
-  row: DailyReportCountRow | null | undefined,
-  label: string,
+  rows: DailyReportMaterialRow[],
+) {
+  rows
+    .filter((row) => row.quantity > 0 || row.label || row.unit)
+    .slice(0, sonstigesSlots.length)
+    .forEach((row, index) => {
+      drawOtherRow(page, font, row, sonstigesSlots[index]);
+    });
+}
+
+function drawOtherRow(
+  page: PDFPage,
+  font: PDFFont,
+  row: DailyReportMaterialRow,
   y: number,
 ) {
-  if (!row || (row.count <= 0 && row.hours <= 0)) return;
-
   drawAlignedLine(
     page,
     font,
-    formatPositiveNumber(row.count),
+    formatPositiveNumber(row.quantity),
     308,
     y,
     36,
     reportTextSize,
     "right",
   );
-  if (label !== "Kompressor") {
-    drawSingleLine(page, font, label, 356, y, 136, reportTextSize);
-  }
-  drawAlignedLine(
-    page,
-    font,
-    row.hours > 0 ? `${formatPositiveNumber(row.hours)} Std.` : "",
-    506,
-    y,
-    42,
-    reportTextSize,
-    "right",
-  );
+  drawSingleLine(page, font, row.label, 356, y, 136, reportTextSize);
+  drawSingleLine(page, font, row.unit, 510, y, 36, reportTextSize);
 }
 
 function combineRows(

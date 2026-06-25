@@ -68,6 +68,7 @@ export type ProjectDailyReportSaveInput = {
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
+  otherRows: DailyReportMaterialRow[];
   performanceLines: string[];
   photoIds: string[];
   photoGridLayout: DailyReportPhotoGridLayout;
@@ -79,6 +80,7 @@ export type ProjectDailyReportSaveInput = {
   siteDiscussionNotes: string;
   siteDiscussionRoles: string[];
   siteDiscussionThirdPartyName: string;
+  subcontractorRows: DailyReportCountRow[];
   contractorSignatureDataUrl: string;
   clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
@@ -102,6 +104,23 @@ export type ProjectPhotoUpdateInput = {
   availableForDailyReports: boolean;
   id: string;
   notes: string;
+};
+
+export type ProjectNoteInput = {
+  category: string;
+  content: string;
+  createdByName: string;
+  id?: string;
+  includeInDailyReport: boolean;
+  noteDate: string;
+  projectId: string;
+  title: string;
+  visibility: string;
+};
+
+export type ProjectNoteDeleteInput = {
+  id: string;
+  projectId: string;
 };
 
 export type ProjectPhotosMoveInput = {
@@ -208,6 +227,12 @@ type OpenMeteoForecast = {
     weather_code?: Array<number | null>;
     wind_speed_10m_max?: Array<number | null>;
   };
+  hourly?: {
+    precipitation?: Array<number | null>;
+    temperature_2m?: Array<number | null>;
+    time?: string[];
+    weather_code?: Array<number | null>;
+  };
 };
 
 const geocoderUserAgent =
@@ -254,9 +279,74 @@ function cleanBoundaryGeoJson(value: string) {
   return trimmed;
 }
 
+function cleanProjectNoteInput(input: ProjectNoteInput) {
+  const projectId = cleanProjectFormText(input.projectId, 80);
+  const content = cleanProjectFormText(input.content, 4000);
+
+  if (!projectId) {
+    throw new Error("Projekt fehlt.");
+  }
+
+  if (!content) {
+    throw new Error("Notiztext ist Pflicht.");
+  }
+
+  return {
+    category: cleanProjectNoteCategory(input.category),
+    content,
+    createdByName:
+      cleanProjectFormText(input.createdByName, 120) || null,
+    includeInDailyReport: Boolean(input.includeInDailyReport),
+    noteDate: cleanProjectNoteDate(input.noteDate),
+    projectId,
+    title: cleanProjectFormText(input.title, 180) || null,
+    visibility: cleanProjectNoteVisibility(input.visibility),
+  };
+}
+
+function cleanProjectNoteDate(value: string) {
+  const cleaned = value.trim();
+
+  if (!cleaned) {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  const date = new Date(`${cleaned}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Notizdatum ist ungültig.");
+  }
+
+  return date;
+}
+
+function cleanProjectNoteCategory(value: string) {
+  const allowed = new Set([
+    "GENERAL",
+    "OBSTRUCTION",
+    "INCIDENT",
+    "CLIENT",
+    "INTERNAL",
+  ]);
+  const cleaned = cleanProjectFormText(value, 40).toUpperCase();
+
+  return allowed.has(cleaned) ? cleaned : "GENERAL";
+}
+
+function cleanProjectNoteVisibility(value: string) {
+  const allowed = new Set(["INTERNAL", "DISPATCH", "BTB"]);
+  const cleaned = cleanProjectFormText(value, 40).toUpperCase();
+
+  return allowed.has(cleaned) ? cleaned : "INTERNAL";
+}
+
 function revalidateProjectViews(projectId?: string) {
   revalidatePath("/projects");
   revalidatePath("/projects/performance");
+  revalidatePath("/projects/notizen");
+  revalidatePath("/crew-dispatch");
+  revalidatePath("/projects/bautagesberichte");
   if (projectId) {
     revalidatePath(`/projects/${projectId}`);
   }
@@ -364,6 +454,55 @@ export async function updateProjectMap(input: ProjectMapInput) {
   revalidateProjectViews(input.id);
 }
 
+export async function createProjectNote(input: ProjectNoteInput) {
+  const data = cleanProjectNoteInput(input);
+
+  await prisma.projectNote.create({
+    data,
+  });
+
+  revalidateProjectViews(data.projectId);
+}
+
+export async function updateProjectNote(input: ProjectNoteInput) {
+  if (!input.id) {
+    throw new Error("Notiz fehlt.");
+  }
+
+  const data = cleanProjectNoteInput(input);
+
+  await prisma.projectNote.update({
+    where: {
+      id: input.id,
+    },
+    data: {
+      category: data.category,
+      content: data.content,
+      createdByName: data.createdByName,
+      includeInDailyReport: data.includeInDailyReport,
+      noteDate: data.noteDate,
+      title: data.title,
+      visibility: data.visibility,
+    },
+  });
+
+  revalidateProjectViews(data.projectId);
+}
+
+export async function deleteProjectNote(input: ProjectNoteDeleteInput) {
+  if (!input.id) {
+    throw new Error("Notiz fehlt.");
+  }
+
+  await prisma.projectNote.delete({
+    where: {
+      id: input.id,
+    },
+  });
+
+  revalidateProjectViews(input.projectId);
+}
+
 export async function refreshProjectWeather(projectId: string) {
   const project = await prisma.project.findUnique({
     where: {
@@ -401,6 +540,10 @@ export async function refreshProjectWeather(projectId: string) {
       "precipitation_probability_max",
       "wind_speed_10m_max",
     ].join(","),
+  );
+  url.searchParams.set(
+    "hourly",
+    "temperature_2m,precipitation,weather_code",
   );
   url.searchParams.set("forecast_days", "16");
   url.searchParams.set("timezone", "Europe/Berlin");
@@ -440,6 +583,7 @@ export async function refreshProjectWeather(projectId: string) {
     );
     const weatherLabel = getWeatherCodeLabel(weatherCode);
     const weatherCategory = weatherLabel;
+    const hourlyJson = buildHourlyWeatherJsonForDate(forecast, date);
     const currentData =
       index === 0
         ? {
@@ -485,6 +629,7 @@ export async function refreshProjectWeather(projectId: string) {
         weatherLabel,
         weatherCategory,
         weatherCategorySource: "AUTO",
+        hourlyJson,
         fetchedAt: now,
         ...currentData,
       },
@@ -498,6 +643,7 @@ export async function refreshProjectWeather(projectId: string) {
         weatherLabel,
         weatherCategory,
         weatherCategorySource: "AUTO",
+        hourlyJson,
         fetchedAt: now,
         ...currentData,
       },
@@ -524,11 +670,12 @@ export async function ensureProjectWeatherForDate(
       },
     },
     select: {
+      hourlyJson: true,
       id: true,
     },
   });
 
-  if (existingWeather) {
+  if (existingWeather?.hourlyJson) {
     return true;
   }
 
@@ -578,6 +725,10 @@ export async function ensureProjectWeatherForDate(
       ...(isForecastRange ? ["precipitation_probability_max"] : []),
     ].join(","),
   );
+  url.searchParams.set(
+    "hourly",
+    "temperature_2m,precipitation,weather_code",
+  );
   url.searchParams.set("timezone", "Europe/Berlin");
 
   if (isForecastRange) {
@@ -618,10 +769,18 @@ export async function ensureProjectWeatherForDate(
       weather.daily?.temperature_2m_max?.[index],
     );
     const weatherLabel = getWeatherCodeLabel(weatherCode);
+    const hourlyJson = buildHourlyWeatherJsonForDate(weather, dateKey);
 
-    await prisma.projectWeatherLog.create({
-      data: {
+    await prisma.projectWeatherLog.upsert({
+      where: {
+        projectId_weatherDate: {
+          projectId,
+          weatherDate,
+        },
+      },
+      create: {
         fetchedAt: new Date(),
+        hourlyJson,
         precipitationMm:
           toNullableNumber(weather.daily?.precipitation_sum?.[index]) ?? 0,
         precipitationProbabilityMax: toNullableInteger(
@@ -635,6 +794,25 @@ export async function ensureProjectWeatherForDate(
         weatherCategorySource: "AUTO",
         weatherCode,
         weatherDate,
+        weatherLabel,
+        windSpeedMaxKmh: toNullableNumber(
+          weather.daily?.wind_speed_10m_max?.[index],
+        ),
+      },
+      update: {
+        fetchedAt: new Date(),
+        hourlyJson,
+        precipitationMm:
+          toNullableNumber(weather.daily?.precipitation_sum?.[index]) ?? 0,
+        precipitationProbabilityMax: toNullableInteger(
+          weather.daily?.precipitation_probability_max?.[index],
+        ),
+        source: isForecastRange ? "OPEN_METEO" : "OPEN_METEO_ARCHIVE",
+        tempMaxC,
+        tempMinC,
+        weatherCategory: weatherLabel,
+        weatherCategorySource: "AUTO",
+        weatherCode,
         weatherLabel,
         windSpeedMaxKmh: toNullableNumber(
           weather.daily?.wind_speed_10m_max?.[index],
@@ -734,6 +912,10 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
   const materialJson = JSON.stringify(
     cleanDailyReportMaterialRows(input.materialRows),
   );
+  const otherJson = JSON.stringify(cleanDailyReportMaterialRows(input.otherRows));
+  const subcontractorJson = JSON.stringify(
+    cleanDailyReportCountRows(input.subcontractorRows),
+  );
   const performanceJson = JSON.stringify(
     cleanDailyReportLines(input.performanceLines, dailyReportPerformanceLineLimit),
   );
@@ -744,6 +926,7 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     laborJson,
     machinesJson,
     materialJson,
+    otherJson,
     performanceJson,
     photoGridLayout: cleanDailyReportPhotoGridLayout(input.photoGridLayout),
     reportProjectName: cleanProjectFormText(input.projectName, 180) || null,
@@ -756,6 +939,7 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     ),
     siteDiscussionThirdPartyName:
       cleanProjectFormText(input.siteDiscussionThirdPartyName, 180) || null,
+    subcontractorJson,
     contractorSignatureDataUrl: cleanDailyReportSignatureDataUrl(
       input.contractorSignatureDataUrl,
     ),
@@ -2341,6 +2525,36 @@ type RawPhotoMetadataInput = {
 
 function cleanFormString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function buildHourlyWeatherJsonForDate(
+  weather: OpenMeteoForecast,
+  dateKey: string,
+) {
+  const times = weather.hourly?.time ?? [];
+  const result = {
+    precipitation: [] as Array<number | null>,
+    temperature_2m: [] as Array<number | null>,
+    time: [] as string[],
+    weather_code: [] as Array<number | null>,
+  };
+
+  times.forEach((time, index) => {
+    if (!time.startsWith(dateKey)) return;
+
+    result.time.push(time);
+    result.temperature_2m.push(
+      toNullableNumber(weather.hourly?.temperature_2m?.[index]),
+    );
+    result.precipitation.push(
+      toNullableNumber(weather.hourly?.precipitation?.[index]),
+    );
+    result.weather_code.push(
+      toNullableInteger(weather.hourly?.weather_code?.[index]),
+    );
+  });
+
+  return result.time.length > 0 ? JSON.stringify(result) : null;
 }
 
 function cleanUploadText(value: string) {

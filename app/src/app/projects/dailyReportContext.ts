@@ -36,9 +36,11 @@ export type DailyReportContext = {
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
+  otherRows: DailyReportMaterialRow[];
   photos: DailyReportPhoto[];
   photoGridLayout: DailyReportPhotoGridLayout;
   performanceLines: string[];
+  projectNoteLines: string[];
   projectName: string;
   projectNumber: string;
   reportNumber: number | null;
@@ -46,6 +48,7 @@ export type DailyReportContext = {
   siteDiscussionNotes: string;
   siteDiscussionRoles: string[];
   siteDiscussionThirdPartyName: string;
+  subcontractorRows: DailyReportCountRow[];
   contractorSignatureDataUrl: string;
   clientSignatureDataUrl: string;
   showRealMachineNames: boolean;
@@ -67,13 +70,16 @@ export type DailyReportSuggestionValues = {
   groupedMachineRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
+  otherRows: DailyReportMaterialRow[];
   realMachineRows: DailyReportCountRow[];
+  subcontractorRows: DailyReportCountRow[];
   performanceLines: string[];
   projectName: string;
   projectNumber: string;
   tempMax: string;
   tempMin: string;
   weatherLabel: string;
+  weatherNotes: string;
   weekday: string;
   workEnd: string;
   workStart: string;
@@ -111,8 +117,8 @@ const leftMachineLabels = [
 
 const rightMachineLabels = [
   "Erdbauwalze / Walzenzug",
-  "Kompressor",
   "Radlader",
+  "Kompressor",
 ] as const;
 
 const reportStatuses = new Set(["DRAFT", "APPROVED"]);
@@ -331,6 +337,16 @@ export async function getDailyReportSourceProject(
         },
         orderBy: [{ capturedAt: "desc" }, { uploadedAt: "desc" }],
       },
+      projectNotes: {
+        where: {
+          includeInDailyReport: true,
+          noteDate: reportDate,
+          visibility: {
+            in: ["DISPATCH", "BTB"],
+          },
+        },
+        orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+      },
     },
   });
 }
@@ -349,6 +365,7 @@ export function buildDailyReportContext(
   const materialRows = new Map<string, DailyReportMaterialRow>();
   const machines = new Map<string, MachineBucket>();
   const realMachines = new Map<string, MachineBucket>();
+  const subcontractors = new Map<string, CountHours>();
   const workTimes: { end: string; start: string }[] = [];
   const performanceLines: string[] = [];
   const asphaltDispatchMaterialKeys = new Set<string>();
@@ -545,17 +562,24 @@ export function buildDailyReportContext(
     }
 
     for (const truck of entry.truckAssignments) {
+      const truckHours = durationHours(
+        truck.plannedStartTime,
+        truck.plannedEndTime,
+      );
       workTimes.push({
         end: truck.plannedEndTime,
         start: truck.plannedStartTime,
       });
-      if (truck.vehicle) {
-        addMachine(
-          machines,
-          realMachines,
-          truck.vehicle,
-          durationHours(truck.plannedStartTime, truck.plannedEndTime),
+      if (truck.ownerType !== "OWN" || truck.subcontractorName?.trim()) {
+        addCountHours(
+          subcontractors,
+          truck.subcontractorName?.trim() || "Nachunternehmer",
+          1,
+          truckHours,
         );
+      }
+      if (truck.vehicle) {
+        addMachine(machines, realMachines, truck.vehicle, truckHours);
       } else {
         addFallbackMachine(
           machines,
@@ -565,7 +589,7 @@ export function buildDailyReportContext(
             number: truck.vehicleNumber,
             type: truck.vehicleType,
           }),
-          durationHours(truck.plannedStartTime, truck.plannedEndTime),
+          truckHours,
         );
       }
     }
@@ -576,13 +600,21 @@ export function buildDailyReportContext(
       end: allocation.endTime,
       start: allocation.startTime,
     });
-    if (allocation.vehicle) {
-      addMachine(
-        machines,
-        realMachines,
-        allocation.vehicle,
-        durationHours(allocation.startTime, allocation.endTime),
+    const allocationHours = durationHours(allocation.startTime, allocation.endTime);
+    if (allocation.ownerType !== "OWN") {
+      addCountHours(
+        subcontractors,
+        vehicleLabel({
+          category: allocation.vehicleCategory,
+          number: allocation.vehicleNumber,
+          type: allocation.vehicleType,
+        }) || "Nachunternehmer",
+        1,
+        allocationHours,
       );
+    }
+    if (allocation.vehicle) {
+      addMachine(machines, realMachines, allocation.vehicle, allocationHours);
     } else {
       addFallbackMachine(
         machines,
@@ -592,7 +624,7 @@ export function buildDailyReportContext(
           number: allocation.vehicleNumber,
           type: allocation.vehicleType,
         }),
-        durationHours(allocation.startTime, allocation.endTime),
+        allocationHours,
       );
     }
     if (project.asphaltDispatchEntries.length === 0) {
@@ -610,13 +642,21 @@ export function buildDailyReportContext(
       end: allocation.endTime,
       start: allocation.startTime,
     });
-    if (allocation.vehicle) {
-      addMachine(
-        machines,
-        realMachines,
-        allocation.vehicle,
-        durationHours(allocation.startTime, allocation.endTime),
+    const allocationHours = durationHours(allocation.startTime, allocation.endTime);
+    if (allocation.ownerType !== "OWN") {
+      addCountHours(
+        subcontractors,
+        vehicleLabel({
+          category: allocation.vehicleCategory,
+          number: allocation.vehicleNumber,
+          type: allocation.vehicleType,
+        }) || "Nachunternehmer",
+        1,
+        allocationHours,
       );
+    }
+    if (allocation.vehicle) {
+      addMachine(machines, realMachines, allocation.vehicle, allocationHours);
     } else {
       addFallbackMachine(
         machines,
@@ -626,7 +666,7 @@ export function buildDailyReportContext(
           number: allocation.vehicleNumber,
           type: allocation.vehicleType,
         }),
-        durationHours(allocation.startTime, allocation.endTime),
+        allocationHours,
       );
     }
     if (!allocation.asphaltDispatchEntryId) {
@@ -656,22 +696,51 @@ export function buildDailyReportContext(
     );
   }
 
+  const projectNoteLines = project.projectNotes
+    .map((note) =>
+      compactLine([
+        "Notiz:",
+        getProjectNoteCategoryLabel(note.category),
+        note.title,
+        note.content,
+      ]),
+    )
+    .filter(Boolean);
+
   const dailyReport = project.dailyReports[0] ?? null;
   const weatherLog = project.weatherLogs[0] ?? null;
-  const suggestedWeatherLabel =
-    weatherLog?.weatherCategory || weatherLog?.weatherLabel || "";
-  const suggestedTempMin =
-    weatherLog?.tempMinC ?? weatherLog?.currentTemperatureC ?? null;
-  const suggestedTempMax =
-    weatherLog?.tempMaxC ?? weatherLog?.currentTemperatureC ?? null;
   const suggestedWorkStart =
     defaultWorkTime.startTime ||
     earliestTime(workTimes.map((time) => time.start));
   const suggestedWorkEnd =
     defaultWorkTime.endTime || latestTime(workTimes.map((time) => time.end));
+  const workTimeWeather = getWeatherForWorkTime(
+    weatherLog,
+    dateKey,
+    suggestedWorkStart,
+    suggestedWorkEnd,
+  );
+  const suggestedWeatherLabel =
+    workTimeWeather.label ||
+    weatherLog?.weatherCategory ||
+    weatherLog?.weatherLabel ||
+    "";
+  const suggestedTempMin =
+    workTimeWeather.tempMin ??
+    weatherLog?.tempMinC ??
+    weatherLog?.currentTemperatureC ??
+    null;
+  const suggestedTempMax =
+    workTimeWeather.tempMax ??
+    weatherLog?.tempMaxC ??
+    weatherLog?.currentTemperatureC ??
+    null;
+  const suggestedWeatherNotes = workTimeWeather.notes || weatherLog?.notes || "";
   const suggestedLaborRows = buildLaborRows(labor);
+  const suggestedSubcontractorRows = buildSubcontractorRows(subcontractors);
   const suggestedGroupedMachineRows = buildMachineRows(machines);
   const suggestedMaterialRows = buildMaterialRows(materialRows);
+  const suggestedOtherRows = buildOtherRows(machines);
   const suggestedRealMachineRows = buildRealMachineRows(realMachines);
   const suggestedPerformanceLines = compactUnique(performanceLines).slice(
     0,
@@ -707,11 +776,16 @@ export function buildDailyReportContext(
     dateLabel: formatDateLabel(dateKey),
     id: dailyReport?.id ?? null,
     laborRows: parseCountRows(dailyReport?.laborJson, suggestedLaborRows),
-    machineRows: parseCountRows(dailyReport?.machinesJson, suggestedMachineRows),
+    machineRows: parseMachineRows(
+      dailyReport?.machinesJson,
+      suggestedMachineRows,
+      showRealMachineNames,
+    ),
     materialRows: parseMaterialRows(
       dailyReport?.materialJson,
       suggestedMaterialRows,
     ),
+    otherRows: parseMaterialRows(dailyReport?.otherJson, suggestedOtherRows),
     photos: project.photos.map((photo) => ({
       capturedAtLabel: photo.capturedAt
         ? formatDateLabel(photo.capturedAt.toISOString().slice(0, 10))
@@ -729,6 +803,7 @@ export function buildDailyReportContext(
       0,
       dailyReportPerformanceLineLimit,
     ),
+    projectNoteLines,
     projectName: dailyReport?.reportProjectName || project.name,
     projectNumber: dailyReport?.reportProjectNumber || project.projectNumber,
     reportNumber,
@@ -740,6 +815,10 @@ export function buildDailyReportContext(
     ),
     siteDiscussionThirdPartyName:
       dailyReport?.siteDiscussionThirdPartyName ?? "",
+    subcontractorRows: parseCountRows(
+      dailyReport?.subcontractorJson,
+      suggestedSubcontractorRows,
+    ),
     contractorSignatureDataUrl: dailyReport?.contractorSignatureDataUrl ?? "",
     clientSignatureDataUrl: dailyReport?.clientSignatureDataUrl ?? "",
     showRealMachineNames,
@@ -751,13 +830,16 @@ export function buildDailyReportContext(
       laborRows: suggestedLaborRows,
       materialRows: suggestedMaterialRows,
       machineRows: suggestedMachineRows,
+      otherRows: suggestedOtherRows,
       performanceLines: suggestedPerformanceLines,
       projectName: project.name,
       projectNumber: project.projectNumber,
       tempMax: formatTemperature(suggestedTempMax),
       tempMin: formatTemperature(suggestedTempMin),
       realMachineRows: suggestedRealMachineRows,
+      subcontractorRows: suggestedSubcontractorRows,
       weatherLabel: suggestedWeatherLabel,
+      weatherNotes: suggestedWeatherNotes,
       weekday: suggestedWeekday,
       workEnd: suggestedWorkEnd,
       workStart: suggestedWorkStart,
@@ -769,7 +851,7 @@ export function buildDailyReportContext(
     trafficSafetySecondCheckTime:
       dailyReport?.trafficSafetySecondCheckTime ?? "",
     weatherLabel: dailyReport?.weatherCategory || suggestedWeatherLabel,
-    weatherNotes: dailyReport?.weatherNotes ?? "",
+    weatherNotes: dailyReport?.weatherNotes ?? suggestedWeatherNotes,
     weekday: dailyReport?.weekdayLabel || suggestedWeekday,
     workEnd: dailyReport?.workEnd || suggestedWorkEnd,
     workStart: dailyReport?.workStart || suggestedWorkStart,
@@ -787,6 +869,143 @@ function parsePhotoGridLayout(
     : "2x4";
 }
 
+function getWeatherForWorkTime(
+  weatherLog: ReportProject["weatherLogs"][number] | null,
+  dateKey: string,
+  workStart: string,
+  workEnd: string,
+) {
+  const fallback = {
+    label: "",
+    notes: "",
+    tempMax: null as number | null,
+    tempMin: null as number | null,
+  };
+
+  if (!weatherLog?.hourlyJson) return fallback;
+
+  const hourly = parseHourlyWeather(weatherLog.hourlyJson);
+  const startMinutes = parseTime(workStart) ?? 0;
+  const endMinutes = parseTime(workEnd) ?? 24 * 60;
+  const rows = hourly
+    .map((entry) => ({
+      ...entry,
+      minutes: getDateTimeMinutes(entry.time),
+    }))
+    .filter(
+      (entry) =>
+        entry.time.startsWith(dateKey) &&
+        entry.minutes !== null &&
+        entry.minutes >= startMinutes &&
+        entry.minutes <= endMinutes,
+    );
+
+  if (rows.length === 0) return fallback;
+
+  const temperatures = rows
+    .map((entry) => entry.temperature)
+    .filter((value): value is number => value !== null);
+  const codes = rows
+    .map((entry) => entry.weatherCode)
+    .filter((value): value is number => value !== null);
+  const precipitation = rows.reduce(
+    (sum, entry) => sum + (entry.precipitation ?? 0),
+    0,
+  );
+  const label = getMostFrequentWeatherLabel(codes);
+  const tempMin = temperatures.length > 0 ? Math.min(...temperatures) : null;
+  const tempMax = temperatures.length > 0 ? Math.max(...temperatures) : null;
+  const notes = [
+    precipitation > 0 ? `Niederschlag ca. ${formatDecimal(precipitation)} mm.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    label,
+    notes,
+    tempMax,
+    tempMin,
+  };
+}
+
+function parseHourlyWeather(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!parsed || typeof parsed !== "object") return [];
+
+    const raw = parsed as {
+      precipitation?: unknown[];
+      temperature_2m?: unknown[];
+      time?: unknown[];
+      weather_code?: unknown[];
+    };
+    const times = Array.isArray(raw.time) ? raw.time : [];
+
+    return times
+      .map((time, index) => ({
+        precipitation: toNumberOrNull(raw.precipitation?.[index]),
+        temperature: toNumberOrNull(raw.temperature_2m?.[index]),
+        time: typeof time === "string" ? time : "",
+        weatherCode: toNumberOrNull(raw.weather_code?.[index]),
+      }))
+      .filter((entry) => entry.time);
+  } catch {
+    return [];
+  }
+}
+
+function getDateTimeMinutes(value: string) {
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function getMostFrequentWeatherLabel(codes: number[]) {
+  if (codes.length === 0) return "";
+
+  const counts = new Map<number, number>();
+  for (const code of codes) {
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+
+  const [code] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+
+  return getWeatherCodeLabel(code);
+}
+
+function getWeatherCodeLabel(code: number | null) {
+  const labels: Record<number, string> = {
+    0: "Sonnig",
+    1: "Überwiegend sonnig",
+    2: "Teilweise bewölkt",
+    3: "Bewölkt",
+    45: "Nebel",
+    48: "Reifnebel",
+    51: "Leichter Nieselregen",
+    53: "Nieselregen",
+    55: "Starker Nieselregen",
+    61: "Leichter Regen",
+    63: "Regen",
+    65: "Starker Regen",
+    71: "Leichter Schnee",
+    73: "Schnee",
+    75: "Starker Schnee",
+    80: "Leichte Regenschauer",
+    81: "Regenschauer",
+    82: "Starke Regenschauer",
+    95: "Gewitter",
+  };
+
+  return code === null ? "" : labels[code] ?? `Wettercode ${code}`;
+}
+
+function toNumberOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function buildLaborRows(map: Map<string, CountHours>) {
   return laborLabels.map((label) => {
     const value = map.get(label) ?? { count: 0, hours: 0 };
@@ -798,6 +1017,18 @@ function buildLaborRows(map: Map<string, CountHours>) {
       label,
     };
   });
+}
+
+function buildSubcontractorRows(map: Map<string, CountHours>) {
+  return Array.from(map.entries())
+    .map(([label, value]) => ({
+      count: value.count,
+      hours: value.hours,
+      key: getReportRowKey(`nu_${label}`),
+      label,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "de-DE", { numeric: true }))
+    .slice(0, 8);
 }
 
 function buildMachineRows(map: Map<string, MachineBucket>) {
@@ -825,6 +1056,22 @@ function buildMachineRows(map: Map<string, MachineBucket>) {
     }));
 
   return [...rows, ...overflow];
+}
+
+function buildOtherRows(map: Map<string, MachineBucket>) {
+  const known = new Set<string>([...leftMachineLabels, ...rightMachineLabels]);
+
+  return Array.from(map.values())
+    .filter((value) => !known.has(value.label))
+    .filter((value) => value.count > 0 || value.hours > 0)
+    .sort((a, b) => a.label.localeCompare(b.label, "de-DE", { numeric: true }))
+    .slice(0, 5)
+    .map((value) => ({
+      key: getMaterialRowKey(value.label, "Std."),
+      label: value.label,
+      quantity: value.hours > 0 ? value.hours : value.count,
+      unit: value.hours > 0 ? "Std." : "",
+    }));
 }
 
 function buildMaterialRows(map: Map<string, DailyReportMaterialRow>) {
@@ -930,6 +1177,45 @@ function parseCountRows(
   } catch {
     return fallbackRows;
   }
+}
+
+function parseMachineRows(
+  value: string | null | undefined,
+  fallbackRows: DailyReportCountRow[],
+  showRealMachineNames: boolean,
+) {
+  const rows = parseCountRows(value, fallbackRows);
+
+  if (showRealMachineNames || rows === fallbackRows) {
+    return rows;
+  }
+
+  const storedByKey = new Map(rows.map((row) => [row.key, row]));
+  const storedByLabel = new Map(
+    rows.map((row) => [normalize(row.label), row]),
+  );
+  const usedKeys = new Set<string>();
+  const orderedRows = fallbackRows.map((fallbackRow) => {
+    const storedRow =
+      storedByKey.get(fallbackRow.key) ??
+      storedByLabel.get(normalize(fallbackRow.label));
+
+    if (!storedRow) return fallbackRow;
+
+    usedKeys.add(storedRow.key);
+
+    return {
+      ...fallbackRow,
+      count: storedRow.count,
+      hours: storedRow.hours,
+    };
+  });
+  const orderedKeys = new Set(orderedRows.map((row) => row.key));
+  const extraRows = rows.filter(
+    (row) => !usedKeys.has(row.key) && !orderedKeys.has(row.key),
+  );
+
+  return [...orderedRows, ...extraRows].slice(0, 24);
 }
 
 function parseStringList(
@@ -1270,6 +1556,28 @@ function compactUnique(values: string[]) {
   }
 
   return result;
+}
+
+function compactLine(parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getProjectNoteCategoryLabel(value: string) {
+  switch (value) {
+    case "OBSTRUCTION":
+      return "Behinderung";
+    case "INCIDENT":
+      return "Vorkommnis";
+    case "CLIENT":
+      return "Auftraggeber / Bauleiter";
+    case "INTERNAL":
+      return "Intern";
+    default:
+      return "Allgemein";
+  }
 }
 
 function durationHours(start: string, end: string) {
