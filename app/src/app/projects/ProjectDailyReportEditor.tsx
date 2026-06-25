@@ -139,13 +139,9 @@ export function ProjectDailyReportEditor({
 
         return {
           ...current,
-          machineRows: mergeMachineRowsForDisplay(
-            context.suggestions.realMachineRows,
+          machineRows: buildMachineRowsForRealNameDisplay(
             groupedRows,
-            {
-              appendUnmatchedRows: true,
-              includeEmptyUnmatchedRows: true,
-            },
+            context.suggestions.realMachineRows,
           ),
           machineRowsBeforeRealNames: cloneRows(groupedRows),
           showRealMachineNames: true,
@@ -1023,14 +1019,40 @@ function getSuggestionMachineRowsForDisplay(
     return cloneRows(context.suggestions.groupedMachineRows);
   }
 
-  return mergeMachineRowsForDisplay(
-    context.suggestions.realMachineRows,
+  return buildMachineRowsForRealNameDisplay(
     context.suggestions.groupedMachineRows,
-    {
-      appendUnmatchedRows: true,
-      includeEmptyUnmatchedRows: true,
-    },
+    context.suggestions.realMachineRows,
   );
+}
+
+function buildMachineRowsForRealNameDisplay(
+  groupedRows: DailyReportCountRow[],
+  realRows: DailyReportCountRow[],
+) {
+  const usedRealRowKeys = new Set<string>();
+  const rows: DailyReportCountRow[] = [];
+
+  for (const groupedRow of groupedRows) {
+    const matchingRealRows = realRows.filter((realRow) =>
+      isDetailedMachineRowForGroup(groupedRow, realRow),
+    );
+
+    if (matchingRealRows.length > 0) {
+      matchingRealRows.forEach((realRow) => {
+        usedRealRowKeys.add(realRow.key);
+        rows.push({ ...realRow });
+      });
+      continue;
+    }
+
+    rows.push({ ...groupedRow });
+  }
+
+  realRows
+    .filter((realRow) => !usedRealRowKeys.has(realRow.key))
+    .forEach((realRow) => rows.push({ ...realRow }));
+
+  return rows;
 }
 
 function mergeMachineRowsForDisplay(
@@ -1101,10 +1123,18 @@ function isCoveredByDetailedMachineRow(
   return suggestedRows.some((suggestedRow) => {
     if (!hasCountRowValue(suggestedRow)) return false;
 
-    const suggestedLabel = normalizeMachineRowLabel(suggestedRow.label);
-
-    return suggestedLabel.startsWith(`${label} ·`);
+    return isDetailedMachineRowForGroup(row, suggestedRow);
   });
+}
+
+function isDetailedMachineRowForGroup(
+  groupRow: DailyReportCountRow,
+  detailedRow: DailyReportCountRow,
+) {
+  const label = normalizeMachineRowLabel(groupRow.label);
+  const detailedLabel = normalizeMachineRowLabel(detailedRow.label);
+
+  return Boolean(label) && detailedLabel.startsWith(`${label} ·`);
 }
 
 function normalizeMachineRowLabel(value: string) {

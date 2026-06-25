@@ -106,7 +106,7 @@ export default async function ProjectNotesPage({
                       {note.title || "Ohne Titel"}
                     </h3>
                     <p className="mt-1 text-xs font-semibold text-gray-500">
-                      {formatDate(note.noteDate)}
+                      {formatNoteDateRange(note.noteDate, note.noteEndDate)}
                       {note.createdByName ? ` · ${note.createdByName}` : ""}
                     </p>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
@@ -190,6 +190,7 @@ function ProjectNoteForm({
     id: string;
     includeInDailyReport: boolean;
     noteDate: Date;
+    noteEndDate: Date | null;
     projectId: string;
     title: string | null;
     visibility: string;
@@ -221,11 +222,22 @@ function ProjectNoteForm({
         </select>
       </label>
       <label className="text-xs font-semibold text-gray-700">
-        Datum
+        Von
         <input
           className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
           defaultValue={formatDateInput(note?.noteDate ?? new Date())}
           name="noteDate"
+          type="date"
+        />
+      </label>
+      <label className="text-xs font-semibold text-gray-700">
+        Bis optional
+        <input
+          className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          defaultValue={
+            note?.noteEndDate ? formatDateInput(note.noteEndDate) : ""
+          }
+          name="noteEndDate"
           type="date"
         />
       </label>
@@ -314,6 +326,7 @@ function noteInputFromFormData(formData: FormData) {
     id: text(formData.get("id")) || undefined,
     includeInDailyReport: formData.get("includeInDailyReport") === "1",
     noteDate: text(formData.get("noteDate")),
+    noteEndDate: text(formData.get("noteEndDate")),
     projectId: text(formData.get("projectId")),
     title: text(formData.get("title")),
     visibility: text(formData.get("visibility")),
@@ -330,6 +343,12 @@ function formatDate(value: Date) {
     month: "2-digit",
     year: "numeric",
   }).format(value);
+}
+
+function formatNoteDateRange(startDate: Date, endDate: Date | null) {
+  if (!endDate) return formatDate(startDate);
+
+  return `${formatDate(startDate)} – ${formatDate(endDate)}`;
 }
 
 function formatDateInput(value: Date) {

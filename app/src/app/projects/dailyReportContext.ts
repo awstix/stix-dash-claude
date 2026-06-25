@@ -340,7 +340,20 @@ export async function getDailyReportSourceProject(
       projectNotes: {
         where: {
           includeInDailyReport: true,
-          noteDate: reportDate,
+          OR: [
+            {
+              noteDate: reportDate,
+              noteEndDate: null,
+            },
+            {
+              noteDate: {
+                lte: reportDate,
+              },
+              noteEndDate: {
+                gte: reportDate,
+              },
+            },
+          ],
           visibility: {
             in: ["DISPATCH", "BTB"],
           },
@@ -700,6 +713,7 @@ export function buildDailyReportContext(
     .map((note) =>
       compactLine([
         "Notiz:",
+        formatProjectNoteDateRange(note),
         getProjectNoteCategoryLabel(note.category),
         note.title,
         note.content,
@@ -742,6 +756,10 @@ export function buildDailyReportContext(
   const suggestedMaterialRows = buildMaterialRows(materialRows);
   const suggestedOtherRows = buildOtherRows(machines);
   const suggestedRealMachineRows = buildRealMachineRows(realMachines);
+  const suggestedRealMachineRowsForDisplay = buildMachineRowsForRealNameDisplay(
+    suggestedGroupedMachineRows,
+    suggestedRealMachineRows,
+  );
   const suggestedPerformanceLines = compactUnique(performanceLines).slice(
     0,
     dailyReportPerformanceLineLimit,
@@ -749,7 +767,7 @@ export function buildDailyReportContext(
   const suggestedWeekday = formatWeekday(dateKey);
   const showRealMachineNames = dailyReport?.showRealMachineNames ?? false;
   const suggestedMachineRows = showRealMachineNames
-    ? suggestedRealMachineRows
+    ? suggestedRealMachineRowsForDisplay
     : suggestedGroupedMachineRows;
 
   const approvedFields = parseStringList(dailyReport?.approvedFieldsJson).filter(
@@ -1099,6 +1117,43 @@ function buildRealMachineRows(map: Map<string, MachineBucket>) {
     }));
 }
 
+function buildMachineRowsForRealNameDisplay(
+  groupedRows: DailyReportCountRow[],
+  realRows: DailyReportCountRow[],
+) {
+  const usedRealRowKeys = new Set<string>();
+  const rows: DailyReportCountRow[] = [];
+
+  for (const groupedRow of groupedRows) {
+    const matchingRealRows = realRows.filter((realRow) =>
+      isDetailedMachineRowForGroup(groupedRow.label, realRow.label),
+    );
+
+    if (matchingRealRows.length > 0) {
+      matchingRealRows.forEach((realRow) => {
+        usedRealRowKeys.add(realRow.key);
+        rows.push(realRow);
+      });
+      continue;
+    }
+
+    rows.push(groupedRow);
+  }
+
+  realRows
+    .filter((realRow) => !usedRealRowKeys.has(realRow.key))
+    .forEach((realRow) => rows.push(realRow));
+
+  return rows;
+}
+
+function isDetailedMachineRowForGroup(groupLabel: string, detailLabel: string) {
+  const normalizedGroup = normalize(groupLabel);
+  const normalizedDetail = normalize(detailLabel);
+
+  return Boolean(normalizedGroup) && normalizedDetail.startsWith(`${normalizedGroup} ·`);
+}
+
 function parseMaterialRows(
   value: string | null | undefined,
   fallbackRows: DailyReportMaterialRow[],
@@ -1186,10 +1241,21 @@ function parseMachineRows(
 ) {
   const rows = parseCountRows(value, fallbackRows);
 
-  if (showRealMachineNames || rows === fallbackRows) {
+  if (rows === fallbackRows) {
     return rows;
   }
 
+  if (showRealMachineNames) {
+    return orderCountRowsByFallback(rows, fallbackRows);
+  }
+
+  return orderCountRowsByFallback(rows, fallbackRows);
+}
+
+function orderCountRowsByFallback(
+  rows: DailyReportCountRow[],
+  fallbackRows: DailyReportCountRow[],
+) {
   const storedByKey = new Map(rows.map((row) => [row.key, row]));
   const storedByLabel = new Map(
     rows.map((row) => [normalize(row.label), row]),
@@ -1578,6 +1644,17 @@ function getProjectNoteCategoryLabel(value: string) {
     default:
       return "Allgemein";
   }
+}
+
+function formatProjectNoteDateRange(note: {
+  noteDate: Date;
+  noteEndDate: Date | null;
+}) {
+  if (!note.noteEndDate) return formatDateLabel(note.noteDate.toISOString().slice(0, 10));
+
+  return `${formatDateLabel(note.noteDate.toISOString().slice(0, 10))}–${formatDateLabel(
+    note.noteEndDate.toISOString().slice(0, 10),
+  )}`;
 }
 
 function durationHours(start: string, end: string) {

@@ -196,6 +196,14 @@ type ProjectMaterialReference = {
   projectName: string;
 };
 
+type CrewDispatchProjectNote = {
+  category: string;
+  content: string;
+  noteDate: Date;
+  noteEndDate: Date | null;
+  title: string | null;
+};
+
 function parseDateParam(value: string | undefined) {
   if (!value) {
     const now = new Date();
@@ -1431,56 +1439,26 @@ function getEquipmentTimelineStripsForProject({
   return strips;
 }
 
-function getProjectNoteForReference({
+function getProjectNotesForReference({
   projectNotesById,
   projectNotesByKey,
   reference,
 }: {
-  projectNotesById: Map<string, string>;
-  projectNotesByKey: Map<string, string>;
+  projectNotesById: Map<string, CrewDispatchProjectNote[]>;
+  projectNotesByKey: Map<string, CrewDispatchProjectNote[]>;
   reference: ProjectMaterialReference;
 }) {
   if (reference.projectId) {
-    const note = projectNotesById.get(reference.projectId);
-    if (note) return note;
+    const notes = projectNotesById.get(reference.projectId);
+    if (notes?.length) return notes;
   }
 
   for (const key of getProjectMaterialKeys(reference)) {
-    const note = projectNotesByKey.get(key);
-    if (note) return note;
+    const notes = projectNotesByKey.get(key);
+    if (notes?.length) return notes;
   }
 
-  return null;
-}
-
-function getDispatchProjectNoteText(project: {
-  notes: string | null;
-  projectNotes?: {
-    category: string;
-    content: string;
-    noteDate: Date;
-    title: string | null;
-  }[];
-}) {
-  const noteLines =
-    project.projectNotes
-      ?.map((note) =>
-        [
-          formatShortDate(note.noteDate),
-          getCrewDispatchNoteCategoryLabel(note.category),
-          note.title,
-          note.content,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      )
-      .filter(Boolean) ?? [];
-
-  if (noteLines.length > 0) {
-    return noteLines.join("\n");
-  }
-
-  return project.notes?.trim() ?? "";
+  return [];
 }
 
 function getCrewDispatchNoteCategoryLabel(value: string) {
@@ -1499,26 +1477,63 @@ function getCrewDispatchNoteCategoryLabel(value: string) {
 }
 
 function getNoteTimelineStripForProject({
+  assignmentEndDate,
+  assignmentStartDate,
   reference,
   rowNotes,
   projectNotesById,
   projectNotesByKey,
-  gridColumn,
+  timelineUnits,
 }: {
+  assignmentEndDate: Date;
+  assignmentStartDate: Date;
   reference: ProjectMaterialReference;
   rowNotes?: string | null;
-  projectNotesById: Map<string, string>;
-  projectNotesByKey: Map<string, string>;
-  gridColumn: string | null;
+  projectNotesById: Map<string, CrewDispatchProjectNote[]>;
+  projectNotesByKey: Map<string, CrewDispatchProjectNote[]>;
+  timelineUnits: TimelineUnit[];
 }): CrewDispatchNoteTimelineStrip | null {
+  const projectNotes = getProjectNotesForReference({
+    projectNotesById,
+    projectNotesByKey,
+    reference,
+  }).filter((note) =>
+    rangesOverlapInclusive(
+      note.noteDate,
+      getProjectNoteEndDate(note),
+      assignmentStartDate,
+      assignmentEndDate,
+    ),
+  );
+  const noteStartDate = projectNotes.reduce<Date | null>(
+    (earliestDate, note) =>
+      earliestDate && earliestDate < note.noteDate ? earliestDate : note.noteDate,
+    null,
+  );
+  const noteEndDate = projectNotes.reduce<Date | null>((latestDate, note) => {
+    const endDate = getProjectNoteEndDate(note);
+
+    return latestDate && latestDate > endDate ? latestDate : endDate;
+  }, null);
+  const gridColumn =
+    noteStartDate && noteEndDate
+      ? getTimelineGridColumnForDateRange({
+          endDate: noteEndDate,
+          startDate: noteStartDate,
+          timelineUnits,
+        })
+      : rowNotes
+        ? getTimelineGridColumnForDateRange({
+            endDate: assignmentEndDate,
+            startDate: assignmentStartDate,
+            timelineUnits,
+          })
+        : null;
+
   if (!gridColumn) return null;
 
   const notes = [
-    getProjectNoteForReference({
-      projectNotesById,
-      projectNotesByKey,
-      reference,
-    }),
+    ...projectNotes.map(formatProjectNoteForCrewDispatch),
     rowNotes,
   ]
     .map((note) => String(note ?? "").trim())
@@ -1541,6 +1556,27 @@ function getNoteTimelineStripForProject({
     text,
     tooltipText,
   };
+}
+
+function getProjectNoteEndDate(note: CrewDispatchProjectNote) {
+  return note.noteEndDate ?? note.noteDate;
+}
+
+function formatProjectNoteForCrewDispatch(note: CrewDispatchProjectNote) {
+  return [
+    formatProjectNoteDateRange(note),
+    getCrewDispatchNoteCategoryLabel(note.category),
+    note.title,
+    note.content,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatProjectNoteDateRange(note: CrewDispatchProjectNote) {
+  if (!note.noteEndDate) return formatShortDate(note.noteDate);
+
+  return `${formatShortDate(note.noteDate)}–${formatShortDate(note.noteEndDate)}`;
 }
 
 function getTimelineGridColumnForDateRange({
@@ -3011,6 +3047,23 @@ export default async function CrewDispatchPage({
               visibility: {
                 in: ["DISPATCH", "BTB"],
               },
+              OR: [
+                {
+                  noteDate: {
+                    gte: periodStart,
+                    lt: periodEndExclusive,
+                  },
+                  noteEndDate: null,
+                },
+                {
+                  noteDate: {
+                    lt: periodEndExclusive,
+                  },
+                  noteEndDate: {
+                    gte: periodStart,
+                  },
+                },
+              ],
             },
             orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
           },
@@ -3275,24 +3328,21 @@ export default async function CrewDispatchPage({
   }));
   const projectNotesById = new Map(
     projects
-      .map(
-        (project) =>
-          [project.id, getDispatchProjectNoteText(project)] as const,
-      )
-      .filter(([, note]) => Boolean(note)),
+      .map((project) => [project.id, project.projectNotes] as const)
+      .filter(([, notes]) => notes.length > 0),
   );
-  const projectNotesByKey = new Map<string, string>();
+  const projectNotesByKey = new Map<string, CrewDispatchProjectNote[]>();
 
   for (const project of projects) {
-    const note = getDispatchProjectNoteText(project);
-    if (!note) continue;
+    const notes = project.projectNotes;
+    if (notes.length === 0) continue;
 
     for (const key of getProjectMaterialKeys({
       projectId: project.id,
       projectName: project.name,
       projectNumber: project.projectNumber,
     })) {
-      projectNotesByKey.set(key, note);
+      projectNotesByKey.set(key, notes);
     }
   }
 
@@ -4309,11 +4359,8 @@ export default async function CrewDispatchPage({
                           });
                           const noteStrip = showNotes
                             ? getNoteTimelineStripForProject({
-                                gridColumn: getTimelineGridColumnForDateRange({
-                                  endDate: assignment.endDate,
-                                  startDate: assignment.startDate,
-                                  timelineUnits,
-                                }),
+                                assignmentEndDate: assignment.endDate,
+                                assignmentStartDate: assignment.startDate,
                                 projectNotesById,
                                 projectNotesByKey,
                                 reference: {
@@ -4322,6 +4369,7 @@ export default async function CrewDispatchPage({
                                   projectName: row.projectName,
                                 },
                                 rowNotes: row.notes,
+                                timelineUnits,
                               })
                             : null;
 
@@ -4647,11 +4695,8 @@ export default async function CrewDispatchPage({
                         });
                         const noteStrip = showNotes
                           ? getNoteTimelineStripForProject({
-                              gridColumn: getTimelineGridColumnForDateRange({
-                                endDate: bar.endDate,
-                                startDate: bar.startDate,
-                                timelineUnits,
-                              }),
+                              assignmentEndDate: bar.endDate,
+                              assignmentStartDate: bar.startDate,
                               projectNotesById,
                               projectNotesByKey,
                               reference: {
@@ -4659,6 +4704,7 @@ export default async function CrewDispatchPage({
                                 projectNumber: bar.projectNumber,
                                 projectName: bar.projectName,
                               },
+                              timelineUnits,
                             })
                           : null;
 

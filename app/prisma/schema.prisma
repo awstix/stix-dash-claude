@@ -95,7 +95,8 @@ model ProjectNote {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  noteDate DateTime @default(now())
+  noteDate    DateTime  @default(now())
+  noteEndDate DateTime?
   category String   @default("GENERAL")
   title    String?
   content  String
@@ -109,6 +110,7 @@ model ProjectNote {
 
   @@index([projectId])
   @@index([noteDate])
+  @@index([noteEndDate])
   @@index([category])
   @@index([includeInDailyReport])
   @@index([visibility])

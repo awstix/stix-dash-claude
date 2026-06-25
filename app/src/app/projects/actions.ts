@@ -113,6 +113,7 @@ export type ProjectNoteInput = {
   id?: string;
   includeInDailyReport: boolean;
   noteDate: string;
+  noteEndDate: string;
   projectId: string;
   title: string;
   visibility: string;
@@ -291,13 +292,21 @@ function cleanProjectNoteInput(input: ProjectNoteInput) {
     throw new Error("Notiztext ist Pflicht.");
   }
 
+  const noteDate = cleanProjectNoteDate(input.noteDate);
+  const noteEndDate = cleanOptionalProjectNoteDate(input.noteEndDate);
+
+  if (noteEndDate && noteEndDate < noteDate) {
+    throw new Error("Notiz-Bis-Datum darf nicht vor dem Von-Datum liegen.");
+  }
+
   return {
     category: cleanProjectNoteCategory(input.category),
     content,
     createdByName:
       cleanProjectFormText(input.createdByName, 120) || null,
     includeInDailyReport: Boolean(input.includeInDailyReport),
-    noteDate: cleanProjectNoteDate(input.noteDate),
+    noteDate,
+    noteEndDate,
     projectId,
     title: cleanProjectFormText(input.title, 180) || null,
     visibility: cleanProjectNoteVisibility(input.visibility),
@@ -319,6 +328,14 @@ function cleanProjectNoteDate(value: string) {
   }
 
   return date;
+}
+
+function cleanOptionalProjectNoteDate(value: string) {
+  const cleaned = value.trim();
+
+  if (!cleaned) return null;
+
+  return cleanProjectNoteDate(cleaned);
 }
 
 function cleanProjectNoteCategory(value: string) {
@@ -481,6 +498,7 @@ export async function updateProjectNote(input: ProjectNoteInput) {
       createdByName: data.createdByName,
       includeInDailyReport: data.includeInDailyReport,
       noteDate: data.noteDate,
+      noteEndDate: data.noteEndDate,
       title: data.title,
       visibility: data.visibility,
     },
