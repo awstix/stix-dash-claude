@@ -3,7 +3,6 @@
 import { DragEvent, FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  getProjectFormPresetOptions,
   getProjectFormFieldTypeLabel,
   type ProjectFormFieldDefinition,
   type ProjectFormFieldType,
@@ -14,6 +13,10 @@ import {
 } from "../form-actions";
 import { ActionIcon } from "@/components/ActionIcon";
 import { WORKSHOP_REPAIR_SYSTEM_FIELD_IDS } from "../repairOrderTemplateConfig";
+import {
+  FormTemplateFieldEditor,
+  FormTemplateFieldPreview,
+} from "@/components/FormTemplateFieldUI";
 
 type Template = {
   category: string | null;
@@ -26,12 +29,6 @@ type Template = {
   paperSize: string;
 };
 
-const typeGroups: Array<{ label: string; types: ProjectFormFieldType[] }> = [
-  { label: "Eingaben", types: ["text", "textarea", "number", "date", "time"] },
-  { label: "Auswahl", types: ["select", "checkbox", "masterdata", "trafficlight", "grade"] },
-  { label: "Medien und Nachweise", types: ["photo", "signature", "qrcode", "barcode", "chart"] },
-  { label: "Aufbau und Logik", types: ["companydata", "divider", "subform", "formula"] },
-];
 const inputClass =
   "mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950 placeholder:text-gray-500 outline-none focus:border-gray-900";
 
@@ -290,107 +287,17 @@ function WorkshopFieldPreview({
   onEdit: () => void;
 }) {
   return (
-    <div
-      className={`group rounded-xl border bg-white p-3 shadow-sm transition ${
-        isDragged
-          ? "scale-[0.98] border-gray-400 opacity-45"
-          : isDragTarget
-            ? "border-blue-500 ring-2 ring-blue-200"
-            : "border-gray-200 hover:border-gray-400"
-      }`}
-      style={{ gridColumn: `span ${Math.max(1, Math.min(6, field.width))} / span ${Math.max(1, Math.min(6, field.width))}` }}
-      onDragEnter={onDragOver}
+    <FormTemplateFieldPreview
+      field={field}
+      isDragged={isDragged}
+      isDragTarget={isDragTarget}
+      onDelete={onDelete}
+      onDragEnd={onDragEnd}
       onDragOver={onDragOver}
-    >
-      <button className="block w-full text-left" onClick={onEdit} type="button">
-        <span className="flex items-start justify-between gap-2">
-          <span className="text-xs font-semibold text-gray-800">
-            {field.label || "Neues Element"}
-            {field.required ? <span className="text-red-600"> *</span> : null}
-          </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
-            {field.width}/6
-          </span>
-        </span>
-        {field.description ? (
-          <span className="mt-1 block text-[11px] text-gray-500">
-            {field.description}
-          </span>
-        ) : null}
-        <span className="mt-2 block">
-          <WorkshopFieldMock field={field} />
-        </span>
-      </button>
-      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2">
-        <span className="flex items-center gap-2">
-          <span
-            className="cursor-grab select-none rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-bold tracking-widest text-gray-500 active:cursor-grabbing"
-            draggable
-            onDragEnd={onDragEnd}
-            onDragStart={onDragStart}
-            title="Element ziehen und neu anordnen"
-          >
-            ⠿
-          </span>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-            {getProjectFormFieldTypeLabel(field.type)}
-          </span>
-        </span>
-        <span className="flex gap-1">
-          <button
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
-            onClick={onEdit}
-            title="Element bearbeiten"
-            type="button"
-          >
-            <ActionIcon name="edit" className="h-3.5 w-3.5" />
-          </button>
-          {onDelete ? (
-            <button
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-700"
-              onClick={onDelete}
-              title="Element löschen"
-              type="button"
-            >
-              <ActionIcon name="delete" className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-        </span>
-      </div>
-    </div>
+      onDragStart={() => onDragStart()}
+      onEdit={onEdit}
+    />
   );
-}
-
-function WorkshopFieldMock({ field }: { field: ProjectFormFieldDefinition }) {
-  if (field.type === "companydata") {
-    return (
-      <span className="grid grid-cols-[64px_1fr] items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <span className="flex h-12 items-center justify-center rounded bg-white text-xs font-black text-gray-700">LOGO</span>
-        <span>
-          <span className="block text-xs font-semibold text-gray-700">Firmenname und Anschrift</span>
-          <span className="mt-1 block text-[10px] text-gray-400">Kontakt · Website · Social Media</span>
-        </span>
-      </span>
-    );
-  }
-  if (field.type === "divider") return <span className="block border-t-2 border-gray-300" />;
-  if (field.type === "checkbox") {
-    return <span className="flex items-center gap-2 text-xs text-gray-500"><span className="h-4 w-4 rounded border" /> Ja / bestätigt</span>;
-  }
-  if (field.type === "textarea" || field.type === "chart" || field.type === "subform") {
-    return <span className="block h-14 rounded-lg border border-gray-300 bg-gray-50" />;
-  }
-  if (field.type === "photo" || field.type === "signature") {
-    return <span className="flex h-14 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-xs font-semibold text-gray-400">{getProjectFormFieldTypeLabel(field.type)}</span>;
-  }
-  if (field.type === "select" || field.type === "masterdata" || field.type === "trafficlight" || field.type === "grade") {
-    const options =
-      field.options.length > 0
-        ? field.options
-        : getProjectFormPresetOptions(field.type);
-    return <span className="flex h-9 items-center justify-between rounded-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-400">{options[0] || "Bitte wählen"} <span>⌄</span></span>;
-  }
-  return <span className="flex h-9 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-400">{getProjectFormFieldTypeLabel(field.type)}</span>;
 }
 
 function WorkshopFieldEditor({
@@ -404,6 +311,15 @@ function WorkshopFieldEditor({
   onClose: () => void;
   protectedField: boolean;
 }) {
+  return (
+    <FormTemplateFieldEditor
+      field={field}
+      onChange={onChange}
+      onClose={onClose}
+      protectedType={protectedField}
+    />
+  );
+  /*
   return (
     <div className="fixed inset-0 z-[1100] flex items-end justify-center bg-gray-950/45 sm:items-center sm:p-5">
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">
@@ -477,4 +393,5 @@ function WorkshopFieldEditor({
       </div>
     </div>
   );
+  */
 }

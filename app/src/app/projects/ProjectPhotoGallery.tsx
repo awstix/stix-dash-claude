@@ -738,7 +738,7 @@ function PhotoDetailModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div
-          className={`relative min-h-[320px] overflow-auto bg-black lg:min-h-[640px] ${
+          className={`group relative min-h-[320px] overflow-auto bg-black lg:min-h-[640px] ${
             zoom > minimumPhotoZoom
               ? isDraggingPhoto
                 ? "cursor-grabbing select-none"
@@ -821,18 +821,22 @@ function PhotoDetailModal({
           {hasMultiplePhotos ? (
             <>
               <button
-                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg bg-white/90 px-3 py-2 text-xs font-semibold text-gray-900 shadow hover:bg-white"
+                aria-label="Vorheriges Foto"
+                className="absolute left-3 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 opacity-0 shadow transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100"
                 onClick={onPrevious}
+                title="Vorheriges Foto"
                 type="button"
               >
-                Zurück
+                <ChevronLeftIcon />
               </button>
               <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white/90 px-3 py-2 text-xs font-semibold text-gray-900 shadow hover:bg-white"
+                aria-label="Nächstes Foto"
+                className="absolute right-3 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 opacity-0 shadow transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100"
                 onClick={onNext}
+                title="Nächstes Foto"
                 type="button"
               >
-                Vor
+                <ChevronRightIcon />
               </button>
             </>
           ) : null}
@@ -1065,6 +1069,40 @@ function CloseIcon() {
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.4"
+      viewBox="0 0 24 24"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.4"
+      viewBox="0 0 24 24"
+    >
+      <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }

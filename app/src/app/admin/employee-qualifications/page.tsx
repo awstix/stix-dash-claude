@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 import {
   confirmEmployeeQualificationReview,
   createQualificationType,
-  deleteEmployeeQualificationDocument,
   saveEmployeeQualifications,
   updateQualificationType,
   uploadEmployeeQualificationDocuments,
 } from "./actions";
+import { EmployeeQualificationDocumentViewerButton } from "./EmployeeQualificationDocumentViewer";
 import { EmployeeQualificationDocumentsButton } from "./EmployeeQualificationDocumentsButton";
 
 const categoryLabels: Record<string, string> = {
@@ -107,6 +107,18 @@ export default async function EmployeeQualificationsPage({
   const pageCount = Math.max(1, Math.ceil(employeeCount / pageSize));
   const visiblePage = Math.min(currentPage, pageCount);
   const activeTypes = qualificationTypes.filter((type) => type.isActive);
+  const documentsByEmployeeId = new Map<string, typeof documents>();
+
+  for (const document of documents) {
+    const employeeDocuments = documentsByEmployeeId.get(document.employeeId);
+
+    if (employeeDocuments) {
+      employeeDocuments.push(document);
+    } else {
+      documentsByEmployeeId.set(document.employeeId, [document]);
+    }
+  }
+
   const today = startOfToday();
 
   return (
@@ -379,14 +391,9 @@ export default async function EmployeeQualificationsPage({
                       </button>
                     </form>
                     <EmployeeQualificationDocumentsButton
-                      documents={employeeDocuments.map((document) => ({
-                        displayName: document.displayName,
-                        documentType: document.documentType,
-                        id: document.id,
-                        mimeType: document.mimeType,
-                        publicUrl: document.publicUrl,
-                        uploadedAtLabel: formatDate(document.uploadedAt),
-                      }))}
+                      documents={employeeDocuments.map((document) =>
+                        toDocumentItem(document),
+                      )}
                       employeeId={employee.id}
                       employeeName={`${employee.lastName}, ${employee.firstName}`}
                     />
@@ -505,27 +512,37 @@ export default async function EmployeeQualificationsPage({
                         document.displayName}
                     </td>
                     <td className="px-3 py-2">
-                      <a
+                      <EmployeeQualificationDocumentViewerButton
                         className="font-semibold text-blue-700 hover:underline"
-                        href={document.publicUrl}
-                        target="_blank"
+                        document={toDocumentItem(document)}
+                        documents={(
+                          documentsByEmployeeId.get(document.employeeId) ?? [
+                            document,
+                          ]
+                        ).map((employeeDocument) =>
+                          toDocumentItem(employeeDocument),
+                        )}
                       >
                         {document.displayName}
-                      </a>
+                      </EmployeeQualificationDocumentViewerButton>
                     </td>
                     <td className="px-3 py-2 text-gray-600">
                       {formatDate(document.uploadedAt)}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <form action={deleteEmployeeQualificationDocument}>
-                        <input name="id" type="hidden" value={document.id} />
-                        <button
-                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
-                          type="submit"
-                        >
-                          Löschen
-                        </button>
-                      </form>
+                      <EmployeeQualificationDocumentViewerButton
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                        document={toDocumentItem(document)}
+                        documents={(
+                          documentsByEmployeeId.get(document.employeeId) ?? [
+                            document,
+                          ]
+                        ).map((employeeDocument) =>
+                          toDocumentItem(employeeDocument),
+                        )}
+                      >
+                        Öffnen
+                      </EmployeeQualificationDocumentViewerButton>
                     </td>
                   </tr>
                 ))
@@ -757,4 +774,42 @@ function formatDate(date: Date) {
     month: "2-digit",
     year: "numeric",
   }).format(date);
+}
+
+function toDocumentItem(document: {
+  displayName: string;
+  documentType: string;
+  employee: {
+    firstName: string;
+    lastName: string;
+  };
+  fileSizeBytes: number;
+  id: string;
+  mimeType: string;
+  originalFileName: string;
+  publicUrl: string;
+  uploadedAt: Date;
+}) {
+  return {
+    displayName: document.displayName,
+    documentType: document.documentType,
+    documentTypeLabel:
+      documentTypeLabels[document.documentType] || document.displayName,
+    employeeName: `${document.employee.lastName}, ${document.employee.firstName}`,
+    fileSizeLabel: formatFileSize(document.fileSizeBytes),
+    id: document.id,
+    mimeType: document.mimeType,
+    originalFileName: document.originalFileName,
+    publicUrl: document.publicUrl,
+    uploadedAtLabel: formatDate(document.uploadedAt),
+  };
+}
+
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  const kilobytes = bytes / 1024;
+  if (kilobytes < 1024) return `${kilobytes.toFixed(1)} KB`;
+  const megabytes = kilobytes / 1024;
+  return `${megabytes.toFixed(1)} MB`;
 }

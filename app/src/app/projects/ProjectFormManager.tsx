@@ -19,7 +19,6 @@ import {
 } from "./actions";
 import {
   getProjectFormPresetOptions,
-  getProjectFormFieldTypeLabel,
   projectFormFieldCollectsValue,
   projectFormFieldUsesOptions,
 } from "./projectFormTypes";
@@ -29,6 +28,10 @@ import type {
   ProjectFormPaperSize,
   ProjectFormFieldType,
 } from "./projectFormTypes";
+import {
+  FormTemplateFieldEditor,
+  FormTemplateFieldPreview,
+} from "@/components/FormTemplateFieldUI";
 
 export type ProjectFormProjectOption = {
   id: string;
@@ -102,28 +105,6 @@ const selectClassName =
   "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900";
 const textAreaClassName =
   "mt-1 min-h-24 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-900";
-const projectFormFieldTypeGroups: Array<{
-  label: string;
-  types: ProjectFormFieldType[];
-}> = [
-  {
-    label: "Eingaben",
-    types: ["text", "textarea", "number", "date", "time"],
-  },
-  {
-    label: "Auswahl",
-    types: ["select", "checkbox", "masterdata", "trafficlight", "grade"],
-  },
-  {
-    label: "Medien und Nachweise",
-    types: ["photo", "signature", "qrcode", "barcode", "chart"],
-  },
-  {
-    label: "Aufbau und Logik",
-    types: ["companydata", "divider", "subform", "formula"],
-  },
-];
-
 export function ProjectFormManager({
   companyInfo,
   dailyReportPrefills = {},
@@ -561,7 +542,6 @@ export function ProjectFormManager({
                       onDragStart={(event) =>
                         startTemplateFieldDrag(event, index)
                       }
-                      onDrop={(event) => dropTemplateField(event, index)}
                       onEdit={() => setEditingFieldIndex(index)}
                       total={templateFields.length}
                     />
@@ -1036,32 +1016,6 @@ export function ProjectFormManager({
     setDraggedFieldIndex(targetIndex);
   }
 
-  function dropTemplateField(
-    event: DragEvent<HTMLDivElement>,
-    targetIndex: number,
-  ) {
-    event.preventDefault();
-    const sourceIndex =
-      draggedFieldIndex ??
-      Number.parseInt(event.dataTransfer.getData("text/plain"), 10);
-
-    if (
-      draggedFieldIndex === null &&
-      !Number.isNaN(sourceIndex) &&
-      sourceIndex !== targetIndex &&
-      sourceIndex >= 0 &&
-      sourceIndex < templateFields.length
-    ) {
-      setTemplateFields((current) => {
-        const next = [...current];
-        const [movedField] = next.splice(sourceIndex, 1);
-        next.splice(targetIndex, 0, movedField);
-        return next;
-      });
-    }
-    finishTemplateFieldDrag();
-  }
-
   function finishTemplateFieldDrag() {
     setDraggedFieldIndex(null);
     setDragOverFieldIndex(null);
@@ -1079,7 +1033,6 @@ function TemplateFieldPreview({
   onDragEnd,
   onDragEnter,
   onDragStart,
-  onDrop,
   onEdit,
   total,
 }: {
@@ -1093,10 +1046,27 @@ function TemplateFieldPreview({
   onDragEnd: () => void;
   onDragEnter: (event: DragEvent<HTMLDivElement>) => void;
   onDragStart: (event: DragEvent<HTMLElement>) => void;
-  onDrop: (event: DragEvent<HTMLDivElement>) => void;
   onEdit: () => void;
   total: number;
 }) {
+  return (
+    <FormTemplateFieldPreview
+      field={{
+        ...field,
+        options: getFieldOptions(field),
+      }}
+      isDragged={isDragged}
+      isDragTarget={isDragTarget}
+      moveBackward={index === 0 ? undefined : moveUp}
+      moveForward={index === total - 1 ? undefined : moveDown}
+      onDelete={onDelete}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragEnter}
+      onDragStart={onDragStart}
+      onEdit={onEdit}
+    />
+  );
+  /*
   return (
     <div
       className={`${getFieldWidthClass(field.width)} group relative rounded-xl border bg-white p-3 shadow-sm transition ${
@@ -1179,104 +1149,7 @@ function TemplateFieldPreview({
       </div>
     </div>
   );
-}
-
-function TemplateFieldMock({ field }: { field: TemplateDraftField }) {
-  if (field.type === "companydata") {
-    return (
-      <span className="grid grid-cols-[64px_1fr] items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <span className="flex h-12 items-center justify-center rounded bg-white text-xs font-black text-gray-700">
-          LOGO
-        </span>
-        <span>
-          <span className="block text-xs font-semibold text-gray-700">
-            Firmenname und Anschrift
-          </span>
-          <span className="mt-1 block text-[10px] text-gray-400">
-            Kontakt · Website · Social Media
-          </span>
-        </span>
-      </span>
-    );
-  }
-
-  if (field.type === "divider") {
-    return <span className="block border-t-2 border-gray-300" />;
-  }
-
-  if (field.type === "checkbox") {
-    return (
-      <span className="flex items-center gap-2 text-xs font-medium text-gray-500">
-        <span className="h-4 w-4 rounded border border-gray-300 bg-gray-50" />
-        Ja / bestätigt
-      </span>
-    );
-  }
-
-  if (
-    field.type === "textarea" ||
-    field.type === "chart" ||
-    field.type === "subform"
-  ) {
-    return (
-      <span className="block h-14 rounded-lg border border-gray-300 bg-gray-50" />
-    );
-  }
-
-  if (
-    projectFormFieldUsesOptions(field.type) ||
-    field.type === "trafficlight" ||
-    field.type === "grade"
-  ) {
-    const options = projectFormFieldUsesOptions(field.type)
-      ? getFieldOptions(field)
-      : getProjectFormPresetOptions(field.type);
-
-    return (
-      <span className="flex h-9 items-center justify-between rounded-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-400">
-        {options[0] || "Bitte wählen"}
-        <span>⌄</span>
-      </span>
-    );
-  }
-
-  if (field.type === "photo") {
-    return (
-      <span className="flex h-14 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-xs font-semibold text-gray-400">
-        Foto auswählen
-      </span>
-    );
-  }
-
-  if (field.type === "signature") {
-    return (
-      <span className="flex h-14 items-end rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 pb-2 text-xs italic text-gray-400">
-        Unterschrift
-      </span>
-    );
-  }
-
-  if (field.type === "qrcode" || field.type === "barcode") {
-    return (
-      <span className="flex h-12 items-center justify-center rounded-lg border border-gray-300 bg-gray-50 font-mono text-xs tracking-[0.25em] text-gray-400">
-        {field.type === "qrcode" ? "▦ QR-CODE" : "|||| BARCODE ||||"}
-      </span>
-    );
-  }
-
-  if (field.type === "formula") {
-    return (
-      <span className="flex h-9 items-center rounded-lg border border-gray-300 bg-gray-100 px-3 font-mono text-xs text-gray-500">
-        = Berechneter Wert
-      </span>
-    );
-  }
-
-  return (
-    <span className="flex h-9 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-400">
-      {getProjectFormFieldTypeLabel(field.type)}
-    </span>
-  );
+  */
 }
 
 function TemplateFieldEditor({
@@ -1288,6 +1161,24 @@ function TemplateFieldEditor({
   onChange: (patch: Partial<TemplateDraftField>) => void;
   onClose: () => void;
 }) {
+  return (
+    <FormTemplateFieldEditor
+      field={{
+        ...field,
+        options: getFieldOptions(field),
+      }}
+      onChange={(patch) =>
+        onChange({
+          ...patch,
+          ...(patch.options
+            ? { optionsText: patch.options.join("\n") }
+            : {}),
+        })
+      }
+      onClose={onClose}
+    />
+  );
+  /*
   return (
     <div
       aria-modal="true"
@@ -1468,6 +1359,7 @@ function TemplateFieldEditor({
       </div>
     </div>
   );
+  */
 }
 
 function ProjectFormFieldInput({

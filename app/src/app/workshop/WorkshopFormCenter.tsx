@@ -16,6 +16,7 @@ import {
   getProjectFormPresetOptions,
   type ProjectFormFieldDefinition,
 } from "@/app/projects/projectFormTypes";
+import { FreeTextCombobox } from "@/components/FreeTextCombobox";
 
 type Vehicle = {
   id: string;
@@ -212,17 +213,16 @@ export function WorkshopFormCenter({
                 </label>
                 <label className="text-sm font-medium text-gray-800">
                   Ausgefüllt von
-                  <input
-                    list="workshop-form-personnel"
+                  <FreeTextCombobox
                     name="createdByName"
                     defaultValue={editing?.createdByName ?? ""}
                     className={inputClass}
+                    options={personnel.map((person) => ({
+                      id: person.id,
+                      label: person.name,
+                    }))}
+                    suggestionsId="workshop-form-personnel"
                   />
-                  <datalist id="workshop-form-personnel">
-                    {personnel.map((person) => (
-                      <option key={person.id} value={person.name}>{person.name}</option>
-                    ))}
-                  </datalist>
                 </label>
                 <label className="text-sm font-medium text-gray-800 md:col-span-3">
                   Fahrzeug / Maschine
@@ -411,17 +411,16 @@ function PersonnelSelect({
   return (
     <label className="block text-sm font-medium text-gray-800">
       {label}
-      <input
-        list={`personnel-${name}`}
+      <FreeTextCombobox
         name={`value:${name}`}
         defaultValue={String(values[name] ?? "")}
         className={inputClass}
+        options={personnel.map((person) => ({
+          id: person.id,
+          label: person.name,
+        }))}
+        suggestionsId={`personnel-${name}`}
       />
-      <datalist id={`personnel-${name}`}>
-        {personnel.map((person) => (
-          <option key={person.id} value={person.name}>{person.name}</option>
-        ))}
-      </datalist>
     </label>
   );
 }
@@ -441,17 +440,16 @@ function ControlRow({
     <div className="grid items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:grid-cols-[170px_auto_1fr]">
       <Check name={checkName} label={label} values={values} />
       <span className="text-sm font-medium text-gray-600">durch</span>
-      <input
-        list={`personnel-${checkName}By`}
+      <FreeTextCombobox
         name={`value:${checkName}By`}
         defaultValue={String(values[`${checkName}By`] ?? "")}
         className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-950"
+        options={personnel.map((person) => ({
+          id: person.id,
+          label: person.name,
+        }))}
+        suggestionsId={`personnel-${checkName}By`}
       />
-      <datalist id={`personnel-${checkName}By`}>
-        {personnel.map((person) => (
-          <option key={person.id} value={person.name}>{person.name}</option>
-        ))}
-      </datalist>
     </div>
   );
 }

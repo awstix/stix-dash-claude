@@ -1,21 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import {
-  deleteEmployeeQualificationDocument,
   updateEmployeeQualificationDocument,
   uploadEmployeeQualificationDocuments,
 } from "./actions";
-
-export type EmployeeQualificationDocumentItem = {
-  displayName: string;
-  documentType: string;
-  id: string;
-  mimeType: string;
-  publicUrl: string;
-  uploadedAtLabel: string;
-};
+import {
+  DocumentThumbnail,
+  EmployeeQualificationDocumentViewer,
+  type EmployeeQualificationDocumentItem,
+} from "./EmployeeQualificationDocumentViewer";
 
 const documentTypeOptions = [
   { label: "Führerschein", value: "DRIVER_LICENSE" },
@@ -173,15 +167,13 @@ export function EmployeeQualificationDocumentsButton({
                         </form>
                         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500">
                           <span>Hochgeladen {document.uploadedAtLabel}</span>
-                          <form action={deleteEmployeeQualificationDocument}>
-                            <input name="id" type="hidden" value={document.id} />
-                            <button
-                              className="font-semibold text-red-700 hover:underline"
-                              type="submit"
-                            >
-                              Löschen
-                            </button>
-                          </form>
+                          <button
+                            className="font-semibold text-blue-700 hover:underline"
+                            onClick={() => setPreviewDocument(document)}
+                            type="button"
+                          >
+                            Vorschau öffnen
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -192,133 +184,15 @@ export function EmployeeQualificationDocumentsButton({
           </div>
 
           {previewDocument ? (
-            <div
-              className="fixed inset-0 z-[210] flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setPreviewDocument(null)}
-            >
-              <div
-                className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="flex items-center justify-between gap-4 border-b border-gray-200 p-4">
-                  <div>
-                    <h4 className="font-semibold text-gray-900">
-                      {previewDocument.displayName}
-                    </h4>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      {previewDocument.mimeType}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <a
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                      href={previewDocument.publicUrl}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      In neuem Tab
-                    </a>
-                    <a
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                      download
-                      href={previewDocument.publicUrl}
-                    >
-                      Herunterladen
-                    </a>
-                    <button
-                      className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
-                      onClick={() => setPreviewDocument(null)}
-                      type="button"
-                    >
-                      Vorschau schließen
-                    </button>
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 bg-gray-900 p-3">
-                  {previewDocument.mimeType.startsWith("image/") ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={previewDocument.displayName}
-                      className="h-full w-full object-contain"
-                      src={previewDocument.publicUrl}
-                    />
-                  ) : previewDocument.mimeType === "application/pdf" ? (
-                    <iframe
-                      className="h-full w-full rounded-lg bg-white"
-                      src={previewDocument.publicUrl}
-                      title={previewDocument.displayName}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <a
-                        className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-gray-900"
-                        download
-                        href={previewDocument.publicUrl}
-                      >
-                        Datei herunterladen
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <EmployeeQualificationDocumentViewer
+              document={previewDocument}
+              documents={documents}
+              onClose={() => setPreviewDocument(null)}
+            />
           ) : null}
         </div>
       ) : null}
     </>
-  );
-}
-
-function DocumentThumbnail({
-  document,
-}: {
-  document: EmployeeQualificationDocumentItem;
-}) {
-  if (document.mimeType.startsWith("image/")) {
-    return (
-      <Image
-        alt=""
-        className="h-full w-full object-cover"
-        height={80}
-        src={document.publicUrl}
-        unoptimized
-        width={80}
-      />
-    );
-  }
-
-  if (document.mimeType === "application/pdf") {
-    return (
-      <span className="flex flex-col items-center text-red-700">
-        <FileIcon />
-        <span className="mt-1 text-[10px] font-bold">PDF</span>
-      </span>
-    );
-  }
-
-  return (
-    <span className="flex flex-col items-center text-gray-600">
-      <FileIcon />
-      <span className="mt-1 text-[10px] font-bold">DATEI</span>
-    </span>
-  );
-}
-
-function FileIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-8 w-8"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M6 2h8l4 4v16H6Z" />
-      <path d="M14 2v5h5" />
-    </svg>
   );
 }
 

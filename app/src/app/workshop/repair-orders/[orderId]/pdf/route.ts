@@ -23,7 +23,9 @@ export async function GET(
     return new Response("Reparaturauftrag nicht gefunden.", { status: 404 });
   }
 
-  const fields = parseProjectFormFields(template?.fieldsJson);
+  const fields = parseProjectFormFields(template?.fieldsJson).filter(
+    (field) => field.id !== "title" && field.type !== "companydata",
+  );
   const values: Record<string, boolean | string> = {
     assignedTo: order.assignedTo ?? "",
     description: order.description ?? "",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
+import { FreeTextCombobox } from "@/components/FreeTextCombobox";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -211,7 +212,10 @@ export default async function WorkshopPage({
       take: 50,
     }),
     prisma.employee.findMany({
-      where: { statusValue: "active" },
+      where: {
+        departmentValue: "werkstatt",
+        statusValue: "active",
+      },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { firstName: true, id: true, lastName: true },
     }),
@@ -946,19 +950,18 @@ function WorkshopOrderForm({
 
       <label className="text-sm font-medium text-gray-800" style={assignedLayout.style}>
         {assignedLayout.field?.label ?? "Zuständig"}
-        <input
-          list={`workshop-personnel-${id ?? "new"}`}
+        <FreeTextCombobox
           name="assignedTo"
           required={assignedLayout.field?.required}
           defaultValue={defaultAssignedTo}
           placeholder="Werkstatt, Mitarbeiter, extern..."
           className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          options={personnel.map((person) => ({
+            id: person.id,
+            label: person.name,
+          }))}
+          suggestionsId={`workshop-personnel-${id ?? "new"}`}
         />
-        <datalist id={`workshop-personnel-${id ?? "new"}`}>
-          {personnel.map((person) => (
-            <option key={person.id} value={person.name} />
-          ))}
-        </datalist>
       </label>
 
       <label className="text-sm font-medium text-gray-800" style={notesLayout.style}>

@@ -629,25 +629,37 @@ function drawSocialMediaIcons(
   ].filter(
     (social): social is { type: string; url: string } => Boolean(social),
   );
+  const groups = new Map<string, Array<{ type: string; url: string }>>();
+  socials.forEach((social) => {
+    const accountName = getSocialMediaAccountName(social.type, social.url);
+    const key = accountName.toLocaleLowerCase("de-DE");
+    groups.set(key, [...(groups.get(key) ?? []), social]);
+  });
   let x = startX;
 
-  socials.forEach(({ type, url }) => {
-    const accountName = getSocialMediaAccountName(type, url);
-    page.drawCircle({
-      color: textColor,
-      size: 8.5,
-      x: x + 8.5,
-      y: y + 8.5,
+  groups.forEach((group) => {
+    const accountName = getSocialMediaAccountName(
+      group[0].type,
+      group[0].url,
+    );
+    group.forEach(({ type }) => {
+      page.drawCircle({
+        color: textColor,
+        size: 7.5,
+        x: x + 7.5,
+        y: y + 7.5,
+      });
+      drawSocialMediaIcon(page, type, x - 1, y - 1, regular, bold);
+      x += 18;
     });
-    drawSocialMediaIcon(page, type, x, y, regular, bold);
     page.drawText(accountName, {
       color: textColor,
       font: regular,
       size: 6.5,
-      x: x + 20,
-      y: y + 6,
+      x,
+      y: y + 5,
     });
-    x += 25 + regular.widthOfTextAtSize(accountName, 6.5);
+    x += regular.widthOfTextAtSize(accountName, 6.5) + 10;
   });
 }
 
@@ -708,16 +720,16 @@ function drawSocialMediaIcon(
   if (type === "youtube") {
     page.drawRectangle({
       borderColor: rgb(1, 1, 1),
-      borderWidth: 0.9,
-      height: 8,
-      width: 11,
-      x: x + 3,
-      y: y + 4.5,
+      borderWidth: 1,
+      height: 7,
+      width: 10,
+      x: x + 3.5,
+      y: y + 5,
     });
-    page.drawSvgPath("M 0 0 L 0 5 L 4 2.5 Z", {
+    page.drawSvgPath("M 0 0 L 0 4 L 3.5 2 Z", {
       color: rgb(1, 1, 1),
-      x: x + 7,
-      y: y + 6,
+      x: x + 7.2,
+      y: y + 6.4,
     });
     return;
   }
@@ -744,7 +756,7 @@ function drawSocialMediaIcon(
     return;
   }
 
-  const symbol = type === "linkedin" ? "in" : "f";
+  const symbol = type === "linkedin" ? "in" : type === "facebook" ? "f" : "•";
   const font = type === "facebook" ? bold : regular;
   const size = type === "facebook" ? 10 : 7;
   const width = font.widthOfTextAtSize(symbol, size);
