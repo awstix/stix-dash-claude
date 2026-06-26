@@ -14,8 +14,18 @@ import { CrewTimelineMouseTooltip } from "./CrewTimelineMouseTooltip";
 const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 type TimelineView = "days" | "weeks" | "months";
-type TimelineRange = "1w" | "2w" | "5w" | "5m" | "custom";
-type CustomUnit = "weeks" | "months";
+type TimelineRange =
+  | "7d"
+  | "14d"
+  | "21d"
+  | "3w"
+  | "6w"
+  | "9w"
+  | "4m"
+  | "8m"
+  | "12m"
+  | "custom";
+type CustomUnit = "days" | "weeks" | "months";
 
 type TimelineUnit = {
   key: string;
@@ -315,28 +325,59 @@ function getTimelineView(value: string | undefined): TimelineView {
 
 function getTimelineRange(value: string | undefined, view: TimelineView): TimelineRange {
   if (
-    value === "1w" ||
-    value === "2w" ||
-    value === "5w" ||
-    value === "5m" ||
+    value === "7d" ||
+    value === "14d" ||
+    value === "21d" ||
+    value === "3w" ||
+    value === "6w" ||
+    value === "9w" ||
+    value === "4m" ||
+    value === "8m" ||
+    value === "12m" ||
     value === "custom"
   ) {
     return value;
   }
 
-  if (view === "weeks") return "5w";
-  if (view === "months") return "5m";
+  if (value === "1w") return view === "weeks" ? "3w" : "7d";
+  if (value === "2w") return view === "weeks" ? "6w" : "14d";
+  if (value === "5w") return view === "weeks" ? "9w" : "21d";
+  if (value === "5m") return "4m";
 
-  return "2w";
+  if (view === "weeks") return "6w";
+  if (view === "months") return "4m";
+
+  return "14d";
+}
+
+function getRangeForView(range: TimelineRange, view: TimelineView): TimelineRange {
+  if (range === "custom") return range;
+
+  const isMonthRange =
+    range === "4m" || range === "8m" || range === "12m";
+  const isWeekRange = range === "3w" || range === "6w" || range === "9w";
+  const isDayRange = range === "7d" || range === "14d" || range === "21d";
+
+  if (view === "months") {
+    return isMonthRange ? range : "4m";
+  }
+
+  if (view === "weeks") {
+    return isWeekRange ? range : "6w";
+  }
+
+  return isDayRange ? range : "14d";
 }
 
 function getCustomUnit(
   value: string | undefined,
   view: TimelineView,
 ): CustomUnit {
+  if (value === "days") return "days";
   if (value === "months") return "months";
   if (value === "weeks") return "weeks";
 
+  if (view === "days") return "days";
   return view === "months" ? "months" : "weeks";
 }
 
@@ -344,7 +385,9 @@ function getCustomCount(value: string | undefined, view: TimelineView) {
   const parsed = Number(value);
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return view === "months" ? 5 : 2;
+    if (view === "months") return 4;
+    if (view === "days") return 14;
+    return 2;
   }
 
   return Math.max(1, Math.round(parsed));
@@ -363,20 +406,30 @@ function getBufferValue(value: string | undefined, fallback: number) {
 function getEffectiveWeekCount({
   range,
   customCount,
-  view,
 }: {
   range: TimelineRange;
   customCount: number;
-  view: TimelineView;
 }) {
   if (range === "custom") {
-    if (view === "months") return 5;
     return customCount;
   }
 
-  if (range === "1w") return 1;
-  if (range === "5w") return 5;
-  return 2;
+  if (range === "3w") return 3;
+  if (range === "9w") return 9;
+  return 6;
+}
+
+function getEffectiveDayCount({
+  range,
+  customCount,
+}: {
+  range: TimelineRange;
+  customCount: number;
+}) {
+  if (range === "custom") return customCount;
+  if (range === "7d") return 7;
+  if (range === "21d") return 21;
+  return 14;
 }
 
 function getEffectiveMonthCount({
@@ -390,7 +443,9 @@ function getEffectiveMonthCount({
     return customCount;
   }
 
-  return 5;
+  if (range === "8m") return 8;
+  if (range === "12m") return 12;
+  return 4;
 }
 
 function getDateDiffInDays(startDate: Date, endDate: Date) {
@@ -412,16 +467,24 @@ function getDefaultRangeEnd({
   view,
   range,
   customCount,
+  customUnit,
   anchorDate,
-  showWeekend,
 }: {
   view: TimelineView;
   range: TimelineRange;
   customCount: number;
+  customUnit: CustomUnit;
   anchorDate: Date;
-  showWeekend: boolean;
 }) {
-  if (view === "months") {
+  if (range === "custom" && customUnit === "days") {
+    return addDays(anchorDate, customCount - 1);
+  }
+
+  if (range === "custom" && customUnit === "weeks") {
+    return addDays(startOfWeek(anchorDate), customCount * 7 - 1);
+  }
+
+  if (view === "months" || (range === "custom" && customUnit === "months")) {
     const monthCount = getEffectiveMonthCount({
       range,
       customCount,
@@ -432,17 +495,21 @@ function getDefaultRangeEnd({
     );
   }
 
-  const weekCount = getEffectiveWeekCount({
-    range,
-    customCount,
-    view,
-  });
+  if (view === "weeks") {
+    const weekCount = getEffectiveWeekCount({
+      range,
+      customCount,
+    });
 
-  if (view === "days" && !showWeekend) {
-    return addDays(startOfWeek(anchorDate), weekCount * 7 - 3);
+    return addDays(startOfWeek(anchorDate), weekCount * 7 - 1);
   }
 
-  return addDays(startOfWeek(anchorDate), weekCount * 7 - 1);
+  const dayCount = getEffectiveDayCount({
+    range,
+    customCount,
+  });
+
+  return addDays(anchorDate, dayCount - 1);
 }
 
 function getSafeDateRange({
@@ -2015,16 +2082,22 @@ function getViewLabel(view: TimelineView) {
 }
 
 function getRangeLabel(range: TimelineRange) {
-  if (range === "1w") return "1W";
-  if (range === "2w") return "2W";
-  if (range === "5w") return "5W";
-  if (range === "5m") return "5M";
+  if (range === "7d") return "7T";
+  if (range === "14d") return "14T";
+  if (range === "21d") return "21T";
+  if (range === "3w") return "3W";
+  if (range === "6w") return "6W";
+  if (range === "9w") return "9W";
+  if (range === "4m") return "4M";
+  if (range === "8m") return "8M";
+  if (range === "12m") return "12M";
   return "Eigener Wert";
 }
 
-function getCustomUnitLabel(view: TimelineView) {
-  if (view === "months") return "Monate";
-  return "Wochen";
+function getCustomUnitLabel(unit: CustomUnit) {
+  if (unit === "months") return "Monate";
+  if (unit === "weeks") return "Wochen";
+  return "Tage";
 }
 
 const CREW_TIMELINE_ROW_MIN_HEIGHT_PX = 180;
@@ -2898,8 +2971,8 @@ export default async function CrewDispatchPage({
   const crewTimelineLaneHeight = getCrewTimelineLaneHeight(supplementalLayerCount);
   const highlightedCrewId = params.highlightCrew ?? null;
 
-  const defaultBufferBack = view === "months" ? 3 : 8;
-  const defaultBufferForward = view === "months" ? 6 : 12;
+  const defaultBufferBack = 0;
+  const defaultBufferForward = 0;
   const bufferBack = getBufferValue(params.bufferBack, defaultBufferBack);
   const bufferForward = getBufferValue(
     params.bufferForward,
@@ -2917,16 +2990,18 @@ export default async function CrewDispatchPage({
     view,
     range,
     customCount,
+    customUnit,
     anchorDate,
-    showWeekend,
   });
 
-  const { fromDate, toDate, isCustomDateRange } = getSafeDateRange({
+  const { fromDate, toDate } = getSafeDateRange({
     from: params.from,
     to: params.to,
     fallbackStart,
     fallbackEnd,
   });
+  const isCustomDateRange =
+    range === "custom" && Boolean(params.from || params.to);
 
   const focusDateFromParams = params.focus
     ? parseDateParam(params.focus)
@@ -3648,7 +3723,7 @@ export default async function CrewDispatchPage({
                 {isCustomDateRange
                   ? "freier Zeitraum"
                   : range === "custom"
-                    ? `Eigener Wert ${customCount} ${getCustomUnitLabel(view)}`
+                    ? `Eigener Wert ${customCount} ${getCustomUnitLabel(customUnit)}`
                     : getRangeLabel(range)}
               </div>
 
@@ -3690,42 +3765,333 @@ export default async function CrewDispatchPage({
             </div>
           </div>
 
-          <div className="mt-4 space-y-2">
-            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <div className="mt-4 space-y-3">
+            <div className="flex w-full flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
-                {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
-                  <Link
-                    key={item}
-                    href={buildCrewDispatchHref({
-                      fromDate,
-                      toDate,
-                      view: item,
-                      range,
-                      customCount,
-                      customUnit,
-                      showWeekend,
-                      bufferBack,
-                      bufferForward,
-                      showAsphaltDispatchCrews,
-                      showEquipment,
-                      showTrucks,
-                      showSpecialVehicles,
-                      showMaterial,
-                      showNotes,
-                      focusDate,
-                      highlightCrewId: highlightedCrewId,
-                    })}
-                    scroll={false}
-                    className={
-                      view === item
-                        ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-                        : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
-                    }
-                  >
-                    {getViewLabel(item)}
-                  </Link>
-                ))}
+                {(["days", "weeks", "months"] as TimelineView[]).map((item) => {
+                  const targetRange = getRangeForView(range, item);
+                  const targetStart =
+                    item === "months"
+                      ? startOfMonth(focusDateFromParams)
+                      : startOfWeek(focusDateFromParams);
+                  const targetEnd = getDefaultRangeEnd({
+                    view: item,
+                    range: targetRange,
+                    customCount,
+                    customUnit,
+                    anchorDate: targetStart,
+                  });
 
+                  return (
+                    <Link
+                      key={item}
+                      href={buildCrewDispatchHref({
+                        fromDate: targetStart,
+                        toDate: targetEnd,
+                        view: item,
+                        range: targetRange,
+                        customCount,
+                        customUnit,
+                        showWeekend,
+                        bufferBack: 0,
+                        bufferForward: 0,
+                        showAsphaltDispatchCrews,
+                        showEquipment,
+                        showTrucks,
+                        showSpecialVehicles,
+                        showMaterial,
+                        showNotes,
+                        focusDate: targetStart,
+                        highlightCrewId: highlightedCrewId,
+                      })}
+                      scroll={false}
+                      className={
+                        view === item
+                          ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                          : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                      }
+                    >
+                      {getViewLabel(item)}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+                {(
+                  view === "months"
+                    ? (["4m", "8m", "12m"] as TimelineRange[])
+                    : view === "weeks"
+                      ? (["3w", "6w", "9w"] as TimelineRange[])
+                      : (["7d", "14d", "21d"] as TimelineRange[])
+                ).map((item) => {
+                  const presetStart =
+                    view === "months"
+                      ? startOfMonth(focusDateFromParams)
+                      : startOfWeek(focusDateFromParams);
+
+                  const presetEnd = getDefaultRangeEnd({
+                    view,
+                    range: item,
+                    customCount,
+                    customUnit,
+                    anchorDate: presetStart,
+                  });
+
+                  return (
+                    <Link
+                      key={item}
+                      href={buildCrewDispatchHref({
+                        fromDate: presetStart,
+                        toDate: presetEnd,
+                        view,
+                        range: item,
+                        customCount,
+                        customUnit,
+                        showWeekend,
+                        bufferBack: 0,
+                        bufferForward: 0,
+                        showAsphaltDispatchCrews,
+                        showEquipment,
+                        showTrucks,
+                        showSpecialVehicles,
+                        showMaterial,
+                        showNotes,
+                        focusDate: presetStart,
+                        highlightCrewId: highlightedCrewId,
+                      })}
+                      scroll={false}
+                      className={
+                        range === item
+                          ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                          : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                      }
+                    >
+                      {getRangeLabel(item)}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <details className="relative inline-block w-full sm:w-auto">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100">
+                  ⚙ Einstellungen
+                  <span className="text-blue-700">▾</span>
+                </summary>
+
+                <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+                  <div className="text-sm font-bold text-gray-900">
+                    Zeitraum einstellen
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Anzahl für Tage/Wochen/Monate oder einen festen Von-bis-Zeitraum wählen.
+                  </p>
+
+                  <form
+                    action="/crew-dispatch"
+                    className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3"
+                  >
+                    <input type="hidden" name="view" value={view} />
+                    <input type="hidden" name="range" value="custom" />
+                    <input type="hidden" name="week" value={focusDate} />
+                    <input type="hidden" name="focus" value={focusDate} />
+                    <input type="hidden" name="bufferBack" value="0" />
+                    <input type="hidden" name="bufferForward" value="0" />
+
+                    {showWeekend ? (
+                      <input type="hidden" name="showWeekend" value="1" />
+                    ) : null}
+
+                    {showAsphaltDispatchCrews ? (
+                      <input
+                        type="hidden"
+                        name="showAsphaltDispatchCrews"
+                        value="1"
+                      />
+                    ) : null}
+
+                    {showEquipment ? (
+                      <input type="hidden" name="showEquipment" value="1" />
+                    ) : null}
+
+                    {showTrucks ? (
+                      <input type="hidden" name="showTrucks" value="1" />
+                    ) : null}
+
+                    {showSpecialVehicles ? (
+                      <input
+                        type="hidden"
+                        name="showSpecialVehicles"
+                        value="1"
+                      />
+                    ) : null}
+
+                    {showMaterial ? (
+                      <input type="hidden" name="showMaterial" value="1" />
+                    ) : null}
+
+                    {showNotes ? (
+                      <input type="hidden" name="showNotes" value="1" />
+                    ) : null}
+
+                    {highlightedCrewId ? (
+                      <input
+                        type="hidden"
+                        name="highlightCrew"
+                        value={highlightedCrewId}
+                      />
+                    ) : null}
+
+                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                      <label className="grid gap-1 text-xs font-semibold text-blue-950">
+                        Anzahl anzeigen
+                        <input
+                          type="number"
+                          min="1"
+                          name="customCount"
+                          defaultValue={String(customCount)}
+                          className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-xs font-semibold text-blue-950">
+                        Einheit
+                        <select
+                          name="customUnit"
+                          defaultValue={customUnit}
+                          className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        >
+                          <option value="days">Tage</option>
+                          <option value="weeks">Wochen</option>
+                          <option value="months">Monate</option>
+                        </select>
+                      </label>
+
+                      <button
+                        type="submit"
+                        className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+                      >
+                        Anwenden
+                      </button>
+                    </div>
+                  </form>
+
+                  <form
+                    action="/crew-dispatch"
+                    className="mt-3 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
+                  >
+                    <input type="hidden" name="view" value={view} />
+                    <input type="hidden" name="range" value="custom" />
+                    <input type="hidden" name="focus" value={focusDate} />
+                    <input type="hidden" name="customUnit" value={customUnit} />
+                    <input
+                      type="hidden"
+                      name="customCount"
+                      value={String(customCount)}
+                    />
+
+                    {showWeekend ? (
+                      <input type="hidden" name="showWeekend" value="1" />
+                    ) : null}
+
+                    {showAsphaltDispatchCrews ? (
+                      <input
+                        type="hidden"
+                        name="showAsphaltDispatchCrews"
+                        value="1"
+                      />
+                    ) : null}
+
+                    {showEquipment ? (
+                      <input type="hidden" name="showEquipment" value="1" />
+                    ) : null}
+
+                    {showTrucks ? (
+                      <input type="hidden" name="showTrucks" value="1" />
+                    ) : null}
+
+                    {showSpecialVehicles ? (
+                      <input
+                        type="hidden"
+                        name="showSpecialVehicles"
+                        value="1"
+                      />
+                    ) : null}
+
+                    {showMaterial ? (
+                      <input type="hidden" name="showMaterial" value="1" />
+                    ) : null}
+
+                    {showNotes ? (
+                      <input type="hidden" name="showNotes" value="1" />
+                    ) : null}
+
+                    {highlightedCrewId ? (
+                      <input
+                        type="hidden"
+                        name="highlightCrew"
+                        value={highlightedCrewId}
+                      />
+                    ) : null}
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Von
+                        <input
+                          type="date"
+                          name="from"
+                          defaultValue={formatDateInput(fromDate)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Bis
+                        <input
+                          type="date"
+                          name="to"
+                          defaultValue={formatDateInput(toDate)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Puffer zurück
+                        <input
+                          type="number"
+                          min="0"
+                          name="bufferBack"
+                          defaultValue={String(bufferBack)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Puffer voraus
+                        <input
+                          type="number"
+                          min="0"
+                          name="bufferForward"
+                          defaultValue={String(bufferForward)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+
+                      <button
+                        type="submit"
+                        className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </details>
+            </div>
+
+            <div className="flex w-full flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
                 {view !== "months" ? (
                   <Link
                     href={weekendToggleHref}
@@ -3819,168 +4185,6 @@ export default async function CrewDispatchPage({
                   Notizen
                 </Link>
               </div>
-
-              <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
-                {(["1w", "2w", "5w", "5m"] as TimelineRange[]).map((item) => {
-                  const disabled =
-                    (view === "months" && item !== "5m") ||
-                    (view !== "months" && item === "5m");
-
-                  if (disabled) {
-                    return null;
-                  }
-
-                  const presetStart =
-                    view === "months"
-                      ? startOfMonth(new Date())
-                      : startOfWeek(new Date());
-
-                  const presetEnd = getDefaultRangeEnd({
-                    view,
-                    range: item,
-                    customCount,
-                    anchorDate: presetStart,
-                    showWeekend,
-                  });
-
-                  return (
-                    <Link
-                      key={item}
-                      href={buildCrewDispatchHref({
-                        fromDate: presetStart,
-                        toDate: presetEnd,
-                        view,
-                        range: item,
-                        customCount,
-                        customUnit,
-                        showWeekend,
-                        bufferBack,
-                        bufferForward,
-                        showAsphaltDispatchCrews,
-                        showEquipment,
-                        showTrucks,
-                        showSpecialVehicles,
-                        showMaterial,
-                        showNotes,
-                        focusDate: presetStart,
-                        highlightCrewId: highlightedCrewId,
-                      })}
-                      scroll={false}
-                      className={
-                        !isCustomDateRange && range === item
-                          ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-                          : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
-                      }
-                    >
-                      {getRangeLabel(item)}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-
-            <form
-              action="/crew-dispatch"
-              className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2"
-            >
-              <input type="hidden" name="view" value={view} />
-              <input type="hidden" name="range" value="custom" />
-
-              {showWeekend ? (
-                <input type="hidden" name="showWeekend" value="1" />
-              ) : null}
-
-              {showAsphaltDispatchCrews ? (
-                <input
-                  type="hidden"
-                  name="showAsphaltDispatchCrews"
-                  value="1"
-                />
-              ) : null}
-
-              {showEquipment ? (
-                <input type="hidden" name="showEquipment" value="1" />
-              ) : null}
-
-              {showTrucks ? (
-                <input type="hidden" name="showTrucks" value="1" />
-              ) : null}
-
-              {showSpecialVehicles ? (
-                <input type="hidden" name="showSpecialVehicles" value="1" />
-              ) : null}
-
-              {showMaterial ? (
-                <input type="hidden" name="showMaterial" value="1" />
-              ) : null}
-
-              {showNotes ? (
-                <input type="hidden" name="showNotes" value="1" />
-              ) : null}
-
-              {highlightedCrewId ? (
-                <input
-                  type="hidden"
-                  name="highlightCrew"
-                  value={highlightedCrewId}
-                />
-              ) : null}
-
-              <span className="whitespace-nowrap text-xs font-semibold text-blue-950">
-                Zeitraum frei wählen
-              </span>
-
-              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
-                Von
-                <input
-                  type="date"
-                  name="from"
-                  defaultValue={formatDateInput(fromDate)}
-                  className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-                />
-              </label>
-
-              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
-                Bis
-                <input
-                  type="date"
-                  name="to"
-                  defaultValue={formatDateInput(toDate)}
-                  className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-                />
-              </label>
-
-              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
-                Zurück
-                <input
-                  type="number"
-                  min="0"
-                  name="bufferBack"
-                  defaultValue={String(bufferBack)}
-                  className="w-16 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-                />
-                {view === "months" ? "Mon." : "Wo."}
-              </label>
-
-              <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-950">
-                Voraus
-                <input
-                  type="number"
-                  min="0"
-                  name="bufferForward"
-                  defaultValue={String(bufferForward)}
-                  className="w-16 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-                />
-                {view === "months" ? "Mon." : "Wo."}
-              </label>
-
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
-              >
-                Öffnen
-              </button>
-            </form>
           </div>
 
           <div
