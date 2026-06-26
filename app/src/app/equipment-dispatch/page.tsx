@@ -2,12 +2,14 @@ import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import {
   createEquipmentDispatchAssignment,
   deleteEquipmentDispatchAssignment,
   updateEquipmentDispatchAssignment,
 } from "./actions";
 import { EquipmentAssignmentBar } from "./EquipmentAssignmentBar";
+import { EquipmentDispatchStickyOffset } from "./EquipmentDispatchStickyOffset";
 import { EquipmentTimelineScroll } from "./EquipmentTimelineScroll";
 
 type TimelineUnit = {
@@ -2111,185 +2113,15 @@ export default async function EquipmentDispatchPage({
         aus der LKW-Disposition, violette Balken aus der Sonderfahrzeugdisposition.
       </div>
 
-      <form
-        action="/equipment-dispatch"
-        className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      <div
+        data-equipment-dispatch-root
+        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
       >
-        <input type="hidden" name="from" value={formatDateInput(fromDate)} />
-        <input type="hidden" name="to" value={formatDateInput(toDate)} />
-        <input type="hidden" name="view" value={view} />
-        <input type="hidden" name="focus" value={formatDateInput(focusDateFromParams)} />
-        {showWeekend ? (
-          <input type="hidden" name="showWeekend" value="1" />
-        ) : null}
-
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Geräte filtern
-            </div>
-            <label className="mt-2 block text-sm font-semibold text-gray-800">
-              Schnellsuche
-              <input
-                name="q"
-                defaultValue={filters.q}
-                placeholder="z.B. Bagger, Walze, 105, AB-ST, Sonderfahrzeug, Baustelle, Kolonne"
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              />
-            </label>
-          </div>
-
-          <div className="text-sm font-semibold text-gray-600">
-            {filteredVehicles.length} von {vehicles.length} Geräten sichtbar
-            {activeFilterCount > 0
-              ? ` · ${activeFilterCount} Filter aktiv`
-              : ""}
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="text-xs font-semibold text-gray-700">
-            Baustelle / Projekt
-            <select
-              name="projectId"
-              defaultValue={filters.projectId}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle Baustellen</option>
-              {projectFilterOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
-            Fahrzeugnummer
-            <select
-              name="vehicleNumber"
-              defaultValue={filters.vehicleNumber}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle Fahrzeugnummern</option>
-              {vehicleNumberOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
-            Kennzeichen
-            <input
-              name="licensePlate"
-              defaultValue={filters.licensePlate}
-              placeholder="Kennzeichen suchen"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            />
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
-            Kategorie
-            <select
-              name="category"
-              defaultValue={filters.category}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle Kategorien</option>
-              {vehicleCategoryOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700">
-            Belegung
-            <select
-              name="assignmentSource"
-              defaultValue={filters.assignmentSource}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-            >
-              <option value="all">Alle Belegungen</option>
-              <option value="manual">Nur manuelle Dispo</option>
-              <option value="default">Nur Kolonnen-Grundinfo</option>
-              <option value="truck">Nur LKW-Dispo</option>
-              <option value="special">Nur Sonderfahrzeug-Dispo</option>
-              <option value="empty">Ohne sichtbare Belegung</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <input type="hidden" name="vehicleTypesTouched" value="1" />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Gerätetypen anzeigen
-              </div>
-              <div className="mt-1 text-xs font-medium text-gray-500">
-                Die Liste kommt aus den aktiven Fahrzeugtypen der Auswahllisten.
-              </div>
-            </div>
-            <div className="text-xs font-semibold text-gray-600">
-              {filters.visibleVehicleTypes.length}/{vehicleTypeOptions.length} aktiv
-            </div>
-          </div>
-
-          {vehicleTypeOptions.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {vehicleTypeOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
-                >
-                  <input
-                    name="visibleVehicleType"
-                    type="checkbox"
-                    value={option.value}
-                    defaultChecked={filters.visibleVehicleTypes.includes(
-                      option.value,
-                    )}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-500">
-              Noch keine Fahrzeugtypen in den Auswahllisten oder im Fahrzeugstamm vorhanden.
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="submit"
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-          >
-            Suchen / Filtern
-          </button>
-          <Link
-            href={buildEquipmentDispatchHref({
-              fromDate,
-              toDate,
-              view,
-              showWeekend,
-            })}
-            scroll={false}
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          >
-            Filter zurücksetzen
-          </Link>
-        </div>
-      </form>
-
-      <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+        <EquipmentDispatchStickyOffset />
+        <div
+          data-equipment-dispatch-sticky-controls
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+        >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -2351,168 +2183,343 @@ export default async function EquipmentDispatchPage({
               >
                 weiter →
               </Link>
+
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
-              <Link
-                key={item}
-                href={buildEquipmentDispatchHref({
-                  fromDate,
-                  toDate,
-                  view: item,
-                  showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className={
-                  view === item
-                    ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-                    : "rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                }
-              >
-                {item === "days"
-                  ? "Tage"
-                  : item === "weeks"
-                    ? "Wochen"
-                    : "Monate"}
-              </Link>
-            ))}
-
-            {view !== "months" ? (
-              <Link
-                href={buildEquipmentDispatchHref({
-                  fromDate,
-                  toDate,
-                  view,
-                  showWeekend: !showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className={
-                  showWeekend
-                    ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-                    : "rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                }
-              >
-                {showWeekend ? "Sa/So ausblenden" : "Sa/So anzeigen"}
-              </Link>
-            ) : null}
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
-            <span className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Zeitstrahl
-            </span>
-            {timelineRangePresets.map((preset) => (
-              <Link
-                key={preset.label}
-                href={buildEquipmentDispatchHref({
-                  fromDate: preset.fromDate,
-                  toDate: preset.toDate,
-                  view: preset.label === "5M" ? "months" : view === "months" ? "days" : view,
-                  showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-100"
-              >
-                {preset.label}
-              </Link>
-            ))}
-            <span className="text-xs font-medium text-gray-500">
-              oder unten Von/Bis frei wählen
-            </span>
-          </div>
-
-          <form
-            action="/equipment-dispatch"
-            className="mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2"
-          >
-            <input type="hidden" name="view" value={view} />
-            <input type="hidden" name="focus" value={formatDateInput(fromDate)} />
-            {showWeekend ? (
-              <input type="hidden" name="showWeekend" value="1" />
-            ) : null}
-            {filters.q ? (
-              <input type="hidden" name="q" value={filters.q} />
-            ) : null}
-            {filters.projectId ? (
-              <input type="hidden" name="projectId" value={filters.projectId} />
-            ) : null}
-            {filters.vehicleNumber ? (
-              <input
-                type="hidden"
-                name="vehicleNumber"
-                value={filters.vehicleNumber}
-              />
-            ) : null}
-            {filters.licensePlate ? (
-              <input
-                type="hidden"
-                name="licensePlate"
-                value={filters.licensePlate}
-              />
-            ) : null}
-            {filters.category ? (
-              <input type="hidden" name="category" value={filters.category} />
-            ) : null}
-            {filters.specialVehicle !== "all" ? (
-              <input
-                type="hidden"
-                name="specialVehicle"
-                value={filters.specialVehicle}
-              />
-            ) : null}
-            {filters.assignmentSource !== "all" ? (
-              <input
-                type="hidden"
-                name="assignmentSource"
-                value={filters.assignmentSource}
-              />
-            ) : null}
-            {filters.vehicleTypesTouched ? (
-              <input type="hidden" name="vehicleTypesTouched" value="1" />
-            ) : null}
-            {filters.vehicleTypesTouched
-              ? filters.visibleVehicleTypes.map((vehicleType) => (
-                  <input
-                    key={vehicleType}
-                    type="hidden"
-                    name="visibleVehicleType"
-                    value={vehicleType}
-                  />
-                ))
-              : null}
-            <label className="text-xs font-semibold text-blue-950">
-              Von
-              <input
-                name="from"
-                type="date"
-                defaultValue={formatDateInput(fromDate)}
-                className="mt-1 block rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-blue-950">
-              Bis
-              <input
-                name="to"
-                type="date"
-                defaultValue={formatDateInput(toDate)}
-                className="mt-1 block rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900"
-              />
-            </label>
-            <div className="max-w-[360px] text-[11px] font-medium leading-4 text-blue-800">
-              Von/Bis ist der exakt sichtbare Bereich. Bei kurzen Zeiträumen wird die Breite an den Bildschirm angepasst; verschoben wird über Zurück/Weiter, Heute oder neue Von/Bis-Werte.
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
+                <Link
+                  key={item}
+                  href={buildEquipmentDispatchHref({
+                    fromDate,
+                    toDate,
+                    view: item,
+                    showWeekend,
+                    filters,
+                  })}
+                  scroll={false}
+                  className={
+                    view === item
+                      ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                      : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                  }
+                >
+                  {item === "days"
+                    ? "Tage"
+                    : item === "weeks"
+                      ? "Wochen"
+                      : "Monate"}
+                </Link>
+              ))}
             </div>
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
-            >
-              Öffnen
-            </button>
-          </form>
+
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {timelineRangePresets.map((preset) => (
+                <Link
+                  key={preset.label}
+                  href={buildEquipmentDispatchHref({
+                    fromDate: preset.fromDate,
+                    toDate: preset.toDate,
+                    view:
+                      preset.label === "5M"
+                        ? "months"
+                        : view === "months"
+                          ? "days"
+                          : view,
+                    showWeekend,
+                    filters,
+                  })}
+                  scroll={false}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                >
+                  {preset.label}
+                </Link>
+              ))}
+            </div>
+
+
+              <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
+                {filteredVehicles.length}/{vehicles.length} Geräte
+              </div>
+              <DismissibleDetails className="relative inline-block">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+                  🔎 Filter
+                  {activeFilterCount > 0 ? (
+                    <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </summary>
+
+                <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                  <div className="text-sm font-bold text-gray-900">Geräte filtern</div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Suche, Baustelle, Gerätedaten und Belegung einschränken.
+                  </p>
+
+                  <form
+                    action="/equipment-dispatch"
+                    className="mt-4 grid gap-4"
+                  >
+                    <input type="hidden" name="from" value={formatDateInput(fromDate)} />
+                    <input type="hidden" name="to" value={formatDateInput(toDate)} />
+                    <input type="hidden" name="view" value={view} />
+                    <input type="hidden" name="focus" value={formatDateInput(focusDateFromParams)} />
+                    {showWeekend ? (
+                      <input type="hidden" name="showWeekend" value="1" />
+                    ) : null}
+
+                    <label className="block text-sm font-semibold text-gray-800">
+                      Schnellsuche
+                      <input
+                        name="q"
+                        defaultValue={filters.q}
+                        placeholder="z.B. Bagger, Walze, 105, AB-ST, Sonderfahrzeug, Baustelle, Kolonne"
+                        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      />
+                    </label>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                      <label className="text-xs font-semibold text-gray-700">
+                        Baustelle / Projekt
+                        <select
+                          name="projectId"
+                          defaultValue={filters.projectId}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                        >
+                          <option value="">Alle Baustellen</option>
+                          {projectFilterOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-xs font-semibold text-gray-700">
+                        Fahrzeugnummer
+                        <select
+                          name="vehicleNumber"
+                          defaultValue={filters.vehicleNumber}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                        >
+                          <option value="">Alle Fahrzeugnummern</option>
+                          {vehicleNumberOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-xs font-semibold text-gray-700">
+                        Kennzeichen
+                        <input
+                          name="licensePlate"
+                          defaultValue={filters.licensePlate}
+                          placeholder="Kennzeichen suchen"
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                        />
+                      </label>
+
+                      <label className="text-xs font-semibold text-gray-700">
+                        Kategorie
+                        <select
+                          name="category"
+                          defaultValue={filters.category}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                        >
+                          <option value="">Alle Kategorien</option>
+                          {vehicleCategoryOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-xs font-semibold text-gray-700">
+                        Belegung
+                        <select
+                          name="assignmentSource"
+                          defaultValue={filters.assignmentSource}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
+                        >
+                          <option value="all">Alle Belegungen</option>
+                          <option value="manual">Nur manuelle Dispo</option>
+                          <option value="default">Nur Kolonnen-Grundinfo</option>
+                          <option value="truck">Nur LKW-Dispo</option>
+                          <option value="special">Nur Sonderfahrzeug-Dispo</option>
+                          <option value="empty">Ohne sichtbare Belegung</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <input type="hidden" name="vehicleTypesTouched" value="1" />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Gerätetypen anzeigen
+                          </div>
+                          <div className="mt-1 text-xs font-medium text-gray-500">
+                            Die Liste kommt aus den aktiven Fahrzeugtypen der Auswahllisten.
+                          </div>
+                        </div>
+                        <div className="text-xs font-semibold text-gray-600">
+                          {filters.visibleVehicleTypes.length}/{vehicleTypeOptions.length} aktiv
+                        </div>
+                      </div>
+
+                      {vehicleTypeOptions.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {vehicleTypeOptions.map((option) => (
+                            <label
+                              key={option.value}
+                              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                            >
+                              <input
+                                name="visibleVehicleType"
+                                type="checkbox"
+                                value={option.value}
+                                defaultChecked={filters.visibleVehicleTypes.includes(
+                                  option.value,
+                                )}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              {option.label}
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-500">
+                          Noch keine Fahrzeugtypen in den Auswahllisten oder im Fahrzeugstamm vorhanden.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="submit"
+                        className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                      >
+                        Filter anwenden
+                      </button>
+                      <Link
+                        href={buildEquipmentDispatchHref({
+                          fromDate,
+                          toDate,
+                          view,
+                          showWeekend,
+                        })}
+                        scroll={false}
+                        className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                      >
+                        Filter zurücksetzen
+                      </Link>
+                    </div>
+                  </form>
+                </div>
+              </DismissibleDetails>
+
+              {activeFilterCount > 0 ? (
+                <Link
+                  href={buildEquipmentDispatchHref({
+                    fromDate,
+                    toDate,
+                    view,
+                    showWeekend,
+                  })}
+                  scroll={false}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                >
+                  Zurücksetzen
+                </Link>
+              ) : null}
+
+            <DismissibleDetails className="relative inline-block w-full sm:w-auto">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100">
+                ⚙ Einstellungen
+                <span className="text-blue-700">▾</span>
+              </summary>
+
+              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+                <div className="text-sm font-bold text-gray-900">
+                  Gerätedisposition einstellen
+                </div>
+                <p className="mt-1 text-xs text-gray-600">
+                  Sichtbaren Zeitraum und Anzeigeoptionen für den Dispoplan speichern.
+                </p>
+
+                <form
+                  action="/equipment-dispatch"
+                  className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
+                >
+                  <input type="hidden" name="view" value={view} />
+                  <input type="hidden" name="focus" value={formatDateInput(fromDate)} />
+                  <EquipmentFilterHiddenInputs filters={filters} />
+
+                  <fieldset className="rounded-xl border border-gray-200 bg-white p-3">
+                    <legend className="px-1 text-xs font-bold uppercase tracking-wide text-gray-600">
+                      Zeitraum
+                    </legend>
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Von
+                        <input
+                          name="from"
+                          type="date"
+                          defaultValue={formatDateInput(fromDate)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                        Bis
+                        <input
+                          name="to"
+                          type="date"
+                          defaultValue={formatDateInput(toDate)}
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                        />
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset className="rounded-xl border border-gray-200 bg-white p-3">
+                    <legend className="px-1 text-xs font-bold uppercase tracking-wide text-gray-600">
+                      Anzeigeoptionen
+                    </legend>
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {view !== "months" ? (
+                        <label className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800">
+                          <input
+                            type="checkbox"
+                            name="showWeekend"
+                            value="1"
+                            defaultChecked={showWeekend}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <span>Sa/So anzeigen</span>
+                        </label>
+                      ) : null}
+                    </div>
+                  </fieldset>
+
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                  >
+                    Einstellungen speichern
+                  </button>
+                </form>
+              </div>
+            </DismissibleDetails>
+          </div>
 
           <div
             className="mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
@@ -2556,6 +2563,13 @@ export default async function EquipmentDispatchPage({
           </div>
         </div>
 
+        <div
+          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
+          style={{
+            maxHeight:
+              "max(360px, calc(100vh - var(--equipment-dispatch-sticky-offset, 280px) - var(--app-header-height, 0px) - 1rem))",
+          }}
+        >
         <div
           className="grid w-full"
           style={{
@@ -2915,8 +2929,68 @@ export default async function EquipmentDispatchPage({
             </div>
           </EquipmentTimelineScroll>
         </div>
+        </div>
       </div>
     </AppShell>
+  );
+}
+
+function EquipmentFilterHiddenInputs({
+  filters,
+}: {
+  filters: EquipmentDispatchFilters;
+}) {
+  return (
+    <>
+      {filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
+      {filters.projectId ? (
+        <input type="hidden" name="projectId" value={filters.projectId} />
+      ) : null}
+      {filters.vehicleNumber ? (
+        <input
+          type="hidden"
+          name="vehicleNumber"
+          value={filters.vehicleNumber}
+        />
+      ) : null}
+      {filters.licensePlate ? (
+        <input
+          type="hidden"
+          name="licensePlate"
+          value={filters.licensePlate}
+        />
+      ) : null}
+      {filters.category ? (
+        <input type="hidden" name="category" value={filters.category} />
+      ) : null}
+      {filters.specialVehicle !== "all" ? (
+        <input
+          type="hidden"
+          name="specialVehicle"
+          value={filters.specialVehicle}
+        />
+      ) : null}
+      {filters.assignmentSource !== "all" ? (
+        <input
+          type="hidden"
+          name="assignmentSource"
+          value={filters.assignmentSource}
+        />
+      ) : null}
+      {filters.vehicleTypesTouched ? (
+        <input type="hidden" name="vehicleTypesTouched" value="1" />
+      ) : null}
+      {filters.vehicleTypesTouched
+        ? filters.visibleVehicleTypes.map((vehicleType) => (
+            <input
+              key={vehicleType}
+              type="hidden"
+              name="visibleVehicleType"
+              value={vehicleType}
+            />
+          ))
+        : null}
+    </>
   );
 }
 
