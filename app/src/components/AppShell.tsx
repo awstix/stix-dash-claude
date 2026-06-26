@@ -24,7 +24,7 @@ const secondaryNavigation = [
 const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
   { name: "Gerätedisposition", href: "/equipment-dispatch" },
-  { name: "Kolonneneinteilung", href: "/crew-dispatch" },
+  { name: "Planung", href: "/crew-dispatch" },
   { name: "LKW-Einteilung", href: "/truck-dispatch" },
   { name: "LKW-Einteilung Kurzstrecke", href: "/truck-dispatch/short-haul" },
   { name: "LKW-Einteilung Langstrecke", href: "/truck-dispatch/long-haul" },

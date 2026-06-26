@@ -25,6 +25,32 @@ export function AppHeader({
   const headerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const header = headerRef.current;
+
+    function syncHeaderHeight() {
+      if (!headerRef.current) {
+        return;
+      }
+
+      document.documentElement.style.setProperty(
+        "--app-header-height",
+        `${headerRef.current.offsetHeight}px`,
+      );
+    }
+
+    syncHeaderHeight();
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" && header
+        ? new ResizeObserver(syncHeaderHeight)
+        : null;
+
+    if (header && resizeObserver) {
+      resizeObserver.observe(header);
+    }
+
+    window.addEventListener("resize", syncHeaderHeight);
+
     function closeOnOutsideClick(event: MouseEvent) {
       if (
         headerRef.current &&
@@ -45,6 +71,9 @@ export function AppHeader({
     document.addEventListener("keydown", closeOnEscape);
 
     return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncHeaderHeight);
+      document.documentElement.style.removeProperty("--app-header-height");
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };

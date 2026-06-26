@@ -10,10 +10,17 @@ import { CrewPopover } from "./CrewPopover";
 import { CrewTimelineFocusButton } from "./CrewTimelineFocusButton";
 import { CrewTimelineScroll } from "./CrewTimelineScroll";
 import { CrewTimelineMouseTooltip } from "./CrewTimelineMouseTooltip";
+import { DismissibleDetails } from "./DismissibleDetails";
 
 const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 type TimelineView = "days" | "weeks" | "months";
+type PlanningAxis =
+  | "projects"
+  | "employees"
+  | "teams"
+  | "equipment"
+  | "specialEquipment";
 type TimelineRange =
   | "7d"
   | "14d"
@@ -26,6 +33,14 @@ type TimelineRange =
   | "12m"
   | "custom";
 type CustomUnit = "days" | "weeks" | "months";
+
+const planningAxisTabs: { value: PlanningAxis; label: string }[] = [
+  { value: "projects", label: "Projekte" },
+  { value: "employees", label: "Mitarbeiter" },
+  { value: "teams", label: "Teams" },
+  { value: "equipment", label: "Geräte" },
+  { value: "specialEquipment", label: "Sondergeräte" },
+];
 
 type TimelineUnit = {
   key: string;
@@ -81,6 +96,23 @@ type CrewTimelineLaneItem = {
   kind: "assignment" | "asphalt";
   startDate: Date;
   endDate: Date;
+};
+
+type PlanningAxisRow = {
+  id: string;
+  label: string;
+  subLabel?: string;
+  href?: string;
+};
+
+type PlanningAxisBar = {
+  id: string;
+  rowId: string;
+  title: string;
+  subtitle?: string;
+  startDate: Date;
+  endDate: Date;
+  tone: "project" | "employee" | "equipment" | "special";
 };
 
 type CrewDispatchMaterialItem = {
@@ -321,6 +353,20 @@ function getTimelineView(value: string | undefined): TimelineView {
   }
 
   return "days";
+}
+
+function getPlanningAxis(value: string | undefined): PlanningAxis {
+  if (
+    value === "projects" ||
+    value === "employees" ||
+    value === "teams" ||
+    value === "equipment" ||
+    value === "specialEquipment"
+  ) {
+    return value;
+  }
+
+  return "teams";
 }
 
 function getTimelineRange(value: string | undefined, view: TimelineView): TimelineRange {
@@ -698,6 +744,21 @@ function getCrewBadgeClass(typeValue: string | null) {
 
 function getAsphaltDispatchBarClass(unitCount: number) {
   return `rounded-lg border border-orange-300 bg-orange-100 font-semibold text-orange-950 shadow-sm ring-1 ring-orange-200 ${getBarPaddingClass(
+    unitCount,
+  )} ${getBarTextClass(unitCount)}`;
+}
+
+function getPlanningAxisBarClass(tone: PlanningAxisBar["tone"], unitCount: number) {
+  const toneClass =
+    tone === "project"
+      ? "border-blue-300 bg-blue-600 text-white"
+      : tone === "employee"
+        ? "border-sky-300 bg-sky-600 text-white"
+        : tone === "special"
+          ? "border-violet-300 bg-violet-600 text-white"
+          : "border-emerald-300 bg-emerald-600 text-white";
+
+  return `rounded-md border font-semibold shadow-sm ${toneClass} ${getBarPaddingClass(
     unitCount,
   )} ${getBarTextClass(unitCount)}`;
 }
@@ -1818,6 +1879,8 @@ function isDayInDateRange(day: Date, startDate: Date, endDate: Date) {
 }
 
 function buildCrewDispatchHref({
+  planningAxis,
+  extraParams,
   fromDate,
   toDate,
   view,
@@ -1836,6 +1899,8 @@ function buildCrewDispatchHref({
   focusDate,
   highlightCrewId,
 }: {
+  planningAxis?: PlanningAxis;
+  extraParams?: Record<string, string | number | boolean | null | undefined>;
   fromDate: Date;
   toDate: Date;
   view: TimelineView;
@@ -1855,6 +1920,20 @@ function buildCrewDispatchHref({
   highlightCrewId?: string | null;
 }) {
   const params = new URLSearchParams();
+
+  if (extraParams) {
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === false || value === "") {
+        return;
+      }
+
+      params.set(key, value === true ? "1" : String(value));
+    });
+  }
+
+  if (planningAxis && planningAxis !== "teams") {
+    params.set("axis", planningAxis);
+  }
 
   params.set("from", formatDateInput(fromDate));
   params.set("to", formatDateInput(toDate));
@@ -2015,10 +2094,26 @@ function getTimelineColumnWidth(view: TimelineView, unitCount: number) {
 }
 
 function getTimelineMinWidth(view: TimelineView, unitCount: number) {
+  if (
+    (view === "days" && unitCount <= 21) ||
+    (view === "weeks" && unitCount <= 9) ||
+    (view === "months" && unitCount <= 12)
+  ) {
+    return 0;
+  }
+
   return unitCount * getTimelineColumnWidth(view, unitCount);
 }
 
 function getTimelineGridColumns(view: TimelineView, unitCount: number) {
+  if (
+    (view === "days" && unitCount <= 21) ||
+    (view === "weeks" && unitCount <= 9) ||
+    (view === "months" && unitCount <= 12)
+  ) {
+    return `repeat(${unitCount}, minmax(0, 1fr))`;
+  }
+
   return `repeat(${unitCount}, minmax(${getTimelineColumnWidth(
     view,
     unitCount,
@@ -2081,6 +2176,10 @@ function getViewLabel(view: TimelineView) {
   return "Tage";
 }
 
+function getPlanningAxisLabel(axis: PlanningAxis) {
+  return planningAxisTabs.find((tab) => tab.value === axis)?.label ?? "Teams";
+}
+
 function getRangeLabel(range: TimelineRange) {
   if (range === "7d") return "7T";
   if (range === "14d") return "14T";
@@ -2105,9 +2204,9 @@ const CREW_TIMELINE_PLUS_ROW_HEIGHT_PX = 42;
 const CREW_TIMELINE_BAR_TOP_PX = CREW_TIMELINE_PLUS_ROW_HEIGHT_PX + 14;
 const CREW_TIMELINE_BAR_LANE_HEIGHT_PX = 72;
 const CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX = 24;
-const CREW_TIMELINE_SUPPLEMENT_GAP_PX = 4;
+const CREW_TIMELINE_SUPPLEMENT_GAP_PX = 6;
 const CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX = 44;
-const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 42;
+const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 52;
 
 function getSupplementLayerCount({
   showEquipment,
@@ -2946,15 +3045,19 @@ export default async function CrewDispatchPage({
     showSpecialVehicles?: string;
     showMaterial?: string;
     showNotes?: string;
+    axis?: string;
+    hideWeekend?: string;
   }>;
 }) {
   const params = await searchParams;
 
   const view = getTimelineView(params.view);
+  const planningAxis = getPlanningAxis(params.axis);
   const range = getTimelineRange(params.range, view);
   const customUnit = getCustomUnit(params.customUnit, view);
   const customCount = getCustomCount(params.customCount, view);
-  const showWeekend = params.showWeekend === "1";
+  const hideWeekend = params.hideWeekend === "1" || params.showWeekend !== "1";
+  const showWeekend = !hideWeekend;
   const showAsphaltDispatchCrews = params.showAsphaltDispatchCrews === "1";
   const showEquipment = params.showEquipment === "1";
   const showTrucks = params.showTrucks === "1";
@@ -3061,6 +3164,8 @@ export default async function CrewDispatchPage({
     planningRows,
     projects,
     allCrews,
+    allEmployees,
+    allVehicles,
     asphaltDispatchEntries,
     truckLongHaulEntries,
     shortHaulAssignments,
@@ -3093,6 +3198,18 @@ export default async function CrewDispatchPage({
                     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
                   },
                 },
+              },
+              extraEmployees: {
+                include: {
+                  employee: true,
+                },
+                orderBy: [{ createdAt: "asc" }],
+              },
+              extraVehicles: {
+                include: {
+                  vehicle: true,
+                },
+                orderBy: [{ createdAt: "asc" }],
               },
             },
             orderBy: [{ startDate: "asc" }, { crewName: "asc" }],
@@ -3171,6 +3288,20 @@ export default async function CrewDispatchPage({
           },
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+
+      prisma.employee.findMany({
+        where: {
+          statusValue: "active",
+        },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+
+      prisma.vehicle.findMany({
+        where: {
+          isActive: true,
+        },
+        orderBy: [{ vehicleNumber: "asc" }],
       }),
 
       showAsphaltDispatchCrews
@@ -3317,7 +3448,7 @@ export default async function CrewDispatchPage({
           })
         : Promise.resolve([]),
 
-      showSpecialVehicles
+      showSpecialVehicles || planningAxis === "specialEquipment"
         ? prisma.specialVehicleDispatchAssignment.findMany({
             where: {
               workDate: {
@@ -3339,7 +3470,7 @@ export default async function CrewDispatchPage({
           })
         : Promise.resolve([]),
 
-      showEquipment
+      showEquipment || planningAxis === "equipment"
         ? prisma.equipmentDispatchAssignment.findMany({
             where: {
               startDate: {
@@ -3451,6 +3582,10 @@ export default async function CrewDispatchPage({
       endDate: formatDateInput(assignment.endDate),
     }));
 
+  const planningSettingsParams = {
+    hideWeekend,
+  };
+
   const leftColumnWidth = getLeftColumnWidth(unitCount);
   const timelineGridColumns = getTimelineGridColumns(view, unitCount);
   const timelineMinWidth = getTimelineMinWidth(view, unitCount);
@@ -3468,7 +3603,176 @@ export default async function CrewDispatchPage({
     ] as const),
   );
 
+  const projectAxisRows: PlanningAxisRow[] = projects.map((project) => ({
+    id: project.id,
+    label: `${project.projectNumber} · ${project.name}`,
+    subLabel: project.constructionManager ?? undefined,
+    href: `/projects/${project.id}`,
+  }));
+
+  const employeeAxisRows: PlanningAxisRow[] = allEmployees.map((employee) => ({
+    id: employee.id,
+    label: `${employee.lastName}, ${employee.firstName}`,
+    subLabel: employee.departmentLabel ?? employee.companyLabel ?? undefined,
+  }));
+
+  const equipmentAxisRows: PlanningAxisRow[] = allVehicles
+    .filter((vehicle) => !vehicle.isSpecialVehicle)
+    .map((vehicle) => ({
+      id: vehicle.id,
+      label: getVehicleLabel(vehicle),
+      subLabel: vehicle.category,
+      href: `/admin/vehicles#vehicle-${vehicle.id}`,
+    }));
+
+  const specialEquipmentAxisRows: PlanningAxisRow[] = allVehicles
+    .filter((vehicle) => vehicle.isSpecialVehicle)
+    .map((vehicle) => ({
+      id: vehicle.id,
+      label: getVehicleLabel(vehicle),
+      subLabel: vehicle.category,
+      href: `/admin/vehicles#vehicle-${vehicle.id}`,
+    }));
+
+  const planningAxisRows =
+    planningAxis === "projects"
+      ? projectAxisRows
+      : planningAxis === "employees"
+        ? employeeAxisRows
+        : planningAxis === "equipment"
+          ? equipmentAxisRows
+          : planningAxis === "specialEquipment"
+            ? specialEquipmentAxisRows
+            : [];
+
+  const planningAxisBars = new Map<string, PlanningAxisBar[]>();
+  const addPlanningAxisBar = (bar: PlanningAxisBar) => {
+    const existing = planningAxisBars.get(bar.rowId) ?? [];
+    existing.push(bar);
+    planningAxisBars.set(bar.rowId, existing);
+  };
+
+  if (planningAxis === "projects") {
+    for (const { row, assignment } of visibleAssignments) {
+      if (!row.projectId) continue;
+
+      addPlanningAxisBar({
+        id: assignment.id,
+        rowId: row.projectId,
+        title: assignment.crewName || assignment.crew?.name || "Team",
+        subtitle: getProjectRowTitle(row),
+        startDate: assignment.startDate,
+        endDate: assignment.endDate,
+        tone: "project",
+      });
+    }
+
+    for (const bar of asphaltTimelineBars) {
+      if (!bar.projectId) continue;
+
+      addPlanningAxisBar({
+        id: bar.id,
+        rowId: bar.projectId,
+        title: bar.crewName,
+        subtitle: `${bar.projectNumber} · ${bar.projectName}`,
+        startDate: bar.startDate,
+        endDate: bar.endDate,
+        tone: "project",
+      });
+    }
+  } else if (planningAxis === "employees") {
+    for (const { row, assignment } of visibleAssignments) {
+      const employeeIds = new Set<string>();
+
+      assignment.crew?.members.forEach((member) => {
+        employeeIds.add(member.employee.id);
+      });
+
+      assignment.extraEmployees.forEach((item) => {
+        employeeIds.add(item.employee.id);
+      });
+
+      employeeIds.forEach((employeeId) => {
+        addPlanningAxisBar({
+          id: `${assignment.id}-${employeeId}`,
+          rowId: employeeId,
+          title: getProjectRowTitle(row),
+          subtitle: assignment.crewName || assignment.crew?.name || undefined,
+          startDate: assignment.startDate,
+          endDate: assignment.endDate,
+          tone: "employee",
+        });
+      });
+    }
+  } else if (planningAxis === "equipment" || planningAxis === "specialEquipment") {
+    const useSpecial = planningAxis === "specialEquipment";
+
+    for (const { row, assignment } of visibleAssignments) {
+      const vehicles = [
+        ...(assignment.crew?.defaultVehicles.map((item) => item.vehicle) ?? []),
+        ...assignment.extraVehicles.map((item) => item.vehicle),
+      ].filter((vehicle) => vehicle.isSpecialVehicle === useSpecial);
+
+      vehicles.forEach((vehicle) => {
+        addPlanningAxisBar({
+          id: `${assignment.id}-${vehicle.id}`,
+          rowId: vehicle.id,
+          title: getProjectRowTitle(row),
+          subtitle: assignment.crewName || assignment.crew?.name || undefined,
+          startDate: assignment.startDate,
+          endDate: assignment.endDate,
+          tone: useSpecial ? "special" : "equipment",
+        });
+      });
+    }
+
+    if (!useSpecial) {
+      for (const assignment of equipmentDispatchAssignments) {
+        addPlanningAxisBar({
+          id: assignment.id,
+          rowId: assignment.vehicleId,
+          title: `${assignment.project.projectNumber} · ${assignment.project.name}`,
+          subtitle: assignment.crew?.name ?? "Gerätedisposition",
+          startDate: assignment.startDate,
+          endDate: assignment.endDate,
+          tone: "equipment",
+        });
+      }
+    } else {
+      for (const assignment of specialVehicleDispatchAssignments) {
+        if (!assignment.vehicleId) continue;
+
+        addPlanningAxisBar({
+          id: assignment.id,
+          rowId: assignment.vehicleId,
+          title:
+            assignment.projectName ||
+            assignment.taskText ||
+            assignment.vehicleName ||
+            "Sondergerät",
+          subtitle: assignment.crewName ?? assignment.operatorDriverName ?? undefined,
+          startDate: assignment.workDate,
+          endDate: assignment.workDate,
+          tone: "special",
+        });
+      }
+    }
+  }
+
+  for (const bars of planningAxisBars.values()) {
+    bars.sort((a, b) => {
+      const startCompare =
+        normalizeDay(a.startDate).getTime() - normalizeDay(b.startDate).getTime();
+
+      if (startCompare !== 0) return startCompare;
+
+      return a.title.localeCompare(b.title, "de-DE");
+    });
+  }
+
   const hrefBase = {
+    planningAxis,
+    extraParams: planningSettingsParams,
     view,
     range,
     customCount,
@@ -3506,6 +3810,11 @@ export default async function CrewDispatchPage({
   });
 
   const weekendToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: {
+      ...planningSettingsParams,
+      hideWeekend: showWeekend,
+    },
     fromDate,
     toDate,
     focusDate,
@@ -3526,6 +3835,8 @@ export default async function CrewDispatchPage({
   });
 
   const asphaltDispatchCrewToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3546,6 +3857,8 @@ export default async function CrewDispatchPage({
   });
 
   const equipmentToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3566,6 +3879,8 @@ export default async function CrewDispatchPage({
   });
 
   const truckToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3586,6 +3901,8 @@ export default async function CrewDispatchPage({
   });
 
   const specialVehicleToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3606,6 +3923,8 @@ export default async function CrewDispatchPage({
   });
 
   const materialToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3626,6 +3945,8 @@ export default async function CrewDispatchPage({
   });
 
   const notesToggleHref = buildCrewDispatchHref({
+    planningAxis,
+    extraParams: planningSettingsParams,
     fromDate,
     toDate,
     focusDate,
@@ -3647,11 +3968,11 @@ export default async function CrewDispatchPage({
 
   return (
     <AppShell
-      title="Kolonneneinteilung"
-      description="Horizontale Zeitstrahlplanung: links Kolonnen, rechts Baustellen-Einsätze."
+      title="Planung"
+      description="Horizontale Zeitstrahlplanung für Projekte, Mitarbeiter, Teams, Geräte und Sondergeräte."
     >
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <SummaryCard label="Kolonnen sichtbar" value={String(crews.length)} />
+        <SummaryCard label="Teams sichtbar" value={String(crews.length)} />
         <SummaryCard
           label="Einteilungen sichtbar"
           value={String(visibleAssignments.length + asphaltTimelineBars.length)}
@@ -3668,7 +3989,7 @@ export default async function CrewDispatchPage({
           href="/admin/crews"
           className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
         >
-          Kolonnen verwalten →
+          Teams verwalten →
         </Link>
 
         <Link
@@ -3714,12 +4035,12 @@ export default async function CrewDispatchPage({
       <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div
           data-crew-dispatch-sticky
-          className="sticky top-0 z-40 border-b border-gray-200 bg-white p-4 shadow-sm"
+          className="sticky top-0 z-[90] -mx-px -mt-px rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Kolonnenplanung · {getViewLabel(view)} ·{" "}
+                Planung · {getPlanningAxisLabel(planningAxis)} · {getViewLabel(view)} ·{" "}
                 {isCustomDateRange
                   ? "freier Zeitraum"
                   : range === "custom"
@@ -3765,6 +4086,43 @@ export default async function CrewDispatchPage({
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-1 border-b border-gray-200 pb-2">
+            {planningAxisTabs.map((tab) => (
+              <Link
+                key={tab.value}
+                href={buildCrewDispatchHref({
+                  planningAxis: tab.value,
+                  extraParams: planningSettingsParams,
+                  fromDate,
+                  toDate,
+                  view,
+                  range,
+                  customCount,
+                  customUnit,
+                  showWeekend,
+                  bufferBack,
+                  bufferForward,
+                  showAsphaltDispatchCrews,
+                  showEquipment,
+                  showTrucks,
+                  showSpecialVehicles,
+                  showMaterial,
+                  showNotes,
+                  focusDate,
+                  highlightCrewId: highlightedCrewId,
+                })}
+                scroll={false}
+                className={
+                  planningAxis === tab.value
+                    ? "rounded-none bg-yellow-200 px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-950"
+                    : "rounded-none px-4 py-2 text-xs font-bold uppercase tracking-wide text-gray-600 hover:bg-gray-50 hover:text-gray-950"
+                }
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+
           <div className="mt-4 space-y-3">
             <div className="flex w-full flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
@@ -3786,6 +4144,8 @@ export default async function CrewDispatchPage({
                     <Link
                       key={item}
                       href={buildCrewDispatchHref({
+                        planningAxis,
+                        extraParams: planningSettingsParams,
                         fromDate: targetStart,
                         toDate: targetEnd,
                         view: item,
@@ -3842,6 +4202,8 @@ export default async function CrewDispatchPage({
                     <Link
                       key={item}
                       href={buildCrewDispatchHref({
+                        planningAxis,
+                        extraParams: planningSettingsParams,
                         fromDate: presetStart,
                         toDate: presetEnd,
                         view,
@@ -3873,7 +4235,7 @@ export default async function CrewDispatchPage({
                 })}
               </div>
 
-              <details className="relative inline-block w-full sm:w-auto">
+              <DismissibleDetails className="relative inline-block w-full sm:w-auto">
                 <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100">
                   ⚙ Einstellungen
                   <span className="text-blue-700">▾</span>
@@ -3892,6 +4254,7 @@ export default async function CrewDispatchPage({
                     className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3"
                   >
                     <input type="hidden" name="view" value={view} />
+                    <input type="hidden" name="axis" value={planningAxis} />
                     <input type="hidden" name="range" value="custom" />
                     <input type="hidden" name="week" value={focusDate} />
                     <input type="hidden" name="focus" value={focusDate} />
@@ -3981,6 +4344,7 @@ export default async function CrewDispatchPage({
                     className="mt-3 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
                   >
                     <input type="hidden" name="view" value={view} />
+                    <input type="hidden" name="axis" value={planningAxis} />
                     <input type="hidden" name="range" value="custom" />
                     <input type="hidden" name="focus" value={focusDate} />
                     <input type="hidden" name="customUnit" value={customUnit} />
@@ -4088,7 +4452,7 @@ export default async function CrewDispatchPage({
                     </div>
                   </form>
                 </div>
-              </details>
+              </DismissibleDetails>
             </div>
 
             <div className="flex w-full flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
@@ -4194,7 +4558,7 @@ export default async function CrewDispatchPage({
             }}
           >
             <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Kolonne
+              {getPlanningAxisLabel(planningAxis)}
             </div>
 
             <div
@@ -4239,8 +4603,155 @@ export default async function CrewDispatchPage({
           </div>
         </div>
 
+        {planningAxis !== "teams" ? (
+          <div
+            className="grid w-full"
+            style={{
+              gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
+            }}
+          >
+            <div className="border-r border-gray-200 bg-white">
+              {planningAxisRows.length === 0 ? (
+                <div className="p-10 text-center text-sm font-medium text-gray-500">
+                  Keine Einträge für {getPlanningAxisLabel(planningAxis)} sichtbar.
+                </div>
+              ) : (
+                planningAxisRows.map((row) => {
+                  const bars = planningAxisBars.get(row.id) ?? [];
+                  const rowHeight = Math.max(
+                    72,
+                    48 + Math.max(1, bars.length) * 30,
+                  );
+
+                  const content = (
+                    <>
+                      <div className="truncate text-sm font-bold text-gray-900">
+                        {row.label}
+                      </div>
+                      {row.subLabel ? (
+                        <div className="mt-1 truncate text-xs font-medium text-gray-500">
+                          {row.subLabel}
+                        </div>
+                      ) : null}
+                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        {bars.length} Planung{bars.length === 1 ? "" : "en"}
+                      </div>
+                    </>
+                  );
+
+                  return (
+                    <div
+                      key={row.id}
+                      className="border-b border-gray-200 bg-white p-3"
+                      style={{
+                        height: `${rowHeight}px`,
+                        minHeight: `${rowHeight}px`,
+                      }}
+                    >
+                      {row.href ? (
+                        <Link href={row.href} className="block min-w-0 hover:underline">
+                          {content}
+                        </Link>
+                      ) : (
+                        content
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <CrewTimelineScroll focusDate={focusDate}>
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: timelineGridColumns,
+                  minWidth: `${timelineMinWidth}px`,
+                }}
+              >
+                {planningAxisRows.map((row) => {
+                  const bars = planningAxisBars.get(row.id) ?? [];
+                  const rowHeight = Math.max(
+                    72,
+                    48 + Math.max(1, bars.length) * 30,
+                  );
+
+                  return (
+                    <div
+                      key={row.id}
+                      className="relative grid min-w-0 border-b border-gray-100 bg-white"
+                      style={{
+                        gridColumn: `1 / span ${timelineUnits.length}`,
+                        gridTemplateColumns: timelineGridColumns,
+                        height: `${rowHeight}px`,
+                        minHeight: `${rowHeight}px`,
+                      }}
+                    >
+                      {timelineUnits.map((unit) => (
+                        <div
+                          key={`${row.id}-${unit.key}`}
+                          className={`min-w-0 border-r border-gray-100 last:border-r-0 ${getCellPaddingClass(
+                            unitCount,
+                          )}`}
+                          style={{
+                            height: `${rowHeight}px`,
+                            minHeight: `${rowHeight}px`,
+                          }}
+                        />
+                      ))}
+
+                      <div
+                        className="pointer-events-none absolute inset-0 grid p-1"
+                        style={{
+                          gridTemplateColumns: timelineGridColumns,
+                        }}
+                      >
+                        {bars.map((bar, index) => {
+                          const gridColumn = getTimelineGridColumnForDateRange({
+                            startDate: bar.startDate,
+                            endDate: bar.endDate,
+                            timelineUnits,
+                          });
+
+                          if (!gridColumn) return null;
+
+                          return (
+                            <div
+                              key={bar.id}
+                              className={getPlanningAxisBarClass(bar.tone, unitCount)}
+                              style={{
+                                gridColumn,
+                                gridRow: 1,
+                                alignSelf: "start",
+                                marginTop: `${6 + index * 28}px`,
+                                minHeight: "24px",
+                              }}
+                              title={`${bar.title}${
+                                bar.subtitle ? `\n${bar.subtitle}` : ""
+                              }\n${formatShortDate(bar.startDate)} – ${formatShortDate(
+                                bar.endDate,
+                              )}`}
+                            >
+                              <div className="truncate">{bar.title}</div>
+                              {bar.subtitle ? (
+                                <div className="truncate text-[10px] font-medium opacity-90">
+                                  {bar.subtitle}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CrewTimelineScroll>
+          </div>
+        ) : null}
+
         <div
-          className="grid w-full"
+          className={planningAxis === "teams" ? "grid w-full" : "hidden"}
           style={{
             gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
           }}
@@ -4262,6 +4773,8 @@ export default async function CrewDispatchPage({
                 });
 
                 const crewFocusHref = buildCrewDispatchHref({
+                  planningAxis,
+                  extraParams: planningSettingsParams,
                   fromDate,
                   toDate,
                   view,
