@@ -11,6 +11,7 @@ import { CrewTimelineFocusButton } from "./CrewTimelineFocusButton";
 import { CrewTimelineScroll } from "./CrewTimelineScroll";
 import { CrewTimelineMouseTooltip } from "./CrewTimelineMouseTooltip";
 import { DismissibleDetails } from "./DismissibleDetails";
+import { CrewDispatchStickyOffset } from "./CrewDispatchStickyOffset";
 
 const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
@@ -3037,6 +3038,7 @@ export default async function CrewDispatchPage({
     range?: string;
     customCount?: string;
     customUnit?: string;
+    rangeMode?: string;
     bufferBack?: string;
     bufferForward?: string;
     showAsphaltDispatchCrews?: string;
@@ -3097,14 +3099,17 @@ export default async function CrewDispatchPage({
     anchorDate,
   });
 
+  const useCustomDateInputs =
+    params.rangeMode === "dates" ||
+    (params.rangeMode !== "count" && Boolean(params.from || params.to));
+
   const { fromDate, toDate } = getSafeDateRange({
-    from: params.from,
-    to: params.to,
+    from: useCustomDateInputs ? params.from : undefined,
+    to: useCustomDateInputs ? params.to : undefined,
     fallbackStart,
     fallbackEnd,
   });
-  const isCustomDateRange =
-    range === "custom" && Boolean(params.from || params.to);
+  const isCustomDateRange = range === "custom" && useCustomDateInputs;
 
   const focusDateFromParams = params.focus
     ? parseDateParam(params.focus)
@@ -3809,163 +3814,6 @@ export default async function CrewDispatchPage({
     ...hrefBase,
   });
 
-  const weekendToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: {
-      ...planningSettingsParams,
-      hideWeekend: showWeekend,
-    },
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend: !showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const asphaltDispatchCrewToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews: !showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const equipmentToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment: !showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const truckToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks: !showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const specialVehicleToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles: !showSpecialVehicles,
-    showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const materialToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial: !showMaterial,
-    showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
-  const notesToggleHref = buildCrewDispatchHref({
-    planningAxis,
-    extraParams: planningSettingsParams,
-    fromDate,
-    toDate,
-    focusDate,
-    view,
-    range,
-    customCount,
-    customUnit,
-    showWeekend,
-    bufferBack,
-    bufferForward,
-    showAsphaltDispatchCrews,
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes: !showNotes,
-    highlightCrewId: highlightedCrewId,
-  });
-
   return (
     <AppShell
       title="Planung"
@@ -4032,10 +3880,15 @@ export default async function CrewDispatchPage({
         werden dabei mit berücksichtigt.
       </div>
 
-      <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div
+        data-crew-dispatch-root
+        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+      >
+        <CrewDispatchStickyOffset />
         <div
           data-crew-dispatch-sticky
-          className="sticky top-0 z-[90] -mx-px -mt-px rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          data-crew-dispatch-sticky-controls
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -4251,51 +4104,13 @@ export default async function CrewDispatchPage({
 
                   <form
                     action="/crew-dispatch"
-                    className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3"
+                    className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
                   >
                     <input type="hidden" name="view" value={view} />
                     <input type="hidden" name="axis" value={planningAxis} />
                     <input type="hidden" name="range" value="custom" />
                     <input type="hidden" name="week" value={focusDate} />
                     <input type="hidden" name="focus" value={focusDate} />
-                    <input type="hidden" name="bufferBack" value="0" />
-                    <input type="hidden" name="bufferForward" value="0" />
-
-                    {showWeekend ? (
-                      <input type="hidden" name="showWeekend" value="1" />
-                    ) : null}
-
-                    {showAsphaltDispatchCrews ? (
-                      <input
-                        type="hidden"
-                        name="showAsphaltDispatchCrews"
-                        value="1"
-                      />
-                    ) : null}
-
-                    {showEquipment ? (
-                      <input type="hidden" name="showEquipment" value="1" />
-                    ) : null}
-
-                    {showTrucks ? (
-                      <input type="hidden" name="showTrucks" value="1" />
-                    ) : null}
-
-                    {showSpecialVehicles ? (
-                      <input
-                        type="hidden"
-                        name="showSpecialVehicles"
-                        value="1"
-                      />
-                    ) : null}
-
-                    {showMaterial ? (
-                      <input type="hidden" name="showMaterial" value="1" />
-                    ) : null}
-
-                    {showNotes ? (
-                      <input type="hidden" name="showNotes" value="1" />
-                    ) : null}
 
                     {highlightedCrewId ? (
                       <input
@@ -4305,251 +4120,133 @@ export default async function CrewDispatchPage({
                       />
                     ) : null}
 
-                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                      <label className="grid gap-1 text-xs font-semibold text-blue-950">
-                        Anzahl anzeigen
-                        <input
-                          type="number"
-                          min="1"
-                          name="customCount"
-                          defaultValue={String(customCount)}
-                          className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        />
-                      </label>
+                    <fieldset className="rounded-xl border border-gray-200 bg-white p-3">
+                      <legend className="px-1 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Zeitraum
+                      </legend>
 
-                      <label className="grid gap-1 text-xs font-semibold text-blue-950">
-                        Einheit
-                        <select
-                          name="customUnit"
-                          defaultValue={customUnit}
-                          className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        >
-                          <option value="days">Tage</option>
-                          <option value="weeks">Wochen</option>
-                          <option value="months">Monate</option>
-                        </select>
-                      </label>
+                      <div className="mt-2 grid gap-3">
+                        <label className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-950">
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="rangeMode"
+                              value="count"
+                              defaultChecked={!isCustomDateRange}
+                              className="h-4 w-4"
+                            />
+                            Anzahl anzeigen
+                          </span>
 
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
-                      >
-                        Anwenden
-                      </button>
-                    </div>
-                  </form>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <span className="grid gap-1">
+                              Anzahl
+                              <input
+                                type="number"
+                                min="1"
+                                name="customCount"
+                                defaultValue={String(customCount)}
+                                className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                              />
+                            </span>
 
-                  <form
-                    action="/crew-dispatch"
-                    className="mt-3 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
-                  >
-                    <input type="hidden" name="view" value={view} />
-                    <input type="hidden" name="axis" value={planningAxis} />
-                    <input type="hidden" name="range" value="custom" />
-                    <input type="hidden" name="focus" value={focusDate} />
-                    <input type="hidden" name="customUnit" value={customUnit} />
-                    <input
-                      type="hidden"
-                      name="customCount"
-                      value={String(customCount)}
+                            <span className="grid gap-1">
+                              Einheit
+                              <select
+                                name="customUnit"
+                                defaultValue={customUnit}
+                                className="rounded-lg border border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                              >
+                                <option value="days">Tage</option>
+                                <option value="weeks">Wochen</option>
+                                <option value="months">Monate</option>
+                              </select>
+                            </span>
+                          </div>
+                        </label>
+
+                        <label className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs font-semibold text-gray-800">
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="rangeMode"
+                              value="dates"
+                              defaultChecked={isCustomDateRange}
+                              className="h-4 w-4"
+                            />
+                            Fester Zeitraum
+                          </span>
+
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <span className="grid gap-1">
+                              Von
+                              <input
+                                type="date"
+                                name="from"
+                                defaultValue={formatDateInput(fromDate)}
+                                className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                              />
+                            </span>
+
+                            <span className="grid gap-1">
+                              Bis
+                              <input
+                                type="date"
+                                name="to"
+                                defaultValue={formatDateInput(toDate)}
+                                className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                              />
+                            </span>
+                          </div>
+                        </label>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                            Puffer zurück
+                            <input
+                              type="number"
+                              min="0"
+                              name="bufferBack"
+                              defaultValue={String(bufferBack)}
+                              className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                            />
+                          </label>
+
+                          <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                            Puffer voraus
+                            <input
+                              type="number"
+                              min="0"
+                              name="bufferForward"
+                              defaultValue={String(bufferForward)}
+                              className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </fieldset>
+
+                    <PlanningDisplayOptions
+                      showAsphaltDispatchCrews={showAsphaltDispatchCrews}
+                      showEquipment={showEquipment}
+                      showMaterial={showMaterial}
+                      showNotes={showNotes}
+                      showSpecialVehicles={showSpecialVehicles}
+                      showTrucks={showTrucks}
+                      showWeekend={showWeekend}
+                      view={view}
                     />
 
-                    {showWeekend ? (
-                      <input type="hidden" name="showWeekend" value="1" />
-                    ) : null}
-
-                    {showAsphaltDispatchCrews ? (
-                      <input
-                        type="hidden"
-                        name="showAsphaltDispatchCrews"
-                        value="1"
-                      />
-                    ) : null}
-
-                    {showEquipment ? (
-                      <input type="hidden" name="showEquipment" value="1" />
-                    ) : null}
-
-                    {showTrucks ? (
-                      <input type="hidden" name="showTrucks" value="1" />
-                    ) : null}
-
-                    {showSpecialVehicles ? (
-                      <input
-                        type="hidden"
-                        name="showSpecialVehicles"
-                        value="1"
-                      />
-                    ) : null}
-
-                    {showMaterial ? (
-                      <input type="hidden" name="showMaterial" value="1" />
-                    ) : null}
-
-                    {showNotes ? (
-                      <input type="hidden" name="showNotes" value="1" />
-                    ) : null}
-
-                    {highlightedCrewId ? (
-                      <input
-                        type="hidden"
-                        name="highlightCrew"
-                        value={highlightedCrewId}
-                      />
-                    ) : null}
-
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                        Von
-                        <input
-                          type="date"
-                          name="from"
-                          defaultValue={formatDateInput(fromDate)}
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        />
-                      </label>
-
-                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                        Bis
-                        <input
-                          type="date"
-                          name="to"
-                          defaultValue={formatDateInput(toDate)}
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                        Puffer zurück
-                        <input
-                          type="number"
-                          min="0"
-                          name="bufferBack"
-                          defaultValue={String(bufferBack)}
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        />
-                      </label>
-
-                      <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                        Puffer voraus
-                        <input
-                          type="number"
-                          min="0"
-                          name="bufferForward"
-                          defaultValue={String(bufferForward)}
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                        />
-                      </label>
-
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
-                      >
-                        Öffnen
-                      </button>
-                    </div>
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                    >
+                      Einstellungen speichern
+                    </button>
                   </form>
                 </div>
               </DismissibleDetails>
             </div>
-
-            <div className="flex w-full flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
-                {view !== "months" ? (
-                  <Link
-                    href={weekendToggleHref}
-                    scroll={false}
-                    className={
-                      showWeekend
-                        ? "ml-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
-                        : "ml-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                    }
-                  >
-                    {showWeekend ? "Sa/So ausblenden" : "Sa/So anzeigen"}
-                  </Link>
-                ) : null}
-
-                <Link
-                  href={asphaltDispatchCrewToggleHref}
-                  scroll={false}
-                  className={
-                    showAsphaltDispatchCrews
-                      ? "ml-1 rounded-lg bg-orange-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-800"
-                      : "ml-1 rounded-lg border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-900 hover:bg-orange-100"
-                  }
-                >
-                  {showAsphaltDispatchCrews
-                    ? "Asphalt-Dispo-Kolonnen ausblenden"
-                    : "Asphalt-Dispo-Kolonnen anzeigen"}
-                </Link>
-
-                <Link
-                  href={equipmentToggleHref}
-                  scroll={false}
-                  className={
-                    showEquipment
-                      ? "ml-1 rounded-lg bg-blue-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
-                      : "ml-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100"
-                  }
-                >
-                  <span className="mr-1">{showEquipment ? "☑" : "☐"}</span>
-                  Geräte/Maschinen
-                </Link>
-
-                <Link
-                  href={truckToggleHref}
-                  scroll={false}
-                  className={
-                    showTrucks
-                      ? "ml-1 rounded-lg bg-sky-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800"
-                      : "ml-1 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100"
-                  }
-                >
-                  <span className="mr-1">{showTrucks ? "☑" : "☐"}</span>
-                  LKW
-                </Link>
-
-                <Link
-                  href={specialVehicleToggleHref}
-                  scroll={false}
-                  className={
-                    showSpecialVehicles
-                      ? "ml-1 rounded-lg bg-violet-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-800"
-                      : "ml-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-900 hover:bg-violet-100"
-                  }
-                >
-                  <span className="mr-1">{showSpecialVehicles ? "☑" : "☐"}</span>
-                  Sonderfahrzeuge
-                </Link>
-
-                <Link
-                  href={materialToggleHref}
-                  scroll={false}
-                  className={
-                    showMaterial
-                      ? "ml-1 rounded-lg bg-emerald-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
-                      : "ml-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
-                  }
-                >
-                  <span className="mr-1">{showMaterial ? "☑" : "☐"}</span>
-                  Material
-                </Link>
-
-                <Link
-                  href={notesToggleHref}
-                  scroll={false}
-                  className={
-                    showNotes
-                      ? "ml-1 rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
-                      : "ml-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                  }
-                >
-                  <span className="mr-1">{showNotes ? "☑" : "☐"}</span>
-                  Notizen
-                </Link>
-              </div>
-          </div>
 
           <div
             className="mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
@@ -4602,7 +4299,15 @@ export default async function CrewDispatchPage({
             </div>
           </div>
         </div>
+        </div>
 
+        <div
+          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
+          style={{
+            maxHeight:
+              "max(360px, calc(100vh - var(--crew-dispatch-sticky-offset, 280px) - var(--app-header-height, 0px) - 1rem))",
+          }}
+        >
         {planningAxis !== "teams" ? (
           <div
             className="grid w-full"
@@ -5648,6 +5353,7 @@ export default async function CrewDispatchPage({
             </div>
           </CrewTimelineScroll>
         </div>
+        </div>
       </div>
     </AppShell>
   );
@@ -5698,6 +5404,101 @@ function TimelineInlineSupplementStrip({
         <span className="ml-1 shrink-0 opacity-70">+{extraCount}</span>
       ) : null}
     </CrewTimelineMouseTooltip>
+  );
+}
+
+function PlanningDisplayOptions({
+  showAsphaltDispatchCrews,
+  showEquipment,
+  showMaterial,
+  showNotes,
+  showSpecialVehicles,
+  showTrucks,
+  showWeekend,
+  view,
+}: {
+  showAsphaltDispatchCrews: boolean;
+  showEquipment: boolean;
+  showMaterial: boolean;
+  showNotes: boolean;
+  showSpecialVehicles: boolean;
+  showTrucks: boolean;
+  showWeekend: boolean;
+  view: TimelineView;
+}) {
+  const options = [
+    ...(view !== "months"
+      ? [
+          {
+            name: "showWeekend",
+            label: "Sa/So anzeigen",
+            defaultChecked: showWeekend,
+            className: "border-gray-300 bg-white text-gray-800",
+          },
+        ]
+      : []),
+    {
+      name: "showAsphaltDispatchCrews",
+      label: "Asphalt-Dispo-Kolonnen anzeigen",
+      defaultChecked: showAsphaltDispatchCrews,
+      className: "border-orange-300 bg-orange-50 text-orange-950",
+    },
+    {
+      name: "showEquipment",
+      label: "Geräte/Maschinen anzeigen",
+      defaultChecked: showEquipment,
+      className: "border-blue-300 bg-blue-50 text-blue-950",
+    },
+    {
+      name: "showTrucks",
+      label: "LKW anzeigen",
+      defaultChecked: showTrucks,
+      className: "border-sky-300 bg-sky-50 text-sky-950",
+    },
+    {
+      name: "showSpecialVehicles",
+      label: "Sonderfahrzeuge anzeigen",
+      defaultChecked: showSpecialVehicles,
+      className: "border-violet-300 bg-violet-50 text-violet-950",
+    },
+    {
+      name: "showMaterial",
+      label: "Material anzeigen",
+      defaultChecked: showMaterial,
+      className: "border-emerald-300 bg-emerald-50 text-emerald-950",
+    },
+    {
+      name: "showNotes",
+      label: "Notizen anzeigen",
+      defaultChecked: showNotes,
+      className: "border-amber-300 bg-amber-50 text-amber-950",
+    },
+  ];
+
+  return (
+    <fieldset className="rounded-xl border border-gray-200 bg-white p-3">
+      <legend className="px-1 text-xs font-bold uppercase tracking-wide text-gray-600">
+        Anzeigeoptionen
+      </legend>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {options.map((option) => (
+          <label
+            key={option.name}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${option.className}`}
+          >
+            <input
+              type="checkbox"
+              name={option.name}
+              value="1"
+              defaultChecked={option.defaultChecked}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
