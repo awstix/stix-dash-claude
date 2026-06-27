@@ -11,6 +11,8 @@ import {
   deleteSpecialVehicleDispatchAssignment,
   updateSpecialVehicleDispatchAssignment,
 } from "./actions";
+import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
+import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import { SpecialVehicleDispatchStickyOffset } from "./SpecialVehicleDispatchStickyOffset";
 import { SpecialVehicleTimelineScroll } from "./SpecialVehicleTimelineScroll";
 import { SpecialVehicleTourFormClient } from "./SpecialVehicleTourFormClient";
@@ -344,7 +346,7 @@ function buildSpecialVehicleDispatchHref({
   toDate: Date;
   view: TimelineView;
   showWeekend: boolean;
-  filters: SpecialVehicleFilters;
+  filters?: SpecialVehicleFilters;
   focusDate?: Date | string;
   newVehicleId?: string | null;
   newDate?: string | null;
@@ -356,12 +358,12 @@ function buildSpecialVehicleDispatchHref({
   params.set("view", view);
 
   if (showWeekend) params.set("showWeekend", "1");
-  if (filters.q) params.set("q", filters.q);
-  if (filters.projectId) params.set("projectId", filters.projectId);
-  if (filters.vehicleNumber) params.set("vehicleNumber", filters.vehicleNumber);
-  if (filters.licensePlate) params.set("licensePlate", filters.licensePlate);
-  if (filters.vehicleType) params.set("vehicleType", filters.vehicleType);
-  if (filters.category) params.set("category", filters.category);
+  if (filters?.q) params.set("q", filters.q);
+  if (filters?.projectId) params.set("projectId", filters.projectId);
+  if (filters?.vehicleNumber) params.set("vehicleNumber", filters.vehicleNumber);
+  if (filters?.licensePlate) params.set("licensePlate", filters.licensePlate);
+  if (filters?.vehicleType) params.set("vehicleType", filters.vehicleType);
+  if (filters?.category) params.set("category", filters.category);
 
   if (focusDate) {
     params.set("focus", typeof focusDate === "string" ? focusDate : formatDateInput(focusDate));
@@ -777,6 +779,23 @@ export default async function SpecialVehicleDispatchPage({
     filters,
     focusDate: todayStart,
   });
+  const timelineRangePresets = [
+    {
+      label: "1W",
+      fromDate,
+      toDate: addDays(fromDate, showWeekend ? 6 : 4),
+    },
+    {
+      label: "2W",
+      fromDate,
+      toDate: addDays(fromDate, 13),
+    },
+    {
+      label: "5W",
+      fromDate,
+      toDate: addDays(fromDate, 34),
+    },
+  ];
 
   const activeFilterCount = getActiveFilterCount(filters);
   const quickVehicle = params.newVehicleId
@@ -846,142 +865,6 @@ export default async function SpecialVehicleDispatchPage({
         <SummaryCard label="Aktive Filter" value={String(activeFilterCount)} />
       </div>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <form action="/special-vehicle-dispatch" className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Von
-            <input
-              type="date"
-              name="from"
-              defaultValue={formatDateInput(fromDate)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Bis
-            <input
-              type="date"
-              name="to"
-              defaultValue={formatDateInput(toDate)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Ansicht
-            <select
-              name="view"
-              defaultValue={view}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="days">Tage</option>
-              <option value="weeks">Wochen</option>
-              <option value="months">Monate</option>
-            </select>
-          </label>
-          <label className="flex items-end gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 lg:col-span-2">
-            <input type="checkbox" name="showWeekend" value="1" defaultChecked={showWeekend} className="h-4 w-4" />
-            Sa/So anzeigen
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-4">
-            Schnellsuche
-            <input
-              name="q"
-              defaultValue={filters.q}
-              placeholder="Spritzwagen, Tieflader, Baustelle, Material, Aufgabe..."
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </label>
-
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-3">
-            Baustelle / Projekt
-            <select
-              name="projectId"
-              defaultValue={filters.projectId}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle Baustellen</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.projectNumber} · {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Fahrzeugnummer
-            <select
-              name="vehicleNumber"
-              defaultValue={filters.vehicleNumber}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle</option>
-              {vehicleNumberOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Kennzeichen
-            <select
-              name="licensePlate"
-              defaultValue={filters.licensePlate}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle</option>
-              {licensePlateOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Typ
-            <select
-              name="vehicleType"
-              defaultValue={filters.vehicleType}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle</option>
-              {vehicleTypeOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-            Kategorie
-            <select
-              name="category"
-              defaultValue={filters.category}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            >
-              <option value="">Alle</option>
-              {categoryOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <div className="flex items-end gap-2 lg:col-span-1">
-            <button type="submit" className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
-              Öffnen
-            </button>
-          </div>
-        </form>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={previousHref} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
-            ← zurück
-          </Link>
-          <Link href={todayHref} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
-            Heute
-          </Link>
-          <Link href={nextHref} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
-            weiter →
-          </Link>
-          <Link href={`/special-vehicle-dispatch?from=${formatDateInput(fromDate)}&to=${formatDateInput(toDate)}&view=${view}${showWeekend ? "&showWeekend=1" : ""}`} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
-            Filter zurücksetzen
-          </Link>
-        </div>
-      </div>
-
       <details
         id="special-vehicle-create"
         open={shouldOpenCreateForm}
@@ -1023,7 +906,7 @@ export default async function SpecialVehicleDispatchPage({
         <SpecialVehicleDispatchStickyOffset />
         <div
           data-special-vehicle-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white/95 p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm backdrop-blur"
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white/95 p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm backdrop-blur"
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1039,10 +922,222 @@ export default async function SpecialVehicleDispatchPage({
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href={todayHref}
+              scroll={false}
+              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+            >
+              Heute
+            </Link>
+
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {timelineRangePresets.map((preset) => (
+                <Link
+                  key={preset.label}
+                  href={buildSpecialVehicleDispatchHref({
+                    fromDate: preset.fromDate,
+                    toDate: preset.toDate,
+                    view: view === "months" ? "days" : view,
+                    showWeekend,
+                    filters,
+                    focusDate: preset.fromDate,
+                  })}
+                  scroll={false}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                >
+                  {preset.label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
+              {filteredVehicles.length}/{vehicles.length} Sonderfahrzeuge
+            </div>
+
+            <DismissibleDetails className="relative inline-block">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+                🔎 Filter
+                {activeFilterCount > 0 ? (
+                  <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </summary>
+
+              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                <div className="text-sm font-bold text-gray-900">
+                  Sonderfahrzeuge filtern
+                </div>
+                <p className="mt-1 text-xs text-gray-600">
+                  Zeitraum, Ansicht, Fahrzeuge und Baustellen einschränken.
+                </p>
+
+                <form
+                  action="/special-vehicle-dispatch"
+                  className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12"
+                >
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Von
+                    <input
+                      type="date"
+                      name="from"
+                      defaultValue={formatDateInput(fromDate)}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Bis
+                    <input
+                      type="date"
+                      name="to"
+                      defaultValue={formatDateInput(toDate)}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Ansicht
+                    <select
+                      name="view"
+                      defaultValue={view}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="days">Tage</option>
+                      <option value="weeks">Wochen</option>
+                      <option value="months">Monate</option>
+                    </select>
+                  </label>
+                  <label className="flex items-end gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 lg:col-span-2">
+                    <input
+                      type="checkbox"
+                      name="showWeekend"
+                      value="1"
+                      defaultChecked={showWeekend}
+                      className="h-4 w-4"
+                    />
+                    Sa/So anzeigen
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-4">
+                    Schnellsuche
+                    <input
+                      name="q"
+                      defaultValue={filters.q}
+                      placeholder="Spritzwagen, Tieflader, Baustelle, Material, Aufgabe..."
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                    />
+                  </label>
+
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-3">
+                    Baustelle / Projekt
+                    <select
+                      name="projectId"
+                      defaultValue={filters.projectId}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Alle Baustellen</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.projectNumber} · {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Fahrzeugnummer
+                    <select
+                      name="vehicleNumber"
+                      defaultValue={filters.vehicleNumber}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Alle</option>
+                      {vehicleNumberOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Kennzeichen
+                    <select
+                      name="licensePlate"
+                      defaultValue={filters.licensePlate}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Alle</option>
+                      {licensePlateOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Typ
+                    <select
+                      name="vehicleType"
+                      defaultValue={filters.vehicleType}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Alle</option>
+                      {vehicleTypeOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
+                    Kategorie
+                    <select
+                      name="category"
+                      defaultValue={filters.category}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    >
+                      <option value="">Alle</option>
+                      {categoryOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="flex flex-wrap items-end gap-2 lg:col-span-12">
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                    >
+                      Filter anwenden
+                    </button>
+                    <Link
+                      href={buildSpecialVehicleDispatchHref({
+                        fromDate,
+                        toDate,
+                        view,
+                        showWeekend,
+                      })}
+                      scroll={false}
+                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                    >
+                      Filter zurücksetzen
+                    </Link>
+                  </div>
+                </form>
+              </div>
+            </DismissibleDetails>
+          </div>
+
           <div
-            className="mt-4 grid border-t border-gray-200 bg-white shadow-sm"
+            className="relative mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
             style={{ gridTemplateColumns: `${LEFT_COLUMN_WIDTH_PX}px minmax(0, 1fr)` }}
           >
+            <CrewTimelineScrollButtons
+              leftColumnWidth={LEFT_COLUMN_WIDTH_PX}
+              scrollContainerSelector='[data-special-vehicle-timeline-scroll-container="true"]'
+              previousHref={previousHref}
+              nextHref={nextHref}
+            />
             <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">
               Sonderfahrzeug
             </div>

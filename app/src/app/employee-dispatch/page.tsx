@@ -2,12 +2,13 @@ import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { DismissibleFilter } from "./DismissibleFilter";
+import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
 import { EmployeeDispatchStickyOffset } from "./EmployeeDispatchStickyOffset";
 import { EmployeeTimelineBar } from "./EmployeeTimelineBar";
 import { EmployeeTimelineSyncedScroll } from "./EmployeeTimelineSyncedScroll";
+import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import {
   createEmployeeDispositionEntry,
   deleteEmployeeDispositionEntry,
@@ -1182,14 +1183,26 @@ export default async function EmployeeDispatchPage({
   const buildPageHref = (
     overrides: Record<string, string | null | undefined>,
   ) => `/employee-dispatch${buildQueryString({ ...currentQueryValues, ...overrides })}`;
-  const hasActiveFilters = Boolean(
-    searchFilter ||
-      statusFilter ||
-      typeFilter ||
-      projectFilter ||
-      onlyWithEntries ||
-      sortMode !== "name",
-  );
+  const previousHref = buildPageHref({
+    from: formatDateInput(previousFrom),
+    to: formatDateInput(previousTo),
+  });
+  const todayHref = buildPageHref({
+    from: formatDateInput(defaultFrom),
+    to: formatDateInput(addDays(defaultFrom, 13)),
+  });
+  const nextHref = buildPageHref({
+    from: formatDateInput(nextFrom),
+    to: formatDateInput(nextTo),
+  });
+  const activeFilterCount = [
+    searchFilter,
+    statusFilter,
+    typeFilter,
+    projectFilter,
+    onlyWithEntries ? "onlyWithEntries" : "",
+    sortMode !== "name" ? "sort" : "",
+  ].filter(Boolean).length;
 
   return (
     <AppShell
@@ -1250,145 +1263,6 @@ export default async function EmployeeDispatchPage({
         />
       </div>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <DismissibleFilter defaultOpen={hasActiveFilters}>
-            <form
-              action="/employee-dispatch"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
-            >
-              <label className="text-sm font-medium text-gray-800">
-                Von
-                <input
-                  type="date"
-                  name="from"
-                  defaultValue={formatDateInput(fromDate)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Bis
-                <input
-                  type="date"
-                  name="to"
-                  defaultValue={formatDateInput(toDate)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-                Suche
-                <input
-                  name="q"
-                  defaultValue={searchFilter}
-                  placeholder="Name, Berufsgruppe oder Baustelle"
-                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Status
-                <select
-                  name="status"
-                  defaultValue={statusFilter}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Status</option>
-                  {statusOptions.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Art
-                <select
-                  name="type"
-                  defaultValue={typeFilter}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Arten</option>
-                  {employeeDispositionTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-                Projekt / Baustelle
-                <select
-                  name="project"
-                  defaultValue={projectFilter}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Projekte</option>
-                  {projectOptions.map((project) => (
-                    <option key={project} value={project}>
-                      {project}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                <span className="block">Sortierung</span>
-                <select
-                  name="sort"
-                  defaultValue={sortMode}
-                  className="mt-2 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="name">Nach Nachname</option>
-                  <option value="project">Nach Projekt</option>
-                  <option value="type">Nach Art</option>
-                </select>
-              </label>
-
-              <label className="flex items-center gap-3 pt-7 text-sm font-semibold text-gray-800">
-                <input
-                  type="checkbox"
-                  name="onlyWithEntries"
-                  value="1"
-                  defaultChecked={onlyWithEntries}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                Nur mit Einträgen
-              </label>
-
-              <div className="flex flex-wrap items-end gap-3 xl:col-span-2">
-                <button
-                  type="submit"
-                  className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-                >
-                  Filter anwenden
-                </button>
-                <Link
-                  href={`/employee-dispatch?from=${formatDateInput(
-                    fromDate,
-                  )}&to=${formatDateInput(toDate)}`}
-                  className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                >
-                  Filter zurücksetzen
-                </Link>
-              </div>
-            </form>
-          </DismissibleFilter>
-
-          {employeeDispositionTypes.map((type) => (
-            <span
-              key={type.value}
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${type.badgeClass}`}
-            >
-              {type.label}
-            </span>
-          ))}
-        </div>
-      </div>
-
       <div
         data-employee-dispatch-root
         className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
@@ -1396,7 +1270,7 @@ export default async function EmployeeDispatchPage({
         <EmployeeDispatchStickyOffset />
         <div
           data-employee-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-gray-50 px-5 py-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-gray-50 px-5 py-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
         >
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1405,44 +1279,19 @@ export default async function EmployeeDispatchPage({
               </h2>
               <p className="mt-1 text-sm text-gray-600">
                 {formatGermanDate(fromDate)} – {formatGermanDate(toDate)} ·{" "}
-                {visibleEmployees.length} von {activeEmployees.length} Mitarbeitern ·
-                Baustelle kommt automatisch aus Disposition und Einteilungen.
+                {visibleEmployees.length} von {activeEmployees.length} Mitarbeitern
               </p>
             </div>
             <div className="flex flex-col gap-2 lg:items-end">
               <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
                 <Link
-                  href={buildPageHref({
-                    from: formatDateInput(previousFrom),
-                    to: formatDateInput(previousTo),
-                  })}
+                  href={todayHref}
+                  scroll={false}
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
                 >
-                  ← Zurück
+                  Heute
                 </Link>
 
-                <Link
-                  href={buildPageHref({
-                    from: formatDateInput(defaultFrom),
-                    to: formatDateInput(addDays(defaultFrom, 13)),
-                  })}
-                  className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
-                >
-                  Aktuelle 14 Tage
-                </Link>
-
-                <Link
-                  href={buildPageHref({
-                    from: formatDateInput(nextFrom),
-                    to: formatDateInput(nextTo),
-                  })}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                >
-                  Weiter →
-                </Link>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
                 {[1, 2, 5].map((weekCount) => (
                   <Link
                     key={weekCount}
@@ -1450,6 +1299,7 @@ export default async function EmployeeDispatchPage({
                       weeks: String(weekCount),
                       to: null,
                     })}
+                    scroll={false}
                     className={
                       currentWeeks === weekCount
                         ? "rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
@@ -1493,11 +1343,177 @@ export default async function EmployeeDispatchPage({
                     Wochen anzeigen
                   </button>
                 </form>
+
+                <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
+                  {visibleEmployees.length}/{activeEmployees.length} Mitarbeiter
+                </div>
+
+                <DismissibleDetails className="relative inline-block">
+                  <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+                    🔎 Filter
+                    {activeFilterCount > 0 ? (
+                      <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </summary>
+
+                  <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                    <div className="text-sm font-bold text-gray-900">
+                      Mitarbeiter filtern
+                    </div>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Zeitraum, Person, Status, Art und Baustelle einschränken.
+                    </p>
+
+                    <form
+                      action="/employee-dispatch"
+                      className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
+                    >
+                      <label className="text-sm font-medium text-gray-800">
+                        Von
+                        <input
+                          type="date"
+                          name="from"
+                          defaultValue={formatDateInput(fromDate)}
+                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        />
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800">
+                        Bis
+                        <input
+                          type="date"
+                          name="to"
+                          defaultValue={formatDateInput(toDate)}
+                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        />
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+                        Suche
+                        <input
+                          name="q"
+                          defaultValue={searchFilter}
+                          placeholder="Name, Berufsgruppe oder Baustelle"
+                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        />
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800">
+                        Status
+                        <select
+                          name="status"
+                          defaultValue={statusFilter}
+                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        >
+                          <option value="">Alle Status</option>
+                          {statusOptions.map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800">
+                        Art
+                        <select
+                          name="type"
+                          defaultValue={typeFilter}
+                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        >
+                          <option value="">Alle Arten</option>
+                          {employeeDispositionTypes.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+                        Projekt / Baustelle
+                        <select
+                          name="project"
+                          defaultValue={projectFilter}
+                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        >
+                          <option value="">Alle Projekte</option>
+                          {projectOptions.map((project) => (
+                            <option key={project} value={project}>
+                              {project}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-medium text-gray-800">
+                        <span className="block">Sortierung</span>
+                        <select
+                          name="sort"
+                          defaultValue={sortMode}
+                          className="mt-2 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        >
+                          <option value="name">Nach Nachname</option>
+                          <option value="project">Nach Projekt</option>
+                          <option value="type">Nach Art</option>
+                        </select>
+                      </label>
+
+                      <label className="flex items-center gap-3 pt-7 text-sm font-semibold text-gray-800">
+                        <input
+                          type="checkbox"
+                          name="onlyWithEntries"
+                          value="1"
+                          defaultChecked={onlyWithEntries}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Nur mit Einträgen
+                      </label>
+
+                      <div className="flex flex-wrap items-end gap-3 xl:col-span-2">
+                        <button
+                          type="submit"
+                          className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+                        >
+                          Filter anwenden
+                        </button>
+                        <Link
+                          href={`/employee-dispatch?from=${formatDateInput(
+                            fromDate,
+                          )}&to=${formatDateInput(toDate)}`}
+                          scroll={false}
+                          className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                        >
+                          Filter zurücksetzen
+                        </Link>
+                      </div>
+                    </form>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {employeeDispositionTypes.map((type) => (
+                        <span
+                          key={type.value}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${type.badgeClass}`}
+                        >
+                          {type.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </DismissibleDetails>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 -mx-5 grid border-t border-gray-200 bg-white shadow-sm grid-cols-[300px_minmax(0,1fr)]">
+          <div className="relative mt-4 -mx-5 grid border-t border-gray-200 bg-white shadow-sm grid-cols-[300px_minmax(0,1fr)]">
+            <CrewTimelineScrollButtons
+              leftColumnWidth={300}
+              scrollContainerSelector='[data-employee-timeline-body-scroll="true"]'
+              previousHref={previousHref}
+              nextHref={nextHref}
+            />
             <div className="flex min-h-[56px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Mitarbeiter
             </div>

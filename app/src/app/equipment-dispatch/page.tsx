@@ -3,6 +3,7 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
+import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import {
   createEquipmentDispatchAssignment,
   deleteEquipmentDispatchAssignment,
@@ -1597,6 +1598,30 @@ export default async function EquipmentDispatchPage({
     visibleVehicleTypes,
   };
 
+  const previousHref = buildEquipmentDispatchHref({
+    fromDate: previousRange.fromDate,
+    toDate: previousRange.toDate,
+    view,
+    showWeekend,
+    filters,
+  });
+
+  const todayHref = buildEquipmentDispatchHref({
+    fromDate: todayRange.fromDate,
+    toDate: todayRange.toDate,
+    view,
+    showWeekend,
+    filters,
+  });
+
+  const nextHref = buildEquipmentDispatchHref({
+    fromDate: nextRange.fromDate,
+    toDate: nextRange.toDate,
+    view,
+    showWeekend,
+    filters,
+  });
+
   const quickVehicle = quickVehicleId
     ? vehicles.find((vehicle) => vehicle.id === quickVehicleId) ?? null
     : null;
@@ -2120,7 +2145,7 @@ export default async function EquipmentDispatchPage({
         <EquipmentDispatchStickyOffset />
         <div
           data-equipment-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -2141,53 +2166,18 @@ export default async function EquipmentDispatchPage({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={buildEquipmentDispatchHref({
-                  fromDate: previousRange.fromDate,
-                  toDate: previousRange.toDate,
-                  view,
-                  showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                ← zurück
-              </Link>
-
-              <Link
-                href={buildEquipmentDispatchHref({
-                  fromDate: todayRange.fromDate,
-                  toDate: todayRange.toDate,
-                  view,
-                  showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                Heute
-              </Link>
-
-              <Link
-                href={buildEquipmentDispatchHref({
-                  fromDate: nextRange.fromDate,
-                  toDate: nextRange.toDate,
-                  view,
-                  showWeekend,
-                  filters,
-                })}
-                scroll={false}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                weiter →
-              </Link>
-
-            </div>
+            <div className="hidden xl:block" />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href={todayHref}
+              scroll={false}
+              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+            >
+              Heute
+            </Link>
+
             <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
               {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
                 <Link
@@ -2522,11 +2512,17 @@ export default async function EquipmentDispatchPage({
           </div>
 
           <div
-            className="mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
+            className="relative mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
             style={{
               gridTemplateColumns: `${LEFT_COLUMN_WIDTH_PX}px minmax(0, 1fr)`,
             }}
           >
+            <CrewTimelineScrollButtons
+              leftColumnWidth={LEFT_COLUMN_WIDTH_PX}
+              scrollContainerSelector='[data-equipment-timeline-scroll-container="true"]'
+              previousHref={previousHref}
+              nextHref={nextHref}
+            />
             <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Gerät / Maschine
             </div>

@@ -4030,31 +4030,7 @@ export default async function CrewDispatchPage({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={previousHref}
-                scroll={false}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                ← Zeitraum zurück
-              </Link>
-
-              <CrewTimelineFocusButton
-                focusDate={formatDateInput(todayRange.focusDate)}
-                fallbackHref={todayHref}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                Heute
-              </CrewTimelineFocusButton>
-
-              <Link
-                href={nextHref}
-                scroll={false}
-                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              >
-                Zeitraum weiter →
-              </Link>
-            </div>
+            <div className="hidden xl:block" />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-1 border-b border-gray-200 pb-2">
@@ -4096,6 +4072,14 @@ export default async function CrewDispatchPage({
 
           <div className="mt-4 space-y-3">
             <div className="flex w-full flex-wrap items-center gap-2">
+              <CrewTimelineFocusButton
+                focusDate={formatDateInput(todayRange.focusDate)}
+                fallbackHref={todayHref}
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Heute
+              </CrewTimelineFocusButton>
+
               <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
                 {(["days", "weeks", "months"] as TimelineView[]).map((item) => {
                   const targetRange = getRangeForView(range, item);
@@ -4427,7 +4411,11 @@ export default async function CrewDispatchPage({
               gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
             }}
           >
-            <CrewTimelineScrollButtons leftColumnWidth={leftColumnWidth} />
+            <CrewTimelineScrollButtons
+              leftColumnWidth={leftColumnWidth}
+              previousHref={previousHref}
+              nextHref={nextHref}
+            />
             <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {getPlanningAxisLabel(planningAxis)}
             </div>
