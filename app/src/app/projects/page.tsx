@@ -2,10 +2,24 @@ import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
 
-export default async function ProjectsPage() {
+type ProjectSortOption = "newest" | "oldest" | "alphabet";
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    q?: string;
+    sort?: string;
+  }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const searchQuery = String(params.q ?? "").trim();
+  const sortOption = getProjectSortOption(params.sort);
+
   const projects = await prisma.project.findMany({
     include: {
       asphaltDispatchEntries: true,
@@ -61,9 +75,6 @@ export default async function ProjectsPage() {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
 
-  const activeProjects = projects.filter(
-    (project) => project.status !== ProjectStatus.CANCELLED,
-  );
   const projectSummaries = projects.map((project) => {
     const people = new Map<string, string>();
     const equipment = new Map<string, string>();
@@ -138,6 +149,44 @@ export default async function ProjectsPage() {
       truckCount,
     };
   });
+  const normalizedSearchQuery = normalizeProjectSearchText(searchQuery);
+  const filteredProjectSummaries = projectSummaries
+    .filter((item) => {
+      if (!normalizedSearchQuery) return true;
+
+      return normalizeProjectSearchText(
+        `${item.project.projectNumber} ${item.project.name}`,
+      ).includes(normalizedSearchQuery);
+    })
+    .sort((a, b) => {
+      if (sortOption === "oldest") {
+        return a.project.projectNumber.localeCompare(
+          b.project.projectNumber,
+          "de-DE",
+          { numeric: true },
+        );
+      }
+
+      if (sortOption === "alphabet") {
+        const nameCompare = a.project.name.localeCompare(
+          b.project.name,
+          "de-DE",
+        );
+
+        if (nameCompare !== 0) return nameCompare;
+
+        return a.project.projectNumber.localeCompare(
+          b.project.projectNumber,
+          "de-DE",
+        );
+      }
+
+      return b.project.projectNumber.localeCompare(a.project.projectNumber, "de-DE", {
+        numeric: true,
+      });
+    });
+  const activeProjectFilterCount =
+    Number(Boolean(searchQuery)) + Number(sortOption !== "newest");
 
   return (
     <AppShell
@@ -146,28 +195,8 @@ export default async function ProjectsPage() {
     >
       <ProjectNavigation active="overview" />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <SummaryCard label="Projekte gesamt" value={`${projects.length}`} />
-        <SummaryCard label="Aktive Projekte" value={`${activeProjects.length}`} />
-        <SummaryCard
-          label="Leistung IST"
-          value={formatEuro(
-            projectSummaries.reduce(
-              (sum, item) => sum + item.performanceValue,
-              0,
-            ),
-          )}
-        />
-        <SummaryCard
-          label="Über-/Unterdeckung"
-          value={formatEuro(
-            projectSummaries.reduce((sum, item) => sum + item.difference, 0),
-          )}
-        />
-      </div>
-
       <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
               Projektübersicht
@@ -177,23 +206,96 @@ export default async function ProjectsPage() {
               Fotos, Dokumente, Formulare, Notizen und Bautagesberichte je Baustelle.
             </p>
           </div>
+        </div>
 
-          <Link
-            href="/projects/performance"
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-          >
-            Projekte Leistung öffnen
-          </Link>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div className="text-sm font-semibold text-gray-700">
+            {filteredProjectSummaries.length}/{projectSummaries.length} Projekte
+            sichtbar
+            {searchQuery ? ` · Suche: ${searchQuery}` : ""}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <DismissibleDetails className="relative inline-block">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+                🔎 Filter
+                {activeProjectFilterCount > 0 ? (
+                  <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                    {activeProjectFilterCount}
+                  </span>
+                ) : null}
+              </summary>
+
+              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                <div className="text-sm font-bold text-gray-900">
+                  Projekte filtern
+                </div>
+                <p className="mt-1 text-xs text-gray-600">
+                  Nach Projektnummer oder Name suchen und die Reihenfolge wählen.
+                </p>
+
+                <form action="/projects" className="mt-4 grid gap-3">
+                  <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                    Suche
+                    <input
+                      name="q"
+                      defaultValue={searchQuery}
+                      placeholder="Projektnummer oder Name"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                    />
+                  </label>
+
+                  <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                    Sortierung
+                    <select
+                      name="sort"
+                      defaultValue={sortOption}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                    >
+                      <option value="newest">Projektnummer absteigend</option>
+                      <option value="oldest">Projektnummer aufsteigend</option>
+                      <option value="alphabet">Alphabetisch</option>
+                    </select>
+                  </label>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                    >
+                      Filter anwenden
+                    </button>
+
+                    <Link
+                      href="/projects"
+                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                    >
+                      Zurücksetzen
+                    </Link>
+                  </div>
+                </form>
+              </div>
+            </DismissibleDetails>
+
+            {activeProjectFilterCount > 0 ? (
+              <Link
+                href="/projects"
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Zurücksetzen
+              </Link>
+            ) : null}
+          </div>
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-4">
-        {projectSummaries.length === 0 ? (
+        {filteredProjectSummaries.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
-            Noch keine Projekte vorhanden.
+            Keine Projekte passend zum Filter gefunden.
           </div>
         ) : (
-          projectSummaries.map((item) => (
+          filteredProjectSummaries.map((item) => (
             <article
               key={item.project.id}
               className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -299,63 +401,7 @@ export default async function ProjectsPage() {
         )}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ArchiveSection
-          id="fotos"
-          title="Fotos"
-          text="Projektfotos können jetzt unter Projekte > Fotos hochgeladen, mit Notizen versehen und für Bautagesberichte vorgemerkt werden."
-        />
-        <ArchiveSection
-          id="dokumente"
-          title="Dokumente"
-          text="Pläne, Aufträge, Nachträge, Prüfzeugnisse und Schriftverkehr bekommen hier ihren Platz."
-        />
-        <ArchiveSection
-          id="formulare"
-          title="Formulare"
-          text="Vorlagen und ausgefüllte Formulare werden später projektbezogen geführt."
-        />
-        <ArchiveSection
-          id="notizen"
-          title="Notizen"
-          text="Notizen werden pro Projekt gesammelt und später mit Bearbeiter/Datum geführt."
-        />
-        <ArchiveSection
-          id="bautagesberichte"
-          title="Bautagesberichte"
-          text="Bautagesberichte werden aus Projekt, Personal, Geräten, Wetter und Tagesnotizen zusammengesetzt."
-        />
-      </div>
     </AppShell>
-  );
-}
-
-function ArchiveSection({
-  id,
-  title,
-  text,
-}: {
-  id: string;
-  title: string;
-  text: string;
-}) {
-  return (
-    <section
-      id={id}
-      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-    >
-      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-      <p className="mt-2 text-sm text-gray-600">{text}</p>
-    </section>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-3 text-xl font-bold text-gray-900">{value}</p>
-    </div>
   );
 }
 
@@ -412,6 +458,22 @@ function getVehicleLabel(vehicle: {
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");
+}
+
+function getProjectSortOption(value: string | undefined): ProjectSortOption {
+  if (value === "oldest" || value === "alphabet") {
+    return value;
+  }
+
+  return "newest";
+}
+
+function normalizeProjectSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim();
 }
 
 function getToneClass(tone: "negative" | "neutral" | "positive") {

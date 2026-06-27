@@ -11,6 +11,7 @@ import {
   deleteSpecialVehicleDispatchAssignment,
   updateSpecialVehicleDispatchAssignment,
 } from "./actions";
+import { SpecialVehicleDispatchStickyOffset } from "./SpecialVehicleDispatchStickyOffset";
 import { SpecialVehicleTimelineScroll } from "./SpecialVehicleTimelineScroll";
 import { SpecialVehicleTourFormClient } from "./SpecialVehicleTourFormClient";
 
@@ -576,12 +577,7 @@ export default async function SpecialVehicleDispatchPage({
     timelineUnits[timelineUnits.length - 1]?.endDateExclusive ?? addDays(toDate, 1);
   const gridColumns = getTimelineGridColumns(view, unitCount);
   const timelineMinWidth = getTimelineMinWidth(view, unitCount);
-  const timelineFrameColumns = `${LEFT_COLUMN_WIDTH_PX}px ${
-    timelineMinWidth ? `${timelineMinWidth}px` : "minmax(0, 1fr)"
-  }`;
-  const timelineContentMinWidth = timelineMinWidth
-    ? LEFT_COLUMN_WIDTH_PX + timelineMinWidth
-    : undefined;
+  const timelineContentMinWidth = timelineMinWidth || undefined;
 
   const previousRange = shiftDateRange({
     fromDate,
@@ -788,6 +784,33 @@ export default async function SpecialVehicleDispatchPage({
     : null;
   const quickDate = params.newDate ?? formatDateInput(focusDate);
   const shouldOpenCreateForm = Boolean(params.newVehicleId || params.newDate);
+  const rowHeightByVehicleId = new Map(
+    filteredVehicles.map((vehicle) => {
+      const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
+      const maxCellItems = Math.max(
+        1,
+        ...timelineUnits.map((unit) => {
+          const assignmentCount = getAssignmentsForVehicleAndDate({
+            assignments: assignmentsForPage,
+            vehicleId: vehicle.id,
+            dateInput: unit.defaultStartDate,
+          }).length;
+          const tackCoatMarkerCount =
+            isTackCoatVehicle &&
+            getTackCoatNeedsForTimelineUnit({
+              needs: tackCoatNeedsForForm,
+              unit,
+            }).length > 0
+              ? 1
+              : 0;
+
+          return assignmentCount + tackCoatMarkerCount;
+        }),
+      );
+
+      return [vehicle.id, Math.max(108, 56 + maxCellItems * 48)] as const;
+    }),
+  );
 
   return (
     <AppShell
@@ -993,8 +1016,15 @@ export default async function SpecialVehicleDispatchPage({
         />
       </details>
 
-      <div className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+      <div
+        data-special-vehicle-dispatch-root
+        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+      >
+        <SpecialVehicleDispatchStickyOffset />
+        <div
+          data-special-vehicle-dispatch-sticky-controls
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white/95 p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm backdrop-blur"
+        >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -1035,28 +1065,44 @@ export default async function SpecialVehicleDispatchPage({
           </div>
         </div>
 
-        {filteredVehicles.length === 0 ? (
-          <div className="p-8 text-center text-sm font-medium text-gray-500">
-            Keine Sonderfahrzeuge passend zum Filter gefunden.
-          </div>
-        ) : (
-          <SpecialVehicleTimelineScroll focusDate={formatDateInput(focusDate)}>
+        <div
+          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
+          style={{
+            maxHeight:
+              "max(360px, calc(100vh - var(--special-vehicle-dispatch-sticky-offset, 220px) - var(--app-header-height, 0px) - 1rem))",
+          }}
+        >
+          {filteredVehicles.length === 0 ? (
+            <div className="p-8 text-center text-sm font-medium text-gray-500">
+              Keine Sonderfahrzeuge passend zum Filter gefunden.
+            </div>
+          ) : (
             <div
-              className="min-w-0"
-              style={{ minWidth: timelineContentMinWidth || undefined }}
+              className="grid w-full"
+              style={{
+                gridTemplateColumns: `${LEFT_COLUMN_WIDTH_PX}px minmax(0, 1fr)`,
+              }}
             >
-              {filteredVehicles.map((vehicle) => {
-                const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
+              <div className="border-r border-gray-200 bg-white">
+                {filteredVehicles.map((vehicle) => {
+                  const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
+                  const rowHeight = rowHeightByVehicleId.get(vehicle.id) ?? 108;
 
-                return (
-                  <div
-                    key={vehicle.id}
-                    className="grid border-t border-gray-100"
-                    style={{ gridTemplateColumns: timelineFrameColumns }}
-                  >
-                    <div className="sticky left-0 z-20 border-r border-gray-200 bg-white p-4">
-                      <div className="font-semibold text-gray-900">{vehicle.vehicleNumber}</div>
-                      <div className="mt-1 text-sm text-gray-600">{vehicle.licensePlate ?? "-"}</div>
+                  return (
+                    <div
+                      key={vehicle.id}
+                      className="border-b border-gray-200 bg-white p-4"
+                      style={{
+                        height: `${rowHeight}px`,
+                        minHeight: `${rowHeight}px`,
+                      }}
+                    >
+                      <div className="truncate font-semibold text-gray-900">
+                        {vehicle.vehicleNumber}
+                      </div>
+                      <div className="mt-1 truncate text-sm text-gray-600">
+                        {vehicle.licensePlate ?? "-"}
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
                         <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
                         <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
@@ -1068,83 +1114,116 @@ export default async function SpecialVehicleDispatchPage({
                         ) : null}
                       </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <div className="grid min-h-[108px]" style={{ gridTemplateColumns: gridColumns }}>
-                      {timelineUnits.map((unit) => {
-                        const dateInput = unit.defaultStartDate;
-                        const dayAssignments = getAssignmentsForVehicleAndDate({
-                          assignments: assignmentsForPage,
-                          vehicleId: vehicle.id,
-                          dateInput,
-                        });
-                        const tackCoatNeeds = isTackCoatVehicle
-                          ? getTackCoatNeedsForTimelineUnit({
-                              needs: tackCoatNeedsForForm,
-                              unit,
-                            })
-                          : [];
-                        const openTackCoatLitersForUnit = tackCoatNeeds.reduce(
-                          (sum, need) => sum + need.openQuantity,
-                          0,
-                        );
-                        const plusHref = buildSpecialVehicleDispatchHref({
-                          fromDate,
-                          toDate,
-                          view,
-                          showWeekend,
-                          filters,
-                          focusDate: dateInput,
-                          newVehicleId: vehicle.id,
-                          newDate: dateInput,
-                        });
+              <SpecialVehicleTimelineScroll focusDate={formatDateInput(focusDate)}>
+                <div
+                  className="grid min-w-0"
+                  style={{
+                    gridTemplateColumns: gridColumns,
+                    minWidth: timelineContentMinWidth || undefined,
+                  }}
+                >
+                  {filteredVehicles.map((vehicle) => {
+                    const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
+                    const rowHeight = rowHeightByVehicleId.get(vehicle.id) ?? 108;
 
-                        return (
-                          <div key={`${vehicle.id}-${unit.key}`} className="min-h-[108px] border-r border-gray-100 p-2 last:border-r-0">
-                            <Link
-                              href={`${plusHref}#special-vehicle-create`}
-                              className="mb-2 flex h-7 w-full items-center justify-center rounded-md border border-dashed border-purple-300 bg-purple-50 text-xs font-semibold text-purple-800 hover:bg-purple-100"
+                    return (
+                      <div
+                        key={vehicle.id}
+                        className="grid border-b border-gray-100"
+                        style={{
+                          gridColumn: `1 / span ${timelineUnits.length}`,
+                          gridTemplateColumns: gridColumns,
+                          height: `${rowHeight}px`,
+                          minHeight: `${rowHeight}px`,
+                        }}
+                      >
+                        {timelineUnits.map((unit) => {
+                          const dateInput = unit.defaultStartDate;
+                          const dayAssignments = getAssignmentsForVehicleAndDate({
+                            assignments: assignmentsForPage,
+                            vehicleId: vehicle.id,
+                            dateInput,
+                          });
+                          const tackCoatNeeds = isTackCoatVehicle
+                            ? getTackCoatNeedsForTimelineUnit({
+                                needs: tackCoatNeedsForForm,
+                                unit,
+                              })
+                            : [];
+                          const openTackCoatLitersForUnit = tackCoatNeeds.reduce(
+                            (sum, need) => sum + need.openQuantity,
+                            0,
+                          );
+                          const plusHref = buildSpecialVehicleDispatchHref({
+                            fromDate,
+                            toDate,
+                            view,
+                            showWeekend,
+                            filters,
+                            focusDate: dateInput,
+                            newVehicleId: vehicle.id,
+                            newDate: dateInput,
+                          });
+
+                          return (
+                            <div
+                              key={`${vehicle.id}-${unit.key}`}
+                              className="border-r border-gray-100 p-2 last:border-r-0"
+                              style={{
+                                height: `${rowHeight}px`,
+                                minHeight: `${rowHeight}px`,
+                              }}
                             >
-                              +
-                            </Link>
-
-                            {tackCoatNeeds.length > 0 ? (
                               <Link
                                 href={`${plusHref}#special-vehicle-create`}
-                                title={getTackCoatMarkerTitle(tackCoatNeeds)}
-                                className={
-                                  openTackCoatLitersForUnit > 0
-                                    ? "mb-2 block rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
-                                    : "mb-2 block rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold leading-5 text-green-800 hover:bg-green-100"
-                                }
+                                className="mb-2 flex h-7 w-full items-center justify-center rounded-md border border-dashed border-purple-300 bg-purple-50 text-xs font-semibold text-purple-800 hover:bg-purple-100"
                               >
-                                {getTackCoatMarkerText(tackCoatNeeds)}
+                                +
                               </Link>
-                            ) : null}
 
-                            <div className="space-y-2">
-                              {dayAssignments.map((assignment) => (
-                                <SpecialVehicleAssignmentCard
-                                  key={assignment.id}
-                                  assignment={assignment}
-                                  vehicles={vehicles}
-                                  transportVehicles={transportVehicles}
-                                  drivers={drivers}
-                                  projects={projects}
-                                  crews={crews}
-                                  tackCoatMaterials={tackCoatMaterials}
-                                />
-                              ))}
+                              {tackCoatNeeds.length > 0 ? (
+                                <Link
+                                  href={`${plusHref}#special-vehicle-create`}
+                                  title={getTackCoatMarkerTitle(tackCoatNeeds)}
+                                  className={
+                                    openTackCoatLitersForUnit > 0
+                                      ? "mb-2 block rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
+                                      : "mb-2 block rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold leading-5 text-green-800 hover:bg-green-100"
+                                  }
+                                >
+                                  {getTackCoatMarkerText(tackCoatNeeds)}
+                                </Link>
+                              ) : null}
+
+                              <div className="space-y-2">
+                                {dayAssignments.map((assignment) => (
+                                  <SpecialVehicleAssignmentCard
+                                    key={assignment.id}
+                                    assignment={assignment}
+                                    vehicles={vehicles}
+                                    transportVehicles={transportVehicles}
+                                    drivers={drivers}
+                                    projects={projects}
+                                    crews={crews}
+                                    tackCoatMaterials={tackCoatMaterials}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </SpecialVehicleTimelineScroll>
             </div>
-          </SpecialVehicleTimelineScroll>
-        )}
+          )}
+        </div>
       </div>
     </AppShell>
   );

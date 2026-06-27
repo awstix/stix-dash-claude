@@ -102,6 +102,14 @@ function getWeekday(date: Date) {
   }).format(date);
 }
 
+function formatTimelineCellBar(bar: TimelineBar) {
+  if (bar.source === "manual") {
+    return bar.notes ? `${bar.typeLabel}: ${bar.notes}` : bar.typeLabel;
+  }
+
+  return `${bar.typeLabel}: ${bar.title}`;
+}
+
 function buildDays(fromDate: Date, toDate: Date) {
   const days = [];
   let current = dateOnly(fromDate);
@@ -1051,6 +1059,7 @@ export async function GET(request: Request) {
 
         if (
           projectFilter &&
+          bar.source !== "manual" &&
           bar.projectText !== projectFilter
         ) {
           return false;
@@ -1151,7 +1160,7 @@ export async function GET(request: Request) {
       const header = `${getWeekday(day)} ${formatGermanDate(day)}`;
       row[header] = employeeBars
         .filter((bar) => isBarOnDay(bar, day))
-        .map((bar) => `${bar.typeLabel}: ${bar.title}`)
+        .map(formatTimelineCellBar)
         .join(" | ");
     }
 
@@ -1211,6 +1220,42 @@ export async function GET(request: Request) {
       "Bemerkung",
     ]),
     "Einträge",
+  );
+
+  const manualDetailRows = visibleEmployees.flatMap((employee) => {
+    const positionText =
+      employee.positions.map((position) => position.positionLabel).join(", ") ||
+      "";
+
+    return (visibleBarsByEmployeeId.get(employee.id) ?? [])
+      .filter((bar) => bar.source === "manual")
+      .map((bar) => ({
+        Mitarbeiter: `${employee.lastName}, ${employee.firstName}`,
+        Status: employee.statusLabel,
+        Berufsgruppe: positionText,
+        Art: bar.typeLabel,
+        Von: formatGermanDate(bar.startDate),
+        Bis: formatGermanDate(bar.endDate),
+        Beginn: bar.startTime,
+        Ende: bar.endTime,
+        Bemerkung: bar.notes ?? "",
+      }));
+  });
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    makeWorksheet(manualDetailRows, [
+      "Mitarbeiter",
+      "Status",
+      "Berufsgruppe",
+      "Art",
+      "Von",
+      "Bis",
+      "Beginn",
+      "Ende",
+      "Bemerkung",
+    ]),
+    "Zusatz",
   );
 
   const projectSummaryMap = new Map<string, Set<string>>();

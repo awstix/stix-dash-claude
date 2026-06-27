@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { DismissibleFilter } from "./DismissibleFilter";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
+import { EmployeeDispatchStickyOffset } from "./EmployeeDispatchStickyOffset";
 import { EmployeeTimelineBar } from "./EmployeeTimelineBar";
 import { EmployeeTimelineSyncedScroll } from "./EmployeeTimelineSyncedScroll";
 import {
@@ -114,6 +115,21 @@ function formatDateInput(date: Date) {
 function formatGermanDate(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
     weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function formatWeekdayShort(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "short",
+  })
+    .format(date)
+    .replace(".", "");
+}
+
+function formatDayMonth(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     month: "2-digit",
   }).format(date);
@@ -1181,35 +1197,25 @@ export default async function EmployeeDispatchPage({
       description="Mitarbeiter zeilenweise verfolgen: Baustellen aus Disposition und Einteilungen plus Urlaub, Krank, Schulung, Werkstatt, Mischanlagen, Schule und Innung."
     >
       <div className="mb-6 flex flex-wrap gap-3">
-        <Link
-          href={buildPageHref({
-            from: formatDateInput(previousFrom),
-            to: formatDateInput(previousTo),
-          })}
-          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-        >
-          Zurück
-        </Link>
-
-        <Link
-          href={buildPageHref({
-            from: formatDateInput(defaultFrom),
-            to: formatDateInput(addDays(defaultFrom, 13)),
-          })}
-          className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-        >
-          Aktuelle 14 Tage
-        </Link>
-
-        <Link
-          href={buildPageHref({
-            from: formatDateInput(nextFrom),
-            to: formatDateInput(nextTo),
-          })}
-          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-        >
-          Weiter
-        </Link>
+        <details className="relative">
+          <summary className="cursor-pointer rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
+            + Eintrag hinzufügen
+          </summary>
+          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-6xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Eintrag hinzufügen
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Urlaub, Krank, Schulung oder sonstige Mitarbeiterdispo eintragen.
+              </p>
+            </div>
+            <NewEmployeeDispositionEntryForm
+              employees={activeEmployees}
+              defaultDate={formatDateInput(fromDate)}
+            />
+          </div>
+        </details>
 
         <Link
           href="/crew-dispatch"
@@ -1242,113 +1248,6 @@ export default async function EmployeeDispatchPage({
             value: project,
           }))}
         />
-      </div>
-
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Eintrag hinzufügen
-        </h2>
-
-        <form
-          action={createEmployeeDispositionEntry}
-          className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-8"
-        >
-          <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-            Mitarbeiter
-            <select
-              name="employeeId"
-              required
-              defaultValue=""
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            >
-              <option value="" disabled>
-                Mitarbeiter wählen
-              </option>
-
-              {activeEmployees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.lastName}, {employee.firstName}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Art
-            <select
-              name="typeValue"
-              required
-              defaultValue="urlaub"
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            >
-              {employeeDispositionTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Von
-            <input
-              type="date"
-              name="startDate"
-              required
-              defaultValue={formatDateInput(fromDate)}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Bis
-            <input
-              type="date"
-              name="endDate"
-              required
-              defaultValue={formatDateInput(fromDate)}
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Beginn
-            <input
-              type="time"
-              name="startTime"
-              defaultValue="06:30"
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-800">
-            Ende
-            <input
-              type="time"
-              name="endTime"
-              defaultValue="17:00"
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-            Bemerkung
-            <input
-              name="notes"
-              placeholder="z.B. Urlaub genehmigt, Berufsschule, Innung ..."
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            />
-          </label>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-            >
-              Eintrag speichern
-            </button>
-          </div>
-        </form>
       </div>
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -1490,8 +1389,15 @@ export default async function EmployeeDispatchPage({
         </div>
       </div>
 
-      <div className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+      <div
+        data-employee-dispatch-root
+        className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+      >
+        <EmployeeDispatchStickyOffset />
+        <div
+          data-employee-dispatch-sticky-controls
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-gray-50 px-5 py-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+        >
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -1503,107 +1409,150 @@ export default async function EmployeeDispatchPage({
                 Baustelle kommt automatisch aus Disposition und Einteilungen.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {[1, 2, 5].map((weekCount) => (
+            <div className="flex flex-col gap-2 lg:items-end">
+              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
                 <Link
-                  key={weekCount}
                   href={buildPageHref({
-                    weeks: String(weekCount),
-                    to: null,
+                    from: formatDateInput(previousFrom),
+                    to: formatDateInput(previousTo),
                   })}
-                  className={
-                    currentWeeks === weekCount
-                      ? "rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
-                      : "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                  }
-                >
-                  {weekCount} Woche{weekCount === 1 ? "" : "n"}
-                </Link>
-              ))}
-
-              <form
-                action="/employee-dispatch"
-                className="flex items-center gap-2"
-              >
-                <input type="hidden" name="from" value={formatDateInput(fromDate)} />
-                <input
-                  type="hidden"
-                  name="sort"
-                  value={sortMode === "name" ? "" : sortMode}
-                />
-                <input type="hidden" name="q" value={searchFilter} />
-                <input type="hidden" name="status" value={statusFilter} />
-                <input type="hidden" name="type" value={typeFilter} />
-                <input type="hidden" name="project" value={projectFilter} />
-                {onlyWithEntries ? (
-                  <input type="hidden" name="onlyWithEntries" value="1" />
-                ) : null}
-                <input
-                  type="number"
-                  name="weeks"
-                  min="1"
-                  max="52"
-                  defaultValue={currentWeeks}
-                  className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-xs font-semibold text-gray-900 outline-none focus:border-gray-900"
-                  aria-label="Wochenanzahl"
-                />
-                <button
-                  type="submit"
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
                 >
-                  Anzeigen
-                </button>
-              </form>
+                  ← Zurück
+                </Link>
+
+                <Link
+                  href={buildPageHref({
+                    from: formatDateInput(defaultFrom),
+                    to: formatDateInput(addDays(defaultFrom, 13)),
+                  })}
+                  className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                >
+                  Aktuelle 14 Tage
+                </Link>
+
+                <Link
+                  href={buildPageHref({
+                    from: formatDateInput(nextFrom),
+                    to: formatDateInput(nextTo),
+                  })}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                >
+                  Weiter →
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                {[1, 2, 5].map((weekCount) => (
+                  <Link
+                    key={weekCount}
+                    href={buildPageHref({
+                      weeks: String(weekCount),
+                      to: null,
+                    })}
+                    className={
+                      currentWeeks === weekCount
+                        ? "rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                        : "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                    }
+                  >
+                    {weekCount}W
+                  </Link>
+                ))}
+
+                <form
+                  action="/employee-dispatch"
+                  className="flex items-center gap-2"
+                >
+                  <input type="hidden" name="from" value={formatDateInput(fromDate)} />
+                  <input
+                    type="hidden"
+                    name="sort"
+                    value={sortMode === "name" ? "" : sortMode}
+                  />
+                  <input type="hidden" name="q" value={searchFilter} />
+                  <input type="hidden" name="status" value={statusFilter} />
+                  <input type="hidden" name="type" value={typeFilter} />
+                  <input type="hidden" name="project" value={projectFilter} />
+                  {onlyWithEntries ? (
+                    <input type="hidden" name="onlyWithEntries" value="1" />
+                  ) : null}
+                  <input
+                    type="number"
+                    name="weeks"
+                    min="1"
+                    max="52"
+                    defaultValue={currentWeeks}
+                    className="h-9 w-16 rounded-lg border border-gray-300 px-2 text-xs font-semibold text-gray-900 outline-none focus:border-gray-900"
+                    aria-label="Wochenanzahl"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                  >
+                    Wochen anzeigen
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 -mx-5 grid border-t border-gray-200 bg-white shadow-sm grid-cols-[300px_minmax(0,1fr)]">
+            <div className="flex min-h-[56px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Mitarbeiter
+            </div>
+            <div
+              data-employee-timeline-header-scroll="true"
+              className="min-w-0 overflow-hidden border-b border-gray-200 bg-gray-50"
+            >
+              <div className="grid" style={{ gridTemplateColumns }}>
+                {days.map((day) => (
+                  <div
+                    key={day.toISOString()}
+                    className={
+                      isWeekend(day)
+                        ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-100 px-2 py-2 text-center last:border-r-0"
+                        : "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
+                    }
+                  >
+                    <div className="truncate text-xs font-bold text-gray-900">
+                      {formatWeekdayShort(day)}
+                    </div>
+                    <div className="mt-1 truncate text-[11px] font-medium text-gray-500">
+                      {formatDayMonth(day)}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        <EmployeeTimelineSyncedScroll
-          header={
-            <div className="min-w-[1180px]">
-              <div className="grid grid-cols-[300px_1fr] border-b border-gray-200 bg-white">
-                <div className="sticky left-0 z-[90] border-r border-gray-200 bg-white p-3 text-xs font-semibold uppercase tracking-wide text-gray-500 shadow-[6px_0_12px_-12px_rgba(15,23,42,0.65)]">
-                  Mitarbeiter
-                </div>
-                <div
-                  className="grid border-l border-gray-100"
-                  style={{ gridTemplateColumns }}
-                >
-                  {days.map((day) => (
-                    <div
-                      key={day.toISOString()}
-                      className={
-                        isWeekend(day)
-                          ? "border-r border-gray-100 bg-gray-100 p-2 text-center text-[11px] font-semibold text-gray-500"
-                          : "border-r border-gray-100 bg-white p-2 text-center text-[11px] font-semibold text-gray-500"
-                      }
-                    >
-                      {formatGermanDate(day)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          }
+        <div
+          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
+          style={{
+            maxHeight:
+              "max(590px, calc(100vh - var(--employee-dispatch-sticky-offset, 160px) - var(--app-header-height, 0px) - 1rem))",
+          }}
         >
-          <div className="min-w-[1180px]">
-            {visibleEmployees.map((employee) => {
-              const bars = visibleBarsByEmployeeId.get(employee.id) ?? [];
-              const primaryProject =
-                primaryProjectByEmployeeId.get(employee.id)?.projectText;
-              const positionText =
-                employee.positions
-                  .map((position) => position.positionLabel)
-                  .join(", ") || "ohne Berufsgruppe";
+          <div className="grid w-full grid-cols-[300px_minmax(0,1fr)]">
+            <div className="border-r border-gray-200 bg-white">
+              {visibleEmployees.map((employee) => {
+                const bars = visibleBarsByEmployeeId.get(employee.id) ?? [];
+                const primaryProject =
+                  primaryProjectByEmployeeId.get(employee.id)?.projectText;
+                const positionText =
+                  employee.positions
+                    .map((position) => position.positionLabel)
+                    .join(", ") || "ohne Berufsgruppe";
+                const rowHeight = Math.max(118, 70 + bars.length * 36);
 
-              return (
-                <div
-                  key={employee.id}
-                  className="grid grid-cols-[300px_1fr] border-b border-gray-100"
-                >
+                return (
                   <div
+                    key={employee.id}
                     data-employee-name-cell="true"
-                    className="sticky left-0 z-[80] border-r border-gray-200 bg-white p-3 shadow-[6px_0_12px_-12px_rgba(15,23,42,0.65)]"
+                    className="border-b border-gray-200 bg-white p-3"
+                    style={{ height: `${rowHeight}px`, minHeight: `${rowHeight}px` }}
                   >
                     <EmployeeQuickEntryButton
                       employeeId={employee.id}
@@ -1627,124 +1576,140 @@ export default async function EmployeeDispatchPage({
                       </div>
                     ) : null}
                   </div>
+                );
+              })}
+            </div>
 
-                  <div className="relative min-h-[56px]">
-                    <div
-                      className="absolute inset-0 grid"
-                      style={{ gridTemplateColumns }}
-                    >
-                      {days.map((day) => (
-                        <div
-                          key={day.toISOString()}
-                          className={
-                            isWeekend(day)
-                              ? "border-r border-gray-100 bg-gray-50"
-                              : "border-r border-gray-100 bg-white"
-                          }
-                        />
-                      ))}
-                    </div>
+          <EmployeeTimelineSyncedScroll
+          >
+            <div className="grid" style={{ gridTemplateColumns }}>
+              {visibleEmployees.map((employee) => {
+                const bars = visibleBarsByEmployeeId.get(employee.id) ?? [];
+                const rowHeight = Math.max(118, 70 + bars.length * 36);
 
-                    <div
-                      data-employee-time-grid="true"
-                      className="relative grid gap-y-1 px-1 py-2"
-                      style={{ gridTemplateColumns }}
-                    >
-                      {bars.length === 0 ? (
-                        <div className="col-span-full py-2 text-xs font-medium text-gray-400">
-                          Keine Einträge im Zeitraum
-                        </div>
-                      ) : (
-                        bars.map((bar) => {
-                          const manualEntry = bar.manualEntry;
+                return (
+                  <div
+                    key={employee.id}
+                    className="relative grid min-w-0 border-b border-gray-100 bg-white"
+                    style={{
+                      gridColumn: `1 / span ${days.length}`,
+                      gridTemplateColumns,
+                      height: `${rowHeight}px`,
+                      minHeight: `${rowHeight}px`,
+                    }}
+                  >
+                    {days.map((day) => (
+                      <div
+                        key={day.toISOString()}
+                        className={
+                          isWeekend(day)
+                            ? "min-w-0 border-r border-gray-100 bg-gray-50"
+                            : "min-w-0 border-r border-gray-100 bg-white"
+                        }
+                      />
+                    ))}
 
-                          return (
-                            <EmployeeTimelineBar
-                              key={`${bar.id}-${formatDateInput(
-                                bar.startDate,
-                              )}-${formatDateInput(bar.endDate)}`}
-                              id={manualEntry?.id ?? bar.id}
-                              label={bar.title}
-                              sourceLabel={bar.sourceLabel}
-                              startDate={formatDateInput(bar.startDate)}
-                              endDate={formatDateInput(bar.endDate)}
-                              startTime={bar.startTime}
-                              endTime={bar.endTime}
-                              timelineUnits={timelineUnitsForClient}
-                              barClassName={bar.barClass}
-                              readOnly={!manualEntry}
-                            >
-                              <div className="absolute z-40 mt-2 w-[520px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl">
-                                <div className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                                  {bar.sourceLabel}
-                                </div>
-                                <div className="mt-3 text-sm font-bold text-gray-900">
-                                  {bar.title}
-                                </div>
-                                {bar.subtitle ? (
-                                  <div className="mt-1 text-xs text-gray-600">
-                                    {bar.subtitle}
+                      <div
+                        data-employee-time-grid="true"
+                        className="pointer-events-none absolute inset-0 grid gap-y-1 px-1 py-2"
+                        style={{ gridTemplateColumns }}
+                      >
+                        {bars.length === 0 ? (
+                          <div className="col-span-full py-2 text-xs font-medium text-gray-400">
+                            Keine Einträge im Zeitraum
+                          </div>
+                        ) : (
+                          bars.map((bar) => {
+                            const manualEntry = bar.manualEntry;
+
+                            return (
+                              <EmployeeTimelineBar
+                                key={`${bar.id}-${formatDateInput(
+                                  bar.startDate,
+                                )}-${formatDateInput(bar.endDate)}`}
+                                id={manualEntry?.id ?? bar.id}
+                                label={bar.title}
+                                sourceLabel={bar.sourceLabel}
+                                startDate={formatDateInput(bar.startDate)}
+                                endDate={formatDateInput(bar.endDate)}
+                                startTime={bar.startTime}
+                                endTime={bar.endTime}
+                                timelineUnits={timelineUnitsForClient}
+                                barClassName={bar.barClass}
+                                readOnly={!manualEntry}
+                              >
+                                <div className="absolute z-40 mt-2 w-[520px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl">
+                                  <div className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                    {bar.sourceLabel}
                                   </div>
-                                ) : null}
-                                <div className="mt-2 text-xs font-medium text-gray-600">
-                                  {formatGermanDate(bar.startDate)} –{" "}
-                                  {formatGermanDate(bar.endDate)} ·{" "}
-                                  {bar.startTime} – {bar.endTime}
-                                </div>
-                                {bar.notes ? (
-                                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
-                                    {bar.notes}
+                                  <div className="mt-3 text-sm font-bold text-gray-900">
+                                    {bar.title}
                                   </div>
-                                ) : null}
+                                  {bar.subtitle ? (
+                                    <div className="mt-1 text-xs text-gray-600">
+                                      {bar.subtitle}
+                                    </div>
+                                  ) : null}
+                                  <div className="mt-2 text-xs font-medium text-gray-600">
+                                    {formatGermanDate(bar.startDate)} –{" "}
+                                    {formatGermanDate(bar.endDate)} ·{" "}
+                                    {bar.startTime} – {bar.endTime}
+                                  </div>
+                                  {bar.notes ? (
+                                    <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                                      {bar.notes}
+                                    </div>
+                                  ) : null}
 
-                                {manualEntry ? (
-                                  <>
-                                    <EmployeeDispositionEntryForm
-                                      employees={activeEmployees}
-                                      entry={manualEntry}
-                                    />
-
-                                    <form
-                                      action={deleteEmployeeDispositionEntry}
-                                      className="mt-3"
-                                    >
-                                      <input
-                                        type="hidden"
-                                        name="id"
-                                        value={manualEntry.id}
+                                  {manualEntry ? (
+                                    <>
+                                      <EmployeeDispositionEntryForm
+                                        employees={activeEmployees}
+                                        entry={manualEntry}
                                       />
-                                      <button
-                                        type="submit"
-                                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+
+                                      <form
+                                        action={deleteEmployeeDispositionEntry}
+                                        className="mt-3"
                                       >
-                                        <ActionIcon
-                                          name="delete"
-                                          className="h-4 w-4"
+                                        <input
+                                          type="hidden"
+                                          name="id"
+                                          value={manualEntry.id}
                                         />
-                                        Eintrag löschen
-                                      </button>
-                                    </form>
-                                  </>
-                                ) : (
-                                  <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                                    Dieser Balken kommt aus einer anderen
-                                    Disposition und wird hier nur angezeigt.
-                                    Änderungen bitte in der führenden Dispo
-                                    vornehmen.
-                                  </div>
-                                )}
-                              </div>
-                            </EmployeeTimelineBar>
-                          );
-                        })
-                      )}
-                    </div>
+                                        <button
+                                          type="submit"
+                                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                        >
+                                          <ActionIcon
+                                            name="delete"
+                                            className="h-4 w-4"
+                                          />
+                                          Eintrag löschen
+                                        </button>
+                                      </form>
+                                    </>
+                                  ) : (
+                                    <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                                      Dieser Balken kommt aus einer anderen
+                                      Disposition und wird hier nur angezeigt.
+                                      Änderungen bitte in der führenden Dispo
+                                      vornehmen.
+                                    </div>
+                                  )}
+                                </div>
+                              </EmployeeTimelineBar>
+                            );
+                          })
+                        )}
+                      </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </EmployeeTimelineSyncedScroll>
           </div>
-        </EmployeeTimelineSyncedScroll>
+        </div>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -1755,7 +1720,7 @@ export default async function EmployeeDispatchPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm text-gray-900">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
                 <th className="w-[88px] p-3 font-semibold">Aktion</th>
@@ -1780,7 +1745,10 @@ export default async function EmployeeDispatchPage({
                   const entryType = getEmployeeDispositionType(entry.typeValue);
 
                   return (
-                    <tr key={entry.id} className="border-t border-gray-100">
+                    <tr
+                      key={entry.id}
+                      className="border-t border-gray-100 text-gray-900"
+                    >
                       <td className="p-3">
                         <form action={deleteEmployeeDispositionEntry}>
                           <input type="hidden" name="id" value={entry.id} />
@@ -1797,15 +1765,15 @@ export default async function EmployeeDispatchPage({
                       <td className="p-3 font-semibold text-gray-900">
                         {entry.employee.lastName}, {entry.employee.firstName}
                       </td>
-                      <td className="p-3">{entryType.label}</td>
-                      <td className="p-3">
+                      <td className="p-3 text-gray-900">{entryType.label}</td>
+                      <td className="p-3 text-gray-900">
                         {formatGermanDate(entry.startDate)}
                       </td>
-                      <td className="p-3">{formatGermanDate(entry.endDate)}</td>
-                      <td className="p-3">
+                      <td className="p-3 text-gray-900">{formatGermanDate(entry.endDate)}</td>
+                      <td className="p-3 text-gray-900">
                         {entry.startTime} – {entry.endTime}
                       </td>
-                      <td className="p-3 text-gray-600">
+                      <td className="p-3 text-gray-800">
                         {entry.notes ?? "-"}
                       </td>
                     </tr>
@@ -1935,6 +1903,121 @@ function EmployeeDispositionEntryForm({
         >
           <ActionIcon name="save" className="h-4 w-4" />
           Speichern
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function NewEmployeeDispositionEntryForm({
+  employees,
+  defaultDate,
+}: {
+  employees: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  }[];
+  defaultDate: string;
+}) {
+  return (
+    <form
+      action={createEmployeeDispositionEntry}
+      className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-8"
+    >
+      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+        Mitarbeiter
+        <select
+          name="employeeId"
+          required
+          defaultValue=""
+          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        >
+          <option value="" disabled>
+            Mitarbeiter wählen
+          </option>
+
+          {employees.map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.lastName}, {employee.firstName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-sm font-medium text-gray-800">
+        Art
+        <select
+          name="typeValue"
+          required
+          defaultValue="urlaub"
+          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        >
+          {employeeDispositionTypes.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-sm font-medium text-gray-800">
+        Von
+        <input
+          type="date"
+          name="startDate"
+          required
+          defaultValue={defaultDate}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+
+      <label className="text-sm font-medium text-gray-800">
+        Bis
+        <input
+          type="date"
+          name="endDate"
+          required
+          defaultValue={defaultDate}
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+
+      <label className="text-sm font-medium text-gray-800">
+        Beginn
+        <input
+          type="time"
+          name="startTime"
+          defaultValue="06:30"
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+
+      <label className="text-sm font-medium text-gray-800">
+        Ende
+        <input
+          type="time"
+          name="endTime"
+          defaultValue="17:00"
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+
+      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+        Bemerkung
+        <input
+          name="notes"
+          placeholder="z.B. Urlaub genehmigt, Berufsschule, Innung ..."
+          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        />
+      </label>
+
+      <div className="flex items-end">
+        <button
+          type="submit"
+          className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+        >
+          Eintrag speichern
         </button>
       </div>
     </form>

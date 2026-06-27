@@ -450,6 +450,63 @@ function getBufferValue(value: string | undefined, fallback: number) {
   return Math.max(0, Math.round(parsed));
 }
 
+function getViewBufferValues({
+  view,
+  params,
+  fallbackBack = 0,
+  fallbackForward = 0,
+}: {
+  view: TimelineView;
+  params: {
+    bufferBack?: string;
+    bufferForward?: string;
+    daysBufferBack?: string;
+    daysBufferForward?: string;
+    weeksBufferBack?: string;
+    weeksBufferForward?: string;
+    monthsBufferBack?: string;
+    monthsBufferForward?: string;
+  };
+  fallbackBack?: number;
+  fallbackForward?: number;
+}) {
+  const currentBack = getBufferValue(params.bufferBack, fallbackBack);
+  const currentForward = getBufferValue(params.bufferForward, fallbackForward);
+
+  return {
+    days: {
+      back: getBufferValue(
+        params.daysBufferBack,
+        view === "days" ? currentBack : fallbackBack,
+      ),
+      forward: getBufferValue(
+        params.daysBufferForward,
+        view === "days" ? currentForward : fallbackForward,
+      ),
+    },
+    weeks: {
+      back: getBufferValue(
+        params.weeksBufferBack,
+        view === "weeks" ? currentBack : fallbackBack,
+      ),
+      forward: getBufferValue(
+        params.weeksBufferForward,
+        view === "weeks" ? currentForward : fallbackForward,
+      ),
+    },
+    months: {
+      back: getBufferValue(
+        params.monthsBufferBack,
+        view === "months" ? currentBack : fallbackBack,
+      ),
+      forward: getBufferValue(
+        params.monthsBufferForward,
+        view === "months" ? currentForward : fallbackForward,
+      ),
+    },
+  } satisfies Record<TimelineView, { back: number; forward: number }>;
+}
+
 function getEffectiveWeekCount({
   range,
   customCount,
@@ -3041,6 +3098,12 @@ export default async function CrewDispatchPage({
     rangeMode?: string;
     bufferBack?: string;
     bufferForward?: string;
+    daysBufferBack?: string;
+    daysBufferForward?: string;
+    weeksBufferBack?: string;
+    weeksBufferForward?: string;
+    monthsBufferBack?: string;
+    monthsBufferForward?: string;
     showAsphaltDispatchCrews?: string;
     showEquipment?: string;
     showTrucks?: string;
@@ -3078,11 +3141,14 @@ export default async function CrewDispatchPage({
 
   const defaultBufferBack = 0;
   const defaultBufferForward = 0;
-  const bufferBack = getBufferValue(params.bufferBack, defaultBufferBack);
-  const bufferForward = getBufferValue(
-    params.bufferForward,
-    defaultBufferForward,
-  );
+  const viewBuffers = getViewBufferValues({
+    view,
+    params,
+    fallbackBack: defaultBufferBack,
+    fallbackForward: defaultBufferForward,
+  });
+  const bufferBack = viewBuffers[view].back;
+  const bufferForward = viewBuffers[view].forward;
 
   const selectedDate = parseDateParam(params.week);
   const anchorDate =
@@ -3589,6 +3655,15 @@ export default async function CrewDispatchPage({
 
   const planningSettingsParams = {
     hideWeekend,
+    daysBufferBack: view === "days" ? bufferBack : viewBuffers.days.back,
+    daysBufferForward:
+      view === "days" ? bufferForward : viewBuffers.days.forward,
+    weeksBufferBack: view === "weeks" ? bufferBack : viewBuffers.weeks.back,
+    weeksBufferForward:
+      view === "weeks" ? bufferForward : viewBuffers.weeks.forward,
+    monthsBufferBack: view === "months" ? bufferBack : viewBuffers.months.back,
+    monthsBufferForward:
+      view === "months" ? bufferForward : viewBuffers.months.forward,
   };
 
   const leftColumnWidth = getLeftColumnWidth(unitCount);
@@ -3992,6 +4067,7 @@ export default async function CrewDispatchPage({
                     customUnit,
                     anchorDate: targetStart,
                   });
+                  const targetBuffer = viewBuffers[item];
 
                   return (
                     <Link
@@ -4006,8 +4082,8 @@ export default async function CrewDispatchPage({
                         customCount,
                         customUnit,
                         showWeekend,
-                        bufferBack: 0,
-                        bufferForward: 0,
+                        bufferBack: targetBuffer.back,
+                        bufferForward: targetBuffer.forward,
                         showAsphaltDispatchCrews,
                         showEquipment,
                         showTrucks,
@@ -4064,8 +4140,8 @@ export default async function CrewDispatchPage({
                         customCount,
                         customUnit,
                         showWeekend,
-                        bufferBack: 0,
-                        bufferForward: 0,
+                        bufferBack,
+                        bufferForward,
                         showAsphaltDispatchCrews,
                         showEquipment,
                         showTrucks,
@@ -4111,6 +4187,48 @@ export default async function CrewDispatchPage({
                     <input type="hidden" name="range" value="custom" />
                     <input type="hidden" name="week" value={focusDate} />
                     <input type="hidden" name="focus" value={focusDate} />
+                    {view !== "days" ? (
+                      <>
+                        <input
+                          type="hidden"
+                          name="daysBufferBack"
+                          value={String(viewBuffers.days.back)}
+                        />
+                        <input
+                          type="hidden"
+                          name="daysBufferForward"
+                          value={String(viewBuffers.days.forward)}
+                        />
+                      </>
+                    ) : null}
+                    {view !== "weeks" ? (
+                      <>
+                        <input
+                          type="hidden"
+                          name="weeksBufferBack"
+                          value={String(viewBuffers.weeks.back)}
+                        />
+                        <input
+                          type="hidden"
+                          name="weeksBufferForward"
+                          value={String(viewBuffers.weeks.forward)}
+                        />
+                      </>
+                    ) : null}
+                    {view !== "months" ? (
+                      <>
+                        <input
+                          type="hidden"
+                          name="monthsBufferBack"
+                          value={String(viewBuffers.months.back)}
+                        />
+                        <input
+                          type="hidden"
+                          name="monthsBufferForward"
+                          value={String(viewBuffers.months.forward)}
+                        />
+                      </>
+                    ) : null}
 
                     {highlightedCrewId ? (
                       <input
