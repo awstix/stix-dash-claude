@@ -489,7 +489,7 @@ export default async function AsphaltDispatchPage({
       title="Asphaltdisposition"
       description="Wochenplanung für Asphaltkolonnen, Mischgutmenge, Sorte, Bauleiter und Fremdmischgut."
     >
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
             KW {isoWeek.week}/{isoWeek.year} · Woche {" "}
@@ -508,40 +508,6 @@ export default async function AsphaltDispatchPage({
               {formatTons(totalOpenTons)} t
             </span>
           </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={buildWeekHref(previousWeek, includeWeekend)}
-            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          >
-            Vorwoche
-          </Link>
-
-          <Link
-            href={buildWeekHref(currentWeek, includeWeekend)}
-            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          >
-            Aktuelle Woche
-          </Link>
-
-          <Link
-            href={buildWeekHref(nextWeek, includeWeekend)}
-            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          >
-            Folgewoche
-          </Link>
-
-          <Link
-            href={
-              includeWeekend
-                ? buildWeekHref(formatDateInput(weekStart), false)
-                : buildWeekHref(formatDateInput(weekStart), true)
-            }
-            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          >
-            {includeWeekend ? "Wochenende ausblenden" : "Sa/So anzeigen"}
-          </Link>
         </div>
       </div>
 
@@ -689,10 +655,71 @@ export default async function AsphaltDispatchPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="relative overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-4 py-3">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+            <Link
+              href={buildWeekHref(currentWeek, includeWeekend)}
+              scroll={false}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+            >
+              Aktuelle Woche
+            </Link>
+          </div>
+
+          <Link
+            href={
+              includeWeekend
+                ? buildWeekHref(formatDateInput(weekStart), false)
+                : buildWeekHref(formatDateInput(weekStart), true)
+            }
+            scroll={false}
+            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+          >
+            {includeWeekend ? "Sa/So aus" : "Sa/So anzeigen"}
+          </Link>
+        </div>
+
+        <Link
+          href={buildWeekHref(previousWeek, includeWeekend)}
+          scroll={false}
+          className="absolute top-[72px] z-30 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white/95 text-lg font-bold leading-none text-gray-800 shadow-sm hover:bg-gray-50"
+          style={{ left: "114px" }}
+          aria-label="Vorwoche"
+          title="Vorwoche"
+        >
+          ‹
+        </Link>
+        <Link
+          href={buildWeekHref(nextWeek, includeWeekend)}
+          scroll={false}
+          className="absolute -right-4 top-[72px] z-30 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white/95 text-lg font-bold leading-none text-gray-800 shadow-sm hover:bg-gray-50"
+          aria-label="Folgewoche"
+          title="Folgewoche"
+        >
+          ›
+        </Link>
         <div className="grid w-full" style={gridStyle}>
-          <div className="border-b border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-800">
+          <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
             Kolonne
+          </div>
+
+          {days.map((day) => (
+            <div
+              key={day.label}
+              className="flex min-h-[64px] min-w-0 flex-col justify-center border-r border-b border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
+            >
+              <div className="truncate text-xs font-bold text-gray-900">
+                {day.label}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                {formatGermanDate(day.date)}
+              </div>
+            </div>
+          ))}
+
+          <div className="flex min-h-[48px] items-center border-r border-b border-gray-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Tagesmengen
           </div>
 
           {days.map((day) => {
@@ -708,42 +735,31 @@ export default async function AsphaltDispatchPage({
 
             return (
               <div
-                key={day.label}
-                className="border-b border-l border-gray-200 bg-gray-50 p-4"
+                key={`${day.label}-totals`}
+                className="flex min-h-[48px] items-center border-r border-b border-gray-200 bg-white px-2 py-2 last:border-r-0"
               >
-                <div className="text-sm font-bold text-gray-900">
-                  {day.label}
-                </div>
-
-                <div className="mt-1 text-xs text-gray-500">
-                  {formatGermanDate(day.date)}
-                </div>
-
-                <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                  <div className="text-xs font-medium text-gray-500">
-                    Tagesgesamt
-                  </div>
-                  <div className="mt-1 text-lg font-bold text-gray-900">
-                    {formatTons(dayTotal)} t
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-orange-800">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] leading-none">
+                  <span className="rounded-full bg-gray-100 px-2 py-1 font-bold text-gray-900">
+                    Asphalt {formatTons(dayTotal)} t
+                  </span>
+                  <span className="rounded-full bg-orange-50 px-2 py-1 font-semibold text-orange-800">
                     offen {formatTons(dayOpenTotal)} t
-                  </div>
+                  </span>
                   {dayTackCoatTotal > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs font-semibold text-purple-800">
-                      <div>
-                        Anspritzmittel Bedarf {formatLiters(dayTackCoatTotal)} l
-                      </div>
-                      <div>
+                    <>
+                      <span className="rounded-full bg-purple-50 px-2 py-1 font-semibold text-purple-800">
+                        Anspritz {formatLiters(dayTackCoatTotal)} l
+                      </span>
+                      <span className="rounded-full bg-purple-50 px-2 py-1 font-semibold text-purple-700">
                         Spritzwagen {formatLiters(dayTackCoatSpecialVehicleTotal)} l
-                      </div>
-                      <div>
+                      </span>
+                      <span className="rounded-full bg-purple-50 px-2 py-1 font-semibold text-purple-700">
                         Kurzstrecke {formatLiters(dayTackCoatShortHaulTotal)} l
-                      </div>
-                      <div className="text-purple-950">
+                      </span>
+                      <span className="rounded-full bg-purple-100 px-2 py-1 font-semibold text-purple-950">
                         offen {formatLiters(dayTackCoatOpenTotal)} l
-                      </div>
-                    </div>
+                      </span>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -752,7 +768,7 @@ export default async function AsphaltDispatchPage({
 
           {crews.map((crew) => (
             <div key={crew} className="contents">
-              <div className="border-b border-gray-100 p-4 font-semibold text-gray-900">
+              <div className="border-r border-b border-gray-200 bg-white p-3 font-semibold text-gray-900">
                 {crew}
               </div>
 
@@ -782,7 +798,7 @@ export default async function AsphaltDispatchPage({
                 return (
                   <div
                     key={`${crew}-${formatDateInput(day.date)}`}
-                    className="min-h-80 border-b border-l border-gray-100 p-3"
+                    className="min-h-80 border-r border-b border-gray-100 bg-white p-3 last:border-r-0"
                   >
                     <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <div className="text-xs font-medium text-gray-500">
