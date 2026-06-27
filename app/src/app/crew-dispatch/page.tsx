@@ -10,6 +10,7 @@ import { CrewPopover } from "./CrewPopover";
 import { CrewTimelineFocusButton } from "./CrewTimelineFocusButton";
 import { CrewTimelineScroll } from "./CrewTimelineScroll";
 import { CrewTimelineMouseTooltip } from "./CrewTimelineMouseTooltip";
+import { CrewTimelineScrollButtons } from "./CrewTimelineScrollButtons";
 import { DismissibleDetails } from "./DismissibleDetails";
 import { CrewDispatchStickyOffset } from "./CrewDispatchStickyOffset";
 
@@ -2094,6 +2095,14 @@ function getTodayRange(view: TimelineView) {
     };
   }
 
+  if (view === "days") {
+    return {
+      fromDate: today,
+      toDate: addDays(today, 13),
+      focusDate: today,
+    };
+  }
+
   const weekStart = startOfWeek(today);
 
   return {
@@ -2260,11 +2269,11 @@ function getCustomUnitLabel(unit: CustomUnit) {
 const CREW_TIMELINE_ROW_MIN_HEIGHT_PX = 180;
 const CREW_TIMELINE_PLUS_ROW_HEIGHT_PX = 42;
 const CREW_TIMELINE_BAR_TOP_PX = CREW_TIMELINE_PLUS_ROW_HEIGHT_PX + 14;
-const CREW_TIMELINE_BAR_LANE_HEIGHT_PX = 72;
-const CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX = 24;
+const CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX = 26;
 const CREW_TIMELINE_SUPPLEMENT_GAP_PX = 6;
+const CREW_TIMELINE_FIRST_SUPPLEMENT_GAP_PX = 12;
 const CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX = 44;
-const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 52;
+const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 44;
 
 function getSupplementLayerCount({
   showEquipment,
@@ -2328,10 +2337,16 @@ function getLayerIndex({
 }
 
 function getCrewTimelineLaneHeight(layerCount: number) {
+  if (layerCount <= 0) {
+    return CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX;
+  }
+
   return (
-    CREW_TIMELINE_BAR_LANE_HEIGHT_PX +
-    layerCount *
-      (CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX + CREW_TIMELINE_SUPPLEMENT_GAP_PX)
+    CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX +
+    CREW_TIMELINE_FIRST_SUPPLEMENT_GAP_PX +
+    layerCount * CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX +
+    Math.max(0, layerCount - 1) * CREW_TIMELINE_SUPPLEMENT_GAP_PX +
+    2
   );
 }
 
@@ -2345,7 +2360,7 @@ function getSupplementTopOffsetPx({
   return (
     baseTopOffsetPx +
     CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX +
-    CREW_TIMELINE_SUPPLEMENT_GAP_PX +
+    CREW_TIMELINE_FIRST_SUPPLEMENT_GAP_PX +
     layerIndex *
       (CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX + CREW_TIMELINE_SUPPLEMENT_GAP_PX)
   );
@@ -2427,13 +2442,27 @@ function buildCrewTimelineLaneLayout({
     return a.kind.localeCompare(b.kind);
   });
 
+  const laneEndDates: Date[] = [];
+
   /*
-    Jede Baustelle / jeder Asphalt-Dispo-Balken bekommt eine eigene Lane.
-    Dadurch wächst die Kolonnenzeile automatisch nach unten, sobald eine
-    Kolonne 2, 3, 4, 5 oder mehr Baustellen hat. Nicht mehr nur bei zeitlicher
-    Überschneidung.
+    Balken brauchen nur dann eine neue Lane, wenn sie sich zeitlich
+    überschneiden. Nicht überlappende Asphalt-Dispo-Einträge derselben Kolonne
+    können dadurch in derselben Zeile bleiben, statt die Liste künstlich länger
+    zu machen.
   */
-  items.forEach((item, laneIndex) => {
+  items.forEach((item) => {
+    const itemStartTime = normalizeDay(item.startDate).getTime();
+    let laneIndex = laneEndDates.findIndex(
+      (laneEndDate) => normalizeDay(laneEndDate).getTime() < itemStartTime,
+    );
+
+    if (laneIndex === -1) {
+      laneIndex = laneEndDates.length;
+      laneEndDates.push(item.endDate);
+    } else {
+      laneEndDates[laneIndex] = item.endDate;
+    }
+
     if (item.kind === "assignment") {
       assignmentLanes.set(item.id, laneIndex);
     } else {
@@ -2441,7 +2470,7 @@ function buildCrewTimelineLaneLayout({
     }
   });
 
-  const laneCount = Math.max(1, items.length);
+  const laneCount = Math.max(1, laneEndDates.length);
 
   return {
     laneCount,
@@ -2484,12 +2513,10 @@ function buildAsphaltTimelineBars({
     const lastProjectKey = last
       ? `${last.crewName}|||${last.projectNumber}|||${last.projectName}`
       : "";
-
     const canMerge =
       last &&
       lastProjectKey === entryProjectKey &&
       getDateDiffInDays(last.endDate, entryDate) <= 1;
-
     const mixLabel = [entry.asphaltMixNumber, entry.asphaltMixName]
       .filter(Boolean)
       .join(" · ");
@@ -3088,6 +3115,8 @@ export default async function CrewDispatchPage({
     week?: string;
     from?: string;
     to?: string;
+    fixedFrom?: string;
+    fixedTo?: string;
     focus?: string;
     highlightCrew?: string;
     showWeekend?: string;
@@ -3152,10 +3181,18 @@ export default async function CrewDispatchPage({
 
   const selectedDate = parseDateParam(params.week);
   const anchorDate =
-    view === "months" ? startOfMonth(selectedDate) : startOfWeek(selectedDate);
+    view === "months"
+      ? startOfMonth(selectedDate)
+      : view === "weeks"
+        ? startOfWeek(selectedDate)
+        : selectedDate;
 
   const fallbackStart =
-    view === "months" ? startOfMonth(anchorDate) : startOfWeek(anchorDate);
+    view === "months"
+      ? startOfMonth(anchorDate)
+      : view === "weeks"
+        ? startOfWeek(anchorDate)
+        : anchorDate;
 
   const fallbackEnd = getDefaultRangeEnd({
     view,
@@ -3165,13 +3202,13 @@ export default async function CrewDispatchPage({
     anchorDate,
   });
 
-  const useCustomDateInputs =
-    params.rangeMode === "dates" ||
-    (params.rangeMode !== "count" && Boolean(params.from || params.to));
+  const useCustomDateInputs = params.rangeMode === "dates";
 
   const { fromDate, toDate } = getSafeDateRange({
-    from: useCustomDateInputs ? params.from : undefined,
-    to: useCustomDateInputs ? params.to : undefined,
+    from: useCustomDateInputs
+      ? (params.fixedFrom ?? params.from)
+      : params.from,
+    to: useCustomDateInputs ? (params.fixedTo ?? params.to) : params.to,
     fallbackStart,
     fallbackEnd,
   });
@@ -3193,6 +3230,13 @@ export default async function CrewDispatchPage({
   const weekStartInput = formatDateInput(weekStartForNewRows);
   const focusDate = formatDateInput(focusDateFromParams);
 
+  const visibleTimelineUnits = buildTimelineUnitsFromDateRange({
+    view,
+    fromDate,
+    toDate,
+    showWeekend,
+  });
+
   const timelineUnits = buildTimelineUnitsFromDateRange({
     view,
     fromDate: timelineFromDate,
@@ -3209,10 +3253,8 @@ export default async function CrewDispatchPage({
   }));
 
   const unitCount = timelineUnits.length;
-  const periodStart = timelineUnits[0]?.startDate ?? timelineFromDate;
-  const periodEndExclusive =
-    timelineUnits[timelineUnits.length - 1]?.endDateExclusive ??
-    addDays(timelineToDate, 1);
+  const periodStart = timelineFromDate;
+  const periodEndExclusive = addDays(timelineToDate, 1);
 
   const previousRange = shiftDateRange({
     fromDate,
@@ -3655,6 +3697,7 @@ export default async function CrewDispatchPage({
 
   const planningSettingsParams = {
     hideWeekend,
+    rangeMode: isCustomDateRange ? "dates" : "count",
     daysBufferBack: view === "days" ? bufferBack : viewBuffers.days.back,
     daysBufferForward:
       view === "days" ? bufferForward : viewBuffers.days.forward,
@@ -3963,7 +4006,7 @@ export default async function CrewDispatchPage({
         <div
           data-crew-dispatch-sticky
           data-crew-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-hidden rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -3977,7 +4020,7 @@ export default async function CrewDispatchPage({
               </div>
 
               <h2 className="mt-1 text-2xl font-bold text-gray-900">
-                {getTimelineTitle(timelineUnits, view)}
+                {getTimelineTitle(visibleTimelineUnits, view)}
               </h2>
 
               <p className="mt-1 text-sm text-gray-600">
@@ -4059,7 +4102,9 @@ export default async function CrewDispatchPage({
                   const targetStart =
                     item === "months"
                       ? startOfMonth(focusDateFromParams)
-                      : startOfWeek(focusDateFromParams);
+                      : item === "weeks"
+                        ? startOfWeek(focusDateFromParams)
+                        : focusDateFromParams;
                   const targetEnd = getDefaultRangeEnd({
                     view: item,
                     range: targetRange,
@@ -4117,7 +4162,9 @@ export default async function CrewDispatchPage({
                   const presetStart =
                     view === "months"
                       ? startOfMonth(focusDateFromParams)
-                      : startOfWeek(focusDateFromParams);
+                      : view === "weeks"
+                        ? startOfWeek(focusDateFromParams)
+                        : focusDateFromParams;
 
                   const presetEnd = getDefaultRangeEnd({
                     view,
@@ -4185,8 +4232,6 @@ export default async function CrewDispatchPage({
                     <input type="hidden" name="view" value={view} />
                     <input type="hidden" name="axis" value={planningAxis} />
                     <input type="hidden" name="range" value="custom" />
-                    <input type="hidden" name="week" value={focusDate} />
-                    <input type="hidden" name="focus" value={focusDate} />
                     {view !== "days" ? (
                       <>
                         <input
@@ -4300,7 +4345,7 @@ export default async function CrewDispatchPage({
                               Von
                               <input
                                 type="date"
-                                name="from"
+                                name="fixedFrom"
                                 defaultValue={formatDateInput(fromDate)}
                                 className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
                               />
@@ -4310,7 +4355,7 @@ export default async function CrewDispatchPage({
                               Bis
                               <input
                                 type="date"
-                                name="to"
+                                name="fixedTo"
                                 defaultValue={formatDateInput(toDate)}
                                 className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
                               />
@@ -4318,29 +4363,39 @@ export default async function CrewDispatchPage({
                           </div>
                         </label>
 
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                            Puffer zurück
-                            <input
-                              type="number"
-                              min="0"
-                              name="bufferBack"
-                              defaultValue={String(bufferBack)}
-                              className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                            />
-                          </label>
+                      </div>
+                    </fieldset>
 
-                          <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                            Puffer voraus
-                            <input
-                              type="number"
-                              min="0"
-                              name="bufferForward"
-                              defaultValue={String(bufferForward)}
-                              className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
-                            />
-                          </label>
-                        </div>
+                    <fieldset className="rounded-xl border border-gray-200 bg-white p-3">
+                      <legend className="px-1 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Puffer vor / zurück
+                      </legend>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Lädt zusätzlich Zeit vor und nach dem sichtbaren Zeitraum.
+                      </p>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                          Puffer zurück
+                          <input
+                            type="number"
+                            min="0"
+                            name="bufferBack"
+                            defaultValue={String(bufferBack)}
+                            className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                          />
+                        </label>
+
+                        <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                          Puffer voraus
+                          <input
+                            type="number"
+                            min="0"
+                            name="bufferForward"
+                            defaultValue={String(bufferForward)}
+                            className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
+                          />
+                        </label>
                       </div>
                     </fieldset>
 
@@ -4367,11 +4422,12 @@ export default async function CrewDispatchPage({
             </div>
 
           <div
-            className="mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
+            className="relative mt-4 -mx-4 grid border-t border-gray-200 bg-white shadow-sm"
             style={{
               gridTemplateColumns: `${leftColumnWidth}px minmax(0, 1fr)`,
             }}
           >
+            <CrewTimelineScrollButtons leftColumnWidth={leftColumnWidth} />
             <div className="flex min-h-[64px] items-center border-r border-b border-gray-200 bg-gray-50 px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {getPlanningAxisLabel(planningAxis)}
             </div>

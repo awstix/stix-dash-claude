@@ -204,6 +204,7 @@ export function CrewTimelineScroll({
   return (
     <div
       ref={scrollRef}
+      data-crew-timeline-scroll-container
       onScroll={(event) => syncHeaderScroll(event.currentTarget.scrollLeft)}
       className="w-full min-w-0 overflow-x-auto overflow-y-visible"
     >
