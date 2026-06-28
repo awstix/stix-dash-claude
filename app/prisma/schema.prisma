@@ -1041,6 +1041,7 @@ model Employee {
   street     String?
   postalCode String?
   city       String?
+  photoUrl   String?
 
   driverId String? @unique
   driver   Driver? @relation("EmployeeDriver", fields: [driverId], references: [id], onDelete: SetNull)

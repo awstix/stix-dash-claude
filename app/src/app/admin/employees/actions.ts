@@ -1,9 +1,24 @@
 "use server";
 
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 const LKW_DRIVER_POSITION_VALUE = "lkw_fahrer_in";
+const employeePhotoUploadDirectory = path.join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "employee-photos",
+);
+const allowedEmployeePhotoTypes = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+]);
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -18,6 +33,28 @@ function optionalDate(value: FormDataEntryValue | null) {
   }
 
   return new Date(`${text}T00:00:00.000Z`);
+}
+
+async function storeEmployeePhoto(file: FormDataEntryValue | null) {
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  const extension = allowedEmployeePhotoTypes.get(file.type);
+
+  if (!extension) {
+    throw new Error("Bitte ein Mitarbeiterfoto als JPG, PNG oder WebP hochladen.");
+  }
+
+  await mkdir(employeePhotoUploadDirectory, { recursive: true });
+
+  const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
+  const absolutePath = path.join(employeePhotoUploadDirectory, fileName);
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  await writeFile(absolutePath, bytes);
+
+  return `/uploads/employee-photos/${fileName}`;
 }
 
 async function getOptionLabel(groupKey: string, value: string | null) {
@@ -74,7 +111,7 @@ async function syncDriverForEmployee({
   statusValue,
   positionItems,
 }: {
-  tx: any;
+  tx: Prisma.TransactionClient;
   employeeId: string;
   driverId: string | null;
   firstName: string;
@@ -186,6 +223,7 @@ function getEmployeePayload(formData: FormData) {
 
 export async function createEmployee(formData: FormData) {
   const payload = getEmployeePayload(formData);
+  const photoUrl = await storeEmployeePhoto(formData.get("photo"));
 
   const [
     statusLabel,
@@ -223,6 +261,7 @@ export async function createEmployee(formData: FormData) {
         street: payload.street,
         postalCode: payload.postalCode,
         city: payload.city,
+        photoUrl,
         notes: payload.notes,
         positions: {
           create: positionItems,
@@ -264,6 +303,7 @@ export async function updateEmployee(formData: FormData) {
   }
 
   const payload = getEmployeePayload(formData);
+  const photoUrl = await storeEmployeePhoto(formData.get("photo"));
 
   const [
     statusLabel,
@@ -304,6 +344,7 @@ export async function updateEmployee(formData: FormData) {
         street: payload.street,
         postalCode: payload.postalCode,
         city: payload.city,
+        ...(photoUrl ? { photoUrl } : {}),
         notes: payload.notes,
       },
     });

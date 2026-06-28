@@ -1,6 +1,11 @@
 "use client";
 
-import { type DetailsHTMLAttributes, useEffect, useRef } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type DetailsHTMLAttributes,
+  useEffect,
+  useRef,
+} from "react";
 
 type DismissibleDetailsProps = DetailsHTMLAttributes<HTMLDetailsElement>;
 
@@ -52,5 +57,24 @@ export function DismissibleDetails({
     <details ref={detailsRef} {...props}>
       {children}
     </details>
+  );
+}
+
+export function CloseDetailsButton({
+  children,
+  onClick,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      onClick={(event) => {
+        onClick?.(event);
+        event.currentTarget.closest("details")?.removeAttribute("open");
+      }}
+    >
+      {children}
+    </button>
   );
 }

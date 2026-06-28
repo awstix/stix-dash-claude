@@ -1,9 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import { prisma } from "@/lib/prisma";
+import {
+  CloseDetailsButton,
+  DismissibleDetails,
+} from "../../crew-dispatch/DismissibleDetails";
 import { ProjectDocumentManager } from "../ProjectDocumentManager";
 import { ProjectDailyReportOverview } from "../ProjectDailyReportOverview";
 import {
@@ -34,6 +39,12 @@ const projectTabs = [
   { label: "Bautagesberichte", href: "#bautagesberichte" },
 ];
 
+type ProjectActorListItem = {
+  label: string;
+  photoAlt?: string | null;
+  photoUrl?: string | null;
+};
+
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -63,6 +74,7 @@ export default async function ProjectDetailPage({
                     include: {
                       employee: {
                         include: {
+                          driver: true,
                           qualifications: {
                             include: {
                               qualificationType: true,
@@ -83,6 +95,7 @@ export default async function ProjectDetailPage({
                 include: {
                   employee: {
                     include: {
+                      driver: true,
                       qualifications: {
                         include: {
                           qualificationType: true,
@@ -99,7 +112,24 @@ export default async function ProjectDetailPage({
               },
               extraVehicles: {
                 include: {
-                  vehicle: true,
+                  vehicle: {
+                    include: {
+                      driverAssignments: {
+                        where: {
+                          isActive: true,
+                        },
+                        include: {
+                          driver: {
+                            include: {
+                              employee: true,
+                            },
+                          },
+                        },
+                        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+                        take: 1,
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -110,36 +140,129 @@ export default async function ProjectDetailPage({
       equipmentDispatchAssignments: {
         include: {
           crew: true,
-          vehicle: true,
+          vehicle: {
+            include: {
+              driverAssignments: {
+                where: {
+                  isActive: true,
+                },
+                include: {
+                  driver: {
+                    include: {
+                      employee: true,
+                    },
+                  },
+                },
+                orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: [{ startDate: "desc" }],
       },
       asphaltLoadAllocations: {
+        include: {
+          driver: {
+            include: {
+              employee: true,
+            },
+          },
+        },
         orderBy: [{ workDate: "desc" }, { startTime: "asc" }],
       },
       shortHaulAssignments: {
+        include: {
+          driver: {
+            include: {
+              employee: true,
+            },
+          },
+        },
         orderBy: [{ workDate: "desc" }],
       },
       shortHaulTours: {
         include: {
-          assignment: true,
+          assignment: {
+            include: {
+              driver: {
+                include: {
+                  employee: true,
+                },
+              },
+            },
+          },
         },
         orderBy: [{ startTime: "asc" }],
       },
       specialVehicleDispatchAssignments: {
         include: {
-          transportVehicle: true,
-          vehicle: true,
+          operatorDriver: {
+            include: {
+              employee: true,
+            },
+          },
+          transportVehicle: {
+            include: {
+              driverAssignments: {
+                where: {
+                  isActive: true,
+                },
+                include: {
+                  driver: {
+                    include: {
+                      employee: true,
+                    },
+                  },
+                },
+                orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+                take: 1,
+              },
+            },
+          },
+          vehicle: {
+            include: {
+              driverAssignments: {
+                where: {
+                  isActive: true,
+                },
+                include: {
+                  driver: {
+                    include: {
+                      employee: true,
+                    },
+                  },
+                },
+                orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: [{ workDate: "desc" }, { startTime: "asc" }],
       },
       truckLongHaulEntries: {
         include: {
-          truckAssignments: true,
+          truckAssignments: {
+            include: {
+              driver: {
+                include: {
+                  employee: true,
+                },
+              },
+            },
+          },
         },
         orderBy: [{ workDate: "desc" }],
       },
       tackCoatLoadAllocations: {
+        include: {
+          driver: {
+            include: {
+              employee: true,
+            },
+          },
+        },
         orderBy: [{ workDate: "desc" }, { startTime: "asc" }],
       },
       weatherLogs: {
@@ -247,6 +370,7 @@ export default async function ProjectDetailPage({
     string,
     {
       name: string;
+      photoUrl: string | null;
       qualifications: {
         category: string;
         lastReviewedAt: Date | null;
@@ -255,8 +379,8 @@ export default async function ProjectDetailPage({
       }[];
     }
   >();
-  const equipment = new Map<string, string>();
-  const trucks = new Map<string, string>();
+  const equipment = new Map<string, ProjectActorListItem>();
+  const trucks = new Map<string, ProjectActorListItem>();
   const crewRows: {
     crew: string;
     date: string;
@@ -271,6 +395,7 @@ export default async function ProjectDetailPage({
         const name = `${member.employee.lastName}, ${member.employee.firstName}`;
         people.set(member.employee.id, {
           name,
+          photoUrl: member.employee.photoUrl,
           qualifications: member.employee.qualifications.map(
             (qualification) => ({
               category: qualification.qualificationType.category,
@@ -288,6 +413,7 @@ export default async function ProjectDetailPage({
         const name = `${extraEmployee.employee.lastName}, ${extraEmployee.employee.firstName}`;
         people.set(extraEmployee.employee.id, {
           name,
+          photoUrl: extraEmployee.employee.photoUrl,
           qualifications: extraEmployee.employee.qualifications.map(
             (qualification) => ({
               category: qualification.qualificationType.category,
@@ -302,7 +428,11 @@ export default async function ProjectDetailPage({
       }
 
       for (const extraVehicle of assignment.extraVehicles) {
-        equipment.set(extraVehicle.vehicle.id, getVehicleLabel(extraVehicle.vehicle));
+        setActorListItem(equipment, extraVehicle.vehicle.id, {
+          label: getVehicleLabel(extraVehicle.vehicle),
+          photoUrl: getVehicleDriverPhotoUrl(extraVehicle.vehicle),
+          photoAlt: getVehicleDriverName(extraVehicle.vehicle),
+        });
       }
 
       crewRows.push({
@@ -318,23 +448,44 @@ export default async function ProjectDetailPage({
   }
 
   for (const assignment of project.equipmentDispatchAssignments) {
-    equipment.set(assignment.vehicle.id, getVehicleLabel(assignment.vehicle));
+    setActorListItem(equipment, assignment.vehicle.id, {
+      label: getVehicleLabel(assignment.vehicle),
+      photoUrl: getVehicleDriverPhotoUrl(assignment.vehicle),
+      photoAlt: getVehicleDriverName(assignment.vehicle),
+    });
   }
 
   for (const assignment of project.specialVehicleDispatchAssignments) {
     if (assignment.vehicle) {
-      equipment.set(assignment.vehicle.id, getVehicleLabel(assignment.vehicle));
+      setActorListItem(equipment, assignment.vehicle.id, {
+        label: getVehicleLabel(assignment.vehicle),
+        photoUrl:
+          assignment.operatorDriver?.employee?.photoUrl ??
+          getVehicleDriverPhotoUrl(assignment.vehicle),
+        photoAlt:
+          getDriverName(assignment.operatorDriver) ??
+          getVehicleDriverName(assignment.vehicle),
+      });
     } else if (assignment.vehicleName) {
-      equipment.set(`special-${assignment.id}`, assignment.vehicleName);
+      setActorListItem(equipment, `special-${assignment.id}`, {
+        label: assignment.vehicleName,
+        photoUrl: assignment.operatorDriver?.employee?.photoUrl ?? null,
+        photoAlt: getDriverName(assignment.operatorDriver),
+      });
     }
 
     if (assignment.transportVehicle) {
-      equipment.set(
-        assignment.transportVehicle.id,
-        getVehicleLabel(assignment.transportVehicle),
-      );
+      setActorListItem(equipment, assignment.transportVehicle.id, {
+        label: getVehicleLabel(assignment.transportVehicle),
+        photoUrl: getVehicleDriverPhotoUrl(assignment.transportVehicle),
+        photoAlt: getVehicleDriverName(assignment.transportVehicle),
+      });
     } else if (assignment.transportVehicleName) {
-      equipment.set(`transport-${assignment.id}`, assignment.transportVehicleName);
+      setActorListItem(equipment, `transport-${assignment.id}`, {
+        label: assignment.transportVehicleName,
+        photoUrl: null,
+        photoAlt: null,
+      });
     }
   }
 
@@ -350,6 +501,8 @@ export default async function ProjectDetailPage({
         vehicleNumber: assignment.vehicleNumber,
         vehicleType: assignment.vehicleType,
       }),
+      assignment.driver?.employee?.photoUrl ?? null,
+      getDriverName(assignment.driver) ?? assignment.driverName,
     );
   }
 
@@ -366,6 +519,8 @@ export default async function ProjectDetailPage({
         vehicleNumber: assignment.vehicleNumber,
         vehicleType: assignment.vehicleType,
       }),
+      assignment.driver?.employee?.photoUrl ?? null,
+      getDriverName(assignment.driver) ?? assignment.driverName,
     );
   }
 
@@ -385,6 +540,8 @@ export default async function ProjectDetailPage({
           vehicleNumber: assignment.vehicleNumber,
           vehicleType: assignment.vehicleType,
         }),
+        assignment.driver?.employee?.photoUrl ?? null,
+        getDriverName(assignment.driver) ?? assignment.driverName,
       );
     }
   }
@@ -404,6 +561,8 @@ export default async function ProjectDetailPage({
         vehicleNumber: allocation.vehicleNumber,
         vehicleType: allocation.vehicleType,
       }),
+      allocation.driver?.employee?.photoUrl ?? null,
+      getDriverName(allocation.driver) ?? allocation.driverName,
     );
   }
 
@@ -419,6 +578,8 @@ export default async function ProjectDetailPage({
         vehicleNumber: allocation.vehicleNumber,
         vehicleType: allocation.vehicleType,
       }),
+      allocation.driver?.employee?.photoUrl ?? null,
+      getDriverName(allocation.driver) ?? allocation.driverName,
     );
   }
 
@@ -426,10 +587,10 @@ export default async function ProjectDetailPage({
     a.name.localeCompare(b.name, "de-DE"),
   );
   const equipmentList = Array.from(equipment.values()).sort((a, b) =>
-    a.localeCompare(b, "de-DE"),
+    a.label.localeCompare(b.label, "de-DE"),
   );
   const truckList = Array.from(trucks.values()).sort((a, b) =>
-    a.localeCompare(b, "de-DE"),
+    a.label.localeCompare(b.label, "de-DE"),
   );
   const weatherEntries = project.weatherLogs.map((entry) => ({
     currentPrecipitationMm: entry.currentPrecipitationMm,
@@ -981,7 +1142,7 @@ function ListBlock({
   items,
 }: {
   emptyText: string;
-  items: string[];
+  items: ProjectActorListItem[];
 }) {
   if (items.length === 0) {
     return <p className="mt-4 text-sm text-gray-500">{emptyText}</p>;
@@ -990,12 +1151,7 @@ function ListBlock({
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       {items.slice(0, 24).map((item) => (
-        <span
-          key={item}
-          className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800"
-        >
-          {item}
-        </span>
+        <ProjectActorBadge item={item} key={item.label} />
       ))}
     </div>
   );
@@ -1008,6 +1164,7 @@ function EmployeeQualificationList({
   emptyText: string;
   people: {
     name: string;
+    photoUrl: string | null;
     qualifications: {
       category: string;
       lastReviewedAt: Date | null;
@@ -1027,17 +1184,111 @@ function EmployeeQualificationList({
           className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
           key={person.name}
         >
-          <div className="text-xs font-semibold text-gray-900">
-            {person.name}
-          </div>
-          <div className="mt-1.5">
-            <EmployeeQualificationBadges
-              qualifications={person.qualifications}
+          <div className="flex items-start gap-2">
+            <ProjectActorAvatar
+              label={person.name}
+              photoAlt={person.name}
+              photoUrl={person.photoUrl}
+              size="md"
             />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-gray-900">
+                {person.name}
+              </div>
+              <div className="mt-1.5">
+                <EmployeeQualificationBadges
+                  qualifications={person.qualifications}
+                />
+              </div>
+            </div>
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function ProjectActorBadge({ item }: { item: ProjectActorListItem }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-gray-100 py-1 pl-1 pr-3 text-xs font-semibold text-gray-800">
+      <ProjectActorAvatar
+        label={item.label}
+        photoAlt={item.photoAlt ?? item.label}
+        photoUrl={item.photoUrl ?? null}
+        size="sm"
+      />
+      <span className="truncate">{item.label}</span>
+    </span>
+  );
+}
+
+function ProjectActorAvatar({
+  label,
+  photoAlt,
+  photoUrl,
+  size,
+}: {
+  label: string;
+  photoAlt: string | null;
+  photoUrl: string | null;
+  size: "md" | "sm";
+}) {
+  const dimension = size === "md" ? 32 : 24;
+  const className =
+    size === "md"
+      ? "h-8 w-8 rounded-full object-cover ring-1 ring-gray-200"
+      : "h-6 w-6 rounded-full object-cover ring-1 ring-white";
+
+  if (!photoUrl) {
+    if (size === "sm") {
+      return null;
+    }
+
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-gray-500 ring-1 ring-gray-200">
+        {getInitials(label)}
+      </span>
+    );
+  }
+
+  return (
+    <DismissibleDetails className="relative shrink-0">
+      <summary
+        className="inline-flex cursor-pointer list-none items-center justify-center rounded-full marker:content-none [&::-webkit-details-marker]:hidden"
+        title={`${photoAlt ?? label} Foto vergrößern`}
+      >
+        <Image
+          src={photoUrl}
+          alt={`Foto von ${photoAlt ?? label}`}
+          width={dimension}
+          height={dimension}
+          className={`${className} transition hover:scale-105`}
+        />
+      </summary>
+
+      <CloseDetailsButton
+        aria-label="Fotoansicht schließen"
+        className="fixed inset-0 z-[120] cursor-default bg-black/70"
+      />
+
+      <div className="pointer-events-none fixed inset-0 z-[121] flex items-center justify-center p-6">
+        <div className="pointer-events-auto relative max-h-[90vh] max-w-[90vw] rounded-2xl bg-white p-3 shadow-2xl">
+          <Image
+            src={photoUrl}
+            alt={`Foto von ${photoAlt ?? label}`}
+            width={960}
+            height={720}
+            className="max-h-[78vh] max-w-[82vw] rounded-xl object-contain"
+          />
+          <div className="mt-3 text-center text-sm font-semibold text-gray-900">
+            {photoAlt ?? label}
+          </div>
+          <div className="mt-1 text-center text-xs font-medium text-gray-500">
+            Klick außerhalb oder Esc schließt die Ansicht.
+          </div>
+        </div>
+      </div>
+    </DismissibleDetails>
   );
 }
 
@@ -1931,9 +2182,34 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
-function addTruck(trucks: Map<string, string>, key: string, label: string) {
+function setActorListItem(
+  items: Map<string, ProjectActorListItem>,
+  key: string,
+  item: ProjectActorListItem,
+) {
+  if (!item.label) return;
+  const existing = items.get(key);
+
+  items.set(key, {
+    label: item.label,
+    photoAlt: item.photoAlt ?? existing?.photoAlt ?? null,
+    photoUrl: item.photoUrl ?? existing?.photoUrl ?? null,
+  });
+}
+
+function addTruck(
+  trucks: Map<string, ProjectActorListItem>,
+  key: string,
+  label: string,
+  photoUrl: string | null = null,
+  photoAlt: string | null = null,
+) {
   if (!label) return;
-  trucks.set(key, label);
+  setActorListItem(trucks, key, {
+    label,
+    photoAlt,
+    photoUrl,
+  });
 }
 
 function getTruckLabel(truck: {
@@ -1959,6 +2235,80 @@ function getTruckLabel(truck: {
   return Array.from(
     new Set([vehicleLabel || ownerLabel, truck.driverName || ownerLabel].filter(Boolean)),
   ).join(" · ");
+}
+
+function getDriverName(
+  driver:
+    | { firstName?: string | null; lastName?: string | null }
+    | null
+    | undefined,
+) {
+  if (!driver?.firstName && !driver?.lastName) return null;
+
+  return [driver.lastName, driver.firstName].filter(Boolean).join(", ");
+}
+
+function getVehicleDriver(
+  vehicle:
+    | {
+        driverAssignments?: {
+          driver: {
+            firstName?: string | null;
+            lastName?: string | null;
+            employee?: {
+              photoUrl: string | null;
+            } | null;
+          };
+        }[];
+      }
+    | null
+    | undefined,
+) {
+  return vehicle?.driverAssignments?.[0]?.driver ?? null;
+}
+
+function getVehicleDriverName(
+  vehicle:
+    | {
+        driverAssignments?: {
+          driver: {
+            firstName?: string | null;
+            lastName?: string | null;
+          };
+        }[];
+      }
+    | null
+    | undefined,
+) {
+  return getDriverName(getVehicleDriver(vehicle));
+}
+
+function getVehicleDriverPhotoUrl(
+  vehicle:
+    | {
+        driverAssignments?: {
+          driver: {
+            employee?: {
+              photoUrl: string | null;
+            } | null;
+          };
+        }[];
+      }
+    | null
+    | undefined,
+) {
+  return getVehicleDriver(vehicle)?.employee?.photoUrl ?? null;
+}
+
+function getInitials(label: string) {
+  const normalized = label.replace(",", " ").trim();
+  const parts = normalized.split(/\s+/).filter(Boolean);
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function getSnapshotTemplateName(snapshotJson: string | null) {

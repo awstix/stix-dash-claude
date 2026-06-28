@@ -1,9 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import type { Prisma } from "@prisma/client";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import {
+  CloseDetailsButton,
+  DismissibleDetails,
+} from "../../crew-dispatch/DismissibleDetails";
 import { PositionPicker } from "./PositionPicker";
 import { createEmployee, deleteEmployee, updateEmployee } from "./actions";
 
@@ -574,10 +579,11 @@ export default async function EmployeesPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[2200px] text-left text-sm">
+          <table className="w-full min-w-[2260px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-800">
               <tr>
                 <Th>Aktionen</Th>
+                <Th>Foto</Th>
 
                 <FilterTh title="Status" active={Boolean(filters.status)}>
                   <SelectFilter
@@ -801,7 +807,7 @@ export default async function EmployeesPage({
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={19} className="p-8 text-center text-gray-500">
+                  <td colSpan={20} className="p-8 text-center text-gray-500">
                     Keine Mitarbeiter für die aktuelle Filterauswahl gefunden.
                   </td>
                 </tr>
@@ -809,7 +815,7 @@ export default async function EmployeesPage({
                 employees.map((employee) => (
                   <tr key={employee.id} className="border-t border-gray-100">
                     <Td>
-                      <details className="relative">
+                      <DismissibleDetails className="relative">
                         <summary
                           className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 transition marker:content-none hover:bg-gray-50 [&::-webkit-details-marker]:hidden"
                           title="Mitarbeiter bearbeiten"
@@ -818,7 +824,30 @@ export default async function EmployeesPage({
                           <span className="sr-only">Bearbeiten</span>
                         </summary>
 
-                        <div className="absolute left-0 top-10 z-50 w-[min(980px,calc(100vw-2rem))] max-h-[75vh] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
+                        <CloseDetailsButton
+                          aria-label="Bearbeiten schließen"
+                          className="fixed inset-0 z-40 cursor-default bg-black/20"
+                        />
+
+                        <div className="fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[min(980px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                          <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+                                Mitarbeiter bearbeiten
+                              </p>
+                              <p className="text-lg font-bold text-gray-950">
+                                {employee.firstName} {employee.lastName}
+                              </p>
+                            </div>
+
+                            <CloseDetailsButton
+                              aria-label="Popup schließen"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-xl leading-none text-gray-700 shadow-sm transition hover:bg-gray-50"
+                            >
+                              ×
+                            </CloseDetailsButton>
+                          </div>
+
                           <EmployeeForm
                             action={updateEmployee}
                             id={employee.id}
@@ -851,6 +880,7 @@ export default async function EmployeesPage({
                             defaultPostalCode={employee.postalCode ?? ""}
                             defaultCity={employee.city ?? ""}
                             defaultNotes={employee.notes ?? ""}
+                            defaultPhotoUrl={employee.photoUrl ?? ""}
                             defaultPositionValues={employee.positions.map(
                               (position) => position.positionValue
                             )}
@@ -870,7 +900,14 @@ export default async function EmployeesPage({
                             </button>
                           </form>
                         </div>
-                      </details>
+                      </DismissibleDetails>
+                    </Td>
+
+                    <Td>
+                      <EmployeePhotoAvatar
+                        photoUrl={employee.photoUrl}
+                        employeeName={`${employee.firstName} ${employee.lastName}`}
+                      />
                     </Td>
 
                     <Td>
@@ -976,6 +1013,7 @@ function EmployeeForm({
   defaultPostalCode = "",
   defaultCity = "",
   defaultNotes = "",
+  defaultPhotoUrl = "",
   defaultPositionValues = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -1001,10 +1039,11 @@ function EmployeeForm({
   defaultPostalCode?: string;
   defaultCity?: string;
   defaultNotes?: string;
+  defaultPhotoUrl?: string;
   defaultPositionValues?: string[];
 }) {
   return (
-    <form action={action} className="mt-6 space-y-5">
+    <form action={action} encType="multipart/form-data" className="mt-6 space-y-5">
       {id ? <input type="hidden" name="id" value={id} /> : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1165,6 +1204,32 @@ function EmployeeForm({
             className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
           />
         </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Mitarbeiterfoto
+          <input
+            name="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          />
+          {defaultPhotoUrl ? (
+            <span className="mt-2 flex items-center gap-2 text-xs font-medium text-gray-500">
+              <Image
+                src={defaultPhotoUrl}
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-full object-cover ring-1 ring-gray-200"
+              />
+              Aktuelles Foto bleibt erhalten, wenn kein neues ausgewählt wird.
+            </span>
+          ) : (
+            <span className="mt-2 block text-xs font-medium text-gray-500">
+              JPG, PNG oder WebP.
+            </span>
+          )}
+        </label>
       </div>
 
       <PositionPicker
@@ -1190,6 +1255,65 @@ function EmployeeForm({
         Speichern
       </button>
     </form>
+  );
+}
+
+function EmployeePhotoAvatar({
+  photoUrl,
+  employeeName,
+}: {
+  photoUrl: string | null;
+  employeeName: string;
+}) {
+  if (!photoUrl) {
+    return (
+      <div
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-xs font-bold uppercase text-gray-400 ring-1 ring-gray-200"
+        title="Kein Foto hinterlegt"
+      >
+        —
+      </div>
+    );
+  }
+
+  return (
+    <DismissibleDetails className="relative">
+      <summary
+        className="inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full marker:content-none [&::-webkit-details-marker]:hidden"
+        title={`${employeeName} Foto vergrößern`}
+      >
+        <Image
+          src={photoUrl}
+          alt={`Foto von ${employeeName}`}
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-full object-cover ring-2 ring-white shadow-sm outline outline-1 outline-gray-200 transition hover:scale-105"
+        />
+      </summary>
+
+      <CloseDetailsButton
+        aria-label="Fotoansicht schließen"
+        className="fixed inset-0 z-[120] cursor-default bg-black/70"
+      />
+
+      <div className="pointer-events-none fixed inset-0 z-[121] flex items-center justify-center p-6">
+        <div className="pointer-events-auto relative max-h-[90vh] max-w-[90vw] rounded-2xl bg-white p-3 shadow-2xl">
+          <Image
+            src={photoUrl}
+            alt={`Foto von ${employeeName}`}
+            width={960}
+            height={720}
+            className="max-h-[78vh] max-w-[82vw] rounded-xl object-contain"
+          />
+          <div className="mt-3 text-center text-sm font-semibold text-gray-900">
+            {employeeName}
+          </div>
+          <div className="mt-1 text-center text-xs font-medium text-gray-500">
+            Klick außerhalb oder Esc schließt die Ansicht.
+          </div>
+        </div>
+      </div>
+    </DismissibleDetails>
   );
 }
 
