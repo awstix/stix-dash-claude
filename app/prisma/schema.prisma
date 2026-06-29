@@ -1511,11 +1511,14 @@ model InventoryPhoto {
   sizeBytes    Int?
   caption      String?
   uploadedBy   String?
+  locationNote String?
+  isPrimary    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([itemId])
+  @@index([isPrimary])
   @@index([createdAt])
 }
 
@@ -1527,8 +1530,12 @@ model InventoryContact {
 
   role    String
   company String?
+  salutation String?
+  firstName String?
+  lastName String?
   name    String?
   phone   String?
+  mobilePhone String?
   email   String?
   website String?
   notes   String?

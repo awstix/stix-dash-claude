@@ -1,13 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import {
-  CloseDetailsButton,
-  DismissibleDetails,
-} from "../../crew-dispatch/DismissibleDetails";
 import { prisma } from "@/lib/prisma";
-import { deleteInventoryPhoto } from "../actions";
+import { InventoryContainerManager } from "../InventoryContainerManager";
+import { InventoryPhotoGallery } from "../InventoryPhotoGallery";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
@@ -72,16 +68,25 @@ export default async function InventoryDetailPage({
       childItems: {
         include: {
           category: true,
+          photos: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+            take: 1,
+          },
         },
         orderBy: [{ name: "asc" }],
       },
       contacts: {
-        orderBy: [{ role: "asc" }, { name: "asc" }],
+        orderBy: [
+          { role: "asc" },
+          { lastName: "asc" },
+          { firstName: "asc" },
+          { name: "asc" },
+        ],
       },
       currentProject: true,
       parentItem: true,
       photos: {
-        orderBy: [{ createdAt: "desc" }],
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
       },
       responsibleCrew: true,
       responsibleEmployee: true,
@@ -102,6 +107,34 @@ export default async function InventoryDetailPage({
     notFound();
   }
 
+  const assignableContainerItems = item.isContainer
+    ? await prisma.inventoryItem.findMany({
+        where: {
+          id: {
+            notIn: [item.id, ...item.childItems.map((child) => child.id)],
+          },
+        },
+        orderBy: [{ name: "asc" }],
+        select: {
+          id: true,
+          inventoryNumber: true,
+          name: true,
+          parentItem: {
+            select: {
+              name: true,
+            },
+          },
+          photos: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+            take: 1,
+            select: {
+              url: true,
+            },
+          },
+        },
+      })
+    : [];
+
   return (
     <AppShell
       title={item.name}
@@ -119,6 +152,12 @@ export default async function InventoryDetailPage({
           href="/inventory/storage"
         >
           Lagerverwaltung
+        </Link>
+        <Link
+          className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+          href={`/inventory/${item.id}/edit`}
+        >
+          Bearbeiten
         </Link>
       </div>
 
@@ -201,9 +240,37 @@ export default async function InventoryDetailPage({
             />
             <Info
               label="Liegt in Container"
-              value={item.parentItem?.name ?? "—"}
+              value={
+                item.parentItem
+                  ? [
+                      item.parentItem.inventoryNumber,
+                      item.parentItem.name,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "—"
+              }
             />
           </div>
+
+          {item.parentItem ? (
+            <Link
+              className="mt-5 block rounded-2xl border border-blue-100 bg-blue-50 p-4 hover:border-blue-200 hover:bg-blue-100"
+              href={`/inventory/${item.parentItem.id}`}
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                Gehört zu Containerobjekt
+              </div>
+              <div className="mt-1 text-lg font-bold text-blue-950">
+                {[item.parentItem.inventoryNumber, item.parentItem.name]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+              <div className="mt-1 text-sm text-blue-800">
+                Container öffnen →
+              </div>
+            </Link>
+          ) : null}
 
           {item.notes ? (
             <div className="mt-5 rounded-2xl bg-gray-50 p-4">
@@ -313,72 +380,36 @@ export default async function InventoryDetailPage({
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-900">Fotos</h2>
-        {item.photos.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">
-            Noch keine Fotos hochgeladen. Fotos können beim Bearbeiten des
-            Inventarobjekts ergänzt werden.
-          </p>
-        ) : (
-          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
-            {item.photos.map((photo) => (
-              <div
-                className="rounded-2xl border border-gray-200 bg-gray-50 p-2"
-                key={photo.id}
-              >
-                <InventoryPhotoPreview
-                  alt={photo.originalName ?? item.name}
-                  url={photo.url}
-                />
-                <div className="mt-2 truncate text-xs font-semibold text-gray-800">
-                  {photo.originalName ?? photo.fileName}
-                </div>
-                <div className="text-[11px] text-gray-500">
-                  {formatDate(photo.createdAt)}
-                </div>
-                <form action={deleteInventoryPhoto} className="mt-2">
-                  <input name="id" type="hidden" value={photo.id} />
-                  <button
-                    className="text-xs font-semibold text-red-700 hover:underline"
-                    type="submit"
-                  >
-                    Löschen
-                  </button>
-                </form>
-              </div>
-            ))}
-          </div>
-        )}
+        <InventoryPhotoGallery
+          itemName={item.name}
+          photos={item.photos.map((photo) => ({
+            createdAt: photo.createdAt.toISOString(),
+            fileName: photo.fileName,
+            id: photo.id,
+            isPrimary: photo.isPrimary,
+            locationNote: photo.locationNote,
+            mimeType: photo.mimeType,
+            originalName: photo.originalName,
+            sizeBytes: photo.sizeBytes,
+            uploadedBy: photo.uploadedBy,
+            url: photo.url,
+          }))}
+        />
       </section>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Container / Inhalt
-          </h2>
-          {item.childItems.length === 0 ? (
-            <p className="mt-4 text-sm text-gray-500">
-              Keine Unterobjekte hinterlegt.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-2">
-              {item.childItems.map((child) => (
-                <Link
-                  className="block rounded-xl border border-gray-200 bg-gray-50 p-3 hover:bg-white hover:shadow-sm"
-                  href={`/inventory/${child.id}`}
-                  key={child.id}
-                >
-                  <div className="font-semibold text-gray-900">
-                    {child.name}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {child.category?.name ?? "ohne Kategorie"}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+      {item.isContainer ? (
+        <InventoryContainerManager
+          assignableItems={assignableContainerItems}
+          childItems={item.childItems}
+          container={{
+            id: item.id,
+            inventoryNumber: item.inventoryNumber,
+            name: item.name,
+          }}
+        />
+      ) : null}
 
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">
             Kontakte / Ansprechpartner
@@ -398,11 +429,20 @@ export default async function InventoryDetailPage({
                     {contact.role}
                   </div>
                   <div className="mt-1 font-semibold text-gray-900">
-                    {[contact.company, contact.name].filter(Boolean).join(" · ") ||
-                      "Ohne Name"}
+                    {[
+                      contact.company,
+                      [contact.salutation, contact.firstName, contact.lastName]
+                        .filter(Boolean)
+                        .join(" ") || contact.name,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Ohne Name"}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-gray-600">
                     {contact.phone ? <div>Telefon: {contact.phone}</div> : null}
+                    {contact.mobilePhone ? (
+                      <div>Mobil: {contact.mobilePhone}</div>
+                    ) : null}
                     {contact.email ? <div>E-Mail: {contact.email}</div> : null}
                     {contact.website ? (
                       <div>Website: {contact.website}</div>
@@ -477,41 +517,5 @@ function Badge({
     <span className={`rounded-full px-3 py-1 text-xs font-bold ${className}`}>
       {children}
     </span>
-  );
-}
-
-function InventoryPhotoPreview({ alt, url }: { alt: string; url: string }) {
-  return (
-    <DismissibleDetails className="relative">
-      <summary className="block cursor-pointer list-none marker:content-none [&::-webkit-details-marker]:hidden">
-        <Image
-          alt={alt}
-          className="aspect-square w-full rounded-xl object-cover"
-          height={220}
-          src={url}
-          width={220}
-        />
-      </summary>
-
-      <CloseDetailsButton
-        aria-label="Fotoansicht schließen"
-        className="fixed inset-0 z-[120] cursor-default bg-black/70"
-      />
-
-      <div className="pointer-events-none fixed inset-0 z-[121] flex items-center justify-center p-6">
-        <div className="pointer-events-auto rounded-2xl bg-white p-3 shadow-2xl">
-          <Image
-            alt={alt}
-            className="max-h-[82vh] max-w-[86vw] rounded-xl object-contain"
-            height={900}
-            src={url}
-            width={1200}
-          />
-          <div className="mt-2 text-center text-xs font-medium text-gray-500">
-            Klick außerhalb oder Esc schließt die Ansicht.
-          </div>
-        </div>
-      </div>
-    </DismissibleDetails>
   );
 }

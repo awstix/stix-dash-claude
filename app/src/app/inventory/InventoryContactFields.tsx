@@ -5,11 +5,15 @@ import { useState } from "react";
 export type InventoryContactFormValue = {
   company: string | null;
   email: string | null;
+  firstName: string | null;
   id?: string;
+  lastName: string | null;
+  mobilePhone: string | null;
   name: string | null;
   notes: string | null;
   phone: string | null;
   role: string;
+  salutation: string | null;
   website: string | null;
 };
 
@@ -17,10 +21,14 @@ function emptyContact(): InventoryContactFormValue {
   return {
     company: "",
     email: "",
+    firstName: "",
+    lastName: "",
+    mobilePhone: "",
     name: "",
     notes: "",
     phone: "",
     role: "",
+    salutation: "",
     website: "",
   };
 }
@@ -60,37 +68,63 @@ export function InventoryContactFields({
       <div className="mt-4 space-y-4">
         {visibleContacts.map((contact, index) => (
           <div
-            className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-6"
+            className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-12"
             key={contact.id ?? index}
           >
             <Input
+              className="xl:col-span-3"
+              defaultValue={contact.company ?? ""}
+              label="Firma"
+              name="contactCompany"
+            />
+            <Input
+              className="xl:col-span-2"
               defaultValue={contact.role}
               label="Rolle"
               name="contactRole"
               placeholder="z.B. Werkstatt"
             />
             <Input
-              defaultValue={contact.company ?? ""}
-              label="Firma"
-              name="contactCompany"
+              className="xl:col-span-2"
+              defaultValue={contact.salutation ?? ""}
+              label="Anrede"
+              list="inventory-contact-salutations"
+              name="contactSalutation"
+              placeholder="Herr, Frau, Divers oder eigene Eingabe"
             />
             <Input
-              defaultValue={contact.name ?? ""}
-              label="Name"
-              name="contactName"
+              className="xl:col-span-2"
+              defaultValue={contact.firstName ?? ""}
+              label="Vorname"
+              name="contactFirstName"
             />
             <Input
+              className="xl:col-span-3"
+              defaultValue={contact.lastName ?? ""}
+              label="Nachname"
+              name="contactLastName"
+            />
+            <Input
+              className="xl:col-span-3"
               defaultValue={contact.phone ?? ""}
               label="Telefon"
               name="contactPhone"
             />
             <Input
+              className="xl:col-span-3"
+              defaultValue={contact.mobilePhone ?? ""}
+              label="Mobilnummer"
+              name="contactMobilePhone"
+            />
+            <Input
+              className="xl:col-span-3"
               defaultValue={contact.email ?? ""}
               label="E-Mail"
               name="contactEmail"
               type="email"
             />
             <Input
+              className="xl:col-span-3"
               defaultValue={contact.website ?? ""}
               label="Website"
               name="contactWebsite"
@@ -104,6 +138,11 @@ export function InventoryContactFields({
           </div>
         ))}
       </div>
+      <datalist id="inventory-contact-salutations">
+        <option value="Herr" />
+        <option value="Frau" />
+        <option value="Divers" />
+      </datalist>
     </div>
   );
 }

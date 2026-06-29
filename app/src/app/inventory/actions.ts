@@ -188,11 +188,80 @@ function getInventoryPayload(formData: FormData) {
   };
 }
 
+function relationConnect(id: string | null) {
+  return id
+    ? {
+        connect: {
+          id,
+        },
+      }
+    : undefined;
+}
+
+function relationUpdate(id: string | null) {
+  return id
+    ? {
+        connect: {
+          id,
+        },
+      }
+    : {
+        disconnect: true,
+      };
+}
+
+function getInventoryCreateData(formData: FormData) {
+  const {
+    categoryId,
+    currentProjectId,
+    parentItemId,
+    responsibleCrewId,
+    responsibleEmployeeId,
+    vehicleId,
+    ...payload
+  } = getInventoryPayload(formData);
+
+  return {
+    ...payload,
+    category: relationConnect(categoryId),
+    currentProject: relationConnect(currentProjectId),
+    parentItem: relationConnect(parentItemId),
+    responsibleCrew: relationConnect(responsibleCrewId),
+    responsibleEmployee: relationConnect(responsibleEmployeeId),
+    vehicle: relationConnect(vehicleId),
+  };
+}
+
+function getInventoryUpdateData(formData: FormData) {
+  const {
+    categoryId,
+    currentProjectId,
+    parentItemId,
+    responsibleCrewId,
+    responsibleEmployeeId,
+    vehicleId,
+    ...payload
+  } = getInventoryPayload(formData);
+
+  return {
+    ...payload,
+    category: relationUpdate(categoryId),
+    currentProject: relationUpdate(currentProjectId),
+    parentItem: relationUpdate(parentItemId),
+    responsibleCrew: relationUpdate(responsibleCrewId),
+    responsibleEmployee: relationUpdate(responsibleEmployeeId),
+    vehicle: relationUpdate(vehicleId),
+  };
+}
+
 function getInventoryContacts(formData: FormData) {
   const roles = formData.getAll("contactRole");
   const companies = formData.getAll("contactCompany");
-  const names = formData.getAll("contactName");
+  const salutations = formData.getAll("contactSalutation");
+  const firstNames = formData.getAll("contactFirstName");
+  const lastNames = formData.getAll("contactLastName");
   const phones = formData.getAll("contactPhone");
+  const mobilePhones = formData.getAll("contactMobilePhone");
   const emails = formData.getAll("contactEmail");
   const websites = formData.getAll("contactWebsite");
   const notes = formData.getAll("contactNotes");
@@ -201,23 +270,41 @@ function getInventoryContacts(formData: FormData) {
     .map((roleValue, index) => {
       const role = optionalString(roleValue);
       const company = optionalString(companies[index] ?? null);
-      const name = optionalString(names[index] ?? null);
+      const salutation = optionalString(salutations[index] ?? null);
+      const firstName = optionalString(firstNames[index] ?? null);
+      const lastName = optionalString(lastNames[index] ?? null);
       const phone = optionalString(phones[index] ?? null);
+      const mobilePhone = optionalString(mobilePhones[index] ?? null);
       const email = optionalString(emails[index] ?? null);
       const website = optionalString(websites[index] ?? null);
       const contactNotes = optionalString(notes[index] ?? null);
 
-      if (!role && !company && !name && !phone && !email && !website && !contactNotes) {
+      if (
+        !role &&
+        !company &&
+        !salutation &&
+        !firstName &&
+        !lastName &&
+        !phone &&
+        !mobilePhone &&
+        !email &&
+        !website &&
+        !contactNotes
+      ) {
         return null;
       }
 
       return {
         company,
         email,
-        name,
+        firstName,
+        lastName,
+        mobilePhone,
+        name: null,
         notes: contactNotes,
         phone,
         role: role ?? "Ansprechpartner",
+        salutation,
         website,
       };
     })
@@ -225,10 +312,57 @@ function getInventoryContacts(formData: FormData) {
 }
 
 async function storeInventoryPhotos(itemId: string, formData: FormData) {
-  const files = formData.getAll("photos");
+  const files = formData
+    .getAll("photos")
+    .filter((file): file is File => file instanceof File && file.size > 0);
+  const primaryExistingPhotoId = optionalId(formData.get("primaryExistingPhotoId"));
+  const requestedPrimaryNewPhotoIndex = optionalInt(
+    formData.get("primaryNewPhotoIndex"),
+    "Hauptfoto",
+  );
+  const hasRequestedNewPrimary =
+    requestedPrimaryNewPhotoIndex !== null &&
+    requestedPrimaryNewPhotoIndex >= 0 &&
+    requestedPrimaryNewPhotoIndex < files.length;
+  const hasRequestedExistingPrimary = Boolean(primaryExistingPhotoId);
 
-  for (const file of files) {
-    if (!(file instanceof File) || file.size === 0) continue;
+  if (hasRequestedExistingPrimary || hasRequestedNewPrimary) {
+    await prisma.inventoryPhoto.updateMany({
+      where: {
+        itemId,
+      },
+      data: {
+        isPrimary: false,
+      },
+    });
+  }
+
+  const existingPrimaryCount = await prisma.inventoryPhoto.count({
+    where: {
+      itemId,
+      isPrimary: true,
+    },
+  });
+
+  if (primaryExistingPhotoId) {
+    await prisma.inventoryPhoto.updateMany({
+      where: {
+        id: primaryExistingPhotoId,
+        itemId,
+      },
+      data: {
+        isPrimary: true,
+      },
+    });
+  }
+
+  for (const [index, file] of files.entries()) {
+    const isPrimary =
+      (hasRequestedNewPrimary && requestedPrimaryNewPhotoIndex === index) ||
+      (!hasRequestedExistingPrimary &&
+        !hasRequestedNewPrimary &&
+        existingPrimaryCount === 0 &&
+        index === 0);
 
     const extension = allowedInventoryPhotoTypes.get(file.type);
 
@@ -254,6 +388,7 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
     await prisma.inventoryPhoto.create({
       data: {
         fileName,
+        isPrimary,
         itemId,
         mimeType: file.type,
         originalName: file.name,
@@ -265,7 +400,7 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
 }
 
 export async function createInventoryItem(formData: FormData) {
-  const payload = getInventoryPayload(formData);
+  const payload = getInventoryCreateData(formData);
   const contacts = getInventoryContacts(formData);
 
   const item = await prisma.inventoryItem.create({
@@ -291,7 +426,7 @@ export async function updateInventoryItem(formData: FormData) {
     throw new Error("Inventar-ID fehlt.");
   }
 
-  const payload = getInventoryPayload(formData);
+  const payload = getInventoryUpdateData(formData);
   const contacts = getInventoryContacts(formData);
 
   await prisma.$transaction(async (tx) => {
@@ -339,6 +474,48 @@ export async function deleteInventoryItem(formData: FormData) {
   revalidateInventory();
 }
 
+export async function assignInventoryItemToContainer(formData: FormData) {
+  const containerId = String(formData.get("containerId") ?? "").trim();
+  const childItemId = String(formData.get("childItemId") ?? "").trim();
+
+  if (!containerId || !childItemId) {
+    throw new Error("Container oder Objekt fehlt.");
+  }
+
+  if (containerId === childItemId) {
+    throw new Error("Ein Objekt kann nicht in sich selbst liegen.");
+  }
+
+  const container = await prisma.inventoryItem.findUnique({
+    where: {
+      id: containerId,
+    },
+    select: {
+      isContainer: true,
+    },
+  });
+
+  if (!container?.isContainer) {
+    throw new Error("Das ausgewählte Ziel ist kein Containerobjekt.");
+  }
+
+  await prisma.inventoryItem.update({
+    where: {
+      id: childItemId,
+    },
+    data: {
+      parentItem: {
+        connect: {
+          id: containerId,
+        },
+      },
+    },
+  });
+
+  revalidateInventoryItem(containerId);
+  revalidateInventoryItem(childItemId);
+}
+
 export async function deleteInventoryPhoto(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
 
@@ -351,6 +528,26 @@ export async function deleteInventoryPhoto(formData: FormData) {
       id,
     },
   });
+
+  if (photo.isPrimary) {
+    const nextPrimaryPhoto = await prisma.inventoryPhoto.findFirst({
+      where: {
+        itemId: photo.itemId,
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    if (nextPrimaryPhoto) {
+      await prisma.inventoryPhoto.update({
+        where: {
+          id: nextPrimaryPhoto.id,
+        },
+        data: {
+          isPrimary: true,
+        },
+      });
+    }
+  }
 
   revalidateInventoryItem(photo.itemId);
 }

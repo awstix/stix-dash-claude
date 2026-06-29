@@ -1,20 +1,18 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { createInventoryItem } from "../actions";
-import { InventoryItemForm } from "../InventoryItemForm";
+import { updateInventoryItem } from "../../actions";
+import { InventoryItemForm } from "../../InventoryItemForm";
 
-export default async function NewInventoryItemPage({
-  searchParams,
+export default async function EditInventoryItemPage({
+  params,
 }: {
-  searchParams?: Promise<{
-    containerId?: string;
-  }>;
+  params: Promise<{ itemId: string }>;
 }) {
-  const params = (await searchParams) ?? {};
-  const defaultParentItemId = String(params.containerId ?? "").trim() || null;
+  const { itemId } = await params;
 
-  const [categories, crews, employees, items, projects, vehicles] =
+  const [categories, crews, employees, item, items, projects, vehicles] =
     await Promise.all([
       prisma.inventoryCategory.findMany({
         where: {
@@ -36,8 +34,29 @@ export default async function NewInventoryItemPage({
         },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       }),
+      prisma.inventoryItem.findUnique({
+        where: {
+          id: itemId,
+        },
+        include: {
+          contacts: {
+            orderBy: [
+              { role: "asc" },
+              { lastName: "asc" },
+              { firstName: "asc" },
+              { name: "asc" },
+            ],
+          },
+          photos: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+          },
+        },
+      }),
       prisma.inventoryItem.findMany({
         where: {
+          id: {
+            not: itemId,
+          },
           isContainer: true,
         },
         orderBy: [{ name: "asc" }],
@@ -54,33 +73,37 @@ export default async function NewInventoryItemPage({
       }),
     ]);
 
+  if (!item) {
+    notFound();
+  }
+
   return (
     <AppShell
-      title="Inventarobjekt anlegen"
-      description="Stammdaten, Zuordnung, Lagerdaten, Fotos und Ansprechpartner in Ruhe erfassen."
+      title={`Inventarobjekt bearbeiten: ${item.name}`}
+      description="Stammdaten, Zuordnung, Wartung, Fotos und Ansprechpartner bearbeiten."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/inventory"
+          href={`/inventory/${item.id}`}
         >
-          ← Inventarverwaltung
+          ← Detailseite
         </Link>
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/admin/inventory-categories"
+          href="/inventory"
         >
-          Kategorien pflegen
+          Inventarverwaltung
         </Link>
       </div>
 
       <InventoryItemForm
-        action={createInventoryItem}
+        action={updateInventoryItem}
         categories={categories}
         containerOptions={items}
         crews={crews}
-        defaultParentItemId={defaultParentItemId}
         employees={employees}
+        item={item}
         layout="stacked"
         projects={projects}
         vehicles={vehicles}

@@ -1,8 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { deleteInventoryItem, updateInventoryItem } from "./actions";
-import { InventoryItemForm } from "./InventoryItemForm";
+import { deleteInventoryItem } from "./actions";
 
 function formatMoney(cents: number | null) {
   if (cents === null) return "—";
@@ -68,7 +68,7 @@ export default async function InventoryPage({
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
 
-  const [categories, crews, employees, items, projects, vehicles] =
+  const [categories, items] =
     await Promise.all([
       prisma.inventoryCategory.findMany({
         where: {
@@ -76,35 +76,17 @@ export default async function InventoryPage({
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
-      prisma.crew.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.employee.findMany({
-        where: {
-          statusValue: {
-            not: "left",
-          },
-        },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      }),
       prisma.inventoryItem.findMany({
         include: {
           category: true,
           currentProject: true,
-          contacts: {
-            orderBy: [{ role: "asc" }, { name: "asc" }],
-          },
           parentItem: true,
           photos: {
-            orderBy: [{ createdAt: "desc" }],
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
             take: 1,
           },
           responsibleCrew: true,
           responsibleEmployee: true,
-          vehicle: true,
           _count: {
             select: {
               childItems: true,
@@ -114,21 +96,7 @@ export default async function InventoryPage({
         },
         orderBy: [{ updatedAt: "desc" }],
       }),
-      prisma.project.findMany({
-        orderBy: [{ projectNumber: "desc" }],
-        take: 250,
-      }),
-      prisma.vehicle.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: [{ vehicleNumber: "asc" }],
-      }),
     ]);
-
-  const containerOptions = items
-    .filter((item) => item.isContainer)
-    .sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
   const filteredItems = searchQuery
     ? items.filter((item) =>
@@ -213,6 +181,8 @@ export default async function InventoryPage({
           <table className="min-w-[1500px] text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
+                <th className="w-28 p-3">Aktionen</th>
+                <th className="w-20 p-3">Foto</th>
                 <th className="p-3">Objekt</th>
                 <th className="p-3">Kategorie</th>
                 <th className="p-3">Inventarnr.</th>
@@ -222,19 +192,55 @@ export default async function InventoryPage({
                 <th className="p-3">Container</th>
                 <th className="p-3">Lager</th>
                 <th className="p-3">Satz</th>
-                <th className="p-3">Aktionen</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td className="p-8 text-center text-gray-500" colSpan={10}>
+                  <td className="p-8 text-center text-gray-500" colSpan={11}>
                     Noch keine passenden Inventarobjekte vorhanden.
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((item) => (
                   <tr className="border-t border-gray-100" key={item.id}>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        <Link
+                          aria-label={`${item.name} öffnen`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                          href={`/inventory/${item.id}`}
+                          title="Öffnen"
+                        >
+                          ↗
+                        </Link>
+                        <Link
+                          aria-label={`${item.name} bearbeiten`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                          href={`/inventory/${item.id}/edit`}
+                          title="Bearbeiten"
+                        >
+                          ✎
+                        </Link>
+                        <form action={deleteInventoryItem}>
+                          <input name="id" type="hidden" value={item.id} />
+                          <button
+                            aria-label={`${item.name} löschen`}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                            title="Löschen"
+                            type="submit"
+                          >
+                            ×
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <InventoryPhotoThumb
+                        name={item.name}
+                        url={item.photos[0]?.url ?? null}
+                      />
+                    </td>
                     <td className="p-3">
                       <div className="font-semibold text-gray-900">
                         <Link className="hover:underline" href={`/inventory/${item.id}`}>
@@ -276,37 +282,6 @@ export default async function InventoryPage({
                     <td className="p-3 text-gray-700">
                       {formatMoney(item.billingRateCents)}
                     </td>
-                    <td className="p-3">
-                      <details className="relative">
-                        <summary className="inline-flex cursor-pointer list-none rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 marker:content-none hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
-                          Bearbeiten
-                        </summary>
-                        <div className="absolute right-0 top-10 z-30 max-h-[80vh] w-[min(1100px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
-                          <InventoryItemForm
-                            action={updateInventoryItem}
-                            categories={categories}
-                            containerOptions={containerOptions.filter(
-                              (container) => container.id !== item.id,
-                            )}
-                            crews={crews}
-                            employees={employees}
-                            item={item}
-                            projects={projects}
-                            vehicles={vehicles}
-                          />
-
-                          <form action={deleteInventoryItem} className="mt-3">
-                            <input name="id" type="hidden" value={item.id} />
-                            <button
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                              type="submit"
-                            >
-                              Inventarobjekt löschen
-                            </button>
-                          </form>
-                        </div>
-                      </details>
-                    </td>
                   </tr>
                 ))
               )}
@@ -315,6 +290,38 @@ export default async function InventoryPage({
         </div>
       </section>
     </AppShell>
+  );
+}
+
+function InventoryPhotoThumb({
+  name,
+  url,
+}: {
+  name: string;
+  url: string | null;
+}) {
+  if (!url) {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-xs font-semibold text-gray-400">
+        —
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      className="relative block h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-gray-100"
+      href={url}
+      title={`${name} Foto öffnen`}
+    >
+      <Image
+        alt={`Foto von ${name}`}
+        className="object-cover"
+        fill
+        sizes="48px"
+        src={url}
+      />
+    </Link>
   );
 }
 

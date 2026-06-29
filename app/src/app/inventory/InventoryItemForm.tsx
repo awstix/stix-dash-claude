@@ -1,4 +1,5 @@
 import { InventoryContactFields } from "./InventoryContactFields";
+import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 
 export type InventoryItemFormData = {
   billingRateCents: number | null;
@@ -8,11 +9,15 @@ export type InventoryItemFormData = {
   contacts?: {
     company: string | null;
     email: string | null;
+    firstName: string | null;
     id: string;
+    lastName: string | null;
+    mobilePhone: string | null;
     name: string | null;
     notes: string | null;
     phone: string | null;
     role: string;
+    salutation: string | null;
     website: string | null;
   }[];
   currentProjectId: string | null;
@@ -39,6 +44,13 @@ export type InventoryItemFormData = {
   notes: string | null;
   openingStock: number | null;
   parentItemId: string | null;
+  photos?: {
+    fileName: string;
+    id: string;
+    isPrimary: boolean;
+    originalName: string | null;
+    url: string;
+  }[];
   purchasedAt: Date | null;
   purchasedFrom: string | null;
   receivedAt: Date | null;
@@ -67,6 +79,7 @@ export function InventoryItemForm({
   categories,
   containerOptions,
   crews,
+  defaultParentItemId = null,
   employees,
   item,
   layout = "grid",
@@ -77,6 +90,7 @@ export function InventoryItemForm({
   categories: { id: string; name: string }[];
   containerOptions: { id: string; name: string }[];
   crews: { id: string; name: string }[];
+  defaultParentItemId?: string | null;
   employees: { firstName: string; id: string; lastName: string }[];
   item?: InventoryItemFormData;
   layout?: "grid" | "stacked";
@@ -352,7 +366,7 @@ export function InventoryItemForm({
               </Select>
               <Select
                 className={layout === "stacked" ? "" : "xl:col-span-2"}
-                defaultValue={item?.parentItemId ?? "__none"}
+                defaultValue={item?.parentItemId ?? defaultParentItemId ?? "__none"}
                 label="Liegt in Containerobjekt"
                 name="parentItemId"
               >
@@ -558,21 +572,7 @@ export function InventoryItemForm({
             />
           </label>
 
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-bold text-gray-900">Fotos</h3>
-            <p className="mt-1 text-xs leading-5 text-gray-500">
-              Mehrere Fotos können direkt beim Anlegen oder Bearbeiten
-              hochgeladen werden. Die Galerie wird auf der Detailseite
-              angezeigt.
-            </p>
-            <input
-              accept="image/jpeg,image/png,image/webp"
-              className="mt-3 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              multiple
-              name="photos"
-              type="file"
-            />
-          </div>
+          <InventoryPhotoUploadFields photos={item?.photos ?? []} />
 
           <InventoryContactFields contacts={item?.contacts ?? []} />
         </div>
