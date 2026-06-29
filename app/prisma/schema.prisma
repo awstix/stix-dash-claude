@@ -84,6 +84,8 @@ model Project {
   documentFolders                   ProjectDocumentFolder[]
   documents                         ProjectDocument[]
   formSubmissions                   ProjectFormSubmission[]
+  inventoryAssignments              InventoryItem[] @relation("InventoryCurrentProject")
+  inventoryUsageHistory             InventoryUsageHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -423,6 +425,7 @@ model Vehicle {
   equipmentDispatchAssignments       EquipmentDispatchAssignment[]
   workshopRepairOrders               WorkshopRepairOrder[]
   workshopFormSubmissions            WorkshopFormSubmission[]
+  inventoryItems                     InventoryItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1053,6 +1056,9 @@ model Employee {
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
   dispositionEntries              EmployeeDispositionEntry[]
+  inventoryAssignments            InventoryItem[] @relation("InventoryResponsibleEmployee")
+  inventoryUsageHistory           InventoryUsageHistory[] @relation("InventoryUsageEmployee")
+  inventoryTransportHistory       InventoryUsageHistory[] @relation("InventoryUsageTransporter")
 
   notes String?
 
@@ -1215,6 +1221,7 @@ model Crew {
   assignments                       CrewPlanningAssignment[]
   equipmentDispatchAssignments      EquipmentDispatchAssignment[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
+  inventoryAssignments              InventoryItem[] @relation("InventoryResponsibleCrew")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1394,4 +1401,175 @@ model CrewPlanningAssignmentVehicle {
   @@index([assignmentId])
   @@index([vehicleId])
   @@index([mode])
+}
+
+model InventoryCategory {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+  colorClass  String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  items InventoryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model InventoryItem {
+  id String @id @default(cuid())
+
+  name            String
+  categoryId      String?
+  category        InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  manufacturer    String?
+  model           String?
+  serialNumber    String?
+  inventoryNumber String?            @unique
+  constructionYear Int?
+  constructionDate DateTime?
+  receivedAt      DateTime?
+  purchasedAt     DateTime?
+  purchasedFrom   String?
+  invoiceNumber   String?
+  deliveryNoteNumber String?
+
+  isContainer       Boolean @default(false)
+  parentItemId      String?
+  parentItem        InventoryItem?  @relation("InventoryContainerChildren", fields: [parentItemId], references: [id], onDelete: SetNull)
+  childItems        InventoryItem[] @relation("InventoryContainerChildren")
+
+  isStockManaged Boolean @default(false)
+  stockUnit      String  @default("Stk.")
+  openingStock   Float?
+  currentStock   Float?
+
+  responsibleType       String?
+  responsibleEmployeeId String?
+  responsibleEmployee   Employee? @relation("InventoryResponsibleEmployee", fields: [responsibleEmployeeId], references: [id], onDelete: SetNull)
+  responsibleCrewId     String?
+  responsibleCrew       Crew?     @relation("InventoryResponsibleCrew", fields: [responsibleCrewId], references: [id], onDelete: SetNull)
+
+  currentProjectId String?
+  currentProject   Project? @relation("InventoryCurrentProject", fields: [currentProjectId], references: [id], onDelete: SetNull)
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  billingRateCents Int?
+  notes            String?
+
+  lastServiceAtDate       DateTime?
+  lastServiceOperatingHours Float?
+  lastServiceMileageKm    Int?
+  nextServiceAtDate       DateTime?
+  nextServiceOperatingHours Float?
+  nextServiceMileageKm    Int?
+  lastDguvInspectionDate  DateTime?
+  nextDguvInspectionDate  DateTime?
+  lastTuvInspectionDate   DateTime?
+  nextTuvInspectionDate   DateTime?
+
+  photos       InventoryPhoto[]
+  contacts     InventoryContact[]
+  usageHistory InventoryUsageHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([inventoryNumber])
+  @@index([serialNumber])
+  @@index([isContainer])
+  @@index([isStockManaged])
+  @@index([parentItemId])
+  @@index([responsibleEmployeeId])
+  @@index([responsibleCrewId])
+  @@index([currentProjectId])
+  @@index([vehicleId])
+  @@index([nextServiceAtDate])
+  @@index([nextDguvInspectionDate])
+  @@index([nextTuvInspectionDate])
+}
+
+model InventoryPhoto {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  fileName     String
+  originalName String?
+  url          String
+  mimeType     String?
+  sizeBytes    Int?
+  caption      String?
+  uploadedBy   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+model InventoryContact {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  role    String
+  company String?
+  name    String?
+  phone   String?
+  email   String?
+  website String?
+  notes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([role])
+}
+
+model InventoryUsageHistory {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  eventType String @default("ASSIGNMENT")
+
+  employeeId String?
+  employee   Employee? @relation("InventoryUsageEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  transportedByEmployeeId String?
+  transportedByEmployee   Employee? @relation("InventoryUsageTransporter", fields: [transportedByEmployeeId], references: [id], onDelete: SetNull)
+
+  defectDescription String?
+  receivedAt        DateTime?
+  returnedAt        DateTime?
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([eventType])
+  @@index([employeeId])
+  @@index([projectId])
+  @@index([transportedByEmployeeId])
+  @@index([receivedAt])
+  @@index([returnedAt])
 }

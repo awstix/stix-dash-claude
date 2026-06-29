@@ -10,18 +10,20 @@ type NavigationItem = {
 
 export function AppHeader({
   dispositionNavigation,
+  inventoryNavigation,
   primaryNavigation,
   projectNavigation,
   secondaryNavigation,
 }: {
   dispositionNavigation: NavigationItem[];
+  inventoryNavigation: NavigationItem[];
   primaryNavigation: NavigationItem[];
   projectNavigation: NavigationItem[];
   secondaryNavigation: NavigationItem[];
 }) {
-  const [openMenu, setOpenMenu] = useState<"projects" | "disposition" | null>(
-    null,
-  );
+  const [openMenu, setOpenMenu] = useState<
+    "projects" | "disposition" | "inventory" | null
+  >(null);
   const headerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -122,6 +124,18 @@ export function AppHeader({
             onToggle={() =>
               setOpenMenu((current) =>
                 current === "disposition" ? null : "disposition",
+              )
+            }
+          />
+
+          <NavigationMenu
+            isOpen={openMenu === "inventory"}
+            items={inventoryNavigation}
+            label="Inventar"
+            onNavigate={() => setOpenMenu(null)}
+            onToggle={() =>
+              setOpenMenu((current) =>
+                current === "inventory" ? null : "inventory",
               )
             }
           />

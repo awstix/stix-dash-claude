@@ -32,6 +32,14 @@ const dispositionNavigation = [
   { name: "Sonderfahrzeuge", href: "/special-vehicle-dispatch" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
+const inventoryNavigation = [
+  { name: "Inventarverwaltung", href: "/inventory" },
+  { name: "Objekt anlegen", href: "/inventory/new" },
+  { name: "Lagerverwaltung", href: "/inventory/storage" },
+  { name: "Etikettenvorlagen", href: "/inventory/labels" },
+  { name: "Scanner", href: "/inventory/scanner" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+
 export function AppShell({
   title,
   description,
@@ -45,6 +53,7 @@ export function AppShell({
     <main className="min-h-screen bg-gray-100">
       <AppHeader
         dispositionNavigation={dispositionNavigation}
+        inventoryNavigation={inventoryNavigation}
         primaryNavigation={primaryNavigation}
         projectNavigation={projectNavigation}
         secondaryNavigation={secondaryNavigation}

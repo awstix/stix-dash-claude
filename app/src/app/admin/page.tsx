@@ -83,6 +83,19 @@ const adminSections: AdminSection[] = [
     ],
   },
   {
+    title: "Inventar",
+    description:
+      "Kategorien und Grunddaten für Inventar, Lagerobjekte und spätere Etiketten.",
+    items: [
+      {
+        title: "Inventarkategorien",
+        description:
+          "Kategorien für Geräte, Maschinen, Werkzeuge, Lagerartikel und Containerobjekte pflegen.",
+        href: "/admin/inventory-categories",
+      },
+    ],
+  },
+  {
     title: "Material & Sorten",
     description: "Materialien, Asphalt- und Betonsorten verwalten.",
     items: [
