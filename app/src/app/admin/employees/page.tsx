@@ -124,7 +124,33 @@ function getSortMode(value: string) {
   return "lastName";
 }
 
-function buildSortHref(filters: FilterValues, sort: string) {
+type EmployeeSearchParams = {
+  status?: string;
+  entryFrom?: string;
+  entryTo?: string;
+  exitFrom?: string;
+  exitTo?: string;
+  company?: string;
+  department?: string;
+  firstName?: string;
+  lastName?: string;
+  position?: string;
+  leadership?: string;
+  birthFrom?: string;
+  birthTo?: string;
+  ageMin?: string;
+  ageMax?: string;
+  gender?: string;
+  mobilePhone?: string;
+  emergencyPhone?: string;
+  street?: string;
+  postalCode?: string;
+  city?: string;
+  notes?: string;
+  sort?: string;
+};
+
+function buildSortHref(filters: FilterValues, sort: string, basePath: string) {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(filters)) {
@@ -135,7 +161,7 @@ function buildSortHref(filters: FilterValues, sort: string) {
 
   params.set("sort", sort);
 
-  return `/admin/employees?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
 }
 
 function getSortButtonClass(active: boolean) {
@@ -147,31 +173,22 @@ function getSortButtonClass(active: boolean) {
 export default async function EmployeesPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    status?: string;
-    entryFrom?: string;
-    entryTo?: string;
-    exitFrom?: string;
-    exitTo?: string;
-    company?: string;
-    department?: string;
-    firstName?: string;
-    lastName?: string;
-    position?: string;
-    leadership?: string;
-    birthFrom?: string;
-    birthTo?: string;
-    ageMin?: string;
-    ageMax?: string;
-    gender?: string;
-    mobilePhone?: string;
-    emergencyPhone?: string;
-    street?: string;
-    postalCode?: string;
-    city?: string;
-    notes?: string;
-    sort?: string;
-  }>;
+  searchParams: Promise<EmployeeSearchParams>;
+}) {
+  return (
+    <EmployeesManagementPage
+      basePath="/admin/employees"
+      searchParams={searchParams}
+    />
+  );
+}
+
+export async function EmployeesManagementPage({
+  basePath,
+  searchParams,
+}: {
+  basePath: string;
+  searchParams: Promise<EmployeeSearchParams>;
 }) {
   const params = await searchParams;
 
@@ -543,21 +560,21 @@ export default async function EmployeesPage({
 
           <div className="flex flex-wrap gap-2">
             <Link
-              href={buildSortHref(filters, "lastName")}
+              href={buildSortHref(filters, "lastName", basePath)}
               className={getSortButtonClass(sortMode === "lastName")}
             >
               Nachname A-Z
             </Link>
 
             <Link
-              href={buildSortHref(filters, "company")}
+              href={buildSortHref(filters, "company", basePath)}
               className={getSortButtonClass(sortMode === "company")}
             >
               Nach Firma
             </Link>
 
             <Link
-              href={buildSortHref(filters, "status")}
+              href={buildSortHref(filters, "status", basePath)}
               className={getSortButtonClass(sortMode === "status")}
             >
               Nach Status
@@ -567,8 +584,8 @@ export default async function EmployeesPage({
               <Link
                 href={
                   sortFilter
-                    ? `/admin/employees?sort=${sortMode}`
-                    : "/admin/employees"
+                    ? `${basePath}?sort=${sortMode}`
+                    : basePath
                 }
                 className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
               >
@@ -587,6 +604,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Status" active={Boolean(filters.status)}>
                   <SelectFilter
+                    actionPath={basePath}
                     name="status"
                     value={filters.status}
                     filters={filters}
@@ -601,6 +619,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.entryFrom || filters.entryTo)}
                 >
                   <DateRangeFilter
+                    actionPath={basePath}
                     fromName="entryFrom"
                     toName="entryTo"
                     fromValue={filters.entryFrom}
@@ -615,6 +634,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.exitFrom || filters.exitTo)}
                 >
                   <DateRangeFilter
+                    actionPath={basePath}
                     fromName="exitFrom"
                     toName="exitTo"
                     fromValue={filters.exitFrom}
@@ -626,6 +646,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Firma" active={Boolean(filters.company)}>
                   <SelectFilter
+                    actionPath={basePath}
                     name="company"
                     value={filters.company}
                     filters={filters}
@@ -640,6 +661,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.department)}
                 >
                   <SelectFilter
+                    actionPath={basePath}
                     name="department"
                     value={filters.department}
                     filters={filters}
@@ -651,6 +673,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Vorname" active={Boolean(filters.firstName)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="firstName"
                     value={filters.firstName}
                     filters={filters}
@@ -661,6 +684,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Nachname" active={Boolean(filters.lastName)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="lastName"
                     value={filters.lastName}
                     filters={filters}
@@ -674,6 +698,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.position)}
                 >
                   <SelectFilter
+                    actionPath={basePath}
                     name="position"
                     value={filters.position}
                     filters={filters}
@@ -685,6 +710,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Leitung" active={Boolean(filters.leadership)}>
                   <SelectFilter
+                    actionPath={basePath}
                     name="leadership"
                     value={filters.leadership}
                     filters={filters}
@@ -702,6 +728,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.birthFrom || filters.birthTo)}
                 >
                   <DateRangeFilter
+                    actionPath={basePath}
                     fromName="birthFrom"
                     toName="birthTo"
                     fromValue={filters.birthFrom}
@@ -716,6 +743,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.ageMin || filters.ageMax)}
                 >
                   <NumberRangeFilter
+                    actionPath={basePath}
                     minName="ageMin"
                     maxName="ageMax"
                     minValue={filters.ageMin}
@@ -727,6 +755,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Geschlecht" active={Boolean(filters.gender)}>
                   <SelectFilter
+                    actionPath={basePath}
                     name="gender"
                     value={filters.gender}
                     filters={filters}
@@ -741,6 +770,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.mobilePhone)}
                 >
                   <TextFilter
+                    actionPath={basePath}
                     name="mobilePhone"
                     value={filters.mobilePhone}
                     filters={filters}
@@ -754,6 +784,7 @@ export default async function EmployeesPage({
                   active={Boolean(filters.emergencyPhone)}
                 >
                   <TextFilter
+                    actionPath={basePath}
                     name="emergencyPhone"
                     value={filters.emergencyPhone}
                     filters={filters}
@@ -764,6 +795,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Straße" active={Boolean(filters.street)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="street"
                     value={filters.street}
                     filters={filters}
@@ -774,6 +806,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="PLZ" active={Boolean(filters.postalCode)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="postalCode"
                     value={filters.postalCode}
                     filters={filters}
@@ -784,6 +817,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Ort" active={Boolean(filters.city)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="city"
                     value={filters.city}
                     filters={filters}
@@ -794,6 +828,7 @@ export default async function EmployeesPage({
 
                 <FilterTh title="Bemerkung" active={Boolean(filters.notes)}>
                   <TextFilter
+                    actionPath={basePath}
                     name="notes"
                     value={filters.notes}
                     filters={filters}
@@ -1373,12 +1408,14 @@ function FilterTh({
 }
 
 function TextFilter({
+  actionPath,
   name,
   value,
   filters,
   exclude,
   placeholder,
 }: {
+  actionPath: string;
   name: string;
   value: string;
   filters: FilterValues;
@@ -1386,7 +1423,7 @@ function TextFilter({
   placeholder: string;
 }) {
   return (
-    <form action="/admin/employees" className="space-y-3">
+    <form action={actionPath} className="space-y-3">
       <HiddenFilterInputs filters={filters} exclude={exclude} />
 
       <label className="block text-xs font-semibold text-gray-700">
@@ -1410,6 +1447,7 @@ function TextFilter({
 }
 
 function SelectFilter({
+  actionPath,
   name,
   value,
   filters,
@@ -1417,6 +1455,7 @@ function SelectFilter({
   options,
   placeholder,
 }: {
+  actionPath: string;
   name: string;
   value: string;
   filters: FilterValues;
@@ -1425,7 +1464,7 @@ function SelectFilter({
   placeholder: string;
 }) {
   return (
-    <form action="/admin/employees" className="space-y-3">
+    <form action={actionPath} className="space-y-3">
       <HiddenFilterInputs filters={filters} exclude={exclude} />
 
       <label className="block text-xs font-semibold text-gray-700">
@@ -1455,6 +1494,7 @@ function SelectFilter({
 }
 
 function DateRangeFilter({
+  actionPath,
   fromName,
   toName,
   fromValue,
@@ -1462,6 +1502,7 @@ function DateRangeFilter({
   filters,
   exclude,
 }: {
+  actionPath: string;
   fromName: string;
   toName: string;
   fromValue: string;
@@ -1470,7 +1511,7 @@ function DateRangeFilter({
   exclude: string[];
 }) {
   return (
-    <form action="/admin/employees" className="space-y-3">
+    <form action={actionPath} className="space-y-3">
       <HiddenFilterInputs filters={filters} exclude={exclude} />
 
       <label className="block text-xs font-semibold text-gray-700">
@@ -1504,6 +1545,7 @@ function DateRangeFilter({
 }
 
 function NumberRangeFilter({
+  actionPath,
   minName,
   maxName,
   minValue,
@@ -1511,6 +1553,7 @@ function NumberRangeFilter({
   filters,
   exclude,
 }: {
+  actionPath: string;
   minName: string;
   maxName: string;
   minValue: string;
@@ -1519,7 +1562,7 @@ function NumberRangeFilter({
   exclude: string[];
 }) {
   return (
-    <form action="/admin/employees" className="space-y-3">
+    <form action={actionPath} className="space-y-3">
       <HiddenFilterInputs filters={filters} exclude={exclude} />
 
       <label className="block text-xs font-semibold text-gray-700">

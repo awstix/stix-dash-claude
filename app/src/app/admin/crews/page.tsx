@@ -219,7 +219,7 @@ export default async function CrewsAdminPage() {
         </Link>
 
         <Link
-          href="/admin/employees"
+          href="/employees"
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
           Mitarbeiter öffnen

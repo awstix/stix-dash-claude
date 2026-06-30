@@ -61,6 +61,16 @@ function optionalStock(value: FormDataEntryValue | null, label: string) {
   return Math.round(number * 1000) / 1000;
 }
 
+function requiredStock(value: FormDataEntryValue | null, label: string) {
+  const number = optionalStock(value, label);
+
+  if (number === null) {
+    throw new Error(`${label} fehlt.`);
+  }
+
+  return number;
+}
+
 function optionalFloat(value: FormDataEntryValue | null, label: string) {
   const text = optionalString(value)?.replace(",", ".");
   if (!text) return null;
@@ -85,6 +95,13 @@ function optionalDate(value: FormDataEntryValue | null) {
   }
 
   return date;
+}
+
+function inventoryStatus(value: FormDataEntryValue | null) {
+  const text = optionalString(value);
+  return ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED"].includes(text ?? "")
+    ? text
+    : "ACTIVE";
 }
 
 function getResponsibleFields(formData: FormData) {
@@ -137,12 +154,13 @@ function getInventoryPayload(formData: FormData) {
   const openingStock = isStockManaged
     ? optionalStock(formData.get("openingStock"), "Anfangsbestand")
     : null;
+  const constructionDate = optionalDate(formData.get("constructionDate"));
 
   return {
     billingRateCents: optionalMoneyCents(formData.get("billingRate")),
     categoryId: optionalId(formData.get("categoryId")),
-    constructionDate: optionalDate(formData.get("constructionDate")),
-    constructionYear: optionalInt(formData.get("constructionYear"), "Baujahr"),
+    constructionDate,
+    constructionYear: constructionDate ? constructionDate.getUTCFullYear() : null,
     currentProjectId: optionalId(formData.get("currentProjectId")),
     currentStock: openingStock,
     inventoryNumber: optionalString(formData.get("inventoryNumber")),
@@ -182,6 +200,7 @@ function getInventoryPayload(formData: FormData) {
     purchasedFrom: optionalString(formData.get("purchasedFrom")),
     receivedAt: optionalDate(formData.get("receivedAt")),
     serialNumber: optionalString(formData.get("serialNumber")),
+    status: inventoryStatus(formData.get("status")),
     stockUnit: optionalString(formData.get("stockUnit")) ?? "Stk.",
     vehicleId: optionalId(formData.get("vehicleId")),
     ...getResponsibleFields(formData),
@@ -514,6 +533,168 @@ export async function assignInventoryItemToContainer(formData: FormData) {
 
   revalidateInventoryItem(containerId);
   revalidateInventoryItem(childItemId);
+}
+
+export async function updateInventoryAssignment(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  const responsibleType = optionalString(formData.get("responsibleType"));
+  const responsibleEmployeeId =
+    responsibleType === "EMPLOYEE"
+      ? optionalId(formData.get("responsibleEmployeeId"))
+      : null;
+  const responsibleCrewId =
+    responsibleType === "CREW" ? optionalId(formData.get("responsibleCrewId")) : null;
+  const currentProjectId = optionalId(formData.get("currentProjectId"));
+  const transportedByEmployeeId = optionalId(
+    formData.get("transportedByEmployeeId"),
+  );
+  const notes = optionalString(formData.get("notes"));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.update({
+      where: {
+        id,
+      },
+      data: {
+        currentProject: relationUpdate(currentProjectId),
+        responsibleCrew: relationUpdate(responsibleCrewId),
+        responsibleEmployee: relationUpdate(responsibleEmployeeId),
+        responsibleType:
+          responsibleEmployeeId || responsibleCrewId ? responsibleType : null,
+      },
+    });
+
+    await tx.inventoryUsageHistory.create({
+      data: {
+        employee: responsibleEmployeeId
+          ? {
+              connect: {
+                id: responsibleEmployeeId,
+              },
+            }
+          : undefined,
+        eventType: "ASSIGNMENT",
+        item: {
+          connect: {
+            id,
+          },
+        },
+        notes,
+        project: currentProjectId
+          ? {
+              connect: {
+                id: currentProjectId,
+              },
+            }
+          : undefined,
+        transportedByEmployee: transportedByEmployeeId
+          ? {
+              connect: {
+                id: transportedByEmployeeId,
+              },
+            }
+          : undefined,
+      },
+    });
+  });
+
+  revalidateInventoryItem(id);
+}
+
+export async function recordInventoryStockMovement(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const movementType = String(formData.get("movementType") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  if (!["ISSUE", "RETURN", "ADJUSTMENT"].includes(movementType)) {
+    throw new Error("Lagerbewegung ist ungültig.");
+  }
+
+  const quantity = requiredStock(formData.get("quantity"), "Menge");
+  const employeeId = optionalId(formData.get("employeeId"));
+  const projectId = optionalId(formData.get("projectId"));
+  const notes = optionalString(formData.get("notes"));
+
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.inventoryItem.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        currentStock: true,
+        isStockManaged: true,
+      },
+    });
+
+    if (!item?.isStockManaged) {
+      throw new Error("Dieses Objekt ist kein Lagerobjekt.");
+    }
+
+    const stockBefore = item.currentStock ?? 0;
+    const stockAfter =
+      movementType === "ISSUE"
+        ? stockBefore - quantity
+        : movementType === "RETURN"
+          ? stockBefore + quantity
+          : quantity;
+
+    if (stockAfter < 0) {
+      throw new Error("Der Lagerbestand kann nicht negativ werden.");
+    }
+
+    await tx.inventoryItem.update({
+      where: {
+        id,
+      },
+      data: {
+        currentStock: stockAfter,
+      },
+    });
+
+    await tx.inventoryUsageHistory.create({
+      data: {
+        employee: employeeId
+          ? {
+              connect: {
+                id: employeeId,
+              },
+            }
+          : undefined,
+        eventType: movementType,
+        item: {
+          connect: {
+            id,
+          },
+        },
+        notes,
+        project: projectId
+          ? {
+              connect: {
+                id: projectId,
+              },
+            }
+          : undefined,
+        quantity,
+        receivedAt:
+          movementType === "RETURN" || movementType === "ADJUSTMENT"
+            ? new Date()
+            : undefined,
+        returnedAt: movementType === "ISSUE" ? new Date() : undefined,
+        stockAfter,
+        stockBefore,
+      },
+    });
+  });
+
+  revalidateInventoryItem(id);
 }
 
 export async function deleteInventoryPhoto(formData: FormData) {

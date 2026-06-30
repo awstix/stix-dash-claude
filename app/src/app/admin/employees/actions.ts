@@ -282,6 +282,7 @@ export async function createEmployee(formData: FormData) {
   });
 
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/admin/drivers");
 }
 
@@ -375,6 +376,7 @@ export async function updateEmployee(formData: FormData) {
   });
 
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/admin/drivers");
 }
 
@@ -412,5 +414,6 @@ export async function deleteEmployee(formData: FormData) {
   });
 
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/admin/drivers");
 }

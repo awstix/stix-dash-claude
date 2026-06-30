@@ -6,6 +6,8 @@ export type ActionIconName =
   | "download"
   | "edit"
   | "filter"
+  | "move"
+  | "open"
   | "save";
 
 export function ActionIcon({
@@ -67,12 +69,33 @@ export function ActionIcon({
     );
   }
 
+  if (name === "open") {
+    return (
+      <svg {...sharedProps}>
+        <path d="M14 3h7v7" />
+        <path d="M10 14 21 3" />
+        <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+      </svg>
+    );
+  }
+
   if (name === "filter") {
     return (
       <svg {...sharedProps}>
         <path d="M4 5h16" />
         <path d="M7 12h10" />
         <path d="M10 19h4" />
+      </svg>
+    );
+  }
+
+  if (name === "move") {
+    return (
+      <svg {...sharedProps}>
+        <path d="M7 7h10" />
+        <path d="m14 4 3 3-3 3" />
+        <path d="M17 17H7" />
+        <path d="m10 14-3 3 3 3" />
       </svg>
     );
   }

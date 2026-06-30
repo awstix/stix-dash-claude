@@ -30,20 +30,8 @@ const adminSections: AdminSection[] = [
   {
     title: "Mitarbeiter",
     description:
-      "Mitarbeiter, Arbeitszeiten, Berufsgruppen, Kolonnen und zentrale Stammdaten.",
+      "Arbeitszeiten, Berufsgruppen, Kolonnen und mitarbeiterbezogene Zusatzdaten.",
     items: [
-      {
-        title: "Mitarbeiter",
-        description:
-          "Mitarbeiter verwalten, Berufsgruppen zuordnen und LKW-Fahrer automatisch synchronisieren.",
-        href: "/admin/employees",
-      },
-      {
-        title: "Führerscheine & Maschinenscheine",
-        description:
-          "Berechtigungen je Mitarbeiter per Checkbox pflegen, Prüfintervalle überwachen und Nachweise hochladen.",
-        href: "/admin/employee-qualifications",
-      },
       {
         title: "Kolonnen",
         description:

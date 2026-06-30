@@ -10,6 +10,7 @@ import {
 
 const statusOptions = ["OPEN", "IN_PROGRESS", "WAITING", "DONE", "CANCELLED"];
 const priorityOptions = ["LOW", "NORMAL", "HIGH", "URGENT"];
+const closedStatusOptions = ["DONE", "CANCELLED"];
 
 function requiredString(value: FormDataEntryValue | null, label: string) {
   const text = String(value ?? "").trim();
@@ -38,6 +39,24 @@ function optionalDate(value: FormDataEntryValue | null) {
   }
 
   return new Date(`${text}T00:00:00.000Z`);
+}
+
+function optionalDateTime(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+
+  if (!text) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) {
+    return new Date(text);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return new Date(`${text}T00:00:00.000Z`);
+  }
+
+  throw new Error("Datum/Uhrzeit ist ungültig.");
 }
 
 function cleanStatus(value: FormDataEntryValue | null) {
@@ -97,74 +116,227 @@ async function getCustomValues(formData: FormData) {
   );
 }
 
+async function getInventoryWorkshopStatus(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  inventoryItemId: string,
+) {
+  const [openOrders, openForms] = await Promise.all([
+    tx.workshopRepairOrder.count({
+      where: {
+        inventoryItemId,
+        status: {
+          notIn: closedStatusOptions,
+        },
+      },
+    }),
+    tx.workshopFormSubmission.count({
+      where: {
+        completedAt: null,
+        inventoryItemId,
+      },
+    }),
+  ]);
+
+  return openOrders > 0 || openForms > 0 ? "DEFECT" : "ACTIVE";
+}
+
 export async function createWorkshopRepairOrder(formData: FormData) {
   const vehicleId = optionalString(formData.get("vehicleId"));
+  const inventoryItemId = optionalString(formData.get("inventoryItemId"));
   const vehicleSnapshot = await getVehicleSnapshot(vehicleId);
   const completedAt = optionalDate(formData.get("completedAt"));
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
   const customValues = await getCustomValues(formData);
 
-  await prisma.workshopRepairOrder.create({
-    data: {
-      vehicleId,
-      ...vehicleSnapshot,
-      title: requiredString(formData.get("title"), "Titel"),
-      description: optionalString(formData.get("description")),
-      priority: cleanPriority(formData.get("priority")),
-      status,
-      reportedAt: optionalDate(formData.get("reportedAt")) ?? new Date(),
-      plannedStart: optionalDate(formData.get("plannedStart")),
-      plannedEnd: optionalDate(formData.get("plannedEnd")),
-      completedAt: status === "DONE" ? completedAt ?? new Date() : null,
-      assignedTo: optionalString(formData.get("assignedTo")),
-      customValuesJson: JSON.stringify(customValues),
-      notes: optionalString(formData.get("notes")),
-    },
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.workshopRepairOrder.create({
+      data: {
+        vehicle: vehicleId
+          ? {
+              connect: {
+                id: vehicleId,
+              },
+            }
+          : undefined,
+        ...vehicleSnapshot,
+        title: requiredString(formData.get("title"), "Titel"),
+        description: optionalString(formData.get("description")),
+        priority: cleanPriority(formData.get("priority")),
+        status,
+        reportedAt: optionalDateTime(formData.get("reportedAt")) ?? new Date(),
+        plannedStart: optionalDate(formData.get("plannedStart")),
+        plannedEnd: optionalDate(formData.get("plannedEnd")),
+        completedAt: status === "DONE" ? completedAt ?? new Date() : null,
+        completedByName:
+          status === "DONE" ? optionalString(formData.get("completedByName")) : null,
+        assignedTo: optionalString(formData.get("assignedTo")),
+        customValuesJson: JSON.stringify(customValues),
+        notes: optionalString(formData.get("notes")),
+        inventoryItem: inventoryItemId
+          ? {
+              connect: {
+                id: inventoryItemId,
+              },
+            }
+          : undefined,
+      },
+    });
+
+    if (inventoryItemId) {
+      await tx.inventoryItem.update({
+        where: {
+          id: inventoryItemId,
+        },
+        data: {
+          status: await getInventoryWorkshopStatus(tx, inventoryItemId),
+        },
+      });
+
+      await tx.inventoryUsageHistory.create({
+        data: {
+          defectDescription: order.description,
+          eventType: "DEFECT",
+          item: {
+            connect: {
+              id: inventoryItemId,
+            },
+          },
+          notes: `Werkstattauftrag erstellt: ${order.title}`,
+        },
+      });
+    }
   });
 
   revalidatePath("/workshop");
+  if (inventoryItemId) {
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/${inventoryItemId}`);
+  }
 }
 
 export async function updateWorkshopRepairOrder(formData: FormData) {
   const id = requiredString(formData.get("id"), "Auftrags-ID");
   const vehicleId = optionalString(formData.get("vehicleId"));
+  const inventoryItemId = formData.has("inventoryItemId")
+    ? optionalString(formData.get("inventoryItemId"))
+    : undefined;
   const vehicleSnapshot = await getVehicleSnapshot(vehicleId);
   const completedAt = optionalDate(formData.get("completedAt"));
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
   const customValues = await getCustomValues(formData);
 
-  await prisma.workshopRepairOrder.update({
-    where: {
-      id,
-    },
-    data: {
-      vehicleId,
-      ...vehicleSnapshot,
-      title: requiredString(formData.get("title"), "Titel"),
-      description: optionalString(formData.get("description")),
-      priority: cleanPriority(formData.get("priority")),
-      status,
-      reportedAt: optionalDate(formData.get("reportedAt")) ?? new Date(),
-      plannedStart: optionalDate(formData.get("plannedStart")),
-      plannedEnd: optionalDate(formData.get("plannedEnd")),
-      completedAt: status === "DONE" ? completedAt ?? new Date() : null,
-      assignedTo: optionalString(formData.get("assignedTo")),
-      customValuesJson: JSON.stringify(customValues),
-      notes: optionalString(formData.get("notes")),
-    },
+  await prisma.$transaction(async (tx) => {
+    const previousOrder = await tx.workshopRepairOrder.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        inventoryItemId: true,
+      },
+    });
+
+    await tx.workshopRepairOrder.update({
+      where: {
+        id,
+      },
+      data: {
+        vehicle: vehicleId
+          ? {
+              connect: {
+                id: vehicleId,
+              },
+            }
+          : {
+              disconnect: true,
+            },
+        ...vehicleSnapshot,
+        title: requiredString(formData.get("title"), "Titel"),
+        description: optionalString(formData.get("description")),
+        priority: cleanPriority(formData.get("priority")),
+        status,
+        reportedAt: optionalDateTime(formData.get("reportedAt")) ?? new Date(),
+        plannedStart: optionalDate(formData.get("plannedStart")),
+        plannedEnd: optionalDate(formData.get("plannedEnd")),
+        completedAt: status === "DONE" ? completedAt ?? new Date() : null,
+        completedByName:
+          status === "DONE" ? optionalString(formData.get("completedByName")) : null,
+        assignedTo: optionalString(formData.get("assignedTo")),
+        customValuesJson: JSON.stringify(customValues),
+        notes: optionalString(formData.get("notes")),
+        inventoryItem:
+          inventoryItemId === undefined
+            ? undefined
+            : inventoryItemId
+              ? {
+                  connect: {
+                    id: inventoryItemId,
+                  },
+                }
+              : {
+                  disconnect: true,
+                },
+      },
+    });
+
+    const affectedInventoryIds = new Set(
+      [previousOrder?.inventoryItemId, inventoryItemId].filter(Boolean) as string[],
+    );
+
+    for (const affectedInventoryId of affectedInventoryIds) {
+      await tx.inventoryItem.update({
+        where: {
+          id: affectedInventoryId,
+        },
+        data: {
+          status: await getInventoryWorkshopStatus(tx, affectedInventoryId),
+        },
+      });
+    }
   });
 
   revalidatePath("/workshop");
+  if (inventoryItemId) {
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/${inventoryItemId}`);
+  }
 }
 
 export async function deleteWorkshopRepairOrder(formData: FormData) {
   const id = requiredString(formData.get("id"), "Auftrags-ID");
 
-  await prisma.workshopRepairOrder.delete({
-    where: {
-      id,
-    },
+  const inventoryItemId = await prisma.$transaction(async (tx) => {
+    const order = await tx.workshopRepairOrder.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        inventoryItemId: true,
+      },
+    });
+
+    await tx.workshopRepairOrder.delete({
+      where: {
+        id,
+      },
+    });
+
+    if (order?.inventoryItemId) {
+      await tx.inventoryItem.update({
+        where: {
+          id: order.inventoryItemId,
+        },
+        data: {
+          status: await getInventoryWorkshopStatus(tx, order.inventoryItemId),
+        },
+      });
+    }
+
+    return order?.inventoryItemId ?? null;
   });
 
   revalidatePath("/workshop");
+  if (inventoryItemId) {
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/${inventoryItemId}`);
+  }
 }

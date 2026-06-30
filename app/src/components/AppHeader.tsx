@@ -10,19 +10,21 @@ type NavigationItem = {
 
 export function AppHeader({
   dispositionNavigation,
+  employeeNavigation,
   inventoryNavigation,
   primaryNavigation,
   projectNavigation,
   secondaryNavigation,
 }: {
   dispositionNavigation: NavigationItem[];
+  employeeNavigation: NavigationItem[];
   inventoryNavigation: NavigationItem[];
   primaryNavigation: NavigationItem[];
   projectNavigation: NavigationItem[];
   secondaryNavigation: NavigationItem[];
 }) {
   const [openMenu, setOpenMenu] = useState<
-    "projects" | "disposition" | "inventory" | null
+    "projects" | "disposition" | "inventory" | "employees" | null
   >(null);
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -136,6 +138,18 @@ export function AppHeader({
             onToggle={() =>
               setOpenMenu((current) =>
                 current === "inventory" ? null : "inventory",
+              )
+            }
+          />
+
+          <NavigationMenu
+            isOpen={openMenu === "employees"}
+            items={employeeNavigation}
+            label="Mitarbeiter"
+            onNavigate={() => setOpenMenu(null)}
+            onToggle={() =>
+              setOpenMenu((current) =>
+                current === "employees" ? null : "employees",
               )
             }
           />

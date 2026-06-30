@@ -31,6 +31,9 @@ function positiveInteger(value: FormDataEntryValue | null, fallback: number) {
 function revalidateQualificationViews() {
   revalidatePath("/admin");
   revalidatePath("/admin/employee-qualifications");
+  revalidatePath("/employees");
+  revalidatePath("/employees/certificates");
+  revalidatePath("/employees/driver-licenses");
   revalidatePath("/dashboard");
 }
 

@@ -1,14 +1,38 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
+import { createWorkshopRepairOrder } from "../../workshop/actions";
+import {
+  ensureWorkshopRepairOrderTemplate,
+  WORKSHOP_REPAIR_TEMPLATE_ID,
+} from "../../workshop/repairOrderTemplate";
+import { WorkshopOrderForm } from "../../workshop/WorkshopOrderForm";
+import { BUILT_IN_WORKSHOP_FORMS } from "../../workshop/workshopFormTypes";
 import { InventoryContainerManager } from "../InventoryContainerManager";
-import { InventoryPhotoGallery } from "../InventoryPhotoGallery";
+import { InventoryPhotoPreviewPanel } from "../InventoryPhotoGallery";
+import { InventoryStockMovementForm } from "../InventoryStockMovementForm";
+import { InventoryWorkshopFormDialog } from "../InventoryWorkshopFormDialog";
+import {
+  updateInventoryAssignment,
+} from "../actions";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
 
   return new Intl.DateTimeFormat("de-DE").format(date);
+}
+
+function formatCreatedAt(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(date);
 }
 
 function formatMoney(cents: number | null) {
@@ -28,12 +52,47 @@ function formatStock(value: number | null, unit: string) {
   }).format(value)} ${unit}`;
 }
 
+function formatStockChange(
+  quantity: number | null,
+  stockBefore: number | null,
+  stockAfter: number | null,
+  unit: string,
+) {
+  const parts = [];
+
+  if (quantity !== null) {
+    parts.push(`Menge: ${formatStock(quantity, unit)}`);
+  }
+
+  if (stockBefore !== null || stockAfter !== null) {
+    parts.push(
+      `Bestand: ${formatStock(stockBefore, unit)} → ${formatStock(stockAfter, unit)}`,
+    );
+  }
+
+  return parts.join(" · ");
+}
+
 function formatNumber(value: number | null) {
   if (value === null) return "—";
 
   return new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function getInventoryStatusLabel(status: string | null) {
+  if (status === "DEFECT") return "Defekt";
+  if (status === "LOCKED") return "Gesperrt";
+  if (status === "IN_SERVICE") return "In Wartung";
+  return "Aktiv";
+}
+
+function getInventoryStatusClass(status: string | null) {
+  if (status === "DEFECT") return "border-red-200 bg-red-50 text-red-900";
+  if (status === "LOCKED") return "border-orange-200 bg-orange-50 text-orange-950";
+  if (status === "IN_SERVICE") return "border-blue-200 bg-blue-50 text-blue-900";
+  return "border-green-200 bg-green-50 text-green-900";
 }
 
 function getResponsibleLabel(item: {
@@ -50,6 +109,25 @@ function getResponsibleLabel(item: {
   }
 
   return "—";
+}
+
+function getHistoryEventLabel(eventType: string) {
+  if (eventType === "ASSIGNMENT") return "Zuordnung";
+  if (eventType === "ISSUE") return "Ausgabe";
+  if (eventType === "RETURN") return "Rücknahme";
+  if (eventType === "ADJUSTMENT") return "Bestandskorrektur";
+  if (eventType === "DEFECT") return "Defekt";
+  if (eventType === "WORKSHOP_FORM") return "Werkstattformular";
+  return eventType;
+}
+
+function getHistoryEventClass(eventType: string) {
+  if (eventType === "ISSUE") return "bg-red-100 text-red-900";
+  if (eventType === "RETURN") return "bg-green-100 text-green-900";
+  if (eventType === "ADJUSTMENT") return "bg-amber-100 text-amber-950";
+  if (eventType === "ASSIGNMENT") return "bg-blue-100 text-blue-900";
+  if (eventType === "DEFECT") return "bg-red-100 text-red-900";
+  return "bg-gray-100 text-gray-800";
 }
 
 export default async function InventoryDetailPage({
@@ -106,6 +184,130 @@ export default async function InventoryDetailPage({
   if (!item) {
     notFound();
   }
+
+  await ensureWorkshopRepairOrderTemplate();
+
+  const [
+    workshopTemplates,
+    workshopEmployees,
+    workshopVehicles,
+    allEmployees,
+    crews,
+    projects,
+  ] = await Promise.all([
+    prisma.workshopFormTemplate.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.employee.findMany({
+      where: {
+        departmentValue: "werkstatt",
+        statusValue: "active",
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        firstName: true,
+        id: true,
+        lastName: true,
+      },
+    }),
+    prisma.vehicle.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [{ vehicleNumber: "asc" }],
+      select: {
+        id: true,
+        licensePlate: true,
+        vehicleNumber: true,
+        vehicleType: true,
+      },
+    }),
+    prisma.employee.findMany({
+      where: {
+        statusValue: "active",
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        firstName: true,
+        id: true,
+        lastName: true,
+      },
+    }),
+    prisma.crew.findMany({
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+      },
+    }),
+    prisma.project.findMany({
+      where: {
+        status: {
+          in: [
+            ProjectStatus.ACTIVE,
+            ProjectStatus.NOT_STARTED,
+            ProjectStatus.PAUSED,
+          ],
+        },
+      },
+      orderBy: [{ projectNumber: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        projectNumber: true,
+      },
+    }),
+  ]);
+  const repairTemplate =
+    workshopTemplates.find((template) => template.id === WORKSHOP_REPAIR_TEMPLATE_ID) ??
+    null;
+  const repairTemplateFields = parseProjectFormFields(repairTemplate?.fieldsJson);
+  const workshopFormTemplates = [
+    ...BUILT_IN_WORKSHOP_FORMS,
+    ...workshopTemplates
+      .filter((template) => template.id !== WORKSHOP_REPAIR_TEMPLATE_ID)
+      .map((template) => ({
+        category: template.category,
+        description: template.description,
+        fields: parseProjectFormFields(template.fieldsJson),
+        id: template.id,
+        kind: "CUSTOM" as const,
+        name: template.name,
+        paperOrientation:
+          template.paperOrientation === "LANDSCAPE"
+            ? ("LANDSCAPE" as const)
+            : ("PORTRAIT" as const),
+        paperSize: template.paperSize === "A5" ? ("A5" as const) : ("A4" as const),
+      })),
+  ];
+  const workshopPersonnelOptions = workshopEmployees.map((employee) => ({
+    id: employee.id,
+    name: `${employee.firstName} ${employee.lastName}`,
+  }));
+  const itemLabel = [item.inventoryNumber, item.name].filter(Boolean).join(" · ");
+  const inventoryPhotos = item.photos.map((photo) => ({
+    createdAt: photo.createdAt.toISOString(),
+    fileName: photo.fileName,
+    id: photo.id,
+    isPrimary: photo.isPrimary,
+    locationNote: photo.locationNote,
+    mimeType: photo.mimeType,
+    originalName: photo.originalName,
+    sizeBytes: photo.sizeBytes,
+    uploadedBy: photo.uploadedBy,
+    url: photo.url,
+  }));
+  const defaultRepairDescription = [
+    "",
+    `Inventarobjekt: ${itemLabel || item.name}`,
+    item.serialNumber ? `Seriennummer: ${item.serialNumber}` : null,
+    item.currentProject
+      ? `Aktuelle Baustelle: ${item.currentProject.projectNumber} · ${item.currentProject.name}`
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 
   const assignableContainerItems = item.isContainer
     ? await prisma.inventoryItem.findMany({
@@ -188,6 +390,20 @@ export default async function InventoryDetailPage({
 
           <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
             <Info label="Kategorie" value={item.category?.name ?? "—"} />
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                Status
+              </dt>
+              <dd className="mt-1">
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getInventoryStatusClass(
+                    item.status,
+                  )}`}
+                >
+                  {getInventoryStatusLabel(item.status)}
+                </span>
+              </dd>
+            </div>
             <Info label="Inventarnummer" value={item.inventoryNumber ?? "—"} />
             <Info label="Seriennummer" value={item.serialNumber ?? "—"} />
             <Info label="Hersteller" value={item.manufacturer ?? "—"} />
@@ -284,26 +500,152 @@ export default async function InventoryDetailPage({
           ) : null}
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900">Lagerstatus</h2>
-          {item.isStockManaged ? (
-            <div className="mt-4 space-y-3">
-              <Info
-                label="Anfangsbestand"
-                value={formatStock(item.openingStock, item.stockUnit)}
-              />
-              <Info
-                label="Aktueller Bestand"
-                value={formatStock(item.currentStock, item.stockUnit)}
-              />
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-gray-500">
-              Dieses Objekt wird aktuell nicht in der Lagerverwaltung geführt.
-            </p>
-          )}
-        </section>
+        <InventoryPhotoPreviewPanel itemName={item.name} photos={inventoryPhotos} />
       </div>
+
+      {item.isStockManaged ? (
+        <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900">Lagerstatus</h2>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Info
+              label="Anfangsbestand"
+              value={formatStock(item.openingStock, item.stockUnit)}
+            />
+            <Info
+              label="Aktueller Bestand"
+              value={formatStock(item.currentStock, item.stockUnit)}
+            />
+            <Info label="Einheit" value={item.stockUnit} />
+            <Info
+              label="Lagerobjekt"
+              value={item.isStockManaged ? "Ja" : "Nein"}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Zuordnung / Bewegung
+        </h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Standort, Baustelle und Verantwortlichen direkt am Objekt ändern. Jede
+          Änderung wird in der Historie protokolliert.
+        </p>
+
+        <form
+          action={updateInventoryAssignment}
+          className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+        >
+          <input name="id" type="hidden" value={item.id} />
+          <label className="text-sm font-semibold text-gray-800">
+            Verantwortlicher Typ
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue={item.responsibleType ?? "__none"}
+              name="responsibleType"
+            >
+              <option value="__none">Nicht zugeordnet</option>
+              <option value="EMPLOYEE">Mitarbeiter</option>
+              <option value="CREW">Kolonne</option>
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-gray-800">
+            Mitarbeiter
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue={item.responsibleEmployeeId ?? "__none"}
+              name="responsibleEmployeeId"
+            >
+              <option value="__none">Kein Mitarbeiter</option>
+              {allEmployees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.lastName}, {employee.firstName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-gray-800">
+            Kolonne
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue={item.responsibleCrewId ?? "__none"}
+              name="responsibleCrewId"
+            >
+              <option value="__none">Keine Kolonne</option>
+              {crews.map((crew) => (
+                <option key={crew.id} value={crew.id}>
+                  {crew.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-gray-800">
+            Baustelle
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue={item.currentProjectId ?? "__none"}
+              name="currentProjectId"
+            >
+              <option value="__none">Keine Baustelle</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.projectNumber} · {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-gray-800">
+            Transportiert von
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue="__none"
+              name="transportedByEmployeeId"
+            >
+              <option value="__none">Nicht angegeben</option>
+              {allEmployees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.lastName}, {employee.firstName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-gray-800 md:col-span-2">
+            Bemerkung
+            <input
+              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+              name="notes"
+              placeholder="z.B. auf Baustelle übergeben, zurück ins Lager..."
+            />
+          </label>
+          <div className="flex items-end">
+            <button
+              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              type="submit"
+            >
+              Zuordnung speichern
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {item.isStockManaged ? (
+        <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Lagerbewegung
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Ausgabe, Rücknahme oder Bestandskorrektur für dieses Lagerobjekt.
+          </p>
+          <InventoryStockMovementForm
+            currentProjectId={item.currentProjectId}
+            employees={allEmployees}
+            itemId={item.id}
+            projects={projects}
+            stockUnit={item.stockUnit}
+          />
+        </section>
+      ) : null}
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-900">
@@ -378,23 +720,55 @@ export default async function InventoryDetailPage({
         </div>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">Fotos</h2>
-        <InventoryPhotoGallery
-          itemName={item.name}
-          photos={item.photos.map((photo) => ({
-            createdAt: photo.createdAt.toISOString(),
-            fileName: photo.fileName,
-            id: photo.id,
-            isPrimary: photo.isPrimary,
-            locationNote: photo.locationNote,
-            mimeType: photo.mimeType,
-            originalName: photo.originalName,
-            sizeBytes: photo.sizeBytes,
-            uploadedBy: photo.uploadedBy,
-            url: photo.url,
-          }))}
-        />
+      <section className="mt-6 rounded-2xl border border-red-100 bg-red-50/40 p-6 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-950">
+              Defekt / Werkstattauftrag
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Wähle zuerst eine aktuelle Vorlage aus dem Bereich Werkstatt.
+              Neue oder gelöschte Werkstattformulare werden hier automatisch
+              übernommen.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <InventoryWorkshopFormDialog
+              defaultVehicleId={item.vehicleId ?? ""}
+              inventoryItemId={item.id}
+              itemLabel={itemLabel || item.name}
+              personnel={workshopPersonnelOptions}
+              repairOrderDescription={
+                repairTemplate?.description ??
+                "Reparatur, Wartung oder Störung erfassen und einplanen."
+              }
+              repairOrderForm={
+                <WorkshopOrderForm
+                  action={createWorkshopRepairOrder}
+                  allowCompletionFields={false}
+                  defaultCustomValues={{}}
+                  defaultDescription={defaultRepairDescription}
+                  defaultInventoryItemId={item.id}
+                  defaultPriority="HIGH"
+                  defaultTitle={`Defekt: ${itemLabel || item.name}`}
+                  defaultVehicleId={item.vehicleId ?? ""}
+                  personnel={workshopPersonnelOptions}
+                  repairTemplateFields={repairTemplateFields}
+                  vehicles={workshopVehicles}
+                />
+              }
+              repairOrderTitle={repairTemplate?.name ?? "Reparaturauftrag"}
+              templates={workshopFormTemplates}
+              vehicles={workshopVehicles}
+            />
+            <Link
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href="/workshop"
+            >
+              Werkstatt öffnen →
+            </Link>
+          </div>
+        </div>
       </section>
 
       {item.isContainer ? (
@@ -472,19 +846,68 @@ export default async function InventoryDetailPage({
                 className="rounded-xl border border-gray-200 bg-gray-50 p-3"
                 key={entry.id}
               >
-                <div className="font-semibold text-gray-900">
-                  {entry.eventType}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${getHistoryEventClass(
+                      entry.eventType,
+                    )}`}
+                  >
+                    {getHistoryEventLabel(entry.eventType)}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {formatCreatedAt(entry.createdAt)}
+                  </span>
                 </div>
                 <div className="mt-1 text-sm text-gray-600">
                   {entry.employee
                     ? `${entry.employee.lastName}, ${entry.employee.firstName}`
                     : "kein Mitarbeiter"}{" "}
                   · {entry.project?.name ?? "keine Baustelle"}
+                  {entry.transportedByEmployee ? (
+                    <>
+                      {" "}
+                      · Transport: {entry.transportedByEmployee.lastName},{" "}
+                      {entry.transportedByEmployee.firstName}
+                    </>
+                  ) : null}
                 </div>
+                {formatStockChange(
+                  entry.quantity,
+                  entry.stockBefore,
+                  entry.stockAfter,
+                  item.stockUnit,
+                ) ? (
+                  <div className="mt-1 text-sm font-semibold text-gray-800">
+                    {formatStockChange(
+                      entry.quantity,
+                      entry.stockBefore,
+                      entry.stockAfter,
+                      item.stockUnit,
+                    )}
+                  </div>
+                ) : null}
+                {entry.notes ? (
+                  <div className="mt-1 text-sm text-gray-600">
+                    {entry.notes}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <span>
+            <span className="font-semibold text-gray-800">Angelegt am:</span>{" "}
+            {formatCreatedAt(item.createdAt)}
+          </span>
+          <span>
+            <span className="font-semibold text-gray-800">Angelegt von:</span>{" "}
+            Benutzer
+          </span>
+        </div>
       </section>
     </AppShell>
   );

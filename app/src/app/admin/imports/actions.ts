@@ -1307,6 +1307,7 @@ export async function importExcel(formData: FormData) {
 
   revalidatePath("/admin/imports");
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/vehicles");
   revalidatePath("/admin/materials");

@@ -32,9 +32,12 @@ type TemplateInput = {
 };
 
 type SubmissionInput = {
+  completedAt?: string;
+  completedByName?: string;
   createdByName: string;
   formDate: string;
   id?: string;
+  inventoryItemId?: string;
   priority: string;
   templateId: string;
   title: string;
@@ -56,6 +59,29 @@ function cleanPriority(value: string) {
   return ["LOW", "NORMAL", "HIGH", "URGENT"].includes(value)
     ? value
     : "NORMAL";
+}
+
+async function getInventoryStatusAfterWorkshopFormChange(
+  inventoryItemId: string,
+) {
+  const [openOrders, openForms] = await Promise.all([
+    prisma.workshopRepairOrder.count({
+      where: {
+        inventoryItemId,
+        status: {
+          notIn: ["DONE", "CANCELLED"],
+        },
+      },
+    }),
+    prisma.workshopFormSubmission.count({
+      where: {
+        completedAt: null,
+        inventoryItemId,
+      },
+    }),
+  ]);
+
+  return openOrders > 0 || openForms > 0 ? "DEFECT" : "ACTIVE";
 }
 
 function cleanFields(fields: TemplateInput["fields"]): ProjectFormFieldDefinition[] {
@@ -137,9 +163,16 @@ export async function saveWorkshopFormSubmission(input: SubmissionInput) {
         paperOrientation: custom!.paperOrientation,
         paperSize: custom!.paperSize,
       };
+  const inventoryItemId = cleanText(input.inventoryItemId, 100) || null;
+  const completedAt = cleanDate(input.completedAt ?? "");
   const data = {
+    completedAt,
+    completedByName: completedAt
+      ? cleanText(input.completedByName, 120) || null
+      : null,
     createdByName: cleanText(input.createdByName, 120) || null,
     formDate: cleanDate(input.formDate),
+    inventoryItemId,
     priority: cleanPriority(input.priority),
     templateId: custom?.id ?? null,
     templateKind: kind,
@@ -150,15 +183,85 @@ export async function saveWorkshopFormSubmission(input: SubmissionInput) {
   };
 
   if (input.id) {
+    const previousSubmission = await prisma.workshopFormSubmission.findUnique({
+      where: {
+        id: input.id,
+      },
+      select: {
+        inventoryItemId: true,
+      },
+    });
+
     await prisma.workshopFormSubmission.update({ where: { id: input.id }, data });
+
+    const affectedInventoryIds = new Set(
+      [previousSubmission?.inventoryItemId, inventoryItemId].filter(Boolean) as string[],
+    );
+
+    for (const affectedInventoryId of affectedInventoryIds) {
+      await prisma.inventoryItem.update({
+        where: {
+          id: affectedInventoryId,
+        },
+        data: {
+          status: await getInventoryStatusAfterWorkshopFormChange(affectedInventoryId),
+        },
+      });
+    }
   } else {
-    await prisma.workshopFormSubmission.create({ data });
+    const submission = await prisma.workshopFormSubmission.create({ data });
+    if (inventoryItemId) {
+      await prisma.inventoryItem.update({
+        where: {
+          id: inventoryItemId,
+        },
+        data: {
+          status: await getInventoryStatusAfterWorkshopFormChange(inventoryItemId),
+        },
+      });
+
+      await prisma.inventoryUsageHistory.create({
+        data: {
+          eventType: "WORKSHOP_FORM",
+          itemId: inventoryItemId,
+          notes: `Werkstattformular erstellt: ${submission.title}`,
+        },
+      });
+    }
   }
   refresh();
+  if (inventoryItemId) {
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/${inventoryItemId}`);
+  }
 }
 
 export async function deleteWorkshopFormSubmission(id: string) {
   if (!id) return;
+  const submission = await prisma.workshopFormSubmission.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      inventoryItemId: true,
+    },
+  });
+
   await prisma.workshopFormSubmission.delete({ where: { id } });
+
+  if (submission?.inventoryItemId) {
+    await prisma.inventoryItem.update({
+      where: {
+        id: submission.inventoryItemId,
+      },
+      data: {
+        status: await getInventoryStatusAfterWorkshopFormChange(
+          submission.inventoryItemId,
+        ),
+      },
+    });
+    revalidatePath("/inventory");
+    revalidatePath(`/inventory/${submission.inventoryItemId}`);
+  }
   refresh();
 }

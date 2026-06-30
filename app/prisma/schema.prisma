@@ -439,6 +439,9 @@ model WorkshopRepairOrder {
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
   vehicleNumber String?
   licensePlate  String?
   vehicleType   String?
@@ -452,6 +455,7 @@ model WorkshopRepairOrder {
   plannedStart DateTime?
   plannedEnd   DateTime?
   completedAt  DateTime?
+  completedByName String?
 
   assignedTo String?
   notes      String?
@@ -461,6 +465,7 @@ model WorkshopRepairOrder {
   updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
+  @@index([inventoryItemId])
   @@index([status])
   @@index([priority])
   @@index([reportedAt])
@@ -497,6 +502,9 @@ model WorkshopFormSubmission {
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
   templateKind         String
   title                String
   priority             String   @default("NORMAL")
@@ -504,14 +512,18 @@ model WorkshopFormSubmission {
   valuesJson           String
   templateSnapshotJson String?
   createdByName        String?
+  completedAt          DateTime?
+  completedByName      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([templateId])
   @@index([vehicleId])
+  @@index([inventoryItemId])
   @@index([templateKind])
   @@index([priority])
+  @@index([completedAt])
   @@index([formDate])
   @@index([createdAt])
 }
@@ -1052,6 +1064,7 @@ model Employee {
   positions              EmployeePositionAssignment[]
   qualifications         EmployeeQualification[]
   qualificationDocuments EmployeeQualificationDocument[]
+  trainingRecords        EmployeeTrainingRecord[]
 
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
@@ -1186,6 +1199,63 @@ model EmployeeQualificationDocument {
   @@index([qualificationTypeId])
   @@index([documentType])
   @@index([uploadedAt])
+}
+
+model EmployeeTrainingType {
+  id String @id @default(cuid())
+
+  number                String?
+  provider              String?
+  topic                 String
+  type                  String?
+  defaultLocation       String?
+  defaultDurationDays   Float?
+  defaultValidityMonths Int?
+  isActive              Boolean @default(true)
+  sortOrder             Int     @default(0)
+
+  records EmployeeTrainingRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([topic])
+  @@index([number])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model EmployeeTrainingRecord {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  trainingTypeId String?
+  trainingType   EmployeeTrainingType? @relation(fields: [trainingTypeId], references: [id], onDelete: SetNull)
+
+  number              String?
+  provider            String?
+  topic               String
+  trainingDate        DateTime?
+  type                String?
+  location            String?
+  durationDays        Float?
+  bookedAt            DateTime?
+  bookingConfirmedAt  DateTime?
+  certificateReceivedAt DateTime?
+  validityMonths      Int?
+  validUntil          DateTime?
+  notes               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([trainingTypeId])
+  @@index([trainingDate])
+  @@index([validUntil])
+  @@index([topic])
 }
 
 model WorkTimePreset {
@@ -1464,6 +1534,7 @@ model InventoryItem {
 
   billingRateCents Int?
   notes            String?
+  status           String @default("ACTIVE")
 
   lastServiceAtDate       DateTime?
   lastServiceOperatingHours Float?
@@ -1476,15 +1547,18 @@ model InventoryItem {
   lastTuvInspectionDate   DateTime?
   nextTuvInspectionDate   DateTime?
 
-  photos       InventoryPhoto[]
-  contacts     InventoryContact[]
-  usageHistory InventoryUsageHistory[]
+  photos                  InventoryPhoto[]
+  contacts                InventoryContact[]
+  usageHistory            InventoryUsageHistory[]
+  workshopRepairOrders    WorkshopRepairOrder[]
+  workshopFormSubmissions WorkshopFormSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([inventoryNumber])
+  @@index([status])
   @@index([serialNumber])
   @@index([isContainer])
   @@index([isStockManaged])
@@ -1565,6 +1639,9 @@ model InventoryUsageHistory {
   transportedByEmployee   Employee? @relation("InventoryUsageTransporter", fields: [transportedByEmployeeId], references: [id], onDelete: SetNull)
 
   defectDescription String?
+  quantity          Float?
+  stockBefore       Float?
+  stockAfter        Float?
   receivedAt        DateTime?
   returnedAt        DateTime?
   notes             String?

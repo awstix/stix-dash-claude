@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
-import { FreeTextCombobox } from "@/components/FreeTextCombobox";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -9,8 +8,8 @@ import {
   updateWorkshopRepairOrder,
 } from "./actions";
 import { WorkshopEditDialog } from "./WorkshopEditDialog";
-import { WorkshopStatusFields } from "./WorkshopStatusFields";
 import { WorkshopFormCenter } from "./WorkshopFormCenter";
+import { WorkshopOrderForm } from "./WorkshopOrderForm";
 import { deleteWorkshopFormSubmission } from "./form-actions";
 import {
   BUILT_IN_WORKSHOP_FORMS,
@@ -19,13 +18,10 @@ import {
   type WorkshopFormKind,
 } from "./workshopFormTypes";
 import {
-  getProjectFormPresetOptions,
   parseProjectFormFields,
-  type ProjectFormFieldDefinition,
 } from "@/app/projects/projectFormTypes";
 import {
   ensureWorkshopRepairOrderTemplate,
-  WORKSHOP_REPAIR_SYSTEM_FIELD_IDS,
   WORKSHOP_REPAIR_TEMPLATE_ID,
 } from "./repairOrderTemplate";
 
@@ -33,6 +29,7 @@ const statusOptions = [
   { label: "Offen", value: "OPEN" },
   { label: "In Arbeit", value: "IN_PROGRESS" },
   { label: "Wartet", value: "WAITING" },
+  { label: "Defekt", value: "DEFECT" },
   { label: "Erledigt", value: "DONE" },
   { label: "Abgebrochen", value: "CANCELLED" },
 ];
@@ -48,11 +45,30 @@ function formatDateInput(date: Date | null | undefined) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+function formatDateTimeInput(date: Date | null | undefined) {
+  if (!date) return "";
+
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function formatDate(date: Date | null | undefined) {
   if (!date) return "-";
 
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(date: Date | null | undefined) {
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     month: "2-digit",
     year: "numeric",
   }).format(date);
@@ -67,11 +83,16 @@ function getPriorityLabel(value: string) {
 }
 
 function getStatusClass(value: string) {
-  if (value === "DONE") return "bg-green-100 text-green-900";
+  if (value === "DONE") return "bg-gray-100 text-gray-700";
   if (value === "IN_PROGRESS") return "bg-blue-100 text-blue-900";
   if (value === "WAITING") return "bg-amber-100 text-amber-950";
+  if (value === "DEFECT") return "bg-red-100 text-red-900";
   if (value === "CANCELLED") return "bg-gray-200 text-gray-700";
   return "bg-red-100 text-red-900";
+}
+
+function getWorkshopSubmissionStatus(completedAt: Date | null) {
+  return completedAt ? "DONE" : "DEFECT";
 }
 
 function getPriorityClass(value: string) {
@@ -89,6 +110,24 @@ function getVehicleLabel(vehicle: {
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");
+}
+
+function getWorkshopObjectLabel(order: {
+  inventoryItem?: {
+    inventoryNumber: string | null;
+    name: string;
+  } | null;
+  licensePlate: string | null;
+  vehicleNumber: string | null;
+  vehicleType: string | null;
+}) {
+  if (order.inventoryItem) {
+    return [order.inventoryItem.inventoryNumber, order.inventoryItem.name]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  return getVehicleLabel(order);
 }
 
 function normalizeSearchText(value: string | null | undefined) {
@@ -200,6 +239,9 @@ export default async function WorkshopPage({
       },
     }),
     prisma.workshopRepairOrder.findMany({
+      include: {
+        inventoryItem: true,
+      },
       orderBy: [{ reportedAt: "desc" }, { createdAt: "desc" }],
     }),
     prisma.workshopFormTemplate.findMany({
@@ -207,7 +249,7 @@ export default async function WorkshopPage({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.workshopFormSubmission.findMany({
-      include: { template: true, vehicle: true },
+      include: { inventoryItem: true, template: true, vehicle: true },
       orderBy: [{ formDate: "desc" }, { createdAt: "desc" }],
       take: 50,
     }),
@@ -266,12 +308,17 @@ export default async function WorkshopPage({
         order.vehicleNumber,
         order.licensePlate,
         order.vehicleType,
+        order.inventoryItem?.inventoryNumber,
+        order.inventoryItem?.name,
       ].join(" "),
     ).includes(normalizedQuery);
   });
   const filteredFormSubmissions = workshopSubmissions.filter((submission) => {
-    if (archiveFilter === "archive") return false;
-    if (statusFilter) return false;
+    const submissionStatus = getWorkshopSubmissionStatus(submission.completedAt);
+    const archived = submissionStatus === "DONE";
+    if (archiveFilter === "active" && archived) return false;
+    if (archiveFilter === "archive" && !archived) return false;
+    if (statusFilter && submissionStatus !== statusFilter) return false;
     if (priorityFilter && submission.priority !== priorityFilter) return false;
     if (assignedFilter && submission.createdByName !== assignedFilter) return false;
     if (plannedFilter === "unplanned" && submission.formDate) return false;
@@ -283,6 +330,8 @@ export default async function WorkshopPage({
         submission.title,
         submission.template?.name,
         submission.createdByName,
+        submission.inventoryItem?.inventoryNumber,
+        submission.inventoryItem?.name,
         submission.vehicle?.vehicleNumber,
         submission.vehicle?.licensePlate,
         submission.vehicle?.vehicleType,
@@ -303,13 +352,14 @@ export default async function WorkshopPage({
     })),
     ...filteredFormSubmissions.map((submission) => ({
       assignedTo: submission.createdByName,
+      completedAt: submission.completedAt,
       createdAt: submission.createdAt,
       item: submission,
       plannedEnd: submission.formDate,
       plannedStart: submission.formDate,
       priority: submission.priority,
-      reportedAt: submission.formDate ?? submission.createdAt,
-      status: "FORM",
+      reportedAt: submission.createdAt,
+      status: getWorkshopSubmissionStatus(submission.completedAt),
       type: "FORM" as const,
     })),
   ].sort((a, b) => compareRepairOrders(a, b, sortMode));
@@ -318,16 +368,20 @@ export default async function WorkshopPage({
   const activeCount =
     repairOrders.filter((order) =>
       ["OPEN", "IN_PROGRESS", "WAITING"].includes(order.status),
-    ).length + workshopSubmissions.length;
+    ).length +
+    workshopSubmissions.filter((submission) => !submission.completedAt).length;
   const urgentCount =
     repairOrders.filter(
       (order) => order.priority === "URGENT" && order.status !== "DONE",
     ).length +
-    workshopSubmissions.filter((submission) => submission.priority === "URGENT")
-      .length;
-  const archiveCount = repairOrders.filter((order) =>
-    ["DONE", "CANCELLED"].includes(order.status),
-  ).length;
+    workshopSubmissions.filter(
+      (submission) => submission.priority === "URGENT" && !submission.completedAt,
+    ).length;
+  const archiveCount =
+    repairOrders.filter((order) =>
+      ["DONE", "CANCELLED"].includes(order.status),
+    ).length +
+    workshopSubmissions.filter((submission) => submission.completedAt).length;
   const workshopFormCenter = (
     <WorkshopFormCenter
       key={editFormId || "new-workshop-form"}
@@ -371,12 +425,15 @@ export default async function WorkshopPage({
         const builtIn = BUILT_IN_WORKSHOP_FORMS.find((item) => item.kind === kind);
         return {
           createdByName: submission.createdByName,
+          completedAt: formatDateInput(submission.completedAt),
+          completedByName: submission.completedByName,
           fields: parseWorkshopSnapshotFields(
             submission.templateSnapshotJson,
             submission.template?.fieldsJson,
           ),
           formDate: formatDateInput(submission.formDate),
           id: submission.id,
+          inventoryItemId: submission.inventoryItemId ?? "",
           priority: submission.priority,
           templateId: submission.templateId ?? builtIn?.id ?? "",
           templateKind: kind,
@@ -550,7 +607,7 @@ export default async function WorkshopPage({
               <tr>
                 <th className="w-[92px] p-3 font-semibold">Aktion</th>
                 <th className="p-3 font-semibold">Auftrag</th>
-                <th className="p-3 font-semibold">Gerät/Fahrzeug</th>
+                <th className="p-3 font-semibold">Inventar/Gerät</th>
                 <th className="p-3 font-semibold">Status</th>
                 <th className="p-3 font-semibold">Priorität</th>
                 <th className="p-3 font-semibold">Gemeldet</th>
@@ -571,11 +628,7 @@ export default async function WorkshopPage({
                   row.type === "REPAIR" ? (
                   <tr
                     key={`repair-${row.item.id}`}
-                    className={
-                      row.item.status === "DONE"
-                        ? "border-t border-green-100 bg-green-50/70"
-                        : "border-t border-gray-100"
-                    }
+                    className="border-t border-gray-100"
                   >
                     <td className="p-3 align-top">
                       <div className="flex gap-2">
@@ -588,15 +641,17 @@ export default async function WorkshopPage({
                             vehicles={vehicles}
                             defaultAssignedTo={row.item.assignedTo ?? ""}
                             defaultCompletedAt={formatDateInput(row.item.completedAt)}
+                            defaultCompletedByName={row.item.completedByName ?? ""}
                             defaultCustomValues={parseRepairCustomValues(
                               row.item.customValuesJson,
                             )}
                             defaultDescription={row.item.description ?? ""}
+                            defaultInventoryItemId={row.item.inventoryItemId ?? ""}
                             defaultNotes={row.item.notes ?? ""}
                             defaultPlannedEnd={formatDateInput(row.item.plannedEnd)}
                             defaultPlannedStart={formatDateInput(row.item.plannedStart)}
                             defaultPriority={row.item.priority}
-                            defaultReportedAt={formatDateInput(row.item.reportedAt)}
+                            defaultReportedAt={formatDateTimeInput(row.item.reportedAt)}
                             defaultStatus={row.item.status}
                             defaultTitle={row.item.title}
                             defaultVehicleId={row.item.vehicleId ?? ""}
@@ -627,28 +682,20 @@ export default async function WorkshopPage({
                     </td>
                     <td className="p-3 align-top">
                       <div
-                        className={
-                          row.item.status === "DONE"
-                            ? "font-semibold text-gray-700"
-                            : "font-semibold text-gray-900"
-                        }
+                        className="font-semibold text-gray-900"
                       >
                         {row.item.title}
                       </div>
                       {row.item.description ? (
                         <div
-                          className={
-                            row.item.status === "DONE"
-                              ? "mt-1 line-clamp-2 text-gray-500"
-                              : "mt-1 line-clamp-2 text-gray-600"
-                          }
+                          className="mt-1 line-clamp-2 text-gray-600"
                         >
                           {row.item.description}
                         </div>
                       ) : null}
                     </td>
                     <td className="p-3 align-top text-gray-700">
-                      {getVehicleLabel(row.item) || "-"}
+                      {getWorkshopObjectLabel(row.item) || "-"}
                     </td>
                     <td className="p-3 align-top">
                       <div className="flex flex-col items-start gap-1">
@@ -660,11 +707,7 @@ export default async function WorkshopPage({
                           {getStatusLabel(row.item.status)}
                         </span>
                         <span
-                          className={
-                            row.item.status === "DONE"
-                              ? "text-xs font-semibold text-green-800"
-                              : "text-xs text-gray-500"
-                          }
+                          className="text-xs text-gray-500"
                         >
                           {row.item.status === "DONE"
                             ? `Erledigt am ${formatDate(row.item.completedAt)}`
@@ -684,7 +727,7 @@ export default async function WorkshopPage({
                       </span>
                     </td>
                     <td className="p-3 align-top text-gray-700">
-                      {formatDate(row.item.reportedAt)}
+                      {formatDateTime(row.item.reportedAt)}
                     </td>
                     <td className="p-3 align-top text-gray-700">
                       {formatDate(row.item.plannedStart)} -{" "}
@@ -697,7 +740,7 @@ export default async function WorkshopPage({
                   ) : (
                     <tr
                       key={`form-${row.item.id}`}
-                      className="border-t border-blue-100 bg-blue-50/40"
+                      className="border-t border-gray-100"
                     >
                       <td className="p-3 align-top">
                         <div className="flex gap-2">
@@ -741,12 +784,33 @@ export default async function WorkshopPage({
                         </div>
                       </td>
                       <td className="p-3 align-top text-gray-700">
-                        {row.item.vehicle ? getVehicleLabel(row.item.vehicle) : "-"}
+                        {row.item.inventoryItem
+                          ? [
+                              row.item.inventoryItem.inventoryNumber,
+                              row.item.inventoryItem.name,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : row.item.vehicle
+                            ? getVehicleLabel(row.item.vehicle)
+                            : "-"}
                       </td>
                       <td className="p-3 align-top">
-                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-900">
-                          Ausgefülltes Formular
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusClass(
+                            row.status,
+                          )}`}
+                        >
+                          {getStatusLabel(row.status)}
                         </span>
+                        {row.item.completedAt ? (
+                          <span className="mt-1 block text-xs text-gray-500">
+                            {formatDate(row.item.completedAt)}
+                            {row.item.completedByName
+                              ? ` · ${row.item.completedByName}`
+                              : ""}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="p-3 align-top">
                         <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getPriorityClass(row.item.priority)}`}>
@@ -754,7 +818,7 @@ export default async function WorkshopPage({
                         </span>
                       </td>
                       <td className="p-3 align-top text-gray-700">
-                        {formatDate(row.item.formDate ?? row.item.createdAt)}
+                        {formatDateTime(row.reportedAt)}
                       </td>
                       <td className="p-3 align-top text-gray-700">
                         {formatDate(row.item.formDate)}
@@ -771,330 +835,6 @@ export default async function WorkshopPage({
         </div>
       </div>
     </AppShell>
-  );
-}
-
-function WorkshopOrderForm({
-  action,
-  id,
-  personnel,
-  repairTemplateFields,
-  vehicles,
-  defaultAssignedTo = "",
-  defaultCompletedAt = "",
-  defaultCustomValues,
-  defaultDescription = "",
-  defaultNotes = "",
-  defaultPlannedEnd = "",
-  defaultPlannedStart = "",
-  defaultPriority = "NORMAL",
-  defaultReportedAt = formatDateInput(new Date()),
-  defaultStatus = "OPEN",
-  defaultTitle = "",
-  defaultVehicleId = "",
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  id?: string;
-  personnel: { id: string; name: string }[];
-  repairTemplateFields: ProjectFormFieldDefinition[];
-  vehicles: {
-    id: string;
-    licensePlate: string | null;
-    vehicleNumber: string;
-    vehicleType: string;
-  }[];
-  defaultAssignedTo?: string;
-  defaultCompletedAt?: string;
-  defaultCustomValues: Record<string, boolean | string>;
-  defaultDescription?: string;
-  defaultNotes?: string;
-  defaultPlannedEnd?: string;
-  defaultPlannedStart?: string;
-  defaultPriority?: string;
-  defaultReportedAt?: string;
-  defaultStatus?: string;
-  defaultTitle?: string;
-  defaultVehicleId?: string;
-}) {
-  const templateFields =
-    repairTemplateFields.length > 0
-      ? repairTemplateFields
-      : [];
-  const layout = (id: string, fallbackWidth: number) => {
-    const index = templateFields.findIndex((field) => field.id === id);
-    const field = index >= 0 ? templateFields[index] : null;
-    return {
-      field,
-      style: {
-        gridColumn: `span ${field?.width ?? fallbackWidth}`,
-        order: index >= 0 ? index : 100,
-      },
-    };
-  };
-  const vehicleLayout = layout("vehicleId", 3);
-  const statusLayout = layout("status", 2);
-  const priorityLayout = layout("priority", 1);
-  const titleLayout = layout("title", 6);
-  const descriptionLayout = layout("description", 6);
-  const reportedLayout = layout("reportedAt", 2);
-  const plannedStartLayout = layout("plannedStart", 2);
-  const plannedEndLayout = layout("plannedEnd", 2);
-  const assignedLayout = layout("assignedTo", 3);
-  const notesLayout = layout("notes", 3);
-  const customFields = templateFields.filter(
-    (field) => !WORKSHOP_REPAIR_SYSTEM_FIELD_IDS.has(field.id),
-  );
-
-  return (
-    <form
-      action={action}
-      className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
-    >
-      {id ? <input type="hidden" name="id" value={id} /> : null}
-
-      <label className="text-sm font-medium text-gray-800" style={vehicleLayout.style}>
-        {vehicleLayout.field?.label ?? "Gerät / Fahrzeug"}
-        <select
-          name="vehicleId"
-          required={vehicleLayout.field?.required}
-          defaultValue={defaultVehicleId}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          <option value="">Ohne Zuordnung</option>
-          {vehicles.map((vehicle) => (
-            <option key={vehicle.id} value={vehicle.id}>
-              {getVehicleLabel(vehicle)}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="grid grid-cols-2 gap-4" style={statusLayout.style}>
-        <WorkshopStatusFields
-          defaultCompletedAt={defaultCompletedAt}
-          defaultStatus={defaultStatus}
-          statusLabel={statusLayout.field?.label}
-        />
-      </div>
-
-      <label className="text-sm font-medium text-gray-800" style={priorityLayout.style}>
-        {priorityLayout.field?.label ?? "Priorität"}
-        <select
-          name="priority"
-          required={priorityLayout.field?.required}
-          defaultValue={defaultPriority}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          {priorityOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={titleLayout.style}>
-        {titleLayout.field?.label ?? "Titel"}
-        <input
-          name="title"
-          required={titleLayout.field?.required ?? true}
-          defaultValue={defaultTitle}
-          placeholder="z.B. Hydraulikschlauch undicht, Service fällig..."
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={descriptionLayout.style}>
-        {descriptionLayout.field?.label ?? "Beschreibung"}
-        <textarea
-          name="description"
-          required={descriptionLayout.field?.required}
-          defaultValue={defaultDescription}
-          rows={3}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={reportedLayout.style}>
-        {reportedLayout.field?.label ?? "Gemeldet am"}
-        <input
-          type="date"
-          name="reportedAt"
-          required={reportedLayout.field?.required}
-          defaultValue={defaultReportedAt}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={plannedStartLayout.style}>
-        {plannedStartLayout.field?.label ?? "Geplant von"}
-        <input
-          type="date"
-          name="plannedStart"
-          required={plannedStartLayout.field?.required}
-          defaultValue={defaultPlannedStart}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={plannedEndLayout.style}>
-        {plannedEndLayout.field?.label ?? "Geplant bis"}
-        <input
-          type="date"
-          name="plannedEnd"
-          required={plannedEndLayout.field?.required}
-          defaultValue={defaultPlannedEnd}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={assignedLayout.style}>
-        {assignedLayout.field?.label ?? "Zuständig"}
-        <FreeTextCombobox
-          name="assignedTo"
-          required={assignedLayout.field?.required}
-          defaultValue={defaultAssignedTo}
-          placeholder="Werkstatt, Mitarbeiter, extern..."
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          options={personnel.map((person) => ({
-            id: person.id,
-            label: person.name,
-          }))}
-          suggestionsId={`workshop-personnel-${id ?? "new"}`}
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800" style={notesLayout.style}>
-        {notesLayout.field?.label ?? "Bemerkung"}
-        <input
-          name="notes"
-          required={notesLayout.field?.required}
-          defaultValue={defaultNotes}
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      {customFields.map((field) => (
-        <RepairCustomField
-          field={field}
-          key={field.id}
-          value={defaultCustomValues[field.id]}
-          order={templateFields.findIndex((item) => item.id === field.id)}
-        />
-      ))}
-
-      <div className="flex items-end xl:col-span-6" style={{ order: 1000 }}>
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-        >
-          <ActionIcon name="save" className="h-4 w-4" />
-          Speichern
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function RepairCustomField({
-  field,
-  order,
-  value,
-}: {
-  field: ProjectFormFieldDefinition;
-  order: number;
-  value: boolean | string | undefined;
-}) {
-  const style = {
-    gridColumn: `span ${field.width}`,
-    order,
-  };
-  const className =
-    "mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
-
-  if (field.type === "divider" || field.type === "companydata") {
-    return (
-      <div className="border-b border-gray-300 pb-2 font-semibold text-gray-900" style={style}>
-        {field.label}
-      </div>
-    );
-  }
-
-  if (field.type === "checkbox") {
-    return (
-      <label className="flex items-center gap-3 pt-7 text-sm font-medium text-gray-800" style={style}>
-        <input
-          type="checkbox"
-          name={`custom:${field.id}`}
-          defaultChecked={value === true}
-          className="h-5 w-5"
-        />
-        {field.label}
-      </label>
-    );
-  }
-
-  if (
-    field.type === "select" ||
-    field.type === "masterdata" ||
-    field.type === "trafficlight" ||
-    field.type === "grade"
-  ) {
-    const options =
-      field.options.length > 0
-        ? field.options
-        : getProjectFormPresetOptions(field.type);
-    return (
-      <label className="text-sm font-medium text-gray-800" style={style}>
-        {field.label}
-        <select
-          name={`custom:${field.id}`}
-          defaultValue={String(value ?? "")}
-          required={field.required}
-          className={className}
-        >
-          <option value="">Bitte auswählen</option>
-          {options.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-    );
-  }
-
-  if (
-    field.type === "textarea" ||
-    field.type === "chart" ||
-    field.type === "subform"
-  ) {
-    return (
-      <label className="text-sm font-medium text-gray-800" style={style}>
-        {field.label}
-        <textarea
-          name={`custom:${field.id}`}
-          defaultValue={String(value ?? "")}
-          required={field.required}
-          rows={3}
-          className={className}
-        />
-      </label>
-    );
-  }
-
-  const inputType = ["date", "time", "number"].includes(field.type)
-    ? field.type
-    : "text";
-  return (
-    <label className="text-sm font-medium text-gray-800" style={style}>
-      {field.label}
-      <input
-        type={inputType}
-        name={`custom:${field.id}`}
-        defaultValue={String(value ?? "")}
-        required={field.required}
-        className={className}
-      />
-    </label>
   );
 }
 

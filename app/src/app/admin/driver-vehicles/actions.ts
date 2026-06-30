@@ -104,6 +104,7 @@ function revalidateDriverVehicleConsumers() {
   revalidatePath("/admin/driver-vehicles");
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/truck-dispatch/long-haul");
   revalidatePath("/truck-dispatch/short-haul");
 }

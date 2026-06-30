@@ -1,8 +1,10 @@
 import Link from "next/link";
-import Image from "next/image";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { deleteInventoryItem } from "./actions";
+import { InventoryPhotoThumbnailButton } from "./InventoryPhotoGallery";
+import { ProjectStatus, type Prisma } from "@prisma/client";
 
 function formatMoney(cents: number | null) {
   if (cents === null) return "—";
@@ -21,6 +23,30 @@ function formatNumber(value: number | null) {
   }).format(value);
 }
 
+function formatCreatedMeta(date: Date) {
+  return `${new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(date)} von Benutzer`;
+}
+
+function getInventoryStatusLabel(status: string | null) {
+  if (status === "DEFECT") return "Defekt";
+  if (status === "LOCKED") return "Gesperrt";
+  if (status === "IN_SERVICE") return "In Wartung";
+  return "Aktiv";
+}
+
+function getInventoryStatusClass(status: string | null) {
+  if (status === "DEFECT") return "bg-red-100 text-red-900 ring-red-200";
+  if (status === "LOCKED") return "bg-orange-100 text-orange-950 ring-orange-200";
+  if (status === "IN_SERVICE") return "bg-blue-100 text-blue-900 ring-blue-200";
+  return "bg-green-100 text-green-900 ring-green-200";
+}
+
 function getResponsibleLabel(item: {
   responsibleCrew: { name: string } | null;
   responsibleEmployee: { firstName: string; lastName: string } | null;
@@ -37,38 +63,53 @@ function getResponsibleLabel(item: {
   return "—";
 }
 
-function getInventorySearchText(item: {
-  category: { name: string } | null;
-  inventoryNumber: string | null;
-  manufacturer: string | null;
-  model: string | null;
-  name: string;
-  serialNumber: string | null;
-}) {
-  return [
-    item.name,
-    item.category?.name,
-    item.manufacturer,
-    item.model,
-    item.serialNumber,
-    item.inventoryNumber,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
+const statusFilterOptions = [
+  { label: "Aktiv", value: "ACTIVE" },
+  { label: "Defekt", value: "DEFECT" },
+  { label: "In Wartung", value: "IN_SERVICE" },
+  { label: "Gesperrt", value: "LOCKED" },
+];
 
 export default async function InventoryPage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    category?: string;
+    project?: string;
     q?: string;
+    status?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
+  const categoryFilter = String(params.category ?? "").trim();
+  const projectFilter = String(params.project ?? "").trim();
+  const statusFilter = String(params.status ?? "").trim();
+  const where: Prisma.InventoryItemWhereInput = {
+    ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+    ...(projectFilter === "__none"
+      ? { currentProjectId: null }
+      : projectFilter
+        ? { currentProjectId: projectFilter }
+        : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(searchQuery
+      ? {
+          OR: [
+            { name: { contains: searchQuery } },
+            { manufacturer: { contains: searchQuery } },
+            { model: { contains: searchQuery } },
+            { serialNumber: { contains: searchQuery } },
+            { inventoryNumber: { contains: searchQuery } },
+            { category: { name: { contains: searchQuery } } },
+            { currentProject: { name: { contains: searchQuery } } },
+            { currentProject: { projectNumber: { contains: searchQuery } } },
+          ],
+        }
+      : {}),
+  };
 
-  const [categories, items] =
+  const [categories, projects, items, totalItems] =
     await Promise.all([
       prisma.inventoryCategory.findMany({
         where: {
@@ -76,14 +117,31 @@ export default async function InventoryPage({
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
+      prisma.project.findMany({
+        where: {
+          status: {
+            in: [
+              ProjectStatus.ACTIVE,
+              ProjectStatus.NOT_STARTED,
+              ProjectStatus.PAUSED,
+            ],
+          },
+        },
+        orderBy: [{ projectNumber: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          projectNumber: true,
+        },
+      }),
       prisma.inventoryItem.findMany({
+        where,
         include: {
           category: true,
           currentProject: true,
           parentItem: true,
           photos: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-            take: 1,
           },
           responsibleCrew: true,
           responsibleEmployee: true,
@@ -96,16 +154,21 @@ export default async function InventoryPage({
         },
         orderBy: [{ updatedAt: "desc" }],
       }),
+      prisma.inventoryItem.count(),
     ]);
 
-  const filteredItems = searchQuery
-    ? items.filter((item) =>
-        getInventorySearchText(item).includes(searchQuery.toLowerCase()),
-      )
-    : items;
+  const filteredItems = items;
 
-  const stockManagedCount = items.filter((item) => item.isStockManaged).length;
-  const containerCount = items.filter((item) => item.isContainer).length;
+  const stockManagedCount = await prisma.inventoryItem.count({
+    where: {
+      isStockManaged: true,
+    },
+  });
+  const containerCount = await prisma.inventoryItem.count({
+    where: {
+      isContainer: true,
+    },
+  });
 
   return (
     <AppShell
@@ -113,7 +176,7 @@ export default async function InventoryPage({
       description="Erste Grundverwaltung für Geräte, Maschinen, Werkzeuge, Containerobjekte und Lagerobjekte."
     >
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <SummaryCard label="Inventarobjekte" value={String(items.length)} />
+        <SummaryCard label="Inventarobjekte" value={String(totalItems)} />
         <SummaryCard label="Containerobjekte" value={String(containerCount)} />
         <SummaryCard label="Lagergeführt" value={String(stockManagedCount)} />
         <SummaryCard
@@ -161,19 +224,76 @@ export default async function InventoryPage({
             </p>
           </div>
 
-          <form className="flex w-full gap-2 md:w-auto">
+          <form className="grid w-full grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-5">
+            <label className="text-sm font-semibold text-gray-800 md:col-span-2">
+              Suche
             <input
-              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 md:w-80"
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={searchQuery}
               name="q"
               placeholder="Suche nach Name, Nummer, Seriennummer..."
             />
+            </label>
+            <label className="text-sm font-semibold text-gray-800">
+              Status
+              <select
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                defaultValue={statusFilter}
+                name="status"
+              >
+                <option value="">Alle Status</option>
+                {statusFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-gray-800">
+              Kategorie
+              <select
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                defaultValue={categoryFilter}
+                name="category"
+              >
+                <option value="">Alle Kategorien</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-gray-800">
+              Baustelle
+              <select
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                defaultValue={projectFilter}
+                name="project"
+              >
+                <option value="">Alle Baustellen</option>
+                <option value="__none">Ohne Baustelle</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.projectNumber} · {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end gap-2 md:col-span-2 xl:col-span-5">
             <button
               className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
               type="submit"
             >
-              Suchen
+                Filter anwenden
             </button>
+              <Link
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                href="/inventory"
+              >
+                Zurücksetzen
+              </Link>
+            </div>
           </form>
         </div>
 
@@ -184,7 +304,9 @@ export default async function InventoryPage({
                 <th className="w-28 p-3">Aktionen</th>
                 <th className="w-20 p-3">Foto</th>
                 <th className="p-3">Objekt</th>
+                <th className="p-3">Angelegt</th>
                 <th className="p-3">Kategorie</th>
+                <th className="p-3">Status</th>
                 <th className="p-3">Inventarnr.</th>
                 <th className="p-3">Seriennr.</th>
                 <th className="p-3">Verantwortlich</th>
@@ -197,7 +319,7 @@ export default async function InventoryPage({
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td className="p-8 text-center text-gray-500" colSpan={11}>
+                  <td className="p-8 text-center text-gray-500" colSpan={13}>
                     Noch keine passenden Inventarobjekte vorhanden.
                   </td>
                 </tr>
@@ -208,29 +330,29 @@ export default async function InventoryPage({
                       <div className="flex items-center gap-1">
                         <Link
                           aria-label={`${item.name} öffnen`}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
                           href={`/inventory/${item.id}`}
                           title="Öffnen"
                         >
-                          ↗
+                          <ActionIcon name="open" className="h-4 w-4" />
                         </Link>
                         <Link
                           aria-label={`${item.name} bearbeiten`}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
                           href={`/inventory/${item.id}/edit`}
                           title="Bearbeiten"
                         >
-                          ✎
+                          <ActionIcon name="edit" className="h-4 w-4" />
                         </Link>
                         <form action={deleteInventoryItem}>
                           <input name="id" type="hidden" value={item.id} />
                           <button
                             aria-label={`${item.name} löschen`}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
                             title="Löschen"
                             type="submit"
                           >
-                            ×
+                            <ActionIcon name="delete" className="h-4 w-4" />
                           </button>
                         </form>
                       </div>
@@ -238,7 +360,18 @@ export default async function InventoryPage({
                     <td className="p-3">
                       <InventoryPhotoThumb
                         name={item.name}
-                        url={item.photos[0]?.url ?? null}
+                        photos={item.photos.map((photo) => ({
+                          createdAt: photo.createdAt.toISOString(),
+                          fileName: photo.fileName,
+                          id: photo.id,
+                          isPrimary: photo.isPrimary,
+                          locationNote: photo.locationNote,
+                          mimeType: photo.mimeType,
+                          originalName: photo.originalName,
+                          sizeBytes: photo.sizeBytes,
+                          uploadedBy: photo.uploadedBy,
+                          url: photo.url,
+                        }))}
                       />
                     </td>
                     <td className="p-3">
@@ -253,7 +386,19 @@ export default async function InventoryPage({
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">
+                      {formatCreatedMeta(item.createdAt)}
+                    </td>
+                    <td className="p-3 text-gray-700">
                       {item.category?.name ?? "—"}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${getInventoryStatusClass(
+                          item.status,
+                        )}`}
+                      >
+                        {getInventoryStatusLabel(item.status)}
+                      </span>
                     </td>
                     <td className="p-3 text-gray-700">
                       {item.inventoryNumber ?? "—"}
@@ -295,34 +440,23 @@ export default async function InventoryPage({
 
 function InventoryPhotoThumb({
   name,
-  url,
+  photos,
 }: {
   name: string;
-  url: string | null;
+  photos: {
+    createdAt: string;
+    fileName: string;
+    id: string;
+    isPrimary: boolean;
+    locationNote: string | null;
+    mimeType: string | null;
+    originalName: string | null;
+    sizeBytes: number | null;
+    uploadedBy: string | null;
+    url: string;
+  }[];
 }) {
-  if (!url) {
-    return (
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-xs font-semibold text-gray-400">
-        —
-      </div>
-    );
-  }
-
-  return (
-    <Link
-      className="relative block h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-gray-100"
-      href={url}
-      title={`${name} Foto öffnen`}
-    >
-      <Image
-        alt={`Foto von ${name}`}
-        className="object-cover"
-        fill
-        sizes="48px"
-        src={url}
-      />
-    </Link>
-  );
+  return <InventoryPhotoThumbnailButton itemName={name} photos={photos} />;
 }
 
 function SummaryCard({ label, value }: { label: string; value: string }) {

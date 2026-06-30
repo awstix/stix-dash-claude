@@ -33,6 +33,24 @@ export default async function EmployeeQualificationsPage({
     q?: string;
   }>;
 }) {
+  return (
+    <EmployeeQualificationsManagementPage
+      basePath="/admin/employee-qualifications"
+      searchParams={searchParams}
+    />
+  );
+}
+
+export async function EmployeeQualificationsManagementPage({
+  basePath,
+  searchParams,
+}: {
+  basePath: string;
+  searchParams: Promise<{
+    page?: string;
+    q?: string;
+  }>;
+}) {
   const params = await searchParams;
   const employeeSearch = String(params.q ?? "").trim();
   const requestedPage = Number.parseInt(String(params.page ?? "1"), 10);
@@ -271,7 +289,7 @@ export default async function EmployeeQualificationsPage({
               </p>
             </div>
             <form
-              action="/admin/employee-qualifications"
+              action={basePath}
               className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto"
             >
               <input
@@ -291,6 +309,7 @@ export default async function EmployeeQualificationsPage({
           </div>
           {pageCount > 1 ? (
             <EmployeePagination
+              basePath={basePath}
               currentPage={visiblePage}
               pageCount={pageCount}
               search={employeeSearch}
@@ -613,10 +632,12 @@ function PaginationLink({
 }
 
 function EmployeePagination({
+  basePath,
   currentPage,
   pageCount,
   search,
 }: {
+  basePath: string;
   currentPage: number;
   pageCount: number;
   search: string;
@@ -628,7 +649,7 @@ function EmployeePagination({
     >
       <PaginationLink
         disabled={currentPage <= 1}
-        href={buildEmployeePageHref(search, currentPage - 1)}
+        href={buildEmployeePageHref(search, currentPage - 1, basePath)}
         label="← Zurück"
       />
       {Array.from({ length: pageCount }, (_, index) => index + 1).map(
@@ -645,7 +666,7 @@ function EmployeePagination({
             <Link
               aria-label={`Mitarbeiterseite ${page}`}
               className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 hover:bg-gray-100"
-              href={buildEmployeePageHref(search, page)}
+              href={buildEmployeePageHref(search, page, basePath)}
               key={page}
             >
               {page}
@@ -654,14 +675,14 @@ function EmployeePagination({
       )}
       <PaginationLink
         disabled={currentPage >= pageCount}
-        href={buildEmployeePageHref(search, currentPage + 1)}
+        href={buildEmployeePageHref(search, currentPage + 1, basePath)}
         label="Weiter →"
       />
     </nav>
   );
 }
 
-function buildEmployeePageHref(search: string, page: number) {
+function buildEmployeePageHref(search: string, page: number, basePath: string) {
   const params = new URLSearchParams();
 
   if (search) {
@@ -669,7 +690,7 @@ function buildEmployeePageHref(search: string, page: number) {
   }
 
   params.set("page", String(Math.max(1, page)));
-  return `/admin/employee-qualifications?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
 }
 
 function getEmployeeReviewState(

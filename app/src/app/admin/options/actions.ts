@@ -757,6 +757,7 @@ function slugify(label: string) {
 function revalidateOptionConsumers() {
   revalidatePath("/admin/options");
   revalidatePath("/admin/employees");
+  revalidatePath("/employees");
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/vehicles");
   revalidatePath("/admin/materials");

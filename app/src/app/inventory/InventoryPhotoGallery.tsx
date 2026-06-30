@@ -124,6 +124,219 @@ export function InventoryPhotoGallery({
   );
 }
 
+export function InventoryPhotoThumbnailButton({
+  itemName,
+  photos,
+}: {
+  itemName: string;
+  photos: InventoryPhotoGalleryItem[];
+}) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const selectedPhoto =
+    selectedIndex === null ? null : photos[selectedIndex] ?? null;
+  const primaryPhoto = photos[0] ?? null;
+
+  function closeViewer() {
+    setSelectedIndex(null);
+  }
+
+  function selectPrevious() {
+    if (selectedIndex === null || photos.length === 0) return;
+    setSelectedIndex((selectedIndex - 1 + photos.length) % photos.length);
+  }
+
+  function selectNext() {
+    if (selectedIndex === null || photos.length === 0) return;
+    setSelectedIndex((selectedIndex + 1) % photos.length);
+  }
+
+  useEffect(() => {
+    if (selectedIndex === null) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeViewer();
+      if (event.key === "ArrowLeft") {
+        setSelectedIndex((current) =>
+          current === null ? current : (current - 1 + photos.length) % photos.length,
+        );
+      }
+      if (event.key === "ArrowRight") {
+        setSelectedIndex((current) =>
+          current === null ? current : (current + 1) % photos.length,
+        );
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIndex, photos.length]);
+
+  if (!primaryPhoto) {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-xs font-semibold text-gray-400">
+        —
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        className="relative block h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-gray-300"
+        onClick={() => setSelectedIndex(0)}
+        title={`${itemName} Fotogalerie öffnen`}
+        type="button"
+      >
+        <Image
+          alt={`Foto von ${itemName}`}
+          className="object-cover"
+          fill
+          sizes="48px"
+          src={primaryPhoto.url}
+        />
+        {photos.length > 1 ? (
+          <span className="absolute bottom-0 right-0 rounded-tl-lg bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+            {photos.length}
+          </span>
+        ) : null}
+      </button>
+
+      {selectedPhoto ? (
+        <InventoryPhotoViewer
+          key={selectedPhoto.id}
+          onClose={closeViewer}
+          onNext={selectNext}
+          onPrevious={selectPrevious}
+          photo={selectedPhoto}
+          showNavigation={photos.length > 1}
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function InventoryPhotoPreviewPanel({
+  itemName,
+  photos,
+}: {
+  itemName: string;
+  photos: InventoryPhotoGalleryItem[];
+}) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const selectedPhoto =
+    selectedIndex === null ? null : photos[selectedIndex] ?? null;
+  const primaryPhoto = photos[0] ?? null;
+
+  function closeViewer() {
+    setSelectedIndex(null);
+  }
+
+  function selectPrevious() {
+    if (selectedIndex === null || photos.length === 0) return;
+    setSelectedIndex((selectedIndex - 1 + photos.length) % photos.length);
+  }
+
+  function selectNext() {
+    if (selectedIndex === null || photos.length === 0) return;
+    setSelectedIndex((selectedIndex + 1) % photos.length);
+  }
+
+  useEffect(() => {
+    if (selectedIndex === null) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeViewer();
+      if (event.key === "ArrowLeft") {
+        setSelectedIndex((current) =>
+          current === null ? current : (current - 1 + photos.length) % photos.length,
+        );
+      }
+      if (event.key === "ArrowRight") {
+        setSelectedIndex((current) =>
+          current === null ? current : (current + 1) % photos.length,
+        );
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIndex, photos.length]);
+
+  return (
+    <>
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-gray-900">Fotos</h2>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">
+            {photos.length}
+          </span>
+        </div>
+
+        {!primaryPhoto ? (
+          <div className="mt-4 flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-sm font-semibold text-gray-400">
+            Kein Foto vorhanden
+          </div>
+        ) : (
+          <>
+            <button
+              className="relative mt-4 block aspect-[4/3] w-full overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-gray-300"
+              onClick={() => setSelectedIndex(0)}
+              title={`${itemName} Fotogalerie öffnen`}
+              type="button"
+            >
+              <Image
+                alt={primaryPhoto.originalName ?? itemName}
+                className="object-cover"
+                fill
+                sizes="(min-width: 1280px) 28vw, 100vw"
+                src={primaryPhoto.url}
+              />
+              {primaryPhoto.isPrimary ? (
+                <span className="absolute left-3 top-3 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-bold text-yellow-900 shadow">
+                  Hauptfoto
+                </span>
+              ) : null}
+            </button>
+
+            {photos.length > 1 ? (
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {photos.slice(1, 9).map((photo, index) => (
+                  <button
+                    className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-gray-300"
+                    key={photo.id}
+                    onClick={() => setSelectedIndex(index + 1)}
+                    title={photo.originalName ?? photo.fileName}
+                    type="button"
+                  >
+                    <Image
+                      alt={photo.originalName ?? itemName}
+                      className="object-cover"
+                      fill
+                      sizes="90px"
+                      src={photo.url}
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
+      </section>
+
+      {selectedPhoto ? (
+        <InventoryPhotoViewer
+          key={selectedPhoto.id}
+          onClose={closeViewer}
+          onNext={selectNext}
+          onPrevious={selectPrevious}
+          photo={selectedPhoto}
+          showNavigation={photos.length > 1}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function InventoryPhotoViewer({
   onClose,
   onNext,

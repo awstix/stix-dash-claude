@@ -58,6 +58,7 @@ export type InventoryItemFormData = {
   responsibleEmployeeId: string | null;
   responsibleType: string | null;
   serialNumber: string | null;
+  status: string;
   stockUnit: string;
   vehicleId: string | null;
 };
@@ -158,6 +159,16 @@ export function InventoryItemForm({
                   </option>
                 ))}
               </Select>
+              <Select
+                defaultValue={item?.status ?? "ACTIVE"}
+                label="Status"
+                name="status"
+              >
+                <option value="ACTIVE">Aktiv</option>
+                <option value="DEFECT">Defekt</option>
+                <option value="IN_SERVICE">In Wartung</option>
+                <option value="LOCKED">Gesperrt</option>
+              </Select>
             </div>
           </div>
 
@@ -201,14 +212,8 @@ export function InventoryItemForm({
                 name="model"
               />
               <Input
-                defaultValue={item?.constructionYear ?? ""}
-                label="Baujahr"
-                name="constructionYear"
-                type="number"
-              />
-              <Input
                 defaultValue={formatDateInput(item?.constructionDate ?? null)}
-                label="Baujahr genaues Datum"
+                label="Baujahr / Baudatum"
                 name="constructionDate"
                 type="date"
               />

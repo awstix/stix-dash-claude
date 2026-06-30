@@ -26,10 +26,13 @@ type Vehicle = {
 };
 
 type Submission = {
+  completedAt: string;
+  completedByName: string | null;
   createdByName: string | null;
   fields: ProjectFormFieldDefinition[];
   formDate: string;
   id: string;
+  inventoryItemId: string;
   priority: string;
   templateId: string;
   templateKind: WorkshopFormTemplateItem["kind"];
@@ -99,9 +102,12 @@ export function WorkshopFormCenter({
     startTransition(async () => {
       try {
         await saveWorkshopFormSubmission({
+          completedAt: String(formData.get("completedAt") ?? ""),
+          completedByName: String(formData.get("completedByName") ?? ""),
           createdByName: String(formData.get("createdByName") ?? ""),
           formDate: String(formData.get("formDate") ?? ""),
           id: editing?.id,
+          inventoryItemId: editing?.inventoryItemId ?? "",
           priority: String(formData.get("priority") ?? ""),
           templateId: activeTemplate.id,
           title: String(formData.get("title") ?? ""),
@@ -199,7 +205,7 @@ export function WorkshopFormCenter({
                   <input name="title" defaultValue={editing?.title ?? activeTemplate.name} className={inputClass} />
                 </label>
                 <label className="text-sm font-medium text-gray-800">
-                  Datum
+                  Gemeldet am
                   <input type="date" name="formDate" defaultValue={editing?.formDate || today()} className={inputClass} />
                 </label>
                 <label className="text-sm font-medium text-gray-800">
@@ -244,6 +250,32 @@ export function WorkshopFormCenter({
                   values={editing?.values ?? {}}
                 />
               </div>
+              <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-800">
+                    Erledigt am
+                    <input
+                      type="date"
+                      name="completedAt"
+                      defaultValue={editing?.completedAt ?? ""}
+                      className={inputClass}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-800">
+                    Erledigt / freigegeben von
+                    <FreeTextCombobox
+                      name="completedByName"
+                      defaultValue={editing?.completedByName ?? ""}
+                      className={inputClass}
+                      options={personnel.map((person) => ({
+                        id: person.id,
+                        label: person.name,
+                      }))}
+                      suggestionsId="workshop-form-completed-by"
+                    />
+                  </label>
+                </div>
+              </div>
               <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4">
                 <button type="button" onClick={close} className="rounded-xl border border-gray-300 px-4 py-2 font-semibold">
                   Abbrechen
@@ -260,7 +292,7 @@ export function WorkshopFormCenter({
   );
 }
 
-function WorkshopFields({
+export function WorkshopFields({
   fields,
   kind,
   personnel,
@@ -277,7 +309,7 @@ function WorkshopFields({
         <div className="grid gap-4 md:grid-cols-3">
           <Text name="licensePlate" label="Kennzeichen" values={values} />
           <Text name="km" label="Kilometerstand" values={values} type="number" />
-          <Text name="inspectionDate" label="Kontrolldatum" values={values} type="date" />
+          <Text name="inspectionDate" label="Gemeldet am" values={values} type="date" />
         </div>
         <div className="overflow-x-auto rounded-xl border border-gray-200">
           <div className="min-w-[720px]">
@@ -301,8 +333,7 @@ function WorkshopFields({
           </div>
         </div>
         <Text name="notes" label="Notizen" values={values} textarea />
-        <PersonnelSelect name="mechanic" label="Monteur" personnel={personnel} values={values} />
-        <SignaturePad name="mechanicSignature" label="Unterschrift Monteur" value={String(values.mechanicSignature ?? "")} />
+        <SignaturePad name="mechanicSignature" label="Unterschrift Erledigt / Freigabe" value={String(values.mechanicSignature ?? "")} />
       </div>
     );
   }
@@ -340,8 +371,6 @@ function WorkshopFields({
         ))}
         </div>
         <Text name="signatureCompany" label="Firma" values={values} />
-        <Text name="signatureDate" label="Datum" values={values} type="date" />
-        <PersonnelSelect name="signatureName" label="Unterzeichner" personnel={personnel} values={values} />
         <div className="md:col-span-2">
           <SignaturePad name="signatureDataUrl" label="Unterschrift" value={String(values.signatureDataUrl ?? "")} />
         </div>
@@ -394,34 +423,6 @@ function WorkshopFields({
         </div>
       ))}
     </div>
-  );
-}
-
-function PersonnelSelect({
-  label,
-  name,
-  personnel,
-  values,
-}: {
-  label: string;
-  name: string;
-  personnel: { id: string; name: string }[];
-  values: Record<string, boolean | string>;
-}) {
-  return (
-    <label className="block text-sm font-medium text-gray-800">
-      {label}
-      <FreeTextCombobox
-        name={`value:${name}`}
-        defaultValue={String(values[name] ?? "")}
-        className={inputClass}
-        options={personnel.map((person) => ({
-          id: person.id,
-          label: person.name,
-        }))}
-        suggestionsId={`personnel-${name}`}
-      />
-    </label>
   );
 }
 
