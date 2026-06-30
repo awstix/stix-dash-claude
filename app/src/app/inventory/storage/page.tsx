@@ -92,6 +92,8 @@ export default async function InventoryStoragePage({
             { name: { contains: searchQuery } },
             { manufacturer: { contains: searchQuery } },
             { model: { contains: searchQuery } },
+            { objectNumber: { contains: searchQuery } },
+            { licensePlate: { contains: searchQuery } },
             { serialNumber: { contains: searchQuery } },
             { inventoryNumber: { contains: searchQuery } },
             { category: { name: { contains: searchQuery } } },
@@ -187,7 +189,7 @@ export default async function InventoryStoragePage({
               className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={searchQuery}
               name="q"
-              placeholder="Suche nach Name, Nummer, Seriennummer..."
+              placeholder="Suche nach Name, Objekt-ID, Kennzeichen, Inventarnummer, Seriennummer..."
             />
           </label>
           <label className="text-sm font-semibold text-gray-800">
@@ -360,7 +362,11 @@ export default async function InventoryStoragePage({
                         </Link>
                       </div>
                       <div className="text-xs text-gray-500">
-                        {item.inventoryNumber ?? "ohne Inventarnummer"}
+                        {[item.objectNumber, item.inventoryNumber
+                          ? `Inventarnr. ${item.inventoryNumber}`
+                          : null]
+                          .filter(Boolean)
+                          .join(" · ") || "ohne Objekt-ID"}
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">

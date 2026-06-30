@@ -6,6 +6,7 @@ export type InventoryItemFormData = {
   categoryId: string | null;
   constructionDate: Date | null;
   constructionYear: number | null;
+  axleCount: number | null;
   contacts?: {
     company: string | null;
     email: string | null;
@@ -23,11 +24,14 @@ export type InventoryItemFormData = {
   currentProjectId: string | null;
   currentStock: number | null;
   deliveryNoteNumber: string | null;
+  driveType: string | null;
+  grossWeightKg: number | null;
   id: string;
   inventoryNumber: string | null;
   invoiceNumber: string | null;
   isContainer: boolean;
   isStockManaged: boolean;
+  licensePlate: string | null;
   lastDguvInspectionDate: Date | null;
   lastServiceAtDate: Date | null;
   lastServiceMileageKm: number | null;
@@ -42,8 +46,10 @@ export type InventoryItemFormData = {
   nextServiceOperatingHours: number | null;
   nextTuvInspectionDate: Date | null;
   notes: string | null;
+  objectNumber: string | null;
   openingStock: number | null;
   parentItemId: string | null;
+  payloadKg: number | null;
   photos?: {
     fileName: string;
     id: string;
@@ -73,6 +79,12 @@ function formatNumber(value: number | null) {
   return new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 3,
   }).format(value);
+}
+
+function formatTonsInput(value: number | null) {
+  if (value === null) return "";
+
+  return String(value / 1000);
 }
 
 export function InventoryItemForm({
@@ -181,6 +193,12 @@ export function InventoryItemForm({
             ) : null}
             <div className={innerGridClass}>
               <Input
+                defaultValue={item?.objectNumber ?? ""}
+                label="Objekt-ID"
+                name="objectNumber"
+                placeholder="leer = automatisch"
+              />
+              <Input
                 defaultValue={item?.inventoryNumber ?? ""}
                 label="Inventarnummer"
                 name="inventoryNumber"
@@ -189,6 +207,12 @@ export function InventoryItemForm({
                 defaultValue={item?.serialNumber ?? ""}
                 label="Seriennummer"
                 name="serialNumber"
+              />
+              <Input
+                defaultValue={item?.licensePlate ?? ""}
+                label="Kennzeichen"
+                name="licensePlate"
+                placeholder="z.B. AB-ST 123"
               />
             </div>
           </div>
@@ -255,6 +279,49 @@ export function InventoryItemForm({
                 label="Lieferscheinnummer"
                 name="deliveryNoteNumber"
               />
+            </div>
+          </div>
+
+          <div className={fieldGroupClass}>
+            {layout === "stacked" ? (
+              <FieldGroupHeader
+                description="Optionale Angaben für LKW, Baumaschinen und spätere Disposition."
+                title="Dispo- / Fahrzeugdaten"
+              />
+            ) : null}
+            <div className={innerGridClass}>
+              <Input
+                defaultValue={item?.axleCount?.toString() ?? ""}
+                label="Anzahl Achsen"
+                name="axleCount"
+                type="number"
+              />
+              <Input
+                defaultValue={item?.grossWeightKg?.toString() ?? ""}
+                label="Zul. Gesamtgewicht kg"
+                name="grossWeightKg"
+                type="number"
+              />
+              <Input
+                defaultValue={formatTonsInput(item?.payloadKg ?? null)}
+                label="Nutzlast t"
+                name="payloadTons"
+                placeholder="z.B. 13.5"
+                step="0.001"
+                type="number"
+              />
+              <Select
+                defaultValue={item?.driveType ?? "__none"}
+                label="Antrieb / Fahrwerk"
+                name="driveType"
+              >
+                <option value="__none">Nicht angegeben</option>
+                <option value="WHEEL">Rad</option>
+                <option value="TRACK">Kette</option>
+                <option value="WHEEL_AND_TRACK">Rad/Kette</option>
+                <option value="TRAILER">Anhänger / gezogen</option>
+                <option value="OTHER">Sonstiges</option>
+              </Select>
             </div>
           </div>
 
@@ -390,8 +457,8 @@ export function InventoryItemForm({
       <section className={sectionClass}>
         {layout === "stacked" ? (
           <SectionHeader
-            description="Containerobjekte können andere Objekte enthalten. Lagerobjekte bekommen Bestand und Einheit."
-            title="Container und Lager"
+            description="Einheit für Material/Schüttgut, Lagerbestand und Containerobjekte."
+            title="Einheit, Container und Lager"
           />
         ) : null}
         <div className={layout === "stacked" ? "mt-4 space-y-4" : gridClass}>
@@ -418,11 +485,26 @@ export function InventoryItemForm({
           <div className={fieldGroupClass}>
             {layout === "stacked" ? (
               <FieldGroupHeader
-                description="Wenn aktiv, erscheint das Objekt in der Lagerverwaltung mit Bestand."
-                title="Lagerverwaltung"
+                description="Einheit für Lager, LKW-Dispo und spätere BTB-Übernahme. Lagerverwaltung ist optional."
+                title="Einheit / Lagerverwaltung"
               />
             ) : null}
             <div className={innerGridClass}>
+              <Select
+                defaultValue={item?.stockUnit ?? "Stk."}
+                label="Einheit"
+                name="stockUnit"
+              >
+                <option value="t">t</option>
+                <option value="kg">kg</option>
+                <option value="m3">m³</option>
+                <option value="m2">m²</option>
+                <option value="m">m</option>
+                <option value="l">l</option>
+                <option value="Stk.">Stk.</option>
+                <option value="Std.">Std.</option>
+                <option value="pauschal">pauschal</option>
+              </Select>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                 <input
                   className="h-4 w-4 rounded border-gray-300"
@@ -432,11 +514,6 @@ export function InventoryItemForm({
                 />
                 Lagerverwaltung
               </label>
-              <Input
-                defaultValue={item?.stockUnit ?? "Stk."}
-                label="Lagereinheit"
-                name="stockUnit"
-              />
               <Input
                 defaultValue={formatNumber(item?.openingStock ?? null)}
                 label="Anfangsbestand"

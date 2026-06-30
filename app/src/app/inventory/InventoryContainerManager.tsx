@@ -10,6 +10,7 @@ type ContainerItem = {
   id: string;
   inventoryNumber: string | null;
   name: string;
+  objectNumber: string | null;
   photos: { url: string }[];
 };
 
@@ -17,6 +18,7 @@ type AssignableItem = {
   id: string;
   inventoryNumber: string | null;
   name: string;
+  objectNumber: string | null;
   parentItem: { name: string } | null;
   photos: { url: string }[];
 };
@@ -32,6 +34,7 @@ export function InventoryContainerManager({
     id: string;
     inventoryNumber: string | null;
     name: string;
+    objectNumber: string | null;
   };
 }) {
   const [search, setSearch] = useState("");
@@ -43,6 +46,7 @@ export function InventoryContainerManager({
 
     return assignableItems.filter((item) =>
       [
+        item.objectNumber,
         item.inventoryNumber,
         item.name,
         item.parentItem?.name,
@@ -54,7 +58,7 @@ export function InventoryContainerManager({
     );
   }, [assignableItems, search]);
 
-  const containerLabel = [container.inventoryNumber, container.name]
+  const containerLabel = [container.objectNumber, container.inventoryNumber, container.name]
     .filter(Boolean)
     .join(" · ");
 
@@ -107,7 +111,9 @@ export function InventoryContainerManager({
               </option>
               {filteredAssignableItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {[item.inventoryNumber, item.name].filter(Boolean).join(" · ")}
+                  {[item.objectNumber, item.inventoryNumber, item.name]
+                    .filter(Boolean)
+                    .join(" · ")}
                   {item.parentItem ? ` · aktuell in ${item.parentItem.name}` : ""}
                 </option>
               ))}
@@ -139,7 +145,9 @@ export function InventoryContainerManager({
                   className="font-semibold text-gray-900 hover:underline"
                   href={`/inventory/${child.id}`}
                 >
-                  {[child.inventoryNumber, child.name].filter(Boolean).join(" · ")}
+                  {[child.objectNumber, child.inventoryNumber, child.name]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </Link>
                 <div className="mt-1 text-xs text-gray-500">
                   Gehört zu {containerLabel} ·{" "}

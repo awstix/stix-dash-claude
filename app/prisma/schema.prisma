@@ -1513,6 +1513,15 @@ model InventoryCategory {
   colorClass  String?
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
+  objectNumberStart Int?
+  objectNumberEnd   Int?
+  nextObjectNumber  Int?
+  useInTruckDisposition Boolean @default(false)
+  useInTruckDispatchMaterial Boolean @default(false)
+  useInTruckDispatchObject   Boolean @default(false)
+  useInDailyReports     Boolean @default(false)
+  useInInventory        Boolean @default(true)
+  dailyReportSection    String  @default("NONE")
 
   items InventoryItem[]
 
@@ -1533,7 +1542,11 @@ model InventoryItem {
   manufacturer    String?
   model           String?
   serialNumber    String?
+  licensePlate    String?
+  objectNumber    String?            @unique
   inventoryNumber String?            @unique
+  sourceType      String?
+  sourceId        String?
   constructionYear Int?
   constructionDate DateTime?
   receivedAt      DateTime?
@@ -1541,6 +1554,10 @@ model InventoryItem {
   purchasedFrom   String?
   invoiceNumber   String?
   deliveryNoteNumber String?
+  axleCount       Int?
+  grossWeightKg   Int?
+  payloadKg       Int?
+  driveType       String?
 
   isContainer       Boolean @default(false)
   parentItemId      String?
@@ -1582,6 +1599,7 @@ model InventoryItem {
   photos                  InventoryPhoto[]
   contacts                InventoryContact[]
   usageHistory            InventoryUsageHistory[]
+  scanLogs                InventoryScanLog[]
   workshopRepairOrders    WorkshopRepairOrder[]
   workshopFormSubmissions WorkshopFormSubmission[]
 
@@ -1589,9 +1607,14 @@ model InventoryItem {
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
+  @@index([objectNumber])
   @@index([inventoryNumber])
+  @@index([sourceType])
+  @@unique([sourceType, sourceId])
   @@index([status])
   @@index([serialNumber])
+  @@index([licensePlate])
+  @@index([driveType])
   @@index([isContainer])
   @@index([isStockManaged])
   @@index([parentItemId])
@@ -1688,4 +1711,41 @@ model InventoryUsageHistory {
   @@index([transportedByEmployeeId])
   @@index([receivedAt])
   @@index([returnedAt])
+}
+
+model InventoryScanLog {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  action           String @default("VIEW")
+  scannedByName    String?
+  scannedByUserId  String?
+  rawValue         String?
+  latitude         Float?
+  longitude        Float?
+  accuracyMeters   Float?
+  locationAddressLabel String?
+  locationStreet       String?
+  locationHouseNumber  String?
+  locationPostcode     String?
+  locationCity         String?
+  locationCountry      String?
+  locationReverseGeocodedAt DateTime?
+  locationReverseGeocodeSource String?
+  locationAddressJson  String?
+  projectId        String?
+  projectLabel     String?
+  userAgent        String?
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([projectId])
+  @@index([locationCity])
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+/* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
@@ -79,6 +80,89 @@ function formatNumber(value: number | null) {
   return new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatCoordinate(value: number | null) {
+  if (value === null) return "—";
+
+  return new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function getOpenStreetMapEmbedUrl(latitude: number, longitude: number) {
+  const latDelta = 0.003;
+  const lonDelta = 0.004;
+  const bbox = [
+    longitude - lonDelta,
+    latitude - latDelta,
+    longitude + lonDelta,
+    latitude + latDelta,
+  ].join(",");
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox,
+  )}&layer=mapnik&marker=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
+function getOpenStreetMapUrl(latitude: number, longitude: number) {
+  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+    latitude,
+  )}&mlon=${encodeURIComponent(longitude)}#map=18/${encodeURIComponent(
+    latitude,
+  )}/${encodeURIComponent(longitude)}`;
+}
+
+function formatScanLocationAddress(scan: {
+  latitude: number | null;
+  locationAddressLabel: string | null;
+  locationCity: string | null;
+  locationHouseNumber: string | null;
+  locationPostcode: string | null;
+  locationStreet: string | null;
+  longitude: number | null;
+}) {
+  const streetLine = [scan.locationStreet, scan.locationHouseNumber]
+    .filter(Boolean)
+    .join(" ");
+  const cityLine = [scan.locationPostcode, scan.locationCity]
+    .filter(Boolean)
+    .join(" ");
+  const compactAddress = [streetLine, cityLine].filter(Boolean).join(", ");
+
+  if (compactAddress) return compactAddress;
+
+  if (scan.locationAddressLabel) return scan.locationAddressLabel;
+
+  if (scan.latitude !== null && scan.longitude !== null) {
+    return `${formatCoordinate(scan.latitude)}, ${formatCoordinate(scan.longitude)}`;
+  }
+
+  return "nicht erfasst";
+}
+
+function formatKilograms(value: number | null) {
+  if (value === null) return "—";
+
+  return `${new Intl.NumberFormat("de-DE").format(value)} kg`;
+}
+
+function formatTonsFromKilograms(value: number | null) {
+  if (value === null) return "—";
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 3,
+  }).format(value / 1000)} t`;
+}
+
+function getDriveTypeLabel(value: string | null) {
+  if (value === "WHEEL") return "Rad";
+  if (value === "TRACK") return "Kette";
+  if (value === "WHEEL_AND_TRACK") return "Rad/Kette";
+  if (value === "TRAILER") return "Anhänger / gezogen";
+  if (value === "OTHER") return "Sonstiges";
+
+  return "—";
 }
 
 function getInventoryStatusLabel(status: string | null) {
@@ -168,6 +252,10 @@ export default async function InventoryDetailPage({
       },
       responsibleCrew: true,
       responsibleEmployee: true,
+      scanLogs: {
+        orderBy: [{ createdAt: "desc" }],
+        take: 10,
+      },
       usageHistory: {
         include: {
           employee: true,
@@ -285,7 +373,9 @@ export default async function InventoryDetailPage({
     id: employee.id,
     name: `${employee.firstName} ${employee.lastName}`,
   }));
-  const itemLabel = [item.inventoryNumber, item.name].filter(Boolean).join(" · ");
+  const itemLabel = [item.objectNumber, item.inventoryNumber, item.name]
+    .filter(Boolean)
+    .join(" · ");
   const inventoryPhotos = item.photos.map((photo) => ({
     createdAt: photo.createdAt.toISOString(),
     fileName: photo.fileName,
@@ -321,6 +411,7 @@ export default async function InventoryDetailPage({
           id: true,
           inventoryNumber: true,
           name: true,
+          objectNumber: true,
           parentItem: {
             select: {
               name: true,
@@ -404,10 +495,25 @@ export default async function InventoryDetailPage({
                 </span>
               </dd>
             </div>
+            <Info label="Objekt-ID" value={item.objectNumber ?? "—"} />
             <Info label="Inventarnummer" value={item.inventoryNumber ?? "—"} />
+            <Info label="Kennzeichen" value={item.licensePlate ?? "—"} />
             <Info label="Seriennummer" value={item.serialNumber ?? "—"} />
             <Info label="Hersteller" value={item.manufacturer ?? "—"} />
             <Info label="Typ/Modell" value={item.model ?? "—"} />
+            <Info
+              label="Anzahl Achsen"
+              value={item.axleCount !== null ? String(item.axleCount) : "—"}
+            />
+            <Info
+              label="Zul. Gesamtgewicht"
+              value={formatKilograms(item.grossWeightKg)}
+            />
+            <Info label="Nutzlast" value={formatTonsFromKilograms(item.payloadKg)} />
+            <Info
+              label="Antrieb / Fahrwerk"
+              value={getDriveTypeLabel(item.driveType)}
+            />
             <Info
               label="Baujahr"
               value={
@@ -459,6 +565,7 @@ export default async function InventoryDetailPage({
               value={
                 item.parentItem
                   ? [
+                      item.parentItem.objectNumber,
                       item.parentItem.inventoryNumber,
                       item.parentItem.name,
                     ]
@@ -478,7 +585,7 @@ export default async function InventoryDetailPage({
                 Gehört zu Containerobjekt
               </div>
               <div className="mt-1 text-lg font-bold text-blue-950">
-                {[item.parentItem.inventoryNumber, item.parentItem.name]
+                {[item.parentItem.objectNumber, item.parentItem.inventoryNumber, item.parentItem.name]
                   .filter(Boolean)
                   .join(" · ")}
               </div>
@@ -500,7 +607,72 @@ export default async function InventoryDetailPage({
           ) : null}
         </section>
 
-        <InventoryPhotoPreviewPanel itemName={item.name} photos={inventoryPhotos} />
+        <div className="space-y-6">
+          <InventoryPhotoPreviewPanel itemName={item.name} photos={inventoryPhotos} />
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  ECC200 / DataMatrix
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Kurzer Codeinhalt für robuste Handy-Scans und spätere Etiketten.
+                </p>
+              </div>
+              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
+                ECC200
+              </span>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <img
+                alt={`ECC200 DataMatrix-Code für ${item.name}`}
+                className="mx-auto h-auto w-full max-w-64 rounded-xl bg-white p-3"
+                src={`/inventory/${item.id}/qr`}
+              />
+            </div>
+
+            <div className="mt-4 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">
+              Objekt-ID:{" "}
+              <span className="font-mono font-semibold text-gray-900">
+                {item.objectNumber ?? "noch nicht vergeben"}
+              </span>
+              <br />
+              Codeinhalt:{" "}
+              <span className="break-all font-mono text-gray-900">
+                {item.objectNumber ?? item.inventoryNumber ?? item.id}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <a
+                className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                href={`/inventory/${item.id}/qr?download=1`}
+              >
+                ECC200 SVG laden
+              </a>
+              <a
+                className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                href={`/inventory/${item.id}/qr?format=png&download=1`}
+              >
+                ECC200 PNG laden
+              </a>
+              <a
+                className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                href={`/inventory/${item.id}/qr?type=qr&download=1`}
+              >
+                QR SVG laden
+              </a>
+              <a
+                className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                href={`/inventory/${item.id}/qr?type=qr&format=png&download=1`}
+              >
+                QR PNG laden
+              </a>
+            </div>
+          </section>
+        </div>
       </div>
 
       {item.isStockManaged ? (
@@ -779,6 +951,7 @@ export default async function InventoryDetailPage({
             id: item.id,
             inventoryNumber: item.inventoryNumber,
             name: item.name,
+            objectNumber: item.objectNumber,
           }}
         />
       ) : null}
@@ -891,6 +1064,99 @@ export default async function InventoryDetailPage({
                     {entry.notes}
                   </div>
                 ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Scan-Historie</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Letzte Code-Scans dieses Inventarobjekts mit Standort, sofern erlaubt.
+            </p>
+          </div>
+          <Link
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href="/inventory/scanner"
+          >
+            Scanner öffnen
+          </Link>
+        </div>
+
+        {item.scanLogs.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            Noch keine Scans protokolliert.
+          </p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {item.scanLogs.map((scan) => (
+              <div
+                className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                key={scan.id}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-gray-900 px-2.5 py-1 text-xs font-bold text-white">
+                    {scan.action}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {formatCreatedAt(scan.createdAt)}
+                  </span>
+                </div>
+                <div className="mt-2 text-sm font-semibold text-gray-900">
+                  {scan.scannedByName || "Unbekannt"}
+                </div>
+                <div className="mt-1 space-y-1 text-xs leading-5 text-gray-600">
+                  {scan.latitude !== null && scan.longitude !== null ? (
+                    <>
+                      <div>
+                        Standort:{" "}
+                        <span className="font-semibold text-gray-800">
+                          {formatScanLocationAddress(scan)}
+                        </span>
+                      </div>
+                      <div>
+                        GPS: {formatCoordinate(scan.latitude)},{" "}
+                        {formatCoordinate(scan.longitude)}
+                        {scan.accuracyMeters !== null
+                          ? ` · Genauigkeit ca. ${formatNumber(scan.accuracyMeters)} m`
+                          : ""}
+                      </div>
+                      <details className="mt-2 rounded-xl border border-gray-200 bg-white p-2">
+                        <summary className="cursor-pointer text-xs font-bold text-gray-700">
+                          Kartenausschnitt anzeigen
+                        </summary>
+                        <div className="mt-2 overflow-hidden rounded-lg border border-gray-200">
+                          <iframe
+                            className="h-48 w-full"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src={getOpenStreetMapEmbedUrl(
+                              scan.latitude,
+                              scan.longitude,
+                            )}
+                            title={`Karte Scan ${scan.id}`}
+                          />
+                        </div>
+                        <a
+                          className="mt-2 inline-flex text-xs font-semibold text-blue-700 hover:underline"
+                          href={getOpenStreetMapUrl(scan.latitude, scan.longitude)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          In OpenStreetMap öffnen →
+                        </a>
+                      </details>
+                    </>
+                  ) : (
+                    <div>Standort: nicht erfasst</div>
+                  )}
+                  {scan.rawValue ? (
+                    <div className="break-all font-mono">Code: {scan.rawValue}</div>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

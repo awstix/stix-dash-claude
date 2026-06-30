@@ -99,6 +99,8 @@ export default async function InventoryPage({
             { name: { contains: searchQuery } },
             { manufacturer: { contains: searchQuery } },
             { model: { contains: searchQuery } },
+            { objectNumber: { contains: searchQuery } },
+            { licensePlate: { contains: searchQuery } },
             { serialNumber: { contains: searchQuery } },
             { inventoryNumber: { contains: searchQuery } },
             { category: { name: { contains: searchQuery } } },
@@ -209,6 +211,12 @@ export default async function InventoryPage({
             >
               Kategorien pflegen →
             </Link>
+            <Link
+              className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+              href="/inventory/master-data"
+            >
+              Stammdaten übernehmen →
+            </Link>
           </div>
         </div>
       </section>
@@ -231,7 +239,7 @@ export default async function InventoryPage({
                 className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={searchQuery}
               name="q"
-              placeholder="Suche nach Name, Nummer, Seriennummer..."
+              placeholder="Suche nach Name, Objekt-ID, Kennzeichen, Inventarnummer, Seriennummer..."
             />
             </label>
             <label className="text-sm font-semibold text-gray-800">
@@ -307,7 +315,8 @@ export default async function InventoryPage({
                 <th className="p-3">Angelegt</th>
                 <th className="p-3">Kategorie</th>
                 <th className="p-3">Status</th>
-                <th className="p-3">Inventarnr.</th>
+                <th className="p-3">Objekt-ID</th>
+                <th className="p-3">Kennzeichen</th>
                 <th className="p-3">Seriennr.</th>
                 <th className="p-3">Verantwortlich</th>
                 <th className="p-3">Baustelle</th>
@@ -319,7 +328,7 @@ export default async function InventoryPage({
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td className="p-8 text-center text-gray-500" colSpan={13}>
+                  <td className="p-8 text-center text-gray-500" colSpan={14}>
                     Noch keine passenden Inventarobjekte vorhanden.
                   </td>
                 </tr>
@@ -381,8 +390,16 @@ export default async function InventoryPage({
                         </Link>
                       </div>
                       <div className="text-xs text-gray-500">
-                        {[item.manufacturer, item.model].filter(Boolean).join(" · ") ||
-                          "—"}
+                        {[
+                          item.manufacturer,
+                          item.model,
+                          item.licensePlate ? `Kennz. ${item.licensePlate}` : null,
+                          item.inventoryNumber
+                            ? `Inventarnr. ${item.inventoryNumber}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">
@@ -401,7 +418,10 @@ export default async function InventoryPage({
                       </span>
                     </td>
                     <td className="p-3 text-gray-700">
-                      {item.inventoryNumber ?? "—"}
+                      {item.objectNumber ?? "—"}
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {item.licensePlate ?? "—"}
                     </td>
                     <td className="p-3 text-gray-700">
                       {item.serialNumber ?? "—"}

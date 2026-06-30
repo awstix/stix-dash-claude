@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
+import {
+  formatInventoryObjectNumber,
+  getNextInventoryObjectNumber,
+} from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 
 const allowedInventoryPhotoTypes = new Map([
@@ -33,6 +37,30 @@ function optionalInt(value: FormDataEntryValue | null, label: string) {
   }
 
   return number;
+}
+
+function optionalTonsToKilograms(value: FormDataEntryValue | null, label: string) {
+  const text = optionalString(value)?.replace(",", ".");
+  if (!text) return null;
+
+  const number = Number(text);
+
+  if (Number.isNaN(number) || number < 0) {
+    throw new Error(`${label} muss eine Zahl größer oder gleich 0 sein.`);
+  }
+
+  return Math.round(number * 1000);
+}
+
+function optionalObjectNumber(value: FormDataEntryValue | null) {
+  const text = optionalString(value);
+  if (!text) return null;
+
+  if (!/^\d{1,6}$/.test(text)) {
+    throw new Error("Objekt-ID muss eine Zahl mit maximal 6 Stellen sein.");
+  }
+
+  return formatInventoryObjectNumber(Number.parseInt(text, 10));
 }
 
 function optionalMoneyCents(value: FormDataEntryValue | null) {
@@ -84,6 +112,14 @@ function optionalFloat(value: FormDataEntryValue | null, label: string) {
   return Math.round(number * 100) / 100;
 }
 
+function optionalRawFloat(value: FormDataEntryValue | null) {
+  const text = optionalString(value)?.replace(",", ".");
+  if (!text) return null;
+
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
+}
+
 function optionalDate(value: FormDataEntryValue | null) {
   const text = optionalString(value);
   if (!text) return null;
@@ -102,6 +138,15 @@ function inventoryStatus(value: FormDataEntryValue | null) {
   return ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED"].includes(text ?? "")
     ? text
     : "ACTIVE";
+}
+
+function inventoryDriveType(value: FormDataEntryValue | null) {
+  const text = optionalString(value);
+  return ["WHEEL", "TRACK", "WHEEL_AND_TRACK", "TRAILER", "OTHER"].includes(
+    text ?? "",
+  )
+    ? text
+    : null;
 }
 
 function getResponsibleFields(formData: FormData) {
@@ -158,16 +203,24 @@ function getInventoryPayload(formData: FormData) {
 
   return {
     billingRateCents: optionalMoneyCents(formData.get("billingRate")),
+    axleCount: optionalInt(formData.get("axleCount"), "Anzahl Achsen"),
     categoryId: optionalId(formData.get("categoryId")),
     constructionDate,
     constructionYear: constructionDate ? constructionDate.getUTCFullYear() : null,
     currentProjectId: optionalId(formData.get("currentProjectId")),
     currentStock: openingStock,
+    driveType: inventoryDriveType(formData.get("driveType")),
+    grossWeightKg: optionalInt(
+      formData.get("grossWeightKg"),
+      "Zulässiges Gesamtgewicht",
+    ),
     inventoryNumber: optionalString(formData.get("inventoryNumber")),
+    objectNumber: optionalObjectNumber(formData.get("objectNumber")),
     isContainer: formData.get("isContainer") === "on",
     isStockManaged,
     deliveryNoteNumber: optionalString(formData.get("deliveryNoteNumber")),
     invoiceNumber: optionalString(formData.get("invoiceNumber")),
+    licensePlate: optionalString(formData.get("licensePlate")),
     lastDguvInspectionDate: optionalDate(formData.get("lastDguvInspectionDate")),
     lastServiceAtDate: optionalDate(formData.get("lastServiceAtDate")),
     lastServiceMileageKm: optionalInt(
@@ -196,6 +249,9 @@ function getInventoryPayload(formData: FormData) {
     notes: optionalString(formData.get("notes")),
     openingStock,
     parentItemId: optionalId(formData.get("parentItemId")),
+    payloadKg:
+      optionalTonsToKilograms(formData.get("payloadTons"), "Nutzlast") ??
+      optionalInt(formData.get("payloadKg"), "Nutzlast"),
     purchasedAt: optionalDate(formData.get("purchasedAt")),
     purchasedFrom: optionalString(formData.get("purchasedFrom")),
     receivedAt: optionalDate(formData.get("receivedAt")),
@@ -419,18 +475,25 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
 }
 
 export async function createInventoryItem(formData: FormData) {
+  const categoryId = optionalId(formData.get("categoryId"));
   const payload = getInventoryCreateData(formData);
   const contacts = getInventoryContacts(formData);
 
-  const item = await prisma.inventoryItem.create({
-    data: {
-      ...payload,
-      contacts: contacts.length
-        ? {
-            create: contacts,
-          }
-        : undefined,
-    },
+  const item = await prisma.$transaction(async (tx) => {
+    const objectNumber =
+      payload.objectNumber ?? (await getNextInventoryObjectNumber(tx, categoryId));
+
+    return tx.inventoryItem.create({
+      data: {
+        ...payload,
+        objectNumber,
+        contacts: contacts.length
+          ? {
+              create: contacts,
+            }
+          : undefined,
+      },
+    });
   });
 
   await storeInventoryPhotos(item.id, formData);
@@ -731,4 +794,41 @@ export async function deleteInventoryPhoto(formData: FormData) {
   }
 
   revalidateInventoryItem(photo.itemId);
+}
+
+export async function recordInventoryScan(formData: FormData) {
+  const itemId = optionalString(formData.get("itemId"));
+
+  if (!itemId) {
+    throw new Error("Inventarobjekt fehlt.");
+  }
+
+  const item = await prisma.inventoryItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!item) {
+    throw new Error("Inventarobjekt wurde nicht gefunden.");
+  }
+
+  await prisma.inventoryScanLog.create({
+    data: {
+      accuracyMeters: optionalRawFloat(formData.get("accuracyMeters")),
+      action: optionalString(formData.get("action")) ?? "VIEW",
+      itemId,
+      latitude: optionalRawFloat(formData.get("latitude")),
+      longitude: optionalRawFloat(formData.get("longitude")),
+      notes: optionalString(formData.get("notes")),
+      rawValue: optionalString(formData.get("rawValue")),
+      scannedByName: optionalString(formData.get("scannedByName")) ?? "Unbekannt",
+      userAgent: optionalString(formData.get("userAgent")),
+    },
+  });
+
+  revalidateInventoryItem(itemId);
 }
