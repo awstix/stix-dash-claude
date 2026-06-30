@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import {
-  createEmployeeTrainingRecord,
-  deleteEmployeeTrainingRecord,
-} from "../actions";
+import { createEmployeeTrainingRecord } from "../actions";
+import { EmployeeTrainingRecordRows } from "./EmployeeTrainingRecordRows";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
@@ -18,61 +15,12 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
-function getTrainingProgress(trainingDate: Date | null, validUntil: Date | null) {
-  if (!trainingDate || !validUntil || validUntil <= trainingDate) return null;
-
-  const today = new Date();
-  const total = validUntil.getTime() - trainingDate.getTime();
-  const elapsed = today.getTime() - trainingDate.getTime();
-  return Math.max(0, Math.min(100, Math.round((elapsed / total) * 100)));
-}
-
-function getRefreshText(validUntil: Date | null) {
-  if (!validUntil) return "—";
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffDays = Math.ceil(
-    (validUntil.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (diffDays < 0) return `seit ${Math.abs(diffDays)} Tagen abgelaufen`;
-  if (diffDays === 0) return "heute";
-  return `in ${diffDays} Tagen`;
-}
-
-function getTrainingState(validUntil: Date | null) {
-  if (!validUntil) {
-    return {
-      className: "bg-gray-100 text-gray-700 ring-gray-200",
-      label: "ohne Ablauf",
-    };
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const soon = new Date(today);
-  soon.setDate(soon.getDate() + 60);
-
-  if (validUntil < today) {
-    return {
-      className: "bg-red-100 text-red-900 ring-red-200",
-      label: "abgelaufen",
-    };
-  }
-
-  if (validUntil <= soon) {
-    return {
-      className: "bg-yellow-100 text-yellow-950 ring-yellow-200",
-      label: "läuft bald ab",
-    };
-  }
-
-  return {
-    className: "bg-green-100 text-green-900 ring-green-200",
-    label: "gültig",
-  };
-}
+type TrainingTypeOption = {
+  id: string;
+  isImportedFallback?: boolean;
+  number: string | null;
+  topic: string;
+};
 
 export default async function EmployeeCertificateDetailPage({
   params,
@@ -82,7 +30,7 @@ export default async function EmployeeCertificateDetailPage({
   }>;
 }) {
   const { employeeId } = await params;
-  const [employee, trainingTypes] = await Promise.all([
+  const [employee, trainingTypes, fallbackTrainingRecords] = await Promise.all([
     prisma.employee.findUnique({
       where: {
         id: employeeId,
@@ -101,6 +49,11 @@ export default async function EmployeeCertificateDetailPage({
           orderBy: [{ qualificationType: { sortOrder: "asc" } }],
         },
         trainingRecords: {
+          include: {
+            documents: {
+              orderBy: [{ uploadedAt: "desc" }],
+            },
+          },
           orderBy: [{ validUntil: "asc" }, { trainingDate: "desc" }],
         },
       },
@@ -111,11 +64,47 @@ export default async function EmployeeCertificateDetailPage({
       },
       orderBy: [{ sortOrder: "asc" }, { topic: "asc" }],
     }),
+    prisma.employeeTrainingRecord.findMany({
+      orderBy: [{ topic: "asc" }, { trainingDate: "desc" }, { createdAt: "desc" }],
+      select: {
+        number: true,
+        topic: true,
+      },
+    }),
   ]);
 
   if (!employee) {
     notFound();
   }
+  const trainingTypeTopics = new Set(
+    trainingTypes.map((type) => type.topic.trim().toLowerCase()),
+  );
+  const fallbackTrainingTypeOptions = Array.from(
+    fallbackTrainingRecords.reduce((items, record) => {
+      const key = record.topic.trim().toLowerCase();
+
+      if (!trainingTypeTopics.has(key) && !items.has(key)) {
+        items.set(key, {
+          id: `import-topic:${encodeURIComponent(record.topic)}`,
+          isImportedFallback: true,
+          number: record.number,
+          topic: record.topic,
+        } satisfies TrainingTypeOption);
+      }
+
+      return items;
+    }, new Map<string, TrainingTypeOption>()),
+  )
+    .map(([, option]) => option)
+    .sort((a, b) => a.topic.localeCompare(b.topic, "de"));
+  const trainingTypeOptions: TrainingTypeOption[] = [
+    ...trainingTypes.map((type) => ({
+      id: type.id,
+      number: type.number,
+      topic: type.topic,
+    })),
+    ...fallbackTrainingTypeOptions,
+  ];
 
   return (
     <AppShell
@@ -211,15 +200,16 @@ export default async function EmployeeCertificateDetailPage({
           >
             <input name="employeeId" type="hidden" value={employee.id} />
             <label className="text-sm font-semibold text-gray-800">
-              Vorlage / bestehende Schulung
+              Schulungsvorlage auswählen
               <select
                 className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
                 name="trainingTypeId"
               >
-                <option value="">Ohne Vorlage / frei eintragen</option>
-                {trainingTypes.map((type) => (
+                <option value="">Ohne Vorlage / freie Schulung eintragen</option>
+                {trainingTypeOptions.map((type) => (
                   <option key={type.id} value={type.id}>
                     {[type.number, type.topic].filter(Boolean).join(" · ")}
+                    {type.isImportedFallback ? " · aus Import" : ""}
                   </option>
                 ))}
               </select>
@@ -263,97 +253,53 @@ export default async function EmployeeCertificateDetailPage({
           </form>
         </details>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="min-w-[1300px] text-left text-sm">
+        <div className="mt-5 overflow-hidden rounded-xl border border-gray-200">
+          <table className="w-full table-fixed text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="w-20 p-3">Aktion</th>
-                <th className="p-3">Nr.</th>
-                <th className="p-3">Anbieter</th>
-                <th className="p-3">Thema Kurs</th>
-                <th className="p-3">Datum</th>
-                <th className="p-3">Typ</th>
-                <th className="p-3">Ort</th>
-                <th className="p-3">Dauer</th>
-                <th className="p-3">gültig bis</th>
-                <th className="p-3">% abgelaufen</th>
-                <th className="p-3">Auffrischung</th>
-                <th className="p-3">Status</th>
+                <th className="w-24 p-3">Aktion</th>
+                <th className="w-28 p-3">Zertifikate</th>
+                <th className="w-[28%] p-3">Schulung</th>
+                <th className="w-28 p-3">Datum</th>
+                <th className="w-28 p-3">gültig bis</th>
+                <th className="w-28 p-3">% / Status</th>
+                <th className="p-3">Auffrischung / Info</th>
               </tr>
             </thead>
             <tbody>
-              {employee.trainingRecords.length === 0 ? (
-                <tr>
-                  <td className="p-8 text-center text-gray-500" colSpan={12}>
-                    Noch keine Schulungen hinterlegt.
-                  </td>
-                </tr>
-              ) : (
-                employee.trainingRecords.map((record) => {
-                  const state = getTrainingState(record.validUntil);
-                  const progress = getTrainingProgress(
-                    record.trainingDate,
-                    record.validUntil,
-                  );
-
-                  return (
-                    <tr className="border-t border-gray-100" key={record.id}>
-                      <td className="p-3">
-                        <form action={deleteEmployeeTrainingRecord}>
-                          <input name="id" type="hidden" value={record.id} />
-                          <input
-                            name="employeeId"
-                            type="hidden"
-                            value={employee.id}
-                          />
-                          <button
-                            aria-label={`${record.topic} löschen`}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
-                            title="Löschen"
-                            type="submit"
-                          >
-                            <ActionIcon name="delete" className="h-4 w-4" />
-                          </button>
-                        </form>
-                      </td>
-                      <td className="p-3 text-gray-700">{record.number ?? "—"}</td>
-                      <td className="p-3 text-gray-700">{record.provider ?? "—"}</td>
-                      <td className="p-3 font-semibold text-gray-900">
-                        {record.topic}
-                        {record.notes ? (
-                          <div className="mt-1 text-xs font-normal text-gray-500">
-                            {record.notes}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="p-3 text-gray-700">
-                        {formatDate(record.trainingDate)}
-                      </td>
-                      <td className="p-3 text-gray-700">{record.type ?? "—"}</td>
-                      <td className="p-3 text-gray-700">{record.location ?? "—"}</td>
-                      <td className="p-3 text-gray-700">
-                        {record.durationDays ?? "—"}
-                      </td>
-                      <td className="p-3 text-gray-700">
-                        {formatDate(record.validUntil)}
-                      </td>
-                      <td className="p-3 text-gray-700">
-                        {progress === null ? "—" : `${progress} %`}
-                      </td>
-                      <td className="p-3 text-gray-700">
-                        {getRefreshText(record.validUntil)}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${state.className}`}
-                        >
-                          {state.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+              <EmployeeTrainingRecordRows
+                employeeId={employee.id}
+                records={employee.trainingRecords.map((record) => ({
+                  bookedAt: record.bookedAt?.toISOString() ?? null,
+                  bookingConfirmedAt:
+                    record.bookingConfirmedAt?.toISOString() ?? null,
+                  certificateReceivedAt:
+                    record.certificateReceivedAt?.toISOString() ?? null,
+                  durationDays: record.durationDays,
+                  documents: record.documents.map((document) => ({
+                    displayName: document.displayName,
+                    fileName: document.fileName,
+                    fileSizeBytes: document.fileSizeBytes,
+                    id: document.id,
+                    mimeType: document.mimeType,
+                    notes: document.notes,
+                    originalFileName: document.originalFileName,
+                    publicUrl: document.publicUrl,
+                    uploadedAt: document.uploadedAt.toISOString(),
+                    uploadedByName: document.uploadedByName,
+                  })),
+                  id: record.id,
+                  location: record.location,
+                  notes: record.notes,
+                  number: record.number,
+                  provider: record.provider,
+                  topic: record.topic,
+                  trainingDate: record.trainingDate?.toISOString() ?? null,
+                  type: record.type,
+                  validityMonths: record.validityMonths,
+                  validUntil: record.validUntil?.toISOString() ?? null,
+                }))}
+              />
             </tbody>
           </table>
         </div>
@@ -363,10 +309,12 @@ export default async function EmployeeCertificateDetailPage({
 }
 
 function TextInput({
+  defaultValue,
   label,
   name,
   placeholder,
 }: {
+  defaultValue?: string;
   label: string;
   name: string;
   placeholder?: string;
@@ -376,6 +324,7 @@ function TextInput({
       {label}
       <input
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        defaultValue={defaultValue}
         name={name}
         placeholder={placeholder}
       />
@@ -383,12 +332,21 @@ function TextInput({
   );
 }
 
-function DateInput({ label, name }: { label: string; name: string }) {
+function DateInput({
+  defaultValue,
+  label,
+  name,
+}: {
+  defaultValue?: string;
+  label: string;
+  name: string;
+}) {
   return (
     <label className="text-sm font-semibold text-gray-800">
       {label}
       <input
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+        defaultValue={defaultValue}
         name={name}
         type="date"
       />

@@ -1065,6 +1065,7 @@ model Employee {
   qualifications         EmployeeQualification[]
   qualificationDocuments EmployeeQualificationDocument[]
   trainingRecords        EmployeeTrainingRecord[]
+  trainingRecordDocuments EmployeeTrainingRecordDocument[]
 
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
@@ -1247,6 +1248,7 @@ model EmployeeTrainingRecord {
   validityMonths      Int?
   validUntil          DateTime?
   notes               String?
+  documents           EmployeeTrainingRecordDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1256,6 +1258,36 @@ model EmployeeTrainingRecord {
   @@index([trainingDate])
   @@index([validUntil])
   @@index([topic])
+}
+
+model EmployeeTrainingRecordDocument {
+  id String @id @default(cuid())
+
+  trainingRecordId String
+  trainingRecord   EmployeeTrainingRecord @relation(fields: [trainingRecordId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  fileName         String
+  originalFileName String
+  displayName      String
+  mimeType         String
+  fileSizeBytes    Int
+  publicUrl        String
+  storagePath      String
+  notes            String?
+  uploadedByName   String?
+  uploadedByUserId String?
+  uploadedAt       DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trainingRecordId])
+  @@index([employeeId])
+  @@index([uploadedAt])
+  @@index([mimeType])
 }
 
 model WorkTimePreset {
