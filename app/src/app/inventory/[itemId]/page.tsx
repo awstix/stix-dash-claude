@@ -7,6 +7,7 @@ import {
   DismissibleDetails,
   DismissibleDetailsCloseButton,
 } from "@/components/DismissibleDetails";
+import { getInventoryCategoryLabel } from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
 import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
 import { createWorkshopRepairOrder } from "../../workshop/actions";
@@ -261,10 +262,28 @@ export default async function InventoryDetailPage({
       id: itemId,
     },
     include: {
-      category: true,
+      category: {
+        include: {
+          parentCategory: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
       childItems: {
         include: {
-          category: true,
+          category: {
+            include: {
+              parentCategory: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           photos: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
             take: 1,
@@ -667,7 +686,7 @@ export default async function InventoryDetailPage({
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Info label="Kategorie" value={item.category?.name ?? "—"} />
+            <Info label="Kategorie" value={getInventoryCategoryLabel(item.category)} />
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
               <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
                 Status

@@ -1,6 +1,10 @@
 import { InventoryContactFields } from "./InventoryContactFields";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 import { SearchableInventorySelect } from "./SearchableInventorySelect";
+import {
+  getInventoryCategoryOptionLabel,
+  sortInventoryCategoriesForSelect,
+} from "@/lib/inventory-categories";
 
 export type InventoryItemFormData = {
   billingRateCents: number | null;
@@ -115,6 +119,7 @@ export function InventoryItemForm({
     vehicleType: string;
   }[];
 }) {
+  const sortedCategories = sortInventoryCategoriesForSelect(categories);
   const sectionClass =
     layout === "stacked"
       ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -165,10 +170,9 @@ export function InventoryItemForm({
                 name="categoryId"
               >
                 <option value="__none">Keine Kategorie</option>
-                {categories.map((category) => (
+                {sortedCategories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.parentCategoryId ? "↳ " : ""}
-                    {category.name}
+                    {getInventoryCategoryOptionLabel(category)}
                   </option>
                 ))}
               </Select>

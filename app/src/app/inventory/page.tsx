@@ -2,6 +2,11 @@ import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { DismissibleDetails } from "@/components/DismissibleDetails";
+import {
+  getInventoryCategoryLabel,
+  getInventoryCategoryOptionLabel,
+  sortInventoryCategoriesForSelect,
+} from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
 import { deleteInventoryItem } from "./actions";
 import { InventoryPhotoThumbnailButton } from "./InventoryPhotoGallery";
@@ -195,6 +200,14 @@ export default async function InventoryPage({
         where: {
           isActive: true,
         },
+        include: {
+          parentCategory: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       }),
       prisma.project.findMany({
@@ -217,7 +230,16 @@ export default async function InventoryPage({
       prisma.inventoryItem.findMany({
         where,
         include: {
-          category: true,
+          category: {
+            include: {
+              parentCategory: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           currentProject: true,
           parentItem: true,
           photos: {
@@ -238,6 +260,7 @@ export default async function InventoryPage({
     ]);
 
   const filteredItems = items;
+  const sortedCategories = sortInventoryCategoriesForSelect(categories);
   const activeFilterCount = [
     categoryFilter,
     projectFilter,
@@ -427,9 +450,9 @@ export default async function InventoryPage({
                       name="category"
                     >
                       <option value="">Alle Kategorien</option>
-                      {categories.map((category) => (
+                      {sortedCategories.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.name}
+                          {getInventoryCategoryOptionLabel(category)}
                         </option>
                       ))}
                     </select>
@@ -581,7 +604,7 @@ export default async function InventoryPage({
                       {formatCreatedMeta(item.createdAt)}
                     </td>
                     <td className="p-3 text-gray-700">
-                      {item.category?.name ?? "—"}
+                      {getInventoryCategoryLabel(item.category)}
                     </td>
                     <td className="p-3">
                       <span

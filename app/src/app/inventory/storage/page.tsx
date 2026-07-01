@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import {
+  getInventoryCategoryLabel,
+  getInventoryCategoryOptionLabel,
+  sortInventoryCategoriesForSelect,
+} from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
 import { deleteInventoryItem } from "../actions";
 import { InventoryPhotoThumbnailButton } from "../InventoryPhotoGallery";
@@ -136,6 +141,14 @@ export default async function InventoryStoragePage({
       where: {
         isActive: true,
       },
+      include: {
+        parentCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.project.findMany({
@@ -169,7 +182,16 @@ export default async function InventoryStoragePage({
     prisma.inventoryItem.findMany({
       where,
     include: {
-      category: true,
+      category: {
+        include: {
+          parentCategory: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
       currentProject: true,
       photos: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
@@ -242,9 +264,9 @@ export default async function InventoryStoragePage({
               name="category"
             >
               <option value="">Alle Kategorien</option>
-              {categories.map((category) => (
+              {sortInventoryCategoriesForSelect(categories).map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.name}
+                  {getInventoryCategoryOptionLabel(category)}
                 </option>
               ))}
             </select>
@@ -400,7 +422,7 @@ export default async function InventoryStoragePage({
                       {formatCreatedMeta(item.createdAt)}
                     </td>
                     <td className="p-3 text-gray-700">
-                      {item.category?.name ?? "—"}
+                      {getInventoryCategoryLabel(item.category)}
                     </td>
                     <td className="p-3 text-gray-700">
                       {formatStock(item.openingStock, item.stockUnit)}
