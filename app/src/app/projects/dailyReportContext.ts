@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import {
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import type { WorkTimeSettings } from "@/lib/work-time";
 
 export type DailyReportCountRow = {
@@ -176,7 +180,9 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       crewPlanningRows: {
@@ -211,7 +217,9 @@ export async function getDailyReportSourceProject(
                       isActive: true,
                     },
                     include: {
-                      vehicle: true,
+                      vehicle: {
+                        include: vehicleInventoryLinkInclude,
+                      },
                     },
                     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
                   },
@@ -240,7 +248,9 @@ export async function getDailyReportSourceProject(
               },
               extraVehicles: {
                 include: {
-                  vehicle: true,
+                  vehicle: {
+                    include: vehicleInventoryLinkInclude,
+                  },
                 },
               },
             },
@@ -268,7 +278,9 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       shortHaulAssignments: {
@@ -280,7 +292,9 @@ export async function getDailyReportSourceProject(
         },
         include: {
           tours: true,
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       specialVehicleDispatchAssignments: {
@@ -291,8 +305,12 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
-          transportVehicle: true,
-          vehicle: true,
+          transportVehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       tackCoatLoadAllocations: {
@@ -303,7 +321,9 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       truckLongHaulEntries: {
@@ -317,7 +337,9 @@ export async function getDailyReportSourceProject(
           materialType: true,
           truckAssignments: {
             include: {
-              vehicle: true,
+              vehicle: {
+                include: vehicleInventoryLinkInclude,
+              },
             },
           },
         },
@@ -1439,15 +1461,23 @@ function getVehicleRealMachineLabel(vehicle: {
   licensePlate?: string | null;
   vehicleNumber: string;
   vehicleType: string;
-}) {
+} & VehicleWithInventoryLink) {
   const categoryLabel = getVehicleRealMachineCategoryLabel(vehicle);
+  const inventoryItem = vehicle.inventoryItems?.[0] ?? null;
   const realLabel =
-    [
-      vehicle.vehicleNumber,
-      vehicle.licensePlate,
-      vehicle.vehicleType,
-      vehicle.category,
-    ]
+    (inventoryItem
+      ? [
+          inventoryItem.objectNumber,
+          inventoryItem.inventoryNumber,
+          inventoryItem.name,
+          vehicle.licensePlate,
+        ]
+      : [
+          vehicle.vehicleNumber,
+          vehicle.licensePlate,
+          vehicle.vehicleType,
+          vehicle.category,
+        ])
       .filter(Boolean)
       .join(" · ") || "Sonstige Maschine";
 

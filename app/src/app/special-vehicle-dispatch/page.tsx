@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import {
+  getVehicleInventoryItem,
+  getVehicleInventoryLabel,
+  getVehicleInventoryResponsibleLabel,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   formatLiters,
@@ -79,6 +86,8 @@ type TackCoatNeedForForm = {
 
 const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const LEFT_COLUMN_WIDTH_PX = 340;
+const SPECIAL_VEHICLE_ROW_MIN_HEIGHT_PX = 108;
+const SPECIAL_VEHICLE_LEFT_ROW_MIN_HEIGHT_PX = 132;
 
 function parseDateParam(value: string | undefined) {
   if (!value) {
@@ -386,19 +395,80 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+function getSpecialVehicleListRowMinHeight(vehicle: VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+  let minHeight = SPECIAL_VEHICLE_LEFT_ROW_MIN_HEIGHT_PX;
+
+  if (inventoryItem) {
+    minHeight += 34;
+
+    if (inventoryItem.currentLocationLabel) {
+      minHeight += 18;
+    }
+
+    if (inventoryItem.currentProject) {
+      minHeight += 18;
+    }
+
+    if (getVehicleInventoryResponsibleLabel(inventoryItem)) {
+      minHeight += 18;
+    }
+
+    if (inventoryItem.status !== "ACTIVE") {
+      minHeight += 18;
+    }
+  }
+
+  return minHeight;
+}
+
+function getSpecialVehicleTitle(vehicle: {
+  vehicleNumber: string;
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  return inventoryItem?.objectNumber ?? inventoryItem?.inventoryNumber ?? vehicle.vehicleNumber;
+}
+
+function getSpecialVehicleSubtitle(vehicle: {
+  category: string;
+  licensePlate: string | null;
+  vehicleType: string;
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (!inventoryItem) {
+    return [vehicle.licensePlate, vehicle.category, vehicle.vehicleType]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  return [
+    inventoryItem.manufacturer,
+    inventoryItem.model,
+    inventoryItem.name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function getVehicleSearchText(vehicle: {
   vehicleNumber: string;
   licensePlate: string | null;
   vehicleType: string;
   category: string;
   notes: string | null;
-}) {
+} & VehicleWithInventoryLink) {
   return [
     vehicle.vehicleNumber,
     vehicle.licensePlate,
     vehicle.vehicleType,
     vehicle.category,
     vehicle.notes,
+    getVehicleInventoryLabel(vehicle),
+    getVehicleInventoryItem(vehicle)?.status,
+    getVehicleInventoryItem(vehicle)?.currentLocationLabel,
+    getVehicleInventoryResponsibleLabel(getVehicleInventoryItem(vehicle)),
   ]
     .filter(Boolean)
     .join(" ")
@@ -614,12 +684,18 @@ export default async function SpecialVehicleDispatchPage({
         isActive: true,
         isSpecialVehicle: true,
       },
+      include: {
+        ...vehicleInventoryLinkInclude,
+      },
       orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
     }),
 
     prisma.vehicle.findMany({
       where: {
         isActive: true,
+      },
+      include: {
+        ...vehicleInventoryLinkInclude,
       },
       orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
     }),
@@ -827,7 +903,14 @@ export default async function SpecialVehicleDispatchPage({
         }),
       );
 
-      return [vehicle.id, Math.max(108, 56 + maxCellItems * 48)] as const;
+      return [
+        vehicle.id,
+        Math.max(
+          SPECIAL_VEHICLE_ROW_MIN_HEIGHT_PX,
+          getSpecialVehicleListRowMinHeight(vehicle),
+          56 + maxCellItems * 48,
+        ),
+      ] as const;
     }),
   );
 
@@ -1182,6 +1265,10 @@ export default async function SpecialVehicleDispatchPage({
                 {filteredVehicles.map((vehicle) => {
                   const isTackCoatVehicle = isTackCoatSpecialVehicle(vehicle);
                   const rowHeight = rowHeightByVehicleId.get(vehicle.id) ?? 108;
+                  const inventoryItem = getVehicleInventoryItem(vehicle);
+                  const inventoryLabel = getVehicleInventoryLabel(vehicle);
+                  const inventoryResponsibleLabel =
+                    getVehicleInventoryResponsibleLabel(inventoryItem);
 
                   return (
                     <div
@@ -1193,12 +1280,25 @@ export default async function SpecialVehicleDispatchPage({
                       }}
                     >
                       <div className="truncate font-semibold text-gray-900">
-                        {vehicle.vehicleNumber}
+                        {getSpecialVehicleTitle(vehicle)}
                       </div>
                       <div className="mt-1 truncate text-sm text-gray-600">
-                        {vehicle.licensePlate ?? "-"}
+                        {getSpecialVehicleSubtitle(vehicle) || "Sondergerät"}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1 text-[11px] font-semibold">
+                        {inventoryItem && inventoryLabel ? (
+                          <Link
+                            href={`/inventory/${inventoryItem.id}`}
+                            className="max-w-full truncate rounded-full bg-amber-100 px-2 py-1 text-amber-950 transition hover:bg-amber-200"
+                            title="Inventarobjekt öffnen"
+                          >
+                            Inventar: {inventoryLabel}
+                          </Link>
+                        ) : (
+                          <span className="rounded-full bg-gray-50 px-2 py-1 text-gray-500">
+                            Kein Inventarobjekt
+                          </span>
+                        )}
                         <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-800">Sonderfahrzeug</span>
                         <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.category}</span>
                         <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{vehicle.vehicleType}</span>
@@ -1208,6 +1308,37 @@ export default async function SpecialVehicleDispatchPage({
                           </span>
                         ) : null}
                       </div>
+                      {inventoryItem ? (
+                        <div className="mt-2 space-y-1 text-xs text-gray-500">
+                          {inventoryItem.status !== "ACTIVE" ? (
+                            <div>
+                              Status:{" "}
+                              <span className="font-semibold text-red-700">
+                                {inventoryItem.status === "DEFECT"
+                                  ? "Defekt"
+                                  : inventoryItem.status}
+                              </span>
+                            </div>
+                          ) : null}
+                          {inventoryItem.currentLocationLabel ? (
+                            <div className="truncate">
+                              Standort: {inventoryItem.currentLocationLabel}
+                            </div>
+                          ) : null}
+                          {inventoryItem.currentProject ? (
+                            <div className="truncate">
+                              Baustelle:{" "}
+                              {inventoryItem.currentProject.projectNumber} ·{" "}
+                              {inventoryItem.currentProject.name}
+                            </div>
+                          ) : null}
+                          {inventoryResponsibleLabel ? (
+                            <div className="truncate">
+                              Zuweisung: {inventoryResponsibleLabel}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

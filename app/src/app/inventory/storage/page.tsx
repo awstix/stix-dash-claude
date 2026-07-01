@@ -52,6 +52,33 @@ function getInventoryStatusClass(status: string | null) {
   return "bg-green-100 text-green-900 ring-green-200";
 }
 
+function ResponsibleCell({
+  item,
+}: {
+  item: {
+    responsibleCrew: { name: string } | null;
+    responsibleEmployee: {
+      firstName: string;
+      id: string;
+      lastName: string;
+    } | null;
+  };
+}) {
+  if (item.responsibleEmployee) {
+    return (
+      <Link
+        className="font-semibold text-gray-900 hover:underline"
+        href={`/employees/certificates/${item.responsibleEmployee.id}`}
+      >
+        {item.responsibleEmployee.lastName},{" "}
+        {item.responsibleEmployee.firstName}
+      </Link>
+    );
+  }
+
+  return <>{item.responsibleCrew?.name ?? "—"}</>;
+}
+
 function getStockWhere(filter: string): Prisma.InventoryItemWhereInput {
   if (filter === "in-stock") return { currentStock: { gt: 0 } };
   if (filter === "empty") return { currentStock: { equals: 0 } };
@@ -281,7 +308,7 @@ export default async function InventoryStoragePage({
                 <th className="p-3">Anfangsbestand</th>
                 <th className="p-3">Aktueller Bestand</th>
                 <th className="p-3">Verantwortlich</th>
-                <th className="p-3">Baustelle</th>
+                <th className="p-3">Standort / Baustelle</th>
                 <th className="p-3">Status</th>
               </tr>
             </thead>
@@ -382,14 +409,12 @@ export default async function InventoryStoragePage({
                       {formatStock(item.currentStock, item.stockUnit)}
                     </td>
                     <td className="p-3 text-gray-700">
-                      {item.responsibleEmployee
-                        ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
-                        : item.responsibleCrew?.name ?? "—"}
+                      <ResponsibleCell item={item} />
                     </td>
                     <td className="p-3 text-gray-700">
                       {item.currentProject
                         ? `${item.currentProject.projectNumber} · ${item.currentProject.name}`
-                        : "—"}
+                        : item.currentLocationLabel ?? "—"}
                     </td>
                     <td className="p-3">
                       <span

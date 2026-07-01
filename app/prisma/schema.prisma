@@ -86,6 +86,8 @@ model Project {
   formSubmissions                   ProjectFormSubmission[]
   inventoryAssignments              InventoryItem[] @relation("InventoryCurrentProject")
   inventoryUsageHistory             InventoryUsageHistory[]
+  currentInventoryLocationAlerts    InventoryLocationAlert[] @relation("InventoryAlertCurrentProject")
+  suggestedInventoryLocationAlerts  InventoryLocationAlert[] @relation("InventoryAlertSuggestedProject")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1513,6 +1515,9 @@ model InventoryCategory {
   colorClass  String?
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
+  parentCategoryId String?
+  parentCategory   InventoryCategory?  @relation("InventoryCategoryChildren", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  childCategories  InventoryCategory[] @relation("InventoryCategoryChildren")
   objectNumberStart Int?
   objectNumberEnd   Int?
   nextObjectNumber  Int?
@@ -1530,6 +1535,7 @@ model InventoryCategory {
 
   @@unique([name])
   @@index([isActive])
+  @@index([parentCategoryId])
   @@index([sortOrder])
 }
 
@@ -1577,6 +1583,8 @@ model InventoryItem {
 
   currentProjectId String?
   currentProject   Project? @relation("InventoryCurrentProject", fields: [currentProjectId], references: [id], onDelete: SetNull)
+  currentLocationType  String?
+  currentLocationLabel String?
 
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
@@ -1600,6 +1608,7 @@ model InventoryItem {
   contacts                InventoryContact[]
   usageHistory            InventoryUsageHistory[]
   scanLogs                InventoryScanLog[]
+  locationAlerts          InventoryLocationAlert[]
   workshopRepairOrders    WorkshopRepairOrder[]
   workshopFormSubmissions WorkshopFormSubmission[]
 
@@ -1621,6 +1630,7 @@ model InventoryItem {
   @@index([responsibleEmployeeId])
   @@index([responsibleCrewId])
   @@index([currentProjectId])
+  @@index([currentLocationType])
   @@index([vehicleId])
   @@index([nextServiceAtDate])
   @@index([nextDguvInspectionDate])
@@ -1739,6 +1749,7 @@ model InventoryScanLog {
   projectLabel     String?
   userAgent        String?
   notes            String?
+  locationAlert    InventoryLocationAlert?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1748,4 +1759,40 @@ model InventoryScanLog {
   @@index([createdAt])
   @@index([projectId])
   @@index([locationCity])
+}
+
+model InventoryLocationAlert {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  scanLogId String @unique
+  scanLog   InventoryScanLog @relation(fields: [scanLogId], references: [id], onDelete: Cascade)
+
+  currentProjectId String?
+  currentProject   Project? @relation("InventoryAlertCurrentProject", fields: [currentProjectId], references: [id], onDelete: SetNull)
+
+  suggestedProjectId String?
+  suggestedProject   Project? @relation("InventoryAlertSuggestedProject", fields: [suggestedProjectId], references: [id], onDelete: SetNull)
+
+  status String @default("OPEN")
+  reason String
+  distanceToCurrentMeters Float?
+  distanceToSuggestedMeters Float?
+  scanAddressLabel String?
+  scannedByName String?
+  assignedByName String?
+  resolvedAt DateTime?
+  resolvedByName String?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([currentProjectId])
+  @@index([suggestedProjectId])
 }

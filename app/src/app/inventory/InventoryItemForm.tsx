@@ -1,5 +1,6 @@
 import { InventoryContactFields } from "./InventoryContactFields";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
+import { SearchableInventorySelect } from "./SearchableInventorySelect";
 
 export type InventoryItemFormData = {
   billingRateCents: number | null;
@@ -96,11 +97,10 @@ export function InventoryItemForm({
   employees,
   item,
   layout = "grid",
-  projects,
   vehicles,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; parentCategoryId: string | null }[];
   containerOptions: { id: string; name: string }[];
   crews: { id: string; name: string }[];
   defaultParentItemId?: string | null;
@@ -167,6 +167,7 @@ export function InventoryItemForm({
                 <option value="__none">Keine Kategorie</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
+                    {category.parentCategoryId ? "↳ " : ""}
                     {category.name}
                   </option>
                 ))}
@@ -351,7 +352,7 @@ export function InventoryItemForm({
       <section className={sectionClass}>
         {layout === "stacked" ? (
           <SectionHeader
-            description="Wer hat das Objekt aktuell, liegt es auf einer Baustelle oder in einem Container?"
+            description="Wer ist grundsätzlich für das Objekt verantwortlich?"
             title="Zuordnung"
           />
         ) : null}
@@ -403,28 +404,20 @@ export function InventoryItemForm({
           <div className={fieldGroupClass}>
             {layout === "stacked" ? (
               <FieldGroupHeader
-                description="Baustelle, bestehendes Gerät/Fahrzeug oder Containerobjekt."
-                title="Standort / Bezug"
+                description="Nur Übergang: bleibt, bis Dispo, BTB und Werkstatt vollständig auf Inventarobjekte umgestellt sind."
+                title="Alt-Stammdaten-Verknüpfung"
               />
             ) : null}
             <div className={innerGridClass}>
-              <Select
-                className={layout === "stacked" ? "" : "xl:col-span-2"}
-                defaultValue={item?.currentProjectId ?? "__none"}
-                label="Aktuelle Baustelle"
+              <input
                 name="currentProjectId"
-              >
-                <option value="__none">Keine Baustelle</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.projectNumber} · {project.name}
-                  </option>
-                ))}
-              </Select>
+                type="hidden"
+                value={item?.currentProjectId ?? "__none"}
+              />
               <Select
-                className={layout === "stacked" ? "" : "xl:col-span-2"}
+                className={layout === "stacked" ? "" : "xl:col-span-3"}
                 defaultValue={item?.vehicleId ?? "__none"}
-                label="Bestehendes Fahrzeug/Gerät verknüpfen"
+                label="Altes Fahrzeug/Gerät verknüpfen"
                 name="vehicleId"
               >
                 <option value="__none">Keine Verknüpfung</option>
@@ -433,19 +426,6 @@ export function InventoryItemForm({
                     {vehicle.vehicleNumber}
                     {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""} ·{" "}
                     {vehicle.vehicleType}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                className={layout === "stacked" ? "" : "xl:col-span-2"}
-                defaultValue={item?.parentItemId ?? defaultParentItemId ?? "__none"}
-                label="Liegt in Containerobjekt"
-                name="parentItemId"
-              >
-                <option value="__none">Kein Container</option>
-                {containerOptions.map((container) => (
-                  <option key={container.id} value={container.id}>
-                    {container.name}
                   </option>
                 ))}
               </Select>
@@ -469,16 +449,38 @@ export function InventoryItemForm({
                 title="Containerobjekt"
               />
             ) : null}
-            <div className={innerGridClass}>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                <input
-                  className="h-4 w-4 rounded border-gray-300"
-                  defaultChecked={item?.isContainer ?? false}
-                  name="isContainer"
-                  type="checkbox"
+            <div
+              className={
+                layout === "stacked"
+                  ? "grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]"
+                  : "grid grid-cols-1 gap-4 xl:col-span-6 xl:grid-cols-[280px_minmax(0,1fr)]"
+              }
+            >
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <label className="flex items-start gap-3 text-sm font-semibold text-blue-950">
+                  <input
+                    className="mt-1 h-4 w-4 rounded border-blue-300"
+                    defaultChecked={item?.isContainer ?? false}
+                    name="isContainer"
+                    type="checkbox"
+                  />
+                  <span>
+                    Ist Containerobjekt
+                    <span className="mt-1 block text-xs font-normal leading-5 text-blue-800">
+                      Dieses Objekt kann weitere Objekte enthalten.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <SearchableInventorySelect
+                  defaultValue={item?.parentItemId ?? defaultParentItemId ?? "__none"}
+                  label="Einem Containerobjekt zuweisen"
+                  name="parentItemId"
+                  options={containerOptions}
+                  placeholder="Containerobjekt suchen..."
                 />
-                Containerobjekt
-              </label>
+              </div>
             </div>
           </div>
 

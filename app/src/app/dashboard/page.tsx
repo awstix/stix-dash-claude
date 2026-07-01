@@ -3,10 +3,16 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
-  const [activeProjectCount, qualifications] = await Promise.all([
+  const [activeProjectCount, inventoryLocationAlertCount, qualifications] =
+    await Promise.all([
     prisma.project.count({
       where: {
         status: "ACTIVE",
+      },
+    }),
+    prisma.inventoryLocationAlert.count({
+      where: {
+        status: "OPEN",
       },
     }),
     prisma.employeeQualification.findMany({
@@ -66,8 +72,17 @@ export default async function DashboardPage() {
       title="Dashboard"
       description="Rollenbasierte Übersicht über Projekte, Dispositionen und offene Aufgaben."
     >
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         <InfoCard title="Aktive Projekte" value={`${activeProjectCount}`} />
+        <Link
+          className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm hover:bg-orange-50"
+          href="/inventory/location-alerts"
+        >
+          <p className="text-sm text-gray-500">Inventar Standortmeldungen</p>
+          <p className="mt-3 text-3xl font-bold text-gray-900">
+            {inventoryLocationAlertCount}
+          </p>
+        </Link>
         <InfoCard title="Asphalt morgen" value="0 t" />
         <InfoCard title="Bestellung Status" value="Entwurf" />
       </div>

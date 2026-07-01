@@ -6,6 +6,7 @@ import { deleteInventoryCategory } from "./actions";
 
 type InventoryCategoryForDialog = {
   _count: {
+    childCategories: number;
     items: number;
   };
   colorClass: string | null;
@@ -16,6 +17,7 @@ type InventoryCategoryForDialog = {
   nextObjectNumber: number | null;
   objectNumberEnd: number | null;
   objectNumberStart: number | null;
+  parentCategoryId: string | null;
   sortOrder: number;
   useInDailyReports: boolean;
   useInTruckDispatchMaterial: boolean;

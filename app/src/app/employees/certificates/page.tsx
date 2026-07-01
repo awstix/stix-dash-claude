@@ -403,7 +403,7 @@ export default async function EmployeeCertificatesPage({
 
   return (
     <AppShell
-      title="Mitarbeiterzertifikate"
+      title="Mitarbeiterakte"
       description="Kurze Übersicht je Mitarbeiter. Schulungen und Führerscheine werden im Mitarbeiterdetail gepflegt."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -816,7 +816,7 @@ export default async function EmployeeCertificatesPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              Zertifikatsliste kurz
+              Mitarbeiterakten kurz
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               Firma/Abteilung, Vorname, Nachname und aktuelle Schulungen. Details

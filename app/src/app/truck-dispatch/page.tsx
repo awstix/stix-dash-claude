@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import {
+  getVehicleInventoryItem,
+  getVehicleInventoryLabel,
+  vehicleInventoryLinkInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   getAsphaltAllocationsForDay,
@@ -309,6 +314,7 @@ export default async function TruckDispatchPage({
         isActive: true,
       },
       include: {
+        ...vehicleInventoryLinkInclude,
         driverAssignments: {
           where: {
             isActive: true,
@@ -754,6 +760,8 @@ export default async function TruckDispatchPage({
       }
 
       const assignedDriver = vehicle.driverAssignments[0]?.driver;
+      const inventoryItem = getVehicleInventoryItem(vehicle);
+      const inventoryLabel = getVehicleInventoryLabel(vehicle);
 
       return {
         id: `vehicle-${vehicle.id}`,
@@ -762,6 +770,9 @@ export default async function TruckDispatchPage({
         subtitle: assignedDriver
           ? `Stammfahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
           : `frei zugeordnet · ${vehicle.category} · ${vehicle.vehicleType}`,
+        inventoryHref: inventoryItem ? `/inventory/${inventoryItem.id}` : undefined,
+        inventoryLabel: inventoryLabel ?? undefined,
+        inventoryStatus: inventoryItem?.status,
         shortHaulAssignmentId,
         dayDriverId:
           dayDriverId ??

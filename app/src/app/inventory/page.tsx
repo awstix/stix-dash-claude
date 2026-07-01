@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { DismissibleDetails } from "@/components/DismissibleDetails";
 import { prisma } from "@/lib/prisma";
 import { deleteInventoryItem } from "./actions";
 import { InventoryPhotoThumbnailButton } from "./InventoryPhotoGallery";
@@ -49,7 +50,7 @@ function getInventoryStatusClass(status: string | null) {
 
 function getResponsibleLabel(item: {
   responsibleCrew: { name: string } | null;
-  responsibleEmployee: { firstName: string; lastName: string } | null;
+  responsibleEmployee: { firstName: string; id: string; lastName: string } | null;
   responsibleType: string | null;
 }) {
   if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
@@ -61,6 +62,71 @@ function getResponsibleLabel(item: {
   }
 
   return "—";
+}
+
+function ResponsibleCell({
+  item,
+}: {
+  item: {
+    responsibleCrew: { name: string } | null;
+    responsibleEmployee: {
+      firstName: string;
+      id: string;
+      lastName: string;
+    } | null;
+    responsibleType: string | null;
+  };
+}) {
+  if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
+    return (
+      <Link
+        className="font-semibold text-gray-900 hover:underline"
+        href={`/employees/certificates/${item.responsibleEmployee.id}`}
+      >
+        {item.responsibleEmployee.lastName},{" "}
+        {item.responsibleEmployee.firstName}
+      </Link>
+    );
+  }
+
+  return <>{getResponsibleLabel(item)}</>;
+}
+
+function ContainerCell({
+  item,
+}: {
+  item: {
+    _count: {
+      childItems: number;
+    };
+    id: string;
+    isContainer: boolean;
+    parentItem: { id: string; name: string } | null;
+  };
+}) {
+  if (item.isContainer) {
+    return (
+      <Link
+        className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-900 ring-1 ring-blue-200 hover:bg-blue-200"
+        href={`/inventory/${item.id}`}
+      >
+        Containerobjekt · {item._count.childItems} enthalten
+      </Link>
+    );
+  }
+
+  if (item.parentItem) {
+    return (
+      <Link
+        className="inline-flex rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-900 ring-1 ring-indigo-200 hover:bg-indigo-200"
+        href={`/inventory/${item.parentItem.id}`}
+      >
+        Liegt in {item.parentItem.name}
+      </Link>
+    );
+  }
+
+  return <span className="text-gray-400">—</span>;
 }
 
 const statusFilterOptions = [
@@ -77,14 +143,18 @@ export default async function InventoryPage({
     category?: string;
     project?: string;
     q?: string;
+    responsibleEmployee?: string;
     status?: string;
+    stockManaged?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
   const categoryFilter = String(params.category ?? "").trim();
   const projectFilter = String(params.project ?? "").trim();
+  const responsibleEmployeeFilter = String(params.responsibleEmployee ?? "").trim();
   const statusFilter = String(params.status ?? "").trim();
+  const stockManagedFilter = String(params.stockManaged ?? "").trim();
   const where: Prisma.InventoryItemWhereInput = {
     ...(categoryFilter ? { categoryId: categoryFilter } : {}),
     ...(projectFilter === "__none"
@@ -92,7 +162,15 @@ export default async function InventoryPage({
       : projectFilter
         ? { currentProjectId: projectFilter }
         : {}),
+    ...(responsibleEmployeeFilter
+      ? { responsibleEmployeeId: responsibleEmployeeFilter }
+      : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
+    ...(stockManagedFilter === "only"
+      ? { isStockManaged: true }
+      : stockManagedFilter === "exclude"
+        ? { isStockManaged: false }
+        : {}),
     ...(searchQuery
       ? {
           OR: [
@@ -160,6 +238,13 @@ export default async function InventoryPage({
     ]);
 
   const filteredItems = items;
+  const activeFilterCount = [
+    categoryFilter,
+    projectFilter,
+    responsibleEmployeeFilter,
+    statusFilter,
+    stockManagedFilter,
+  ].filter(Boolean).length;
 
   const stockManagedCount = await prisma.inventoryItem.count({
     where: {
@@ -222,7 +307,7 @@ export default async function InventoryPage({
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
               Inventar
@@ -232,77 +317,167 @@ export default async function InventoryPage({
             </p>
           </div>
 
-          <form className="grid w-full grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-5">
-            <label className="text-sm font-semibold text-gray-800 md:col-span-2">
-              Suche
-            <input
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              defaultValue={searchQuery}
-              name="q"
-              placeholder="Suche nach Name, Objekt-ID, Kennzeichen, Inventarnummer, Seriennummer..."
-            />
-            </label>
-            <label className="text-sm font-semibold text-gray-800">
-              Status
-              <select
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                defaultValue={statusFilter}
-                name="status"
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+            <form className="flex min-w-0 flex-1 gap-2 lg:w-[420px]">
+              {categoryFilter ? (
+                <input name="category" type="hidden" value={categoryFilter} />
+              ) : null}
+              {projectFilter ? (
+                <input name="project" type="hidden" value={projectFilter} />
+              ) : null}
+              {responsibleEmployeeFilter ? (
+                <input
+                  name="responsibleEmployee"
+                  type="hidden"
+                  value={responsibleEmployeeFilter}
+                />
+              ) : null}
+              {statusFilter ? (
+                <input name="status" type="hidden" value={statusFilter} />
+              ) : null}
+              {stockManagedFilter ? (
+                <input
+                  name="stockManaged"
+                  type="hidden"
+                  value={stockManagedFilter}
+                />
+              ) : null}
+              <input
+                className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                defaultValue={searchQuery}
+                name="q"
+                placeholder="Suche nach Objekt-ID, Name, Kennzeichen..."
+              />
+              <button
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                type="submit"
               >
-                <option value="">Alle Status</option>
-                {statusFilterOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm font-semibold text-gray-800">
-              Kategorie
-              <select
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                defaultValue={categoryFilter}
-                name="category"
-              >
-                <option value="">Alle Kategorien</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm font-semibold text-gray-800">
-              Baustelle
-              <select
-                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                defaultValue={projectFilter}
-                name="project"
-              >
-                <option value="">Alle Baustellen</option>
-                <option value="__none">Ohne Baustelle</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.projectNumber} · {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end gap-2 md:col-span-2 xl:col-span-5">
-            <button
-              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-              type="submit"
-            >
-                Filter anwenden
-            </button>
-              <Link
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                href="/inventory"
-              >
-                Zurücksetzen
-              </Link>
-            </div>
-          </form>
+                Suchen
+              </button>
+            </form>
+
+            <DismissibleDetails className="relative inline-block">
+              <summary className="inline-flex cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
+                🔎 Filter
+                {activeFilterCount > 0 ? (
+                  <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </summary>
+
+              <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Inventar filtern
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Status, Kategorie, Baustelle und Lagerobjekte eingrenzen.
+                  </p>
+                </div>
+
+                <form
+                  action="/inventory"
+                  className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2"
+                >
+                  <label className="text-sm font-semibold text-gray-800 md:col-span-2">
+                    Suche
+                    <input
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={searchQuery}
+                      name="q"
+                      placeholder="Name, Objekt-ID, Kennzeichen, Inventarnummer, Seriennummer..."
+                    />
+                  </label>
+
+                  <label className="text-sm font-semibold text-gray-800">
+                    Status
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={statusFilter}
+                      name="status"
+                    >
+                      <option value="">Alle Status</option>
+                      {statusFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-gray-800">
+                    Lagerobjekte
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={stockManagedFilter}
+                      name="stockManaged"
+                    >
+                      <option value="">Alle anzeigen</option>
+                      <option value="only">Nur Lagerobjekte</option>
+                      <option value="exclude">Lagerobjekte ausblenden</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-gray-800">
+                    Kategorie
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={categoryFilter}
+                      name="category"
+                    >
+                      <option value="">Alle Kategorien</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-gray-800">
+                    Baustelle
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={projectFilter}
+                      name="project"
+                    >
+                      <option value="">Alle Baustellen</option>
+                      <option value="__none">Ohne Baustelle</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.projectNumber} · {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {responsibleEmployeeFilter ? (
+                    <input
+                      name="responsibleEmployee"
+                      type="hidden"
+                      value={responsibleEmployeeFilter}
+                    />
+                  ) : null}
+
+                  <div className="flex flex-wrap items-end gap-3 md:col-span-2">
+                    <button
+                      className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+                      type="submit"
+                    >
+                      Filter anwenden
+                    </button>
+                    <Link
+                      className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                      href="/inventory"
+                    >
+                      Filter zurücksetzen
+                    </Link>
+                  </div>
+                </form>
+              </div>
+            </DismissibleDetails>
+          </div>
         </div>
 
         <div className="mt-5 overflow-x-auto">
@@ -319,7 +494,7 @@ export default async function InventoryPage({
                 <th className="p-3">Kennzeichen</th>
                 <th className="p-3">Seriennr.</th>
                 <th className="p-3">Verantwortlich</th>
-                <th className="p-3">Baustelle</th>
+                <th className="p-3">Standort / Baustelle</th>
                 <th className="p-3">Container</th>
                 <th className="p-3">Lager</th>
                 <th className="p-3">Satz</th>
@@ -427,17 +602,15 @@ export default async function InventoryPage({
                       {item.serialNumber ?? "—"}
                     </td>
                     <td className="p-3 text-gray-700">
-                      {getResponsibleLabel(item)}
+                      <ResponsibleCell item={item} />
                     </td>
                     <td className="p-3 text-gray-700">
                       {item.currentProject
                         ? `${item.currentProject.projectNumber} · ${item.currentProject.name}`
-                        : "—"}
+                        : item.currentLocationLabel ?? "—"}
                     </td>
                     <td className="p-3 text-gray-700">
-                      {item.isContainer
-                        ? `${item._count.childItems} enthalten`
-                        : item.parentItem?.name ?? "—"}
+                      <ContainerCell item={item} />
                     </td>
                     <td className="p-3 text-gray-700">
                       {item.isStockManaged

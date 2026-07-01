@@ -118,10 +118,12 @@ async function upsertInventorySourceItem({
   axleCount,
   inventoryNumber,
   isActive,
+  isStockManaged,
   licensePlate,
   name,
   notes,
   payloadKg,
+  responsibleEmployeeId,
   sourceId,
   sourceType,
   stockUnit,
@@ -131,10 +133,12 @@ async function upsertInventorySourceItem({
   axleCount?: number | null;
   inventoryNumber: string | null;
   isActive: boolean;
+  isStockManaged: boolean;
   licensePlate?: string | null;
   name: string;
   notes: string | null;
   payloadKg?: number | null;
+  responsibleEmployeeId?: string | null;
   sourceId: string;
   sourceType: SourceKind;
   stockUnit: string;
@@ -180,11 +184,19 @@ async function upsertInventorySourceItem({
             },
           },
           inventoryNumber: safeInventoryNumber,
-          isStockManaged: true,
+          isStockManaged,
           licensePlate,
           name,
           notes,
           payloadKg,
+          responsibleEmployee: responsibleEmployeeId
+            ? {
+                connect: {
+                  id: responsibleEmployeeId,
+                },
+              }
+            : undefined,
+          responsibleType: responsibleEmployeeId ? "EMPLOYEE" : null,
           status: isActive ? "ACTIVE" : "LOCKED",
           stockUnit,
           vehicle: vehicleId
@@ -208,12 +220,20 @@ async function upsertInventorySourceItem({
           },
         },
         inventoryNumber: safeInventoryNumber,
-        isStockManaged: true,
+        isStockManaged,
         licensePlate,
         name,
         notes,
         objectNumber: await getNextInventoryObjectNumber(tx, categoryId),
         payloadKg,
+        responsibleEmployee: responsibleEmployeeId
+          ? {
+              connect: {
+                id: responsibleEmployeeId,
+              },
+            }
+          : undefined,
+        responsibleType: responsibleEmployeeId ? "EMPLOYEE" : null,
         sourceId,
         sourceType,
         status: isActive ? "ACTIVE" : "LOCKED",
@@ -285,6 +305,26 @@ async function getFallbackVehicleCategory(category: string, vehicleType: string)
 
 async function syncVehicles(formData: FormData) {
   const vehicles = await prisma.vehicle.findMany({
+    include: {
+      driverAssignments: {
+        where: {
+          isActive: true,
+        },
+        include: {
+          driver: {
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }],
+        take: 1,
+      },
+    },
     orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
   });
   let syncedCount = 0;
@@ -312,6 +352,7 @@ async function syncVehicles(formData: FormData) {
       categoryId,
       inventoryNumber: vehicle.vehicleNumber,
       isActive: vehicle.isActive,
+      isStockManaged: false,
       licensePlate: vehicle.licensePlate,
       name,
       notes: [
@@ -319,7 +360,7 @@ async function syncVehicles(formData: FormData) {
         vehicle.category ? `Fahrzeugkategorie: ${vehicle.category}` : null,
         vehicle.vehicleType ? `Fahrzeugtyp: ${vehicle.vehicleType}` : null,
         vehicle.asphaltPayloadTons
-          ? `Asphalt-Nutzlast: ${vehicle.asphaltPayloadTons} t`
+          ? `Nutzlast: ${vehicle.asphaltPayloadTons} t`
           : null,
         vehicle.tackCoatTankLiters
           ? `Anspritzmittel-Tank: ${vehicle.tackCoatTankLiters} l`
@@ -332,6 +373,8 @@ async function syncVehicles(formData: FormData) {
       payloadKg: vehicle.asphaltPayloadTons
         ? Math.round(vehicle.asphaltPayloadTons * 1000)
         : null,
+      responsibleEmployeeId:
+        vehicle.driverAssignments[0]?.driver.employee?.id ?? null,
       stockUnit: "Stk.",
       vehicleId: vehicle.id,
     });
@@ -355,6 +398,7 @@ async function syncMaterials(categoryId: string | null) {
       categoryId: category.id,
       inventoryNumber: material.materialNumber,
       isActive: material.isActive,
+      isStockManaged: true,
       name: material.name,
       notes: material.notes,
       sourceId: material.id,
@@ -378,6 +422,7 @@ async function syncTackCoatTypes(categoryId: string | null) {
       categoryId: category.id,
       inventoryNumber: material.materialNumber,
       isActive: material.isActive,
+      isStockManaged: true,
       name: material.name,
       notes: material.notes,
       sourceId: material.id,
@@ -398,6 +443,7 @@ async function syncAsphaltTypes(categoryId: string | null) {
       categoryId: category.id,
       inventoryNumber: asphaltType.mixNumber,
       isActive: asphaltType.isActive,
+      isStockManaged: true,
       name: asphaltType.name,
       notes:
         [
@@ -426,6 +472,7 @@ async function syncConcreteTypes(categoryId: string | null) {
       categoryId: category.id,
       inventoryNumber: concreteType.typeNumber,
       isActive: concreteType.isActive,
+      isStockManaged: true,
       name: concreteType.name,
       notes:
         [

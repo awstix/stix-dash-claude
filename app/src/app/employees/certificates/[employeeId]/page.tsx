@@ -1,4 +1,5 @@
 import Link from "next/link";
+/* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,60 @@ function formatDate(date: Date | null) {
     month: "2-digit",
     year: "numeric",
   }).format(date);
+}
+
+function formatAddress(employee: {
+  city: string | null;
+  postalCode: string | null;
+  street: string | null;
+}) {
+  const cityLine = [employee.postalCode, employee.city].filter(Boolean).join(" ");
+  return [employee.street, cityLine].filter(Boolean).join(", ") || "—";
+}
+
+function calculateAge(birthDate: Date | null) {
+  if (!birthDate) return "—";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hadBirthday =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() >= birthDate.getDate());
+
+  if (!hadBirthday) age -= 1;
+
+  return `${age}`;
+}
+
+function formatStock(value: number | null, unit: string) {
+  if (value === null) return "—";
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 3,
+  }).format(value)} ${unit}`;
+}
+
+function formatTonsFromKilograms(value: number | null) {
+  if (value === null) return "—";
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 3,
+  }).format(value / 1000)} t`;
+}
+
+function getInventoryStatusLabel(status: string | null) {
+  if (status === "DEFECT") return "Defekt";
+  if (status === "LOCKED") return "Gesperrt";
+  if (status === "IN_SERVICE") return "In Wartung";
+  return "Aktiv";
+}
+
+function getInventoryStatusClass(status: string | null) {
+  if (status === "DEFECT") return "bg-red-50 text-red-800 ring-red-200";
+  if (status === "LOCKED") return "bg-gray-100 text-gray-700 ring-gray-300";
+  if (status === "IN_SERVICE") return "bg-amber-50 text-amber-800 ring-amber-200";
+  return "bg-green-50 text-green-800 ring-green-200";
 }
 
 type TrainingTypeOption = {
@@ -55,6 +110,30 @@ export default async function EmployeeCertificateDetailPage({
             },
           },
           orderBy: [{ validUntil: "asc" }, { trainingDate: "desc" }],
+        },
+        inventoryAssignments: {
+          include: {
+            category: true,
+            currentProject: {
+              select: {
+                name: true,
+                projectNumber: true,
+              },
+            },
+            photos: {
+              orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+              take: 1,
+            },
+            vehicle: {
+              select: {
+                category: true,
+                licensePlate: true,
+                vehicleNumber: true,
+                vehicleType: true,
+              },
+            },
+          },
+          orderBy: [{ name: "asc" }],
         },
       },
     }),
@@ -109,22 +188,35 @@ export default async function EmployeeCertificateDetailPage({
   return (
     <AppShell
       title={`${employee.firstName} ${employee.lastName}`}
-      description="Führerscheine, Maschinenscheine und Schulungen je Mitarbeiter pflegen."
+      description="Mitarbeiterakte mit Führerscheinen, Maschinenscheinen, Schulungen und zugeordnetem Inventar."
     >
       <div className="mb-6">
         <Link
           className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           href="/employees/certificates"
         >
-          ← Zurück zur Zertifikatsliste
+          ← Zurück zur Mitarbeiterakte
         </Link>
       </div>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-5 sm:flex-row">
+            {employee.photoUrl ? (
+              <img
+                alt={`${employee.firstName} ${employee.lastName}`}
+                className="h-32 w-32 rounded-2xl border border-gray-200 object-cover shadow-sm"
+                src={employee.photoUrl}
+              />
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-3xl font-bold text-gray-400">
+                {employee.firstName.slice(0, 1)}
+                {employee.lastName.slice(0, 1)}
+              </div>
+            )}
+            <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Mitarbeiter
+              Mitarbeiterakte
             </p>
             <h2 className="mt-1 text-2xl font-bold text-gray-900">
               {employee.lastName}, {employee.firstName}
@@ -134,14 +226,161 @@ export default async function EmployeeCertificateDetailPage({
                 .filter(Boolean)
                 .join(" · ") || "Keine Firma/Abteilung hinterlegt"}
             </p>
+              <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
+                <EmployeeInfo label="Status" value={employee.statusLabel ?? "—"} />
+                <EmployeeInfo label="Eintritt" value={formatDate(employee.entryDate)} />
+                <EmployeeInfo label="Austritt" value={formatDate(employee.exitDate)} />
+                <EmployeeInfo label="Geburtsdatum" value={formatDate(employee.birthDate)} />
+                <EmployeeInfo label="Alter" value={calculateAge(employee.birthDate)} />
+                <EmployeeInfo label="Geschlecht" value={employee.genderLabel ?? "—"} />
+                <EmployeeInfo label="Mobil" value={employee.mobilePhone ?? "—"} />
+                <EmployeeInfo
+                  label="Notfallkontakt"
+                  value={employee.emergencyPhone ?? "—"}
+                />
+                <EmployeeInfo label="Adresse" value={formatAddress(employee)} />
+                <EmployeeInfo
+                  label="Führungskraft"
+                  value={employee.isLeadership ? "Ja" : "Nein"}
+                />
+              </div>
+              {employee.notes ? (
+                <div className="mt-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+                  <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                    Notizen
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap">{employee.notes}</p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            <Link
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href="/employees/driver-licenses"
+            >
+              Führerscheinkontrolle öffnen
+            </Link>
+            <Link
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/employees?firstName=${encodeURIComponent(
+                employee.firstName,
+              )}&lastName=${encodeURIComponent(employee.lastName)}`}
+            >
+              Verwaltung öffnen
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Inventar / Fahrzeuge
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Aktuell dem Mitarbeiter zugeordnete Inventarobjekte, Fahrzeuge,
+              Maschinen und ausgegebene Lagerobjekte.
+            </p>
           </div>
           <Link
             className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            href="/employees/driver-licenses"
+            href={`/inventory?responsibleEmployee=${employee.id}`}
           >
-            Führerscheinkontrolle öffnen
+            Inventar öffnen
           </Link>
         </div>
+
+        {employee.inventoryAssignments.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            Aktuell sind diesem Mitarbeiter keine Inventarobjekte zugeordnet.
+          </p>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-[1000px] w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="w-20 p-3">Foto</th>
+                  <th className="p-3">Objekt</th>
+                  <th className="p-3">Kategorie</th>
+                  <th className="p-3">Kennzeichen</th>
+                  <th className="p-3">Nutzlast</th>
+                  <th className="p-3">Baustelle</th>
+                  <th className="p-3">Lager</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.inventoryAssignments.map((item) => {
+                  const photo = item.photos[0];
+
+                  return (
+                    <tr className="border-t border-gray-100" key={item.id}>
+                      <td className="p-3">
+                        {photo ? (
+                          <img
+                            alt={photo.originalName ?? item.name}
+                            className="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+                            src={photo.url}
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-xs font-bold text-gray-400">
+                            —
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          className="font-semibold text-gray-900 hover:underline"
+                          href={`/inventory/${item.id}`}
+                        >
+                          {item.name}
+                        </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {[item.objectNumber, item.inventoryNumber]
+                            .filter(Boolean)
+                            .join(" · ") || "ohne Objekt-ID"}
+                        </div>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {item.category?.name ??
+                          item.vehicle?.category ??
+                          item.vehicle?.vehicleType ??
+                          "—"}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {item.licensePlate ?? item.vehicle?.licensePlate ?? "—"}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {formatTonsFromKilograms(item.payloadKg)}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {item.currentProject
+                          ? `${item.currentProject.projectNumber} · ${item.currentProject.name}`
+                          : "—"}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {item.isStockManaged
+                          ? formatStock(item.currentStock, item.stockUnit)
+                          : "Nein"}
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${getInventoryStatusClass(
+                            item.status,
+                          )}`}
+                        >
+                          {getInventoryStatusLabel(item.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -351,5 +590,16 @@ function DateInput({
         type="date"
       />
     </label>
+  );
+}
+
+function EmployeeInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
+      <div className="mt-1 break-words font-semibold text-gray-900">{value}</div>
+    </div>
   );
 }

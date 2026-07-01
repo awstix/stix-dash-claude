@@ -20,6 +20,9 @@ type UtilizationRow = {
   kind: "DRIVER" | "VEHICLE";
   title: string;
   subtitle: string;
+  inventoryHref?: string;
+  inventoryLabel?: string;
+  inventoryStatus?: string;
   shortHaulAssignmentId?: string;
   dayDriverId?: string;
   dayVehicleId?: string;
@@ -666,6 +669,18 @@ export function UtilizationTimeline({
                       <div className="mt-1 text-xs text-gray-500">
                         {row.subtitle}
                       </div>
+                      {row.inventoryHref && row.inventoryLabel ? (
+                        <Link
+                          href={row.inventoryHref}
+                          className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-200"
+                        >
+                          Inventar: {row.inventoryLabel}
+                          {row.inventoryStatus &&
+                          row.inventoryStatus !== "ACTIVE"
+                            ? ` · ${row.inventoryStatus === "DEFECT" ? "Defekt" : row.inventoryStatus}`
+                            : ""}
+                        </Link>
+                      ) : null}
                     </div>
 
                     <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
@@ -753,6 +768,17 @@ export function UtilizationTimeline({
                 <div className="mt-1 text-xs leading-5 text-gray-500">
                   {row.subtitle}
                 </div>
+                {row.inventoryHref && row.inventoryLabel ? (
+                  <Link
+                    href={row.inventoryHref}
+                    className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-200"
+                  >
+                    Inventar: {row.inventoryLabel}
+                    {row.inventoryStatus && row.inventoryStatus !== "ACTIVE"
+                      ? ` · ${row.inventoryStatus === "DEFECT" ? "Defekt" : row.inventoryStatus}`
+                      : ""}
+                  </Link>
+                ) : null}
               </div>
 
               <div

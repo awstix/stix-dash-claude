@@ -120,11 +120,11 @@ export function InventoryScannerClient() {
   async function recordScan(target: string, rawValue: string) {
     const itemId = getInventoryItemIdFromTarget(target);
 
-    if (!itemId) return;
+    if (!itemId) return false;
 
     const locationPayload = await getLocationPayload();
 
-    await fetch("/inventory/scanner/log", {
+    const response = await fetch("/inventory/scanner/log", {
       body: JSON.stringify({
         action: "VIEW",
         itemId,
@@ -137,6 +137,14 @@ export function InventoryScannerClient() {
       },
       method: "POST",
     });
+
+    if (!response.ok) return false;
+
+    const payload = (await response.json().catch(() => null)) as {
+      locationAlertCreated?: boolean;
+    } | null;
+
+    return Boolean(payload?.locationAlertCreated);
   }
 
   async function openTarget(rawValue: string) {
@@ -151,10 +159,13 @@ export function InventoryScannerClient() {
     }
 
     stopCamera();
-    await recordScan(target, rawValue).catch(() => {
+    const locationAlertCreated = await recordScan(target, rawValue).catch(() => {
       setError("Scan konnte nicht gespeichert werden. Objekt wird trotzdem geöffnet.");
+      return false;
     });
-    window.location.href = target;
+    window.location.href = locationAlertCreated
+      ? `${target}?locationAlert=1`
+      : target;
   }
 
   async function startCamera() {

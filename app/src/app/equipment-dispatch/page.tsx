@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import {
+  getVehicleInventoryItem,
+  getVehicleInventoryLabel,
+  getVehicleInventoryResponsibleLabel,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
@@ -97,6 +104,7 @@ const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 const LEFT_COLUMN_WIDTH_PX = 340;
 const TIMELINE_ROW_MIN_HEIGHT_PX = 112;
+const EQUIPMENT_LEFT_ROW_MIN_HEIGHT_PX = 118;
 const TIMELINE_TOP_OFFSET_PX = 44;
 const TIMELINE_LANE_HEIGHT_PX = 68;
 const TIMELINE_BOTTOM_PADDING_PX = 28;
@@ -545,6 +553,35 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+function getEquipmentListRowMinHeight(vehicle: {
+  notes: string | null;
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+  let minHeight = EQUIPMENT_LEFT_ROW_MIN_HEIGHT_PX;
+
+  if (inventoryItem) {
+    minHeight += 42;
+
+    if (inventoryItem.currentLocationLabel) {
+      minHeight += 18;
+    }
+
+    if (getVehicleInventoryResponsibleLabel(inventoryItem)) {
+      minHeight += 18;
+    }
+
+    if (inventoryItem.status !== "ACTIVE") {
+      minHeight += 18;
+    }
+  }
+
+  if (vehicle.notes) {
+    minHeight += 34;
+  }
+
+  return minHeight;
+}
+
 function normalizeSearchText(value: string | null | undefined) {
   return String(value ?? "")
     .trim()
@@ -618,7 +655,7 @@ function vehicleMatchesSimpleFilters({
     vehicleType: string;
     category: string;
     isSpecialVehicle: boolean;
-  };
+  } & VehicleWithInventoryLink;
   filters: EquipmentDispatchFilters;
 }) {
   if (!filters.visibleVehicleTypes.includes(vehicle.vehicleType)) {
@@ -930,7 +967,7 @@ function vehicleMatchesFilters({
     category: string;
     isSpecialVehicle: boolean;
     notes: string | null;
-  };
+  } & VehicleWithInventoryLink;
   bars: EquipmentRowBar[];
   filters: EquipmentDispatchFilters;
 }) {
@@ -1012,6 +1049,11 @@ function vehicleMatchesFilters({
       vehicle.category,
       vehicle.isSpecialVehicle ? "Sonderfahrzeug" : "normales Gerät",
       vehicle.notes,
+      getVehicleInventoryLabel(vehicle),
+      getVehicleInventoryItem(vehicle)?.category?.name,
+      getVehicleInventoryItem(vehicle)?.status,
+      getVehicleInventoryItem(vehicle)?.currentLocationLabel,
+      getVehicleInventoryResponsibleLabel(getVehicleInventoryItem(vehicle)),
       ...bars.flatMap((bar) => [
         bar.source === "manual"
           ? "Gerätedisposition manuell"
@@ -1393,6 +1435,9 @@ export default async function EquipmentDispatchPage({
     prisma.vehicle.findMany({
       where: {
         isActive: true,
+      },
+      include: {
+        ...vehicleInventoryLinkInclude,
       },
       orderBy: [
         { isSpecialVehicle: "desc" },
@@ -2579,9 +2624,15 @@ export default async function EquipmentDispatchPage({
               </div>
             ) : (
               filteredVehicles.map((vehicle) => {
-                const rowHeight =
+                const rowHeight = Math.max(
                   rowLayouts.get(vehicle.id)?.rowHeight ??
-                  TIMELINE_ROW_MIN_HEIGHT_PX;
+                    TIMELINE_ROW_MIN_HEIGHT_PX,
+                  getEquipmentListRowMinHeight(vehicle),
+                );
+                const inventoryItem = getVehicleInventoryItem(vehicle);
+                const inventoryLabel = getVehicleInventoryLabel(vehicle);
+                const inventoryResponsibleLabel =
+                  getVehicleInventoryResponsibleLabel(inventoryItem);
 
                 return (
                   <div
@@ -2599,6 +2650,19 @@ export default async function EquipmentDispatchPage({
                       {vehicle.category} · {vehicle.vehicleType}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
+                      {inventoryItem && inventoryLabel ? (
+                        <Link
+                          href={`/inventory/${inventoryItem.id}`}
+                          className="max-w-full truncate rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950 transition hover:bg-amber-200"
+                          title="Inventarobjekt öffnen"
+                        >
+                          Inventar: {inventoryLabel}
+                        </Link>
+                      ) : (
+                        <span className="rounded-full bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500">
+                          Kein Inventarobjekt
+                        </span>
+                      )}
                       {vehicle.isSpecialVehicle ? (
                         <span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-900">
                           Sonderfahrzeug
@@ -2608,6 +2672,30 @@ export default async function EquipmentDispatchPage({
                         {(barsByVehicle.get(vehicle.id) ?? []).length} Balken
                       </span>
                     </div>
+                    {inventoryItem ? (
+                      <div className="mt-2 space-y-1 text-xs text-gray-500">
+                        {inventoryItem.status !== "ACTIVE" ? (
+                          <div>
+                            Status:{" "}
+                            <span className="font-semibold text-red-700">
+                              {inventoryItem.status === "DEFECT"
+                                ? "Defekt"
+                                : inventoryItem.status}
+                            </span>
+                          </div>
+                        ) : null}
+                        {inventoryItem.currentLocationLabel ? (
+                          <div className="truncate">
+                            Standort: {inventoryItem.currentLocationLabel}
+                          </div>
+                        ) : null}
+                        {inventoryResponsibleLabel ? (
+                          <div className="truncate">
+                            Zuweisung: {inventoryResponsibleLabel}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {vehicle.notes ? (
                       <div className="mt-2 line-clamp-3 text-xs text-gray-500">
                         {vehicle.notes}
@@ -2630,8 +2718,10 @@ export default async function EquipmentDispatchPage({
               {filteredVehicles.map((vehicle) => {
                 const bars = barsByVehicle.get(vehicle.id) ?? [];
                 const rowLayout = rowLayouts.get(vehicle.id);
-                const rowHeight =
-                  rowLayout?.rowHeight ?? TIMELINE_ROW_MIN_HEIGHT_PX;
+                const rowHeight = Math.max(
+                  rowLayout?.rowHeight ?? TIMELINE_ROW_MIN_HEIGHT_PX,
+                  getEquipmentListRowMinHeight(vehicle),
+                );
 
                 return (
                   <div

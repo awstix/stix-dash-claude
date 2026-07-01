@@ -5,18 +5,47 @@ import {
   updateInventoryCategory,
 } from "./actions";
 import { InventoryCategoryEditDialog } from "./InventoryCategoryEditDialog";
+import { InventorySubcategoryRows } from "./InventorySubcategoryRows";
 
 export default async function InventoryCategoriesPage() {
   const categories = await prisma.inventoryCategory.findMany({
     include: {
       _count: {
         select: {
+          childCategories: true,
           items: true,
+        },
+      },
+      parentCategory: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      childCategories: {
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          isActive: true,
+          name: true,
+          nextObjectNumber: true,
+          objectNumberEnd: true,
+          objectNumberStart: true,
+          sortOrder: true,
         },
       },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
+
+  const categoryOptions = categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    objectNumberEnd: category.objectNumberEnd,
+    objectNumberStart: category.objectNumberStart,
+    parentCategoryId: category.parentCategoryId,
+  }));
+  const rootCategories = categories.filter((category) => !category.parentCategoryId);
 
   return (
     <AppShell
@@ -27,7 +56,10 @@ export default async function InventoryCategoriesPage() {
         <h2 className="text-xl font-semibold text-gray-900">
           Kategorie anlegen
         </h2>
-        <InventoryCategoryForm action={createInventoryCategory} />
+        <InventoryCategoryForm
+          action={createInventoryCategory}
+          categoryOptions={categoryOptions}
+        />
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -52,17 +84,34 @@ export default async function InventoryCategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {categories.length === 0 ? (
+              {rootCategories.length === 0 ? (
                 <tr>
                   <td className="p-6 text-center text-gray-500" colSpan={10}>
                     Noch keine Inventarkategorien angelegt.
                   </td>
                 </tr>
               ) : (
-                categories.map((category) => (
+                rootCategories.map((category) => (
                   <tr className="border-t border-gray-100" key={category.id}>
                     <td className="p-3 font-semibold text-gray-900">
-                      {category.name}
+                      <div>{category.name}</div>
+                      {category.childCategories.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          {category.childCategories.map((childCategory) => (
+                            <div
+                              className="rounded-lg bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-700"
+                              key={childCategory.id}
+                            >
+                              ↳ {childCategory.name} ·{" "}
+                              {formatObjectNumberRange(
+                                childCategory.objectNumberStart,
+                                childCategory.objectNumberEnd,
+                              )}
+                              {childCategory.isActive ? "" : " · inaktiv"}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-3 text-gray-600">
                       {category.description || "—"}
@@ -104,6 +153,7 @@ export default async function InventoryCategoriesPage() {
                         <InventoryCategoryForm
                           action={updateInventoryCategory}
                           category={category}
+                          categoryOptions={categoryOptions}
                         />
                       </InventoryCategoryEditDialog>
                     </td>
@@ -121,6 +171,7 @@ export default async function InventoryCategoriesPage() {
 function InventoryCategoryForm({
   action,
   category,
+  categoryOptions,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   category?: {
@@ -133,13 +184,30 @@ function InventoryCategoryForm({
     nextObjectNumber: number | null;
     objectNumberEnd: number | null;
     objectNumberStart: number | null;
+    parentCategoryId: string | null;
     sortOrder: number;
+    childCategories?: {
+      id: string;
+      isActive: boolean;
+      name: string;
+      nextObjectNumber: number | null;
+      objectNumberEnd: number | null;
+      objectNumberStart: number | null;
+      sortOrder: number;
+    }[];
     useInDailyReports: boolean;
     useInInventory: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
     useInTruckDisposition: boolean;
   };
+  categoryOptions: {
+    id: string;
+    name: string;
+    objectNumberEnd: number | null;
+    objectNumberStart: number | null;
+    parentCategoryId: string | null;
+  }[];
 }) {
   return (
     <form
@@ -165,6 +233,34 @@ function InventoryCategoryForm({
           defaultValue={category?.description ?? ""}
           name="description"
         />
+      </label>
+
+      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
+        Übergeordnete Kategorie
+        <select
+          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+          defaultValue={category?.parentCategoryId ?? "__none"}
+          name="parentCategoryId"
+        >
+          <option value="__none">Keine / Hauptkategorie</option>
+          {categoryOptions
+            .filter((option) => option.id !== category?.id)
+            .map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.parentCategoryId ? "↳ " : ""}
+                {option.name}
+                {" · "}
+                {formatObjectNumberRange(
+                  option.objectNumberStart,
+                  option.objectNumberEnd,
+                )}
+              </option>
+            ))}
+        </select>
+        <span className="mt-1 block text-xs text-gray-500">
+          Unterkategorien dürfen eigene Nummernkreise haben, aber nur innerhalb
+          der übergeordneten Kategorie.
+        </span>
       </label>
 
       <label className="text-sm font-medium text-gray-800">
@@ -224,6 +320,25 @@ function InventoryCategoryForm({
           type="number"
         />
       </label>
+
+      <InventorySubcategoryRows
+        initialRows={(category?.childCategories ?? []).map((childCategory) => ({
+          id: childCategory.id,
+          isActive: childCategory.isActive,
+          isExisting: true,
+          name: childCategory.name,
+          nextObjectNumber: formatObjectNumberInput(
+            childCategory.nextObjectNumber,
+          ),
+          objectNumberEnd: formatObjectNumberInput(
+            childCategory.objectNumberEnd,
+          ),
+          objectNumberStart: formatObjectNumberInput(
+            childCategory.objectNumberStart,
+          ),
+          sortOrder: String(childCategory.sortOrder),
+        }))}
+      />
 
       <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
         <input

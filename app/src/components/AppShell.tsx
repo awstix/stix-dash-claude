@@ -36,14 +36,15 @@ const inventoryNavigation = [
   { name: "Inventarverwaltung", href: "/inventory" },
   { name: "Objekt anlegen", href: "/inventory/new" },
   { name: "Lagerverwaltung", href: "/inventory/storage" },
+  { name: "Standortmeldungen", href: "/inventory/location-alerts" },
   { name: "Etikettenvorlagen", href: "/inventory/labels" },
   { name: "Scanner", href: "/inventory/scanner" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const employeeNavigation = [
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
+  { name: "Mitarbeiterakte", href: "/employees/certificates" },
   { name: "Mitarbeiterverwaltung", href: "/employees" },
-  { name: "Mitarbeiterzertifikate", href: "/employees/certificates" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 export function AppShell({

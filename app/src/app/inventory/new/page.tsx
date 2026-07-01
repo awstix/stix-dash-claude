@@ -21,6 +21,11 @@ export default async function NewInventoryItemPage({
           isActive: true,
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          parentCategoryId: true,
+        },
       }),
       prisma.crew.findMany({
         where: {

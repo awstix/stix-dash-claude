@@ -3,6 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import {
+  DismissibleDetails,
+  DismissibleDetailsCloseButton,
+} from "@/components/DismissibleDetails";
 import { prisma } from "@/lib/prisma";
 import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
 import { createWorkshopRepairOrder } from "../../workshop/actions";
@@ -17,6 +21,7 @@ import { InventoryPhotoPreviewPanel } from "../InventoryPhotoGallery";
 import { InventoryStockMovementForm } from "../InventoryStockMovementForm";
 import { InventoryWorkshopFormDialog } from "../InventoryWorkshopFormDialog";
 import {
+  returnInventoryItemToBaseLocation,
   updateInventoryAssignment,
 } from "../actions";
 
@@ -181,7 +186,7 @@ function getInventoryStatusClass(status: string | null) {
 
 function getResponsibleLabel(item: {
   responsibleCrew: { name: string } | null;
-  responsibleEmployee: { firstName: string; lastName: string } | null;
+  responsibleEmployee: { firstName: string; id?: string; lastName: string } | null;
   responsibleType: string | null;
 }) {
   if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
@@ -195,6 +200,30 @@ function getResponsibleLabel(item: {
   return "—";
 }
 
+function getCurrentLocationLabel(item: {
+  currentLocationLabel: string | null;
+  currentProject: { name: string; projectNumber: string } | null;
+  responsibleCrew: { name: string } | null;
+  responsibleEmployee: { firstName: string; id?: string; lastName: string } | null;
+  responsibleType: string | null;
+}) {
+  if (item.currentProject) {
+    const responsible = getResponsibleLabel(item);
+    return [
+      `${item.currentProject.projectNumber} · ${item.currentProject.name}`,
+      responsible !== "—" ? responsible : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  const responsible = getResponsibleLabel(item);
+
+  return [item.currentLocationLabel ?? "Kein Standort zugewiesen", responsible !== "—" ? responsible : null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function getHistoryEventLabel(eventType: string) {
   if (eventType === "ASSIGNMENT") return "Zuordnung";
   if (eventType === "ISSUE") return "Ausgabe";
@@ -202,6 +231,7 @@ function getHistoryEventLabel(eventType: string) {
   if (eventType === "ADJUSTMENT") return "Bestandskorrektur";
   if (eventType === "DEFECT") return "Defekt";
   if (eventType === "WORKSHOP_FORM") return "Werkstattformular";
+  if (eventType === "RETURN_TO_BASE") return "Rückgabe";
   return eventType;
 }
 
@@ -211,15 +241,20 @@ function getHistoryEventClass(eventType: string) {
   if (eventType === "ADJUSTMENT") return "bg-amber-100 text-amber-950";
   if (eventType === "ASSIGNMENT") return "bg-blue-100 text-blue-900";
   if (eventType === "DEFECT") return "bg-red-100 text-red-900";
+  if (eventType === "RETURN_TO_BASE") return "bg-emerald-100 text-emerald-900";
   return "bg-gray-100 text-gray-800";
 }
 
 export default async function InventoryDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ itemId: string }>;
+  searchParams?: Promise<{ locationAlert?: string }>;
 }) {
   const { itemId } = await params;
+  const locationAlertWasCreated =
+    (await searchParams)?.locationAlert === "1";
 
   const item = await prisma.inventoryItem.findUnique({
     where: {
@@ -433,6 +468,23 @@ export default async function InventoryDetailPage({
       title={item.name}
       description="Inventarobjekt mit Stammdaten, Zuordnung, Fotos, Ansprechpartnern und Historie."
     >
+      {locationAlertWasCreated ? (
+        <section className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-5 text-sm text-orange-950 shadow-sm">
+          <p className="font-bold">Standortmeldung wurde angelegt.</p>
+          <p className="mt-1">
+            Der letzte Scan passt nicht eindeutig zum aktuellen Dispo-Standort.
+            Admin, Disponent oder Bauleiter können das Objekt unter{" "}
+            <Link
+              className="font-bold underline"
+              href="/inventory/location-alerts"
+            >
+              Inventar · Standortmeldungen
+            </Link>{" "}
+            final einer Baustelle zuweisen.
+          </p>
+        </section>
+      ) : null}
+
       <div className="mb-6 flex flex-wrap gap-2">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -452,6 +504,141 @@ export default async function InventoryDetailPage({
         >
           Bearbeiten
         </Link>
+        <DismissibleDetails className="relative inline-block">
+          <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 [&::-webkit-details-marker]:hidden">
+            Rückgabe
+          </summary>
+          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Objekt zurückgeben
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Das Objekt wird von Baustelle/Person gelöst und dem gewählten
+                  Standort zugeordnet.
+                </p>
+              </div>
+              <DismissibleDetailsCloseButton />
+            </div>
+            <form
+              action={returnInventoryItemToBaseLocation}
+              className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2"
+            >
+              <input name="id" type="hidden" value={item.id} />
+              <label className="text-sm font-semibold text-gray-800">
+                Zielstandort
+                <select
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                  name="locationType"
+                  required
+                >
+                  <option value="">Bitte wählen</option>
+                  <option value="BAUHOF">Bauhof</option>
+                  <option value="WERKSTATT">Werkstatt</option>
+                  <option value="MISCHANLAGE">Mischanlage</option>
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-gray-800">
+                Transportiert von
+                <select
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                  defaultValue="__none"
+                  name="transportedByEmployeeId"
+                >
+                  <option value="__none">Nicht angegeben</option>
+                  {allEmployees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.lastName}, {employee.firstName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold text-gray-800 md:col-span-2">
+                Bemerkung
+                <input
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                  name="notes"
+                  placeholder="z.B. zurückgebracht, abgestellt, geprüft..."
+                />
+              </label>
+              <div className="flex flex-wrap gap-3 md:col-span-2">
+                <button
+                  className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                  type="submit"
+                >
+                  Rückgabe speichern
+                </button>
+              </div>
+            </form>
+          </div>
+        </DismissibleDetails>
+        <DismissibleDetails className="relative inline-block">
+          <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 [&::-webkit-details-marker]:hidden">
+            Umdisponieren
+          </summary>
+          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Objekt umdisponieren
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Die Umdisponierung auf der Objektseite hat Vorrang und bleibt
+                  aktiv, bis das Objekt später über Planung, Gerätedisposition,
+                  LKW-Disposition oder wieder hier umgebucht wird.
+                </p>
+              </div>
+              <DismissibleDetailsCloseButton />
+            </div>
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Link
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 hover:bg-emerald-100"
+                href="/crew-dispatch"
+              >
+                <div className="font-bold text-emerald-950">
+                  Planung / Kolonnen
+                </div>
+                <div className="mt-1 text-sm text-emerald-800">
+                  Zuordnung über Baustelle, Kolonne, Mitarbeiter und Geräte.
+                </div>
+              </Link>
+              <Link
+                className="rounded-2xl border border-blue-200 bg-blue-50 p-4 hover:bg-blue-100"
+                href="/equipment-dispatch"
+              >
+                <div className="font-bold text-blue-950">Gerätedisposition</div>
+                <div className="mt-1 text-sm text-blue-800">
+                  Geräte gezielt im Zeitstrahl disponieren.
+                </div>
+              </Link>
+              <Link
+                className="rounded-2xl border border-orange-200 bg-orange-50 p-4 hover:bg-orange-100"
+                href="/truck-dispatch"
+              >
+                <div className="font-bold text-orange-950">LKW-Disposition</div>
+                <div className="mt-1 text-sm text-orange-800">
+                  LKW, Anhänger und Transporte disponieren.
+                </div>
+              </Link>
+              <a
+                className="rounded-2xl border border-gray-200 bg-gray-50 p-4 hover:bg-gray-100"
+                href="#inventory-assignment"
+              >
+                <div className="font-bold text-gray-950">
+                  Manuelle Zuordnung
+                </div>
+                <div className="mt-1 text-sm text-gray-700">
+                  Legt fest, welcher Kolonne oder welchem Mitarbeiter das
+                  Objekt grundsätzlich zugeordnet ist.
+                </div>
+              </a>
+            </div>
+          </div>
+        </DismissibleDetails>
+        <span className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">
+          Standort: {getCurrentLocationLabel(item)}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -537,6 +724,10 @@ export default async function InventoryDetailPage({
               label="Verrechnungssatz"
               value={formatMoney(item.billingRateCents)}
             />
+            <Info
+              label="Aktueller Standort"
+              value={getCurrentLocationLabel(item)}
+            />
             <Info label="Verantwortlich" value={getResponsibleLabel(item)} />
             <Info
               label="Aktuelle Baustelle"
@@ -574,6 +765,34 @@ export default async function InventoryDetailPage({
                   : "—"
               }
             />
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:col-span-2">
+              <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                Containerstatus
+              </dt>
+              <dd className="mt-2 flex flex-wrap gap-2">
+                {item.isContainer ? (
+                  <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-900 ring-1 ring-blue-200">
+                    Containerobjekt · {item.childItems.length} enthalten
+                  </span>
+                ) : null}
+                {item.parentItem ? (
+                  <Link
+                    className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-900 ring-1 ring-indigo-200 hover:bg-indigo-200"
+                    href={`/inventory/${item.parentItem.id}`}
+                  >
+                    Liegt in Containerobjekt:{" "}
+                    {[item.parentItem.objectNumber, item.parentItem.inventoryNumber, item.parentItem.name]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Link>
+                ) : null}
+                {!item.isContainer && !item.parentItem ? (
+                  <span className="text-sm text-gray-500">
+                    Kein Containerobjekt und keinem Container zugewiesen.
+                  </span>
+                ) : null}
+              </dd>
+            </div>
           </div>
 
           {item.parentItem ? (
@@ -696,13 +915,17 @@ export default async function InventoryDetailPage({
         </section>
       ) : null}
 
-      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section
+        className="mt-6 scroll-mt-28 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        id="inventory-assignment"
+      >
         <h2 className="text-xl font-semibold text-gray-900">
-          Zuordnung / Bewegung
+          Zuweisung
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Standort, Baustelle und Verantwortlichen direkt am Objekt ändern. Jede
-          Änderung wird in der Historie protokolliert.
+          Hier wird gepflegt, ob das Objekt grundsätzlich zu einer Kolonne oder
+          zu einem Mitarbeiter gehört. Die Baustelle ergibt sich aus Planung,
+          Kolonnenzuordnung, Gerätedisposition oder LKW-Disposition.
         </p>
 
         <form
@@ -711,7 +934,7 @@ export default async function InventoryDetailPage({
         >
           <input name="id" type="hidden" value={item.id} />
           <label className="text-sm font-semibold text-gray-800">
-            Verantwortlicher Typ
+            Zuweisungstyp
             <select
               className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={item.responsibleType ?? "__none"}
@@ -752,42 +975,12 @@ export default async function InventoryDetailPage({
               ))}
             </select>
           </label>
-          <label className="text-sm font-semibold text-gray-800">
-            Baustelle
-            <select
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              defaultValue={item.currentProjectId ?? "__none"}
-              name="currentProjectId"
-            >
-              <option value="__none">Keine Baustelle</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.projectNumber} · {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm font-semibold text-gray-800">
-            Transportiert von
-            <select
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              defaultValue="__none"
-              name="transportedByEmployeeId"
-            >
-              <option value="__none">Nicht angegeben</option>
-              {allEmployees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.lastName}, {employee.firstName}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="text-sm font-semibold text-gray-800 md:col-span-2">
             Bemerkung
             <input
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
               name="notes"
-              placeholder="z.B. auf Baustelle übergeben, zurück ins Lager..."
+              placeholder="z.B. gehört dauerhaft zur Kolonne Asphalt, persönliches Werkzeug..."
             />
           </label>
           <div className="flex items-end">
@@ -795,7 +988,7 @@ export default async function InventoryDetailPage({
               className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
               type="submit"
             >
-              Zuordnung speichern
+              Zuweisung speichern
             </button>
           </div>
         </form>

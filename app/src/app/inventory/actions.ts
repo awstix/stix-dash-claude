@@ -178,6 +178,7 @@ function getResponsibleFields(formData: FormData) {
 function revalidateInventory() {
   revalidatePath("/inventory");
   revalidatePath("/inventory/storage");
+  revalidatePath("/special-vehicle-dispatch");
 }
 
 function revalidateInventoryItem(itemId?: string) {
@@ -386,6 +387,155 @@ function getInventoryContacts(formData: FormData) {
     .filter((contact): contact is NonNullable<typeof contact> => Boolean(contact));
 }
 
+function isSpecialVehicleInventoryItem(item: {
+  category: {
+    name: string;
+  } | null;
+  isStockManaged: boolean;
+  manufacturer: string | null;
+  model: string | null;
+  name: string;
+}) {
+  if (item.isStockManaged) {
+    return false;
+  }
+
+  const text = [
+    item.category?.name,
+    item.name,
+    item.manufacturer,
+    item.model,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss");
+
+  return [
+    "sonder",
+    "tieflader",
+    "kehr",
+    "fraese",
+    "spritz",
+    "traktor",
+  ].some((keyword) => text.includes(keyword));
+}
+
+async function getUniqueVehicleNumber(baseValue: string, existingVehicleId?: string | null) {
+  const base = baseValue.trim() || `INV-${randomUUID().slice(0, 8)}`;
+  let candidate = base;
+  let suffix = 2;
+
+  while (true) {
+    const existing = await prisma.vehicle.findUnique({
+      where: {
+        vehicleNumber: candidate,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing || existing.id === existingVehicleId) {
+      return candidate;
+    }
+
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+}
+
+async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
+  const item = await prisma.inventoryItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    select: {
+      category: {
+        select: {
+          name: true,
+        },
+      },
+      id: true,
+      inventoryNumber: true,
+      isStockManaged: true,
+      licensePlate: true,
+      manufacturer: true,
+      model: true,
+      name: true,
+      objectNumber: true,
+      status: true,
+      vehicleId: true,
+    },
+  });
+
+  if (!item || !isSpecialVehicleInventoryItem(item)) {
+    return;
+  }
+
+  const vehicleNumber = await getUniqueVehicleNumber(
+    item.objectNumber ?? item.inventoryNumber ?? item.name,
+    item.vehicleId,
+  );
+  const category = item.category?.name ?? "Sondergerät";
+  const vehicleType = item.model ?? item.manufacturer ?? "Sondergerät";
+  const notes = [
+    `Inventarobjekt: ${item.objectNumber ?? item.inventoryNumber ?? item.name}`,
+    item.name !== vehicleNumber ? item.name : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (item.vehicleId) {
+    await prisma.vehicle.update({
+      where: {
+        id: item.vehicleId,
+      },
+      data: {
+        category,
+        isActive: item.status !== "LOCKED",
+        isSpecialVehicle: true,
+        licensePlate: item.licensePlate,
+        notes,
+        vehicleNumber,
+        vehicleType,
+      },
+    });
+    return;
+  }
+
+  const vehicle = await prisma.vehicle.create({
+    data: {
+      category,
+      isActive: item.status !== "LOCKED",
+      isSpecialVehicle: true,
+      licensePlate: item.licensePlate,
+      notes,
+      vehicleNumber,
+      vehicleType,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.inventoryItem.update({
+    where: {
+      id: item.id,
+    },
+    data: {
+      vehicle: {
+        connect: {
+          id: vehicle.id,
+        },
+      },
+    },
+  });
+}
+
 async function storeInventoryPhotos(itemId: string, formData: FormData) {
   const files = formData
     .getAll("photos")
@@ -496,6 +646,7 @@ export async function createInventoryItem(formData: FormData) {
     });
   });
 
+  await syncSpecialVehicleLinkForInventoryItem(item.id);
   await storeInventoryPhotos(item.id, formData);
 
   revalidateInventoryItem(item.id);
@@ -535,6 +686,7 @@ export async function updateInventoryItem(formData: FormData) {
     }
   });
 
+  await syncSpecialVehicleLinkForInventoryItem(id);
   await storeInventoryPhotos(id, formData);
 
   revalidateInventoryItem(id);
@@ -612,10 +764,6 @@ export async function updateInventoryAssignment(formData: FormData) {
       : null;
   const responsibleCrewId =
     responsibleType === "CREW" ? optionalId(formData.get("responsibleCrewId")) : null;
-  const currentProjectId = optionalId(formData.get("currentProjectId"));
-  const transportedByEmployeeId = optionalId(
-    formData.get("transportedByEmployeeId"),
-  );
   const notes = optionalString(formData.get("notes"));
 
   await prisma.$transaction(async (tx) => {
@@ -624,7 +772,6 @@ export async function updateInventoryAssignment(formData: FormData) {
         id,
       },
       data: {
-        currentProject: relationUpdate(currentProjectId),
         responsibleCrew: relationUpdate(responsibleCrewId),
         responsibleEmployee: relationUpdate(responsibleEmployeeId),
         responsibleType:
@@ -648,13 +795,72 @@ export async function updateInventoryAssignment(formData: FormData) {
           },
         },
         notes,
-        project: currentProjectId
-          ? {
-              connect: {
-                id: currentProjectId,
-              },
-            }
-          : undefined,
+      },
+    });
+  });
+
+  revalidateInventoryItem(id);
+}
+
+export async function returnInventoryItemToBaseLocation(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const locationType = String(formData.get("locationType") ?? "").trim();
+  const transportedByEmployeeId = optionalId(
+    formData.get("transportedByEmployeeId"),
+  );
+  const notes = optionalString(formData.get("notes"));
+  const allowedLocations = new Map([
+    ["BAUHOF", "Bauhof"],
+    ["WERKSTATT", "Werkstatt"],
+    ["MISCHANLAGE", "Mischanlage"],
+  ]);
+  const locationLabel = allowedLocations.get(locationType);
+
+  if (!id) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  if (!locationLabel) {
+    throw new Error("Bitte Zielstandort auswählen.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.update({
+      where: {
+        id,
+      },
+      data: {
+        currentProject: {
+          disconnect: true,
+        },
+        responsibleCrew: {
+          disconnect: true,
+        },
+        responsibleEmployee: {
+          disconnect: true,
+        },
+        responsibleType: null,
+      },
+    });
+
+    await tx.$executeRaw`
+      UPDATE "InventoryItem"
+      SET "currentLocationLabel" = ${locationLabel},
+          "currentLocationType" = ${locationType}
+      WHERE "id" = ${id}
+    `;
+
+    await tx.inventoryUsageHistory.create({
+      data: {
+        eventType: "RETURN_TO_BASE",
+        item: {
+          connect: {
+            id,
+          },
+        },
+        notes: [notes, `Rückgabe an ${locationLabel}`]
+          .filter(Boolean)
+          .join(" · "),
         transportedByEmployee: transportedByEmployeeId
           ? {
               connect: {
