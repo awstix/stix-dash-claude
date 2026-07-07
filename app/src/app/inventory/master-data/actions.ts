@@ -113,6 +113,17 @@ async function hasFallbackCategory(kind: SourceKind) {
   );
 }
 
+function normalizeStockUnit(value: string | null | undefined) {
+  const unit = String(value ?? "").trim();
+
+  if (!unit) return "Stk.";
+  if (unit.toLowerCase() === "m3") return "m³";
+  if (unit.toLowerCase() === "stk") return "Stk.";
+  if (unit.toLowerCase() === "std") return "Std.";
+
+  return unit;
+}
+
 async function upsertInventorySourceItem({
   categoryId,
   axleCount,
@@ -144,6 +155,8 @@ async function upsertInventorySourceItem({
   stockUnit: string;
   vehicleId?: string | null;
 }) {
+  const normalizedStockUnit = normalizeStockUnit(stockUnit);
+
   await prisma.$transaction(async (tx) => {
     const existingItem = await tx.inventoryItem.findUnique({
       where: {
@@ -195,17 +208,23 @@ async function upsertInventorySourceItem({
                   id: responsibleEmployeeId,
                 },
               }
-            : undefined,
+            : {
+                disconnect: true,
+              },
           responsibleType: responsibleEmployeeId ? "EMPLOYEE" : null,
           status: isActive ? "ACTIVE" : "LOCKED",
-          stockUnit,
+          stockUnit: normalizedStockUnit,
+          openingStock: isStockManaged ? undefined : null,
+          currentStock: isStockManaged ? undefined : null,
           vehicle: vehicleId
             ? {
                 connect: {
                   id: vehicleId,
                 },
               }
-            : undefined,
+            : {
+                disconnect: true,
+              },
         },
       });
       return;
@@ -237,7 +256,7 @@ async function upsertInventorySourceItem({
         sourceId,
         sourceType,
         status: isActive ? "ACTIVE" : "LOCKED",
-        stockUnit,
+        stockUnit: normalizedStockUnit,
         vehicle: vehicleId
           ? {
               connect: {
@@ -250,8 +269,20 @@ async function upsertInventorySourceItem({
   });
 }
 
-function getVehicleCategoryId(formData: FormData, category: string) {
-  return optionalId(formData.get(`vehicleCategoryId_${category}`));
+function getVehicleCategoryFormKey(category: string, vehicleType: string) {
+  return `${category}__${vehicleType}`;
+}
+
+function getVehicleCategoryId(
+  formData: FormData,
+  category: string,
+  vehicleType: string,
+) {
+  return (
+    optionalId(
+      formData.get(`vehicleCategoryId_${getVehicleCategoryFormKey(category, vehicleType)}`),
+    ) ?? optionalId(formData.get(`vehicleCategoryId_${category}`))
+  );
 }
 
 function getVehicleAxleCount(category: string) {
@@ -331,7 +362,7 @@ async function syncVehicles(formData: FormData) {
 
   for (const vehicle of vehicles) {
     const categoryId =
-      getVehicleCategoryId(formData, vehicle.category) ??
+      getVehicleCategoryId(formData, vehicle.category, vehicle.vehicleType) ??
       (await getFallbackVehicleCategory(vehicle.category, vehicle.vehicleType))?.id;
 
     if (!categoryId) {

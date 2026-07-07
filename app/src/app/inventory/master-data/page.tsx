@@ -44,6 +44,8 @@ const dailyReportSectionLabels = {
   OTHER: "Sonstiges",
 } as const;
 
+type DailyReportSection = keyof typeof dailyReportSectionLabels;
+
 function formatObjectNumber(value: number | null | undefined) {
   if (value === null || value === undefined) return "—";
 
@@ -64,14 +66,18 @@ function formatCategoryRange(category: {
 }
 
 function formatCategoryOption(category: {
-  dailyReportSection: keyof typeof dailyReportSectionLabels;
+  dailyReportSection: string;
   name: string;
   objectNumberEnd: number | null;
   objectNumberStart: number | null;
 }) {
-  return `${category.name} · ${dailyReportSectionLabels[category.dailyReportSection]} · ${formatCategoryRange(
+  return `${category.name} · ${getDailyReportSectionLabel(category.dailyReportSection)} · ${formatCategoryRange(
     category,
   )}`;
+}
+
+function getDailyReportSectionLabel(value: string) {
+  return dailyReportSectionLabels[value as DailyReportSection] ?? "nicht im BTB";
 }
 
 export default async function InventoryMasterDataPage() {
@@ -199,6 +205,26 @@ export default async function InventoryMasterDataPage() {
           technische Quelle. Die alten Listen bleiben bestehen und werden weiter
           von Dispo, BTB und bestehenden Einträgen verwendet.
         </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-blue-200 bg-white/80 p-3">
+            <div className="text-sm font-bold text-blue-950">
+              Fahrzeuge / Maschinen / Anhänger
+            </div>
+            <p className="mt-1 text-xs leading-5 text-blue-900">
+              Werden als normale Inventarobjekte angelegt, nicht als Lagerobjekte.
+              Kennzeichen, Fahrer, Achsen und Nutzlast werden soweit vorhanden übernommen.
+            </p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white/80 p-3">
+            <div className="text-sm font-bold text-blue-950">
+              Material / Schüttgut / Asphalt / Beton
+            </div>
+            <p className="mt-1 text-xs leading-5 text-blue-900">
+              Werden lagergeführt angelegt. Die Einheit kommt aus der alten Liste
+              und kann danach im Inventar weiter gepflegt werden.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -417,7 +443,7 @@ function VehicleCategorySelect({
   group,
 }: {
   allCategories: Array<{
-    dailyReportSection: keyof typeof dailyReportSectionLabels;
+    dailyReportSection: string;
     id: string;
     name: string;
     objectNumberEnd: number | null;
@@ -439,7 +465,10 @@ function VehicleCategorySelect({
       <select
         className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-gray-900"
         defaultValue={defaultCategory?.id ?? "__none"}
-        name={`vehicleCategoryId_${group.category}`}
+        name={`vehicleCategoryId_${getVehicleCategoryFormKey(
+          group.category,
+          group.vehicleType,
+        )}`}
       >
         <option value="__none">Nicht übernehmen</option>
         {allCategories.map((category) => (
@@ -457,6 +486,10 @@ function VehicleCategorySelect({
       </select>
     </label>
   );
+}
+
+function getVehicleCategoryFormKey(category: string, vehicleType: string) {
+  return `${category}__${vehicleType}`;
 }
 
 function findSuggestedVehicleCategory(

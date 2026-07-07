@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export const vehicleInventoryLinkInclude = {
   inventoryItems: {
     orderBy: [{ objectNumber: "asc" }, { name: "asc" }],
@@ -40,7 +42,7 @@ export const vehicleInventoryLinkInclude = {
     },
     take: 1,
   },
-} as const;
+} satisfies Prisma.VehicleInclude;
 
 export type VehicleInventoryLink = {
   id: string;
