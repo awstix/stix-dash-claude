@@ -151,6 +151,7 @@ export default async function InventoryPage({
     responsibleEmployee?: string;
     status?: string;
     stockManaged?: string;
+    container?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
@@ -160,6 +161,7 @@ export default async function InventoryPage({
   const responsibleEmployeeFilter = String(params.responsibleEmployee ?? "").trim();
   const statusFilter = String(params.status ?? "").trim();
   const stockManagedFilter = String(params.stockManaged ?? "").trim();
+  const containerFilter = String(params.container ?? "").trim();
   const where: Prisma.InventoryItemWhereInput = {
     ...(categoryFilter ? { categoryId: categoryFilter } : {}),
     ...(projectFilter === "__none"
@@ -176,6 +178,15 @@ export default async function InventoryPage({
       : stockManagedFilter === "exclude"
         ? { isStockManaged: false }
         : {}),
+    ...(containerFilter === "only"
+      ? { isContainer: true }
+      : containerFilter === "contained"
+        ? { parentItemId: { not: null } }
+        : containerFilter === "exclude"
+          ? { isContainer: false }
+          : containerFilter === "unassigned"
+            ? { isContainer: false, parentItemId: null }
+            : {}),
     ...(searchQuery
       ? {
           OR: [
@@ -267,6 +278,7 @@ export default async function InventoryPage({
     responsibleEmployeeFilter,
     statusFilter,
     stockManagedFilter,
+    containerFilter,
   ].filter(Boolean).length;
 
   const stockManagedCount = await prisma.inventoryItem.count({
@@ -365,6 +377,9 @@ export default async function InventoryPage({
                   value={stockManagedFilter}
                 />
               ) : null}
+              {containerFilter ? (
+                <input name="container" type="hidden" value={containerFilter} />
+              ) : null}
               <input
                 className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
                 defaultValue={searchQuery}
@@ -395,7 +410,7 @@ export default async function InventoryPage({
                     Inventar filtern
                   </h3>
                   <p className="mt-1 text-sm text-gray-600">
-                    Status, Kategorie, Baustelle und Lagerobjekte eingrenzen.
+                    Status, Kategorie, Baustelle, Lager- und Containerobjekte eingrenzen.
                   </p>
                 </div>
 
@@ -439,6 +454,21 @@ export default async function InventoryPage({
                       <option value="">Alle anzeigen</option>
                       <option value="only">Nur Lagerobjekte</option>
                       <option value="exclude">Lagerobjekte ausblenden</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-gray-800">
+                    Containerobjekte
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                      defaultValue={containerFilter}
+                      name="container"
+                    >
+                      <option value="">Alle anzeigen</option>
+                      <option value="only">Nur Containerobjekte</option>
+                      <option value="contained">Nur Objekte in Container</option>
+                      <option value="exclude">Containerobjekte ausblenden</option>
+                      <option value="unassigned">Ohne Containerbezug</option>
                     </select>
                   </label>
 
@@ -598,6 +628,18 @@ export default async function InventoryPage({
                         ]
                           .filter(Boolean)
                           .join(" · ") || "—"}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {item.isContainer ? (
+                          <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-900 ring-1 ring-blue-200">
+                            Containerobjekt
+                          </span>
+                        ) : null}
+                        {item.parentItem ? (
+                          <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-900 ring-1 ring-indigo-200">
+                            In Container
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">

@@ -22,9 +22,13 @@ export default async function NewInventoryItemPage({
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
+          dailyReportSection: true,
           id: true,
           name: true,
           parentCategoryId: true,
+          useInDailyReports: true,
+          useInTruckDispatchMaterial: true,
+          useInTruckDispatchObject: true,
         },
       }),
       prisma.crew.findMany({

@@ -104,7 +104,15 @@ export function InventoryItemForm({
   vehicles,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  categories: { id: string; name: string; parentCategoryId: string | null }[];
+  categories: {
+    dailyReportSection: string;
+    id: string;
+    name: string;
+    parentCategoryId: string | null;
+    useInDailyReports: boolean;
+    useInTruckDispatchMaterial: boolean;
+    useInTruckDispatchObject: boolean;
+  }[];
   containerOptions: { id: string; name: string }[];
   crews: { id: string; name: string }[];
   defaultParentItemId?: string | null;
@@ -141,6 +149,46 @@ export function InventoryItemForm({
     <form action={action} className="mt-6 space-y-5">
       {item ? <input name="id" type="hidden" value={item.id} /> : null}
 
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-amber-950">
+              Kategorie steuert die spätere Verwendung
+            </h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-amber-900">
+              Beim Objekt selbst trägst du möglichst viele Daten ein. Ob das
+              Objekt später im BTB, in der LKW-Disposition, als Material,
+              Maschine/Gerät oder Lagerobjekt auftaucht, wird über die
+              Inventarkategorie gesteuert.
+            </p>
+          </div>
+          <a
+            className="inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+            href="/admin/inventory-categories"
+          >
+            Kategorien prüfen →
+          </a>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <HintCard
+            text="Kennzeichen, Achsen, zul. Gesamtgewicht, Nutzlast und ggf. altes Fahrzeug verknüpfen."
+            title="LKW / Fahrzeuge"
+          />
+          <HintCard
+            text="Antrieb/Fahrwerk, Service, Betriebsstunden, DGUV und TÜV pflegen."
+            title="Maschinen / Geräte"
+          />
+          <HintCard
+            text="Einheit sauber wählen und bei lagergeführten Artikeln Lagerverwaltung aktivieren."
+            title="Material / Schüttgut"
+          />
+          <HintCard
+            text="Containerobjekt aktivieren oder Objekt einem bestehenden Containerobjekt zuweisen."
+            title="Containerobjekte"
+          />
+        </div>
+      </section>
+
       <section className={sectionClass}>
         {layout === "stacked" ? (
           <SectionHeader
@@ -173,6 +221,7 @@ export function InventoryItemForm({
                 {sortedCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {getInventoryCategoryOptionLabel(category)}
+                    {getCategoryUsageSuffix(category)}
                   </option>
                 ))}
               </Select>
@@ -199,7 +248,7 @@ export function InventoryItemForm({
             <div className={innerGridClass}>
               <Input
                 defaultValue={item?.objectNumber ?? ""}
-                label="Objekt-ID"
+                label="Objekt-ID (6-stellig)"
                 name="objectNumber"
                 placeholder="leer = automatisch"
               />
@@ -244,6 +293,7 @@ export function InventoryItemForm({
                 defaultValue={formatDateInput(item?.constructionDate ?? null)}
                 label="Baujahr / Baudatum"
                 name="constructionDate"
+                placeholder="bei Bedarf nur Jahr im Kalender wählen"
                 type="date"
               />
               <Input
@@ -291,7 +341,7 @@ export function InventoryItemForm({
             {layout === "stacked" ? (
               <FieldGroupHeader
                 description="Optionale Angaben für LKW, Baumaschinen und spätere Disposition."
-                title="Dispo- / Fahrzeugdaten"
+                title="Fahrzeug-, LKW- und Gerätedaten"
               />
             ) : null}
             <div className={innerGridClass}>
@@ -305,6 +355,7 @@ export function InventoryItemForm({
                 defaultValue={item?.grossWeightKg?.toString() ?? ""}
                 label="Zul. Gesamtgewicht kg"
                 name="grossWeightKg"
+                placeholder="z.B. 26000"
                 type="number"
               />
               <Input
@@ -708,6 +759,40 @@ function FieldGroupHeader({
       <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
     </div>
   );
+}
+
+function HintCard({ text, title }: { text: string; title: string }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
+      <div className="text-sm font-bold text-amber-950">{title}</div>
+      <p className="mt-1 text-xs leading-5 text-amber-900">{text}</p>
+    </div>
+  );
+}
+
+function getCategoryUsageSuffix(category: {
+  dailyReportSection: string;
+  useInDailyReports: boolean;
+  useInTruckDispatchMaterial: boolean;
+  useInTruckDispatchObject: boolean;
+}) {
+  const parts = [
+    category.useInTruckDispatchMaterial ? "LKW Material" : null,
+    category.useInTruckDispatchObject ? "LKW Gerät/Objekt" : null,
+    category.useInDailyReports
+      ? `BTB ${getDailyReportSectionLabel(category.dailyReportSection)}`
+      : null,
+  ].filter(Boolean);
+
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
+function getDailyReportSectionLabel(value: string) {
+  if (value === "MATERIAL") return "Material";
+  if (value === "MACHINES") return "Maschinen/Geräte";
+  if (value === "OTHER") return "Sonstiges";
+
+  return "ohne Bereich";
 }
 
 function Input({

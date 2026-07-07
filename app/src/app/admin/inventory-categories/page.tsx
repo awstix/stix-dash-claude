@@ -351,31 +351,34 @@ function InventoryCategoryForm({
       </label>
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 xl:col-span-3">
-        <div className="text-sm font-semibold text-gray-900">Verwendung</div>
+        <div className="text-sm font-semibold text-gray-900">
+          Verwendung in Disposition / BTB
+        </div>
         <p className="mt-1 text-xs text-gray-500">
-          Inventar/Lager gilt immer automatisch für alle Inventarkategorien.
+          Inventar/Lager gilt automatisch. Hier wird gesteuert, wo diese
+          Kategorie später in LKW-Dispo und Bautagesbericht auftaucht.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-2">
           <Checkbox
             defaultChecked={category?.useInTruckDispatchMaterial ?? false}
-            label="Als Material/Schüttgut in LKW-Dispo verwenden"
+            label="LKW-Dispo: als Material/Schüttgut auswählbar"
             name="useInTruckDispatchMaterial"
           />
           <Checkbox
             defaultChecked={category?.useInTruckDispatchObject ?? false}
-            label="Als Gerät/Objekt per LKW transportierbar"
+            label="LKW-Dispo: als Gerät/Maschine/Transportobjekt auswählbar"
             name="useInTruckDispatchObject"
           />
           <Checkbox
             defaultChecked={category?.useInDailyReports ?? false}
-            label="BTB"
+            label="Im Bautagesbericht verwenden"
             name="useInDailyReports"
           />
         </div>
       </div>
 
       <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-        BTB-Zuordnung
+        BTB-Bereich
         <select
           className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           defaultValue={category?.dailyReportSection ?? "NONE"}
@@ -386,6 +389,10 @@ function InventoryCategoryForm({
           <option value="MACHINES">Maschinen und Geräte</option>
           <option value="OTHER">Sonstiges</option>
         </select>
+        <span className="mt-1 block text-xs text-gray-500">
+          Legt fest, ob Objekte dieser Kategorie im BTB unter Material,
+          Maschinen/Geräte oder Sonstiges landen.
+        </span>
       </label>
 
       <div className="flex items-end">
@@ -433,11 +440,19 @@ function UsageBadges({
     useInTruckDisposition: boolean;
   };
 }) {
-  const badges = [
-    category.useInTruckDispatchMaterial ? "LKW Material" : null,
-    category.useInTruckDispatchObject ? "LKW Gerät" : null,
-    category.useInDailyReports ? "BTB" : null,
-  ].filter(Boolean);
+  const badges: { label: string; tone: string }[] = [];
+
+  if (category.useInTruckDispatchMaterial) {
+    badges.push({ label: "LKW Material", tone: "green" });
+  }
+
+  if (category.useInTruckDispatchObject) {
+    badges.push({ label: "LKW Gerät/Objekt", tone: "blue" });
+  }
+
+  if (category.useInDailyReports) {
+    badges.push({ label: "BTB", tone: "amber" });
+  }
 
   if (badges.length === 0) {
     return <span className="text-sm text-gray-400">—</span>;
@@ -447,14 +462,23 @@ function UsageBadges({
     <div className="flex flex-wrap gap-1">
       {badges.map((badge) => (
         <span
-          className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900"
-          key={badge}
+          className={`rounded-full px-2 py-1 text-xs font-semibold ${getUsageBadgeClass(
+            badge.tone,
+          )}`}
+          key={badge.label}
         >
-          {badge}
+          {badge.label}
         </span>
       ))}
     </div>
   );
+}
+
+function getUsageBadgeClass(tone: string) {
+  if (tone === "green") return "bg-green-50 text-green-900";
+  if (tone === "amber") return "bg-amber-50 text-amber-950";
+
+  return "bg-blue-50 text-blue-900";
 }
 
 function getDailyReportSectionLabel(value: string | null | undefined) {
