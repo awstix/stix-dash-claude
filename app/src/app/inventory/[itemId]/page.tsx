@@ -523,6 +523,12 @@ export default async function InventoryDetailPage({
         >
           Bearbeiten
         </Link>
+        <Link
+          className="rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm font-semibold text-yellow-950 hover:bg-yellow-100"
+          href={`/inventory/${item.id}/label`}
+        >
+          Etikett
+        </Link>
         <DismissibleDetails className="relative inline-block">
           <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 [&::-webkit-details-marker]:hidden">
             Rückgabe

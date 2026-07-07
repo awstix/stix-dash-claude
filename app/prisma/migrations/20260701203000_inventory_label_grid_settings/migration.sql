@@ -1,0 +1,2 @@
+ALTER TABLE "InventoryLabelTemplate" ADD COLUMN "rowCount" INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE "InventoryLabelTemplate" ADD COLUMN "columnCount" INTEGER NOT NULL DEFAULT 6;

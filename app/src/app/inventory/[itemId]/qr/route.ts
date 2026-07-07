@@ -73,8 +73,8 @@ export async function GET(
         backgroundcolor: "FFFFFF",
         bcid: "datamatrix",
         includetext: false,
-        paddingheight: 12,
-        paddingwidth: 12,
+        paddingheight: 2,
+        paddingwidth: 2,
         scale: 10,
         text: codeValue,
       });
@@ -91,8 +91,8 @@ export async function GET(
     const svg = bwipjs.toSVG({
       bcid: "datamatrix",
       includetext: false,
-      paddingheight: 12,
-      paddingwidth: 12,
+      paddingheight: 2,
+      paddingwidth: 2,
       scale: 10,
       text: codeValue,
     });
@@ -113,7 +113,7 @@ export async function GET(
         light: "#ffffff",
       },
       errorCorrectionLevel: "H",
-      margin: 2,
+      margin: 1,
       type: "png",
       width: 1024,
     });
@@ -133,7 +133,7 @@ export async function GET(
       light: "#ffffff",
     },
     errorCorrectionLevel: "H",
-    margin: 2,
+    margin: 1,
     type: "svg",
     width: 512,
   });
