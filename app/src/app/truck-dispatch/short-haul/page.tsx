@@ -3,7 +3,12 @@ import type { ReactNode } from "react";
 import { ProjectStatus } from "@prisma/client";
 import { ActionIcon, type ActionIconName } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { vehicleInventoryLinkInclude } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import {
+  driverIsSelectableInTruckDispatch,
+  vehicleIsSelectableInTruckDispatch,
+} from "@/lib/truck-dispatch-selection";
 import { AsphaltShortAllocationForm } from "./AsphaltShortAllocationForm";
 import { AsphaltShortSuggestionForm } from "./AsphaltShortSuggestionForm";
 import { TackCoatShortAllocationForm } from "./TackCoatShortAllocationForm";
@@ -223,8 +228,8 @@ export default async function ShortHaulPage({
   const [
     assignments,
     projects,
-    vehicles,
-    drivers,
+    allVehicles,
+    allDrivers,
     longHaulAssignments,
     materials,
     asphaltMixes,
@@ -268,6 +273,7 @@ export default async function ShortHaulPage({
         isActive: true,
       },
       include: {
+        ...vehicleInventoryLinkInclude,
         driverAssignments: {
           where: {
             isActive: true,
@@ -285,12 +291,24 @@ export default async function ShortHaulPage({
         isActive: true,
       },
       include: {
+        employee: {
+          select: {
+            positions: {
+              select: {
+                positionLabel: true,
+                positionValue: true,
+              },
+            },
+          },
+        },
         vehicleAssignments: {
           where: {
             isActive: true,
           },
           include: {
-            vehicle: true,
+            vehicle: {
+              include: vehicleInventoryLinkInclude,
+            },
           },
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         },
@@ -351,6 +369,9 @@ export default async function ShortHaulPage({
     getTackCoatOpenPositions(selectedDate),
     getTackCoatAllocationsForDay(selectedDate),
   ]);
+
+  const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
+  const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
 

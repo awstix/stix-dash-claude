@@ -2,12 +2,12 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 
 const TILE_SIZE = 256;
-const MAP_WIDTH = 768;
-const MAP_HEIGHT = 288;
+const DEFAULT_MAP_WIDTH = 768;
+const DEFAULT_MAP_HEIGHT = 288;
 
 type Coordinate = [number, number];
 type MapView = {
@@ -45,6 +45,11 @@ export function ProjectMap({
   const lng = toFiniteNumber(longitude);
   const normalizedZoom = clampInt(Math.round(zoom ?? 17), 1, 19);
   const canRenderMap = lat !== null && lng !== null;
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [mapSize, setMapSize] = useState({
+    height: DEFAULT_MAP_HEIGHT,
+    width: DEFAULT_MAP_WIDTH,
+  });
   const boundaryRef = useRef(boundaryGeoJson ?? "");
   const dragRef = useRef<{
     pointerId: number;
@@ -60,6 +65,29 @@ export function ProjectMap({
     boundaryRef.current = boundaryGeoJson ?? "";
   }, [boundaryGeoJson]);
 
+  useEffect(() => {
+    const element = mapContainerRef.current;
+    if (!element) return;
+
+    const updateSize = () => {
+      const width = element.clientWidth;
+      const height = element.clientHeight;
+      if (width <= 0 || height <= 0) return;
+
+      setMapSize((current) => {
+        return current.width === width && current.height === height
+          ? current
+          : { height, width };
+      });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [canRenderMap]);
+
   const mapData = useMemo(() => {
     if (!canRenderMap) {
       return null;
@@ -67,13 +95,13 @@ export function ProjectMap({
 
     const center = lngLatToPixel(lng, lat, normalizedZoom);
     const origin = {
-      x: center.x - MAP_WIDTH / 2,
-      y: center.y - MAP_HEIGHT / 2,
+      x: center.x - mapSize.width / 2,
+      y: center.y - mapSize.height / 2,
     };
     const tileMinX = Math.floor(origin.x / TILE_SIZE);
-    const tileMaxX = Math.floor((origin.x + MAP_WIDTH) / TILE_SIZE);
+    const tileMaxX = Math.floor((origin.x + mapSize.width) / TILE_SIZE);
     const tileMinY = Math.floor(origin.y / TILE_SIZE);
-    const tileMaxY = Math.floor((origin.y + MAP_HEIGHT) / TILE_SIZE);
+    const tileMaxY = Math.floor((origin.y + mapSize.height) / TILE_SIZE);
     const tileLimit = 2 ** normalizedZoom;
     const tiles: {
       key: string;
@@ -117,7 +145,15 @@ export function ProjectMap({
       rings,
       tiles,
     };
-  }, [boundaryGeoJson, canRenderMap, lat, lng, normalizedZoom]);
+  }, [
+    boundaryGeoJson,
+    canRenderMap,
+    lat,
+    lng,
+    mapSize.height,
+    mapSize.width,
+    normalizedZoom,
+  ]);
 
   function handleMapClick(event: MouseEvent<SVGSVGElement>) {
     if (!editable || !onBoundaryChange || !mapData) return;
@@ -127,8 +163,8 @@ export function ProjectMap({
     }
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * MAP_WIDTH;
-    const y = ((event.clientY - rect.top) / rect.height) * MAP_HEIGHT;
+    const x = ((event.clientX - rect.left) / rect.width) * mapSize.width;
+    const y = ((event.clientY - rect.top) / rect.height) * mapSize.height;
     const newPoint = mapPointToLngLat(
       x,
       y,
@@ -173,8 +209,8 @@ export function ProjectMap({
     }
 
     suppressClickRef.current = true;
-    const scaledDeltaX = (deltaX / drag.rectWidth) * MAP_WIDTH;
-    const scaledDeltaY = (deltaY / drag.rectHeight) * MAP_HEIGHT;
+    const scaledDeltaX = (deltaX / drag.rectWidth) * mapSize.width;
+    const scaledDeltaY = (deltaY / drag.rectHeight) * mapSize.height;
     const nextCenter = {
       x: drag.startCenter.x - scaledDeltaX,
       y: drag.startCenter.y - scaledDeltaY,
@@ -243,6 +279,7 @@ export function ProjectMap({
     <div className={className}>
       <div
         className={`relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100 ${heightClass}`}
+        ref={mapContainerRef}
       >
         {mapData.tiles.map((tile) => (
           <img
@@ -266,14 +303,14 @@ export function ProjectMap({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           preserveAspectRatio="none"
-          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+          viewBox={`0 0 ${mapSize.width} ${mapSize.height}`}
         >
           {editable ? (
             <rect
               fill="transparent"
-              height={MAP_HEIGHT}
+              height={mapSize.height}
               pointerEvents="all"
-              width={MAP_WIDTH}
+              width={mapSize.width}
               x={0}
               y={0}
             />

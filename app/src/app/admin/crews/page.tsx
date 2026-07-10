@@ -84,11 +84,9 @@ function getOtherCrewNamesForEmployee({
 }
 
 function getOtherCrewNamesForVehicle({
-  currentCrewId,
   vehicleId,
   crews,
 }: {
-  currentCrewId: string;
   vehicleId: string;
   crews: {
     id: string;
@@ -98,14 +96,19 @@ function getOtherCrewNamesForVehicle({
       vehicleId: string;
       isActive: boolean;
     }[];
+    inventoryAssignments: {
+      vehicleId: string | null;
+    }[];
   }[];
 }) {
   return crews
-    .filter((crew) => crew.id !== currentCrewId && crew.isActive)
-    .filter((crew) =>
-      crew.defaultVehicles.some(
-        (item) => item.vehicleId === vehicleId && item.isActive
-      )
+    .filter((crew) => crew.isActive)
+    .filter(
+      (crew) =>
+        crew.defaultVehicles.some(
+          (item) => item.vehicleId === vehicleId && item.isActive
+        ) ||
+        crew.inventoryAssignments.some((item) => item.vehicleId === vehicleId),
     )
     .map((crew) => crew.name);
 }
@@ -145,6 +148,11 @@ export default async function CrewsAdminPage() {
             },
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
           },
+          inventoryAssignments: {
+            select: {
+              vehicleId: true,
+            },
+          },
         },
         orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
       }),
@@ -166,6 +174,22 @@ export default async function CrewsAdminPage() {
       prisma.vehicle.findMany({
         where: {
           isActive: true,
+          inventoryItems: {
+            some: {
+              category: {
+                OR: [
+                  {
+                    useInTeamManagement: true,
+                  },
+                  {
+                    parentCategory: {
+                      useInTeamManagement: true,
+                    },
+                  },
+                ],
+              },
+            },
+          },
         },
         orderBy: [
           { isSpecialVehicle: "desc" },
@@ -268,9 +292,9 @@ export default async function CrewsAdminPage() {
       </details>
 
       <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-950">
-        Mitarbeiter, die bereits in einer anderen aktiven Kolonne vergeben sind,
-        werden beim Hinzufügen mit ! markiert, ausgegraut und können nicht
-        doppelt ausgewählt werden.
+        Bereits vergebene Mitarbeiter, Geräte und Fahrzeuge werden beim
+        Hinzufügen mit ! markiert, ausgegraut und können nicht doppelt
+        ausgewählt werden.
       </div>
 
       <div className="space-y-5">
@@ -614,7 +638,6 @@ export default async function CrewsAdminPage() {
                           {vehicles.map((vehicle) => {
                             const otherCrewNames =
                               getOtherCrewNamesForVehicle({
-                                currentCrewId: crew.id,
                                 vehicleId: vehicle.id,
                                 crews,
                               });
@@ -646,9 +669,8 @@ export default async function CrewsAdminPage() {
                       </label>
 
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                        ! = Gerät/Fahrzeug ist bereits in einer anderen aktiven
-                        Kolonne vergeben und kann hier nicht doppelt ausgewählt
-                        werden.
+                        ! = Gerät/Fahrzeug ist bereits in einer aktiven Kolonne
+                        vergeben und kann nicht doppelt ausgewählt werden.
                       </div>
 
                       <label className="block text-xs font-medium text-gray-700">

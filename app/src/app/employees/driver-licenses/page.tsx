@@ -12,6 +12,7 @@ export default async function EmployeeDriverLicensesPage({
     <EmployeeQualificationsManagementPage
       basePath="/employees/driver-licenses"
       searchParams={searchParams}
+      showImportButton
     />
   );
 }

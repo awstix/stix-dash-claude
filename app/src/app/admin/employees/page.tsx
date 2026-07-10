@@ -185,9 +185,11 @@ export default async function EmployeesPage({
 
 export async function EmployeesManagementPage({
   basePath,
+  showImportButton = false,
   searchParams,
 }: {
   basePath: string;
+  showImportButton?: boolean;
   searchParams: Promise<EmployeeSearchParams>;
 }) {
   const params = await searchParams;
@@ -518,6 +520,28 @@ export async function EmployeesManagementPage({
       title="Mitarbeiter"
       description="Zentrale Mitarbeiterverwaltung mit Berufsgruppen, Firmenzuordnung und automatischer LKW-Fahrer-Synchronisierung."
     >
+      {showImportButton ? (
+        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Mitarbeiterverwaltung
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Mitarbeiter einzeln pflegen oder Stammdaten per Excel
+                importieren.
+              </p>
+            </div>
+            <Link
+              className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+              href="/employees/imports"
+            >
+              Mitarbeiter importieren →
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-5">
         <SummaryCard label="Treffer" value={String(employees.length)} />
         <SummaryCard label="Aktiv" value={String(activeEmployees.length)} />

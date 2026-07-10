@@ -43,9 +43,11 @@ export default async function EmployeeQualificationsPage({
 
 export async function EmployeeQualificationsManagementPage({
   basePath,
+  showImportButton = false,
   searchParams,
 }: {
   basePath: string;
+  showImportButton?: boolean;
   searchParams: Promise<{
     page?: string;
     q?: string;
@@ -144,6 +146,23 @@ export async function EmployeeQualificationsManagementPage({
       title="Mitarbeiter-Führerscheine und Maschinenscheine"
       description="Berechtigungen einfach per Checkbox pflegen, regelmäßig prüfen und Nachweise ablegen."
     >
+      {showImportButton ? (
+        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Führerscheine / Maschinenscheine
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Nachweise manuell pflegen. Der Excel-Import für Führerscheine
+                und Maschinenscheine wird hier als eigener Block ergänzt, nicht
+                als eigener Menüpunkt.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <details className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <summary className="cursor-pointer list-none p-5">
           <h2 className="text-xl font-semibold text-gray-900">
@@ -431,6 +450,7 @@ export async function EmployeeQualificationsManagementPage({
               {employeeCount}
             </span>
             <EmployeePagination
+              basePath={basePath}
               currentPage={visiblePage}
               pageCount={pageCount}
               search={employeeSearch}

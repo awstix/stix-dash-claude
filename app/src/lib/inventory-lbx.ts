@@ -92,7 +92,11 @@ function createLabelXml(input: {
         const size = Math.min(box.width, box.height);
         return barcodeObject({
           codeType: input.codeType,
-          data: input.item.objectNumber ?? input.item.inventoryNumber ?? input.item.id,
+          data:
+            input.item.objectNumber ??
+            input.item.inventoryNumber ??
+            input.item.stixId ??
+            input.item.id,
           height: size,
           index,
           width: size,

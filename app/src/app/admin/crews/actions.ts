@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { prisma } from "@/lib/prisma";
 
 const SORT_ORDER_STEP = 5;
@@ -256,54 +257,119 @@ export async function addCrewDefaultVehicle(formData: FormData) {
     throw new Error("Gerät/Fahrzeug fehlt.");
   }
 
-  const existingAssignment = await prisma.crewDefaultVehicle.findFirst({
+  const inventoryItem = await prisma.inventoryItem.findFirst({
     where: {
       vehicleId,
-      crewId: {
-        not: crewId,
-      },
-      isActive: true,
-      crew: {
-        isActive: true,
-      },
     },
     select: {
-      crew: {
+      category: {
         select: {
           name: true,
+          useInTeamManagement: true,
+          parentCategory: {
+            select: {
+              name: true,
+              useInTeamManagement: true,
+            },
+          },
         },
       },
     },
   });
 
-  if (existingAssignment) {
+  if (
+    !inventoryCategoryAllowsAssignment(inventoryItem?.category)
+  ) {
     throw new Error(
-      `Gerät/Fahrzeug ist bereits in Kolonne ${existingAssignment.crew.name} vergeben.`
+      "Dieses Gerät/Fahrzeug ist für eine Teamzuordnung nicht freigegeben."
+    );
+  }
+
+  const [existingAssignment, existingInventoryAssignment] = await Promise.all([
+    prisma.crewDefaultVehicle.findFirst({
+      where: {
+        vehicleId,
+        crewId: {
+          not: crewId,
+        },
+        isActive: true,
+        crew: {
+          isActive: true,
+        },
+      },
+      select: {
+        crew: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
+    prisma.inventoryItem.findFirst({
+      where: {
+        vehicleId,
+        responsibleCrewId: {
+          not: crewId,
+        },
+        responsibleCrew: {
+          isActive: true,
+        },
+      },
+      select: {
+        responsibleCrew: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const existingCrewName =
+    existingAssignment?.crew.name ??
+    existingInventoryAssignment?.responsibleCrew?.name;
+
+  if (existingCrewName) {
+    throw new Error(
+      `Gerät/Fahrzeug ist bereits in Kolonne ${existingCrewName} vergeben.`
     );
   }
 
   const fallbackSortOrder = await getNextCrewDefaultVehicleSortOrder(crewId);
   const sortOrder = parseSortOrder(formData.get("sortOrder"), fallbackSortOrder);
 
-  await prisma.crewDefaultVehicle.upsert({
-    where: {
-      crewId_vehicleId: {
+  await prisma.$transaction(async (tx) => {
+    await tx.crewDefaultVehicle.upsert({
+      where: {
+        crewId_vehicleId: {
+          crewId,
+          vehicleId,
+        },
+      },
+      update: {
+        isActive: true,
+        notes: optionalString(formData.get("notes")),
+        sortOrder,
+      },
+      create: {
         crewId,
         vehicleId,
+        notes: optionalString(formData.get("notes")),
+        sortOrder,
+        isActive: true,
       },
-    },
-    update: {
-      isActive: true,
-      notes: optionalString(formData.get("notes")),
-      sortOrder,
-    },
-    create: {
-      crewId,
-      vehicleId,
-      notes: optionalString(formData.get("notes")),
-      sortOrder,
-      isActive: true,
-    },
+    });
+
+    await tx.inventoryItem.updateMany({
+      where: {
+        vehicleId,
+      },
+      data: {
+        responsibleCrewId: crewId,
+        responsibleEmployeeId: null,
+        responsibleType: "CREW",
+      },
+    });
   });
 
   revalidatePath("/admin/crews");
@@ -318,10 +384,37 @@ export async function removeCrewDefaultVehicle(formData: FormData) {
     throw new Error("Gerätezuordnung-ID fehlt.");
   }
 
-  await prisma.crewDefaultVehicle.delete({
-    where: {
-      id,
-    },
+  await prisma.$transaction(async (tx) => {
+    const assignment = await tx.crewDefaultVehicle.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        crewId: true,
+        vehicleId: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new Error("Gerätezuordnung wurde nicht gefunden.");
+    }
+
+    await tx.crewDefaultVehicle.delete({
+      where: {
+        id,
+      },
+    });
+
+    await tx.inventoryItem.updateMany({
+      where: {
+        vehicleId: assignment.vehicleId,
+        responsibleCrewId: assignment.crewId,
+      },
+      data: {
+        responsibleCrewId: null,
+        responsibleType: null,
+      },
+    });
   });
 
   revalidatePath("/admin/crews");

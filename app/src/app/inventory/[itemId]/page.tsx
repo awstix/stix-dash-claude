@@ -18,6 +18,7 @@ import {
 import { WorkshopOrderForm } from "../../workshop/WorkshopOrderForm";
 import { BUILT_IN_WORKSHOP_FORMS } from "../../workshop/workshopFormTypes";
 import { InventoryContainerManager } from "../InventoryContainerManager";
+import { InventoryIdlePeriodsDialog } from "../InventoryIdlePeriodsDialog";
 import { InventoryPhotoPreviewPanel } from "../InventoryPhotoGallery";
 import { InventoryStockMovementForm } from "../InventoryStockMovementForm";
 import { InventoryWorkshopFormDialog } from "../InventoryWorkshopFormDialog";
@@ -300,6 +301,19 @@ export default async function InventoryDetailPage({
         ],
       },
       currentProject: true,
+      employeeAssignments: {
+        include: {
+          employee: true,
+        },
+        orderBy: {
+          employee: {
+            lastName: "asc",
+          },
+        },
+      },
+      idlePeriods: {
+        orderBy: [{ startsAt: "desc" }],
+      },
       parentItem: true,
       photos: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
@@ -427,7 +441,7 @@ export default async function InventoryDetailPage({
     id: employee.id,
     name: `${employee.firstName} ${employee.lastName}`,
   }));
-  const itemLabel = [item.objectNumber, item.inventoryNumber, item.name]
+  const itemLabel = [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
     .filter(Boolean)
     .join(" · ");
   const inventoryPhotos = item.photos.map((photo) => ({
@@ -441,6 +455,12 @@ export default async function InventoryDetailPage({
     sizeBytes: photo.sizeBytes,
     uploadedBy: photo.uploadedBy,
     url: photo.url,
+  }));
+  const idlePeriods = item.idlePeriods.map((period) => ({
+    endsAt: period.endsAt ? period.endsAt.toISOString().slice(0, 10) : "",
+    id: period.id,
+    notes: period.notes ?? "",
+    startsAt: period.startsAt.toISOString().slice(0, 10),
   }));
   const defaultRepairDescription = [
     "",
@@ -529,6 +549,7 @@ export default async function InventoryDetailPage({
         >
           Etikett
         </Link>
+        <InventoryIdlePeriodsDialog itemId={item.id} periods={idlePeriods} />
         <DismissibleDetails className="relative inline-block">
           <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 [&::-webkit-details-marker]:hidden">
             Rückgabe
@@ -709,6 +730,7 @@ export default async function InventoryDetailPage({
             </div>
             <Info label="Objekt-ID" value={item.objectNumber ?? "—"} />
             <Info label="Inventarnummer" value={item.inventoryNumber ?? "—"} />
+            <Info label="STIX-ID" value={item.stixId ?? "—"} />
             <Info label="Kennzeichen" value={item.licensePlate ?? "—"} />
             <Info label="Seriennummer" value={item.serialNumber ?? "—"} />
             <Info label="Hersteller" value={item.manufacturer ?? "—"} />
@@ -726,6 +748,7 @@ export default async function InventoryDetailPage({
               label="Antrieb / Fahrwerk"
               value={getDriveTypeLabel(item.driveType)}
             />
+            <Info label="Aufnahmetyp" value={item.attachmentType ?? "—"} />
             <Info
               label="Baujahr"
               value={
@@ -750,10 +773,33 @@ export default async function InventoryDetailPage({
               value={formatMoney(item.billingRateCents)}
             />
             <Info
+              label="Verrechnungssatz stillgelegt"
+              value={formatMoney(item.idleBillingRateCents)}
+            />
+            <Info
               label="Aktueller Standort"
               value={getCurrentLocationLabel(item)}
             />
             <Info label="Verantwortlich" value={getResponsibleLabel(item)} />
+            {item.employeeAssignments.length > 0 ? (
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Weitere Mitarbeiter / Fahrer
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {item.employeeAssignments.map((assignment) => (
+                    <a
+                      className="rounded-full bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+                      href={`/employees/certificates/${assignment.employee.id}`}
+                      key={assignment.id}
+                    >
+                      {assignment.employee.lastName},{" "}
+                      {assignment.employee.firstName}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <Info
               label="Aktuelle Baustelle"
               value={
@@ -940,6 +986,58 @@ export default async function InventoryDetailPage({
         </section>
       ) : null}
 
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Stilllegungszeiträume
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Für diese Zeiträume wird später in der Leistungsmeldung der
+              reduzierte Stilllegungs-Verrechnungssatz verwendet.
+            </p>
+          </div>
+          <InventoryIdlePeriodsDialog itemId={item.id} periods={idlePeriods} />
+        </div>
+
+        {item.idlePeriods.length > 0 ? (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="p-3">Von</th>
+                  <th className="p-3">Bis</th>
+                  <th className="p-3">Bemerkung</th>
+                  <th className="p-3">Satz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {item.idlePeriods.map((period) => (
+                  <tr className="border-t border-gray-100" key={period.id}>
+                    <td className="p-3 text-gray-900">
+                      {formatDate(period.startsAt)}
+                    </td>
+                    <td className="p-3 text-gray-900">
+                      {formatDate(period.endsAt)}
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {period.notes ?? "—"}
+                    </td>
+                    <td className="p-3 font-semibold text-gray-900">
+                      {formatMoney(item.idleBillingRateCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
+            Noch keine Stilllegungszeiträume erfasst.
+          </div>
+        )}
+      </section>
+
       <section
         className="mt-6 scroll-mt-28 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
         id="inventory-assignment"
@@ -1076,34 +1174,35 @@ export default async function InventoryDetailPage({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 md:col-span-2">
             <h3 className="text-sm font-bold uppercase tracking-[0.14em] text-gray-700">
-              DGUV-Prüfung
+              Prüfungen
             </h3>
-            <div className="mt-3 space-y-2">
-              <Info
-                label="Letzte Prüfung"
-                value={formatDate(item.lastDguvInspectionDate)}
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <InspectionInfo
+                lastDate={item.lastDguvInspectionDate}
+                nextDate={item.nextDguvInspectionDate}
+                title="DGUV"
               />
-              <Info
-                label="Nächste Prüfung"
-                value={formatDate(item.nextDguvInspectionDate)}
+              <InspectionInfo
+                lastDate={item.lastTuvInspectionDate}
+                nextDate={item.nextTuvInspectionDate}
+                title="TÜV"
               />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-            <h3 className="text-sm font-bold uppercase tracking-[0.14em] text-gray-700">
-              TÜV-Prüfung
-            </h3>
-            <div className="mt-3 space-y-2">
-              <Info
-                label="Letzte Prüfung"
-                value={formatDate(item.lastTuvInspectionDate)}
+              <InspectionInfo
+                lastDate={item.lastTachographInspectionDate}
+                nextDate={item.nextTachographInspectionDate}
+                title="Tachoprüfung"
               />
-              <Info
-                label="Nächste Prüfung"
-                value={formatDate(item.nextTuvInspectionDate)}
+              <InspectionInfo
+                lastDate={item.lastSafetyInspectionDate}
+                nextDate={item.nextSafetyInspectionDate}
+                title="SP"
+              />
+              <InspectionInfo
+                lastDate={item.lastAdrInspectionDate}
+                nextDate={item.nextAdrInspectionDate}
+                title="ADR"
               />
             </div>
           </div>
@@ -1394,6 +1493,28 @@ export default async function InventoryDetailPage({
         </div>
       </section>
     </AppShell>
+  );
+}
+
+function InspectionInfo({
+  lastDate,
+  nextDate,
+  title,
+}: {
+  lastDate: Date | null;
+  nextDate: Date | null;
+  title: string;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="text-xs font-bold uppercase tracking-[0.12em] text-gray-700">
+        {title}
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <Info label="Letzte" value={formatDate(lastDate)} />
+        <Info label="Nächste" value={formatDate(nextDate)} />
+      </div>
+    </div>
   );
 }
 

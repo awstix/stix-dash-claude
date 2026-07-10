@@ -1398,7 +1398,7 @@ function addMachine(
     licensePlate?: string | null;
     vehicleNumber: string;
     vehicleType: string;
-  },
+  } & VehicleWithInventoryLink,
   hours: number,
 ) {
   const machine = getVehicleDailyReportMachineInput(vehicle);
@@ -1417,7 +1417,7 @@ function addMachineOnce(
     licensePlate?: string | null;
     vehicleNumber: string;
     vehicleType: string;
-  },
+  } & VehicleWithInventoryLink,
   hours: number,
 ) {
   const machine = getVehicleDailyReportMachineInput(vehicle);
@@ -1435,8 +1435,8 @@ function getVehicleDailyReportMachineInput(vehicle: {
   dailyReportMachineLabel?: string | null;
   vehicleNumber: string;
   vehicleType: string;
-}) {
-  const customLabel = String(vehicle.dailyReportMachineLabel ?? "").trim();
+} & VehicleWithInventoryLink) {
+  const customLabel = getConfiguredDailyReportMachineLabel(vehicle);
 
   if (customLabel) {
     return {
@@ -1493,8 +1493,8 @@ function getVehicleRealMachineCategoryLabel(vehicle: {
   dailyReportMachineLabel?: string | null;
   vehicleNumber: string;
   vehicleType: string;
-}) {
-  const customLabel = String(vehicle.dailyReportMachineLabel ?? "").trim();
+} & VehicleWithInventoryLink) {
+  const customLabel = getConfiguredDailyReportMachineLabel(vehicle);
 
   if (customLabel) {
     return customLabel;
@@ -1512,6 +1512,22 @@ function getVehicleRealMachineCategoryLabel(vehicle: {
   }
 
   return vehicle.category || vehicle.vehicleType || "Sonstige Maschine";
+}
+
+function getConfiguredDailyReportMachineLabel(
+  vehicle: {
+    dailyReportMachineLabel?: string | null;
+  } & VehicleWithInventoryLink,
+) {
+  const inventoryCategoryLabel = String(
+    vehicle.inventoryItems?.[0]?.category?.dailyReportMachineLabel ?? "",
+  ).trim();
+
+  if (inventoryCategoryLabel) {
+    return inventoryCategoryLabel;
+  }
+
+  return String(vehicle.dailyReportMachineLabel ?? "").trim();
 }
 
 function addFallbackMachine(

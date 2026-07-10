@@ -1186,9 +1186,11 @@ function filterPreviewItems(
       [
         item.objectNumber,
         item.inventoryNumber,
+        item.stixId,
         item.name,
         item.manufacturer,
         item.model,
+        item.attachmentType,
         item.serialNumber,
         item.licensePlate,
         item.category?.name,
@@ -1231,7 +1233,7 @@ function getPreviewCategories(items: Array<InventoryLabelItem & { id: string }>)
 }
 
 function getPreviewItemOptionLabel(item: InventoryLabelItem & { id: string }) {
-  const primary = [item.objectNumber, item.inventoryNumber, item.name]
+  const primary = [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
     .filter(Boolean)
     .join(" · ");
   const details = [
@@ -1240,6 +1242,7 @@ function getPreviewItemOptionLabel(item: InventoryLabelItem & { id: string }) {
       : item.category?.name,
     item.licensePlate,
     [item.manufacturer, item.model].filter(Boolean).join(" "),
+    item.attachmentType,
   ].filter(Boolean);
 
   return details.length > 0 ? `${primary} — ${details.join(" · ")}` : primary;

@@ -116,7 +116,9 @@ export async function getLiveLabelExportPayload(formData: FormData) {
     width: Math.min(columnCount, Math.max(1, block.width)),
   }));
   const fileLabel = sanitizeFileName(
-    [item.objectNumber, item.inventoryNumber, item.name].filter(Boolean).join("-") ||
+    [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
+      .filter(Boolean)
+      .join("-") ||
       item.id,
   );
 

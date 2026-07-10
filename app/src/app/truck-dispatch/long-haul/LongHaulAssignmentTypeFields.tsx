@@ -261,15 +261,17 @@ export function LongHaulConstructionFields({
       return;
     }
 
+    const assignmentTypeSelect = select;
+
     function syncAssignmentType() {
-      setAssignmentType(select.value);
+      setAssignmentType(assignmentTypeSelect.value);
     }
 
     syncAssignmentType();
-    select.addEventListener("change", syncAssignmentType);
+    assignmentTypeSelect.addEventListener("change", syncAssignmentType);
 
     return () => {
-      select.removeEventListener("change", syncAssignmentType);
+      assignmentTypeSelect.removeEventListener("change", syncAssignmentType);
     };
   }, []);
 

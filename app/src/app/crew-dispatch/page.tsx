@@ -4464,10 +4464,12 @@ export default async function CrewDispatchPage({
         </div>
 
         <div
+          data-crew-dispatch-scroll-body
           className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
           style={{
+            marginTop: "var(--crew-dispatch-body-safe-offset, 0px)",
             maxHeight:
-              "max(360px, calc(100vh - var(--crew-dispatch-sticky-offset, 280px) - var(--app-header-height, 0px) - 1rem))",
+              "max(360px, calc(100vh - var(--crew-dispatch-sticky-offset, 280px) - var(--crew-dispatch-body-safe-offset, 0px) - var(--app-header-height, 0px) - 1rem))",
           }}
         >
         {planningAxis !== "teams" ? (

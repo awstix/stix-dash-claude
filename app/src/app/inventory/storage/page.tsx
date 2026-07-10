@@ -173,7 +173,9 @@ export default async function InventoryStoragePage({
             { name: { contains: searchQuery } },
             { manufacturer: { contains: searchQuery } },
             { model: { contains: searchQuery } },
+            { attachmentType: { contains: searchQuery } },
             { objectNumber: { contains: searchQuery } },
+            { stixId: { contains: searchQuery } },
             { licensePlate: { contains: searchQuery } },
             { serialNumber: { contains: searchQuery } },
             { inventoryNumber: { contains: searchQuery } },
@@ -553,6 +555,10 @@ export default async function InventoryStoragePage({
                       <div className="text-xs text-gray-500">
                         {[
                           item.objectNumber,
+                          item.attachmentType
+                            ? `Aufnahme ${item.attachmentType}`
+                            : null,
+                          item.stixId ? `STIX-ID ${item.stixId}` : null,
                           item.inventoryNumber
                             ? `Inventarnr. ${item.inventoryNumber}`
                             : null,

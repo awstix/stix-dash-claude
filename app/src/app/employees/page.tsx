@@ -32,6 +32,10 @@ export default async function EmployeesPage({
   searchParams: Promise<EmployeeSearchParams>;
 }) {
   return (
-    <EmployeesManagementPage basePath="/employees" searchParams={searchParams} />
+    <EmployeesManagementPage
+      basePath="/employees"
+      searchParams={searchParams}
+      showImportButton
+    />
   );
 }

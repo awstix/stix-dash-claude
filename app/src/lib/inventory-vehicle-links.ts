@@ -23,7 +23,14 @@ export const vehicleInventoryLinkInclude = {
       },
       category: {
         select: {
+          dailyReportMachineLabel: true,
           name: true,
+          parentCategory: {
+            select: {
+              useInTruckDispatchSelection: true,
+            },
+          },
+          useInTruckDispatchSelection: true,
         },
       },
       responsibleEmployee: {
@@ -61,7 +68,12 @@ export type VehicleInventoryLink = {
     projectNumber: string;
   } | null;
   category?: {
+    dailyReportMachineLabel: string | null;
     name: string;
+    parentCategory?: {
+      useInTruckDispatchSelection: boolean;
+    } | null;
+    useInTruckDispatchSelection: boolean;
   } | null;
   responsibleEmployee?: {
     id: string;

@@ -87,6 +87,8 @@ export default async function ImportsPage({
         </h2>
 
         <form action={importExcel} className="mt-6 space-y-6">
+          <input name="returnTo" type="hidden" value="/admin/imports" />
+
           <div>
             <label className="text-sm font-medium text-gray-800">
               Importtyp

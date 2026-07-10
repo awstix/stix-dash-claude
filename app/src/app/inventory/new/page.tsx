@@ -14,8 +14,20 @@ export default async function NewInventoryItemPage({
   const params = (await searchParams) ?? {};
   const defaultParentItemId = String(params.containerId ?? "").trim() || null;
 
-  const [categories, crews, employees, items, projects, vehicles] =
+  const [attachmentTypeRows, categories, crews, employees, items] =
     await Promise.all([
+      prisma.inventoryItem.findMany({
+        distinct: ["attachmentType"],
+        orderBy: [{ attachmentType: "asc" }],
+        select: {
+          attachmentType: true,
+        },
+        where: {
+          attachmentType: {
+            not: null,
+          },
+        },
+      }),
       prisma.inventoryCategory.findMany({
         where: {
           isActive: true,
@@ -51,16 +63,6 @@ export default async function NewInventoryItemPage({
         },
         orderBy: [{ name: "asc" }],
       }),
-      prisma.project.findMany({
-        orderBy: [{ projectNumber: "desc" }],
-        take: 250,
-      }),
-      prisma.vehicle.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: [{ vehicleNumber: "asc" }],
-      }),
     ]);
 
   return (
@@ -85,14 +87,15 @@ export default async function NewInventoryItemPage({
 
       <InventoryItemForm
         action={createInventoryItem}
+        attachmentTypeOptions={attachmentTypeRows
+          .map((row) => row.attachmentType)
+          .filter((value): value is string => Boolean(value))}
         categories={categories}
         containerOptions={items}
         crews={crews}
         defaultParentItemId={defaultParentItemId}
         employees={employees}
         layout="stacked"
-        projects={projects}
-        vehicles={vehicles}
       />
     </AppShell>
   );

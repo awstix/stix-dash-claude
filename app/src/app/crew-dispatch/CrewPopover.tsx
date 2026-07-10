@@ -278,7 +278,7 @@ export function CrewPopover({
   }, [isOpen]);
 
   const panel = isOpen ? (
-    <div className="absolute left-0 top-0 z-[60]">
+    <div className="absolute left-0 top-0 z-[1200]">
       <div
         ref={panelRef}
         className={`${panelClassName} pr-8`}
@@ -287,7 +287,7 @@ export function CrewPopover({
           position: "absolute",
           top: `${panelPosition?.top ?? VIEWPORT_PADDING_PX}px`,
           width: `${panelPosition?.width ?? PANEL_WIDTH_PX}px`,
-          zIndex: 60,
+          zIndex: 1200,
         }}
         role="dialog"
         aria-modal="false"

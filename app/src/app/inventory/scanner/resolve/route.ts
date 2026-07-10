@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const searchFields = [
     objectNumber ? { objectNumber } : null,
     { inventoryNumber: query },
+    { stixId: query },
     { serialNumber: query },
   ].filter((field): field is NonNullable<typeof field> => field !== null);
 

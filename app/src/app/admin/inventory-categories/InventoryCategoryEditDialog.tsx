@@ -2,14 +2,16 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { deleteInventoryCategory } from "./actions";
+import { ActionIcon } from "@/components/ActionIcon";
 
 type InventoryCategoryForDialog = {
+  asphaltDispositionUsage: string;
   _count: {
     childCategories: number;
     items: number;
   };
   colorClass: string | null;
+  dailyReportMachineLabel: string | null;
   description: string | null;
   id: string;
   isActive: boolean;
@@ -20,6 +22,9 @@ type InventoryCategoryForDialog = {
   parentCategoryId: string | null;
   sortOrder: number;
   useInDailyReports: boolean;
+  useInSpecialVehicleDisposition: boolean;
+  useInTeamManagement: boolean;
+  useInTruckDispatchSelection: boolean;
   useInTruckDispatchMaterial: boolean;
   useInTruckDispatchObject: boolean;
   useInTruckDisposition: boolean;
@@ -37,11 +42,13 @@ export function InventoryCategoryEditDialog({
   return (
     <>
       <button
-        className="inline-flex rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+        aria-label={`${category.name} bearbeiten`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
         onClick={() => setIsOpen(true)}
+        title="Bearbeiten"
         type="button"
       >
-        Bearbeiten
+        <ActionIcon name="edit" className="h-4 w-4" />
       </button>
 
       {isOpen ? (
@@ -74,23 +81,6 @@ export function InventoryCategoryEditDialog({
 
             {children}
 
-            <form action={deleteInventoryCategory} className="mt-4">
-              <input name="id" type="hidden" value={category.id} />
-              <button
-                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
-                type="submit"
-              >
-                {category._count.items > 0
-                  ? "Kategorie deaktivieren"
-                  : "Kategorie löschen"}
-              </button>
-              {category._count.items > 0 ? (
-                <p className="mt-2 text-xs text-gray-500">
-                  Diese Kategorie enthält Objekte und wird deshalb beim Löschen
-                  nur deaktiviert.
-                </p>
-              ) : null}
-            </form>
           </div>
         </div>
       ) : null}

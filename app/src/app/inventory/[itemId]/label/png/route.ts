@@ -88,7 +88,9 @@ export async function GET(
     template,
   });
   const fileLabel = sanitizeFileName(
-    [item.objectNumber, item.inventoryNumber, item.name].filter(Boolean).join("-") ||
+    [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
+      .filter(Boolean)
+      .join("-") ||
       item.id,
   );
 

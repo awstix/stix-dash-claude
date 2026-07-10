@@ -682,7 +682,33 @@ export default async function SpecialVehicleDispatchPage({
     prisma.vehicle.findMany({
       where: {
         isActive: true,
-        isSpecialVehicle: true,
+        OR: [
+          {
+            isSpecialVehicle: true,
+          },
+          {
+            inventoryItems: {
+              some: {
+                category: {
+                  is: {
+                    OR: [
+                      {
+                        useInSpecialVehicleDisposition: true,
+                      },
+                      {
+                        parentCategory: {
+                          is: {
+                            useInSpecialVehicleDisposition: true,
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
       },
       include: {
         ...vehicleInventoryLinkInclude,

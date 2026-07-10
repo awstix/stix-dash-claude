@@ -1,4 +1,5 @@
 import { InventoryContactFields } from "./InventoryContactFields";
+import { InventoryAdditionalEmployeesField } from "./InventoryAdditionalEmployeesField";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 import { SearchableInventorySelect } from "./SearchableInventorySelect";
 import {
@@ -7,7 +8,9 @@ import {
 } from "@/lib/inventory-categories";
 
 export type InventoryItemFormData = {
+  attachmentType: string | null;
   billingRateCents: number | null;
+  idleBillingRateCents: number | null;
   categoryId: string | null;
   constructionDate: Date | null;
   constructionYear: number | null;
@@ -30,6 +33,9 @@ export type InventoryItemFormData = {
   currentStock: number | null;
   deliveryNoteNumber: string | null;
   driveType: string | null;
+  employeeAssignments?: {
+    employeeId: string;
+  }[];
   grossWeightKg: number | null;
   id: string;
   inventoryNumber: string | null;
@@ -42,6 +48,9 @@ export type InventoryItemFormData = {
   lastServiceMileageKm: number | null;
   lastServiceOperatingHours: number | null;
   lastTuvInspectionDate: Date | null;
+  lastTachographInspectionDate: Date | null;
+  lastSafetyInspectionDate: Date | null;
+  lastAdrInspectionDate: Date | null;
   manufacturer: string | null;
   model: string | null;
   name: string;
@@ -50,6 +59,9 @@ export type InventoryItemFormData = {
   nextServiceMileageKm: number | null;
   nextServiceOperatingHours: number | null;
   nextTuvInspectionDate: Date | null;
+  nextTachographInspectionDate: Date | null;
+  nextSafetyInspectionDate: Date | null;
+  nextAdrInspectionDate: Date | null;
   notes: string | null;
   objectNumber: string | null;
   openingStock: number | null;
@@ -70,6 +82,7 @@ export type InventoryItemFormData = {
   responsibleType: string | null;
   serialNumber: string | null;
   status: string;
+  stixId: string | null;
   stockUnit: string;
   vehicleId: string | null;
 };
@@ -101,9 +114,10 @@ export function InventoryItemForm({
   employees,
   item,
   layout = "grid",
-  vehicles,
+  attachmentTypeOptions = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
+  attachmentTypeOptions?: string[];
   categories: {
     dailyReportSection: string;
     id: string;
@@ -119,13 +133,6 @@ export function InventoryItemForm({
   employees: { firstName: string; id: string; lastName: string }[];
   item?: InventoryItemFormData;
   layout?: "grid" | "stacked";
-  projects: { id: string; name: string; projectNumber: string }[];
-  vehicles: {
-    id: string;
-    licensePlate: string | null;
-    vehicleNumber: string;
-    vehicleType: string;
-  }[];
 }) {
   const sortedCategories = sortInventoryCategoriesForSelect(categories);
   const sectionClass =
@@ -171,7 +178,7 @@ export function InventoryItemForm({
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <HintCard
-            text="Kennzeichen, Achsen, zul. Gesamtgewicht, Nutzlast und ggf. altes Fahrzeug verknüpfen."
+            text="Kennzeichen, Achsen, zulässiges Gesamtgewicht und Nutzlast pflegen."
             title="LKW / Fahrzeuge"
           />
           <HintCard
@@ -190,6 +197,16 @@ export function InventoryItemForm({
       </section>
 
       <section className={sectionClass}>
+        <input
+          name="currentProjectId"
+          type="hidden"
+          value={item?.currentProjectId ?? "__none"}
+        />
+        <input
+          name="vehicleId"
+          type="hidden"
+          value={item?.vehicleId ?? "__none"}
+        />
         {layout === "stacked" ? (
           <SectionHeader
             description="Grunddaten, Nummern und technische Angaben."
@@ -261,6 +278,12 @@ export function InventoryItemForm({
                 defaultValue={item?.serialNumber ?? ""}
                 label="Seriennummer"
                 name="serialNumber"
+              />
+              <Input
+                defaultValue={item?.stixId ?? ""}
+                label="STIX-ID"
+                name="stixId"
+                placeholder="z.B. STIX-12345"
               />
               <Input
                 defaultValue={item?.licensePlate ?? ""}
@@ -378,6 +401,18 @@ export function InventoryItemForm({
                 <option value="TRAILER">Anhänger / gezogen</option>
                 <option value="OTHER">Sonstiges</option>
               </Select>
+              <Input
+                defaultValue={item?.attachmentType ?? ""}
+                label="Aufnahmetyp"
+                list="inventory-attachment-type-options"
+                name="attachmentType"
+                placeholder="z.B. OQ 70/55"
+              />
+              <datalist id="inventory-attachment-type-options">
+                {attachmentTypeOptions.map((attachmentType) => (
+                  <option key={attachmentType} value={attachmentType} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -397,6 +432,16 @@ export function InventoryItemForm({
                 }
                 label="Verrechnungssatz €/h"
                 name="billingRate"
+                type="number"
+              />
+              <Input
+                defaultValue={
+                  item?.idleBillingRateCents
+                    ? String(item.idleBillingRateCents / 100)
+                    : ""
+                }
+                label="Verrechnungssatz stillgelegt €/h"
+                name="idleBillingRate"
                 type="number"
               />
             </div>
@@ -456,35 +501,13 @@ export function InventoryItemForm({
             </div>
           </div>
 
-          <div className={fieldGroupClass}>
-            {layout === "stacked" ? (
-              <FieldGroupHeader
-                description="Nur Übergang: bleibt, bis Dispo, BTB und Werkstatt vollständig auf Inventarobjekte umgestellt sind."
-                title="Alt-Stammdaten-Verknüpfung"
-              />
-            ) : null}
-            <div className={innerGridClass}>
-              <input
-                name="currentProjectId"
-                type="hidden"
-                value={item?.currentProjectId ?? "__none"}
-              />
-              <Select
-                className={layout === "stacked" ? "" : "xl:col-span-3"}
-                defaultValue={item?.vehicleId ?? "__none"}
-                label="Altes Fahrzeug/Gerät verknüpfen"
-                name="vehicleId"
-              >
-                <option value="__none">Keine Verknüpfung</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.vehicleNumber}
-                    {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""} ·{" "}
-                    {vehicle.vehicleType}
-                  </option>
-                ))}
-              </Select>
-            </div>
+          <div className={layout === "stacked" ? "" : "md:col-span-2 xl:col-span-6"}>
+            <InventoryAdditionalEmployeesField
+              employees={employees}
+              initialEmployeeIds={(item?.employeeAssignments ?? []).map(
+                (assignment) => assignment.employeeId,
+              )}
+            />
           </div>
         </div>
       </section>
@@ -645,48 +668,52 @@ export function InventoryItemForm({
             </div>
           </div>
 
-          <div className={fieldGroupClass}>
-            {layout === "stacked" ? (
-              <FieldGroupHeader
-                description="Prüfdaten für DGUV / UVV / Geräteprüfung."
-                title="DGUV-Prüfung"
+          <div
+            className={
+              layout === "stacked"
+                ? `${fieldGroupClass} md:col-span-2 xl:col-span-3`
+                : "rounded-2xl border border-gray-200 bg-gray-50 p-4 md:col-span-2 xl:col-span-6"
+            }
+          >
+            <FieldGroupHeader
+              description="Gesetzliche und technische Prüfungen kompakt mit letztem und nächstem Termin."
+              title="Prüfungen"
+            />
+            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+              <InspectionDatePair
+                lastName="lastDguvInspectionDate"
+                lastValue={item?.lastDguvInspectionDate ?? null}
+                nextName="nextDguvInspectionDate"
+                nextValue={item?.nextDguvInspectionDate ?? null}
+                title="DGUV"
               />
-            ) : null}
-            <div className={innerGridClass}>
-              <Input
-                defaultValue={formatDateInput(item?.lastDguvInspectionDate ?? null)}
-                label="Letzte DGUV-Prüfung"
-                name="lastDguvInspectionDate"
-                type="date"
+              <InspectionDatePair
+                lastName="lastTuvInspectionDate"
+                lastValue={item?.lastTuvInspectionDate ?? null}
+                nextName="nextTuvInspectionDate"
+                nextValue={item?.nextTuvInspectionDate ?? null}
+                title="TÜV"
               />
-              <Input
-                defaultValue={formatDateInput(item?.nextDguvInspectionDate ?? null)}
-                label="Nächste DGUV-Prüfung"
-                name="nextDguvInspectionDate"
-                type="date"
+              <InspectionDatePair
+                lastName="lastTachographInspectionDate"
+                lastValue={item?.lastTachographInspectionDate ?? null}
+                nextName="nextTachographInspectionDate"
+                nextValue={item?.nextTachographInspectionDate ?? null}
+                title="Tachoprüfung"
               />
-            </div>
-          </div>
-
-          <div className={fieldGroupClass}>
-            {layout === "stacked" ? (
-              <FieldGroupHeader
-                description="TÜV-Prüfung für Fahrzeuge, Anhänger oder zulassungspflichtige Geräte."
-                title="TÜV-Prüfung"
+              <InspectionDatePair
+                lastName="lastSafetyInspectionDate"
+                lastValue={item?.lastSafetyInspectionDate ?? null}
+                nextName="nextSafetyInspectionDate"
+                nextValue={item?.nextSafetyInspectionDate ?? null}
+                title="SP"
               />
-            ) : null}
-            <div className={innerGridClass}>
-              <Input
-                defaultValue={formatDateInput(item?.lastTuvInspectionDate ?? null)}
-                label="Letzte TÜV-Prüfung"
-                name="lastTuvInspectionDate"
-                type="date"
-              />
-              <Input
-                defaultValue={formatDateInput(item?.nextTuvInspectionDate ?? null)}
-                label="Nächste TÜV-Prüfung"
-                name="nextTuvInspectionDate"
-                type="date"
+              <InspectionDatePair
+                lastName="lastAdrInspectionDate"
+                lastValue={item?.lastAdrInspectionDate ?? null}
+                nextName="nextAdrInspectionDate"
+                nextValue={item?.nextAdrInspectionDate ?? null}
+                title="ADR"
               />
             </div>
           </div>
@@ -793,6 +820,42 @@ function getDailyReportSectionLabel(value: string) {
   if (value === "OTHER") return "Sonstiges";
 
   return "ohne Bereich";
+}
+
+function InspectionDatePair({
+  lastName,
+  lastValue,
+  nextName,
+  nextValue,
+  title,
+}: {
+  lastName: string;
+  lastValue: Date | null;
+  nextName: string;
+  nextValue: Date | null;
+  title: string;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="text-xs font-bold uppercase tracking-[0.12em] text-gray-700">
+        {title}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <Input
+          defaultValue={formatDateInput(lastValue)}
+          label="Letzte"
+          name={lastName}
+          type="date"
+        />
+        <Input
+          defaultValue={formatDateInput(nextValue)}
+          label="Nächste"
+          name={nextName}
+          type="date"
+        />
+      </div>
+    </div>
+  );
 }
 
 function Input({

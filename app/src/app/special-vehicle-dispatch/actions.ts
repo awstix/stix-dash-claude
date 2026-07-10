@@ -152,13 +152,36 @@ async function getVehicle(vehicleId: string) {
     where: {
       id: vehicleId,
     },
+    include: {
+      inventoryItems: {
+        select: {
+          category: {
+            select: {
+              parentCategory: {
+                select: {
+                  useInSpecialVehicleDisposition: true,
+                },
+              },
+              useInSpecialVehicleDisposition: true,
+            },
+          },
+        },
+        take: 1,
+      },
+    },
   });
 
   if (!vehicle) {
     throw new Error("Sonderfahrzeug wurde nicht gefunden.");
   }
 
-  if (!vehicle.isSpecialVehicle) {
+  const inventoryCategoryMarksSpecialVehicle = vehicle.inventoryItems.some(
+    (item) =>
+      item.category?.useInSpecialVehicleDisposition ||
+      item.category?.parentCategory?.useInSpecialVehicleDisposition,
+  );
+
+  if (!vehicle.isSpecialVehicle && !inventoryCategoryMarksSpecialVehicle) {
     throw new Error("Dieses Fahrzeug ist nicht als Sonderfahrzeug markiert.");
   }
 

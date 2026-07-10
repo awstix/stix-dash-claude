@@ -111,7 +111,10 @@ async function createLabelSvg(input: {
         const size = Math.min(box.width, box.height);
         const codeSvg = await createCodeSvg(
           input.codeType,
-          input.item.objectNumber ?? input.item.inventoryNumber ?? input.item.id,
+          input.item.objectNumber ??
+            input.item.inventoryNumber ??
+            input.item.stixId ??
+            input.item.id,
         );
 
         return `<image href="data:image/svg+xml;charset=utf-8,${encodeURIComponent(
@@ -343,7 +346,7 @@ async function getMontserratFonts() {
     readFile(path.join(process.cwd(), "public", "fonts", "Montserrat-SemiBold.ttf")),
     readFile(path.join(process.cwd(), "public", "fonts", "Montserrat-Variable.ttf")),
   ]).then(([regular, semibold, variable]) => {
-    const variableFont = fontkit.create(variable) as FontkitVariableFont;
+    const variableFont = fontkit.create(variable) as unknown as FontkitVariableFont;
 
     return {
       black: variableFont.getVariation({ wght: 900 }) as FontkitFont,

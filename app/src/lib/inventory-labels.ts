@@ -12,11 +12,13 @@ export type InventoryLabelBlockKey =
   | "spacer3"
   | "objectNumber"
   | "inventoryNumber"
+  | "stixId"
   | "code"
   | "name"
   | "category"
   | "manufacturer"
   | "model"
+  | "attachmentType"
   | "serialNumber"
   | "licensePlate"
   | "responsible"
@@ -112,6 +114,16 @@ export const INVENTORY_LABEL_BLOCKS: Array<{
     preview: "INV-001",
   },
   {
+    defaultCol: 1,
+    defaultHeight: 1,
+    defaultRow: 2,
+    defaultSize: "NORMAL",
+    defaultWidth: 3,
+    key: "stixId",
+    label: "STIX-ID",
+    preview: "STIX-001",
+  },
+  {
     defaultCol: 5,
     defaultHeight: 2,
     defaultRow: 1,
@@ -160,6 +172,16 @@ export const INVENTORY_LABEL_BLOCKS: Array<{
     key: "model",
     label: "Typ / Modell",
     preview: "320F",
+  },
+  {
+    defaultCol: 1,
+    defaultHeight: 1,
+    defaultRow: 4,
+    defaultSize: "NORMAL",
+    defaultWidth: 3,
+    key: "attachmentType",
+    label: "Aufnahmetyp",
+    preview: "OQ 70/55",
   },
   {
     defaultCol: 1,
@@ -366,9 +388,11 @@ export type InventoryLabelItem = {
     projectNumber: string | null;
   } | null;
   inventoryNumber?: string | null;
+  stixId?: string | null;
   licensePlate?: string | null;
   manufacturer?: string | null;
   model?: string | null;
+  attachmentType?: string | null;
   name: string;
   objectNumber?: string | null;
   responsibleCrew?: {
@@ -389,16 +413,20 @@ export function getInventoryLabelValue(
 ) {
   if (key === "objectNumber") return item.objectNumber ?? "";
   if (key === "inventoryNumber") return item.inventoryNumber ?? "";
+  if (key === "stixId") return item.stixId ?? "";
   if (key === "name") return item.name;
   if (key === "category") return getInventoryCategoryLabelForLabel(item.category);
   if (key === "manufacturer") return item.manufacturer ?? "";
   if (key === "model") return item.model ?? "";
+  if (key === "attachmentType") return item.attachmentType ?? "";
   if (key === "serialNumber") return item.serialNumber ?? "";
   if (key === "licensePlate") return item.licensePlate ?? "";
   if (key === "responsible") return getInventoryResponsibleLabel(item);
   if (key === "location") return getInventoryLocationLabel(item);
   if (key === "status") return getInventoryStatusLabel(item.status);
-  if (key === "code") return item.objectNumber ?? item.inventoryNumber ?? "";
+  if (key === "code") {
+    return item.objectNumber ?? item.inventoryNumber ?? item.stixId ?? "";
+  }
   if (key === "companyLogo") return "";
   if (isInventoryLabelSpacerBlock(key)) return "";
 

@@ -12,8 +12,20 @@ export default async function EditInventoryItemPage({
 }) {
   const { itemId } = await params;
 
-  const [categories, crews, employees, item, items, projects, vehicles] =
+  const [attachmentTypeRows, categories, crews, employees, item, items] =
     await Promise.all([
+      prisma.inventoryItem.findMany({
+        distinct: ["attachmentType"],
+        orderBy: [{ attachmentType: "asc" }],
+        select: {
+          attachmentType: true,
+        },
+        where: {
+          attachmentType: {
+            not: null,
+          },
+        },
+      }),
       prisma.inventoryCategory.findMany({
         where: {
           isActive: true,
@@ -56,6 +68,11 @@ export default async function EditInventoryItemPage({
               { name: "asc" },
             ],
           },
+          employeeAssignments: {
+            select: {
+              employeeId: true,
+            },
+          },
           photos: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
           },
@@ -69,16 +86,6 @@ export default async function EditInventoryItemPage({
           isContainer: true,
         },
         orderBy: [{ name: "asc" }],
-      }),
-      prisma.project.findMany({
-        orderBy: [{ projectNumber: "desc" }],
-        take: 250,
-      }),
-      prisma.vehicle.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: [{ vehicleNumber: "asc" }],
       }),
     ]);
 
@@ -108,14 +115,15 @@ export default async function EditInventoryItemPage({
 
       <InventoryItemForm
         action={updateInventoryItem}
+        attachmentTypeOptions={attachmentTypeRows
+          .map((row) => row.attachmentType)
+          .filter((value): value is string => Boolean(value))}
         categories={categories}
         containerOptions={items}
         crews={crews}
         employees={employees}
         item={item}
         layout="stacked"
-        projects={projects}
-        vehicles={vehicles}
       />
     </AppShell>
   );

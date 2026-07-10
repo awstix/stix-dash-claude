@@ -406,6 +406,25 @@ export default async function EmployeeCertificatesPage({
       title="Mitarbeiterakte"
       description="Kurze Übersicht je Mitarbeiter. Schulungen und Führerscheine werden im Mitarbeiterdetail gepflegt."
     >
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Mitarbeiterakte / Schulungen
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Schulungen eintragen, importieren und als Kreuztabelle auswerten.
+            </p>
+          </div>
+          <a
+            className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+            href="#schulungsimport"
+          >
+            Schulungen importieren →
+          </a>
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SummaryCard label="Mitarbeiter sichtbar" value={String(employees.length)} />
         <SummaryCard label="Schulungseinträge" value={String(totalTrainingRecords)} />
@@ -753,7 +772,10 @@ export default async function EmployeeCertificatesPage({
         </details>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section
+        className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+        id="schulungsimport"
+      >
         <div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">

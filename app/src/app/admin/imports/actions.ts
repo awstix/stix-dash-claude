@@ -24,6 +24,12 @@ type ImportResult = {
 
 type ExcelRow = Record<string, unknown>;
 
+const allowedReturnPaths = new Set([
+  "/admin/imports",
+  "/employees/imports",
+  "/inventory/imports",
+]);
+
 const LKW_DRIVER_POSITION_VALUE = "lkw_fahrer_in";
 const TACK_COAT_CATEGORY = "Anspritzmittel";
 
@@ -125,6 +131,12 @@ function normalizeCode(value: string) {
 
 function text(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function getReturnPath(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "").trim();
+
+  return allowedReturnPaths.has(returnTo) ? returnTo : "/admin/imports";
 }
 
 function slugify(label: string) {
@@ -1272,6 +1284,7 @@ async function importOptions(rows: ExcelRow[]): Promise<ImportResult> {
 export async function importExcel(formData: FormData) {
   const importType = String(formData.get("importType") ?? "") as ImportType;
   const file = formData.get("file");
+  const returnPath = getReturnPath(formData);
 
   if (!importType) {
     throw new Error("Bitte einen Importtyp auswählen.");
@@ -1306,6 +1319,8 @@ export async function importExcel(formData: FormData) {
   }
 
   revalidatePath("/admin/imports");
+  revalidatePath("/employees/imports");
+  revalidatePath("/inventory/imports");
   revalidatePath("/admin/employees");
   revalidatePath("/employees");
   revalidatePath("/admin/drivers");
@@ -1317,6 +1332,6 @@ export async function importExcel(formData: FormData) {
   revalidatePath("/admin/options");
 
   redirect(
-    `/admin/imports?type=${importType}&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`
+    `${returnPath}?type=${importType}&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`
   );
 }

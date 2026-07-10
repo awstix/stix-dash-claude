@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import { vehicleInventoryLinkInclude } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import {
+  driverIsSelectableInTruckDispatch,
+  vehicleIsSelectableInTruckDispatch,
+} from "@/lib/truck-dispatch-selection";
 import {
   formatTons,
   getAsphaltAllocationsForDay,
@@ -423,8 +428,8 @@ export default async function LongHaulPage({
     entries,
     projects,
     materials,
-    vehicles,
-    drivers,
+    allVehicles,
+    allDrivers,
     shortHaulConflicts,
     shortAsphaltConflicts,
     shortTackCoatConflicts,
@@ -472,6 +477,7 @@ export default async function LongHaulPage({
         isActive: true,
       },
       include: {
+        ...vehicleInventoryLinkInclude,
         driverAssignments: {
           where: {
             isActive: true,
@@ -489,12 +495,24 @@ export default async function LongHaulPage({
         isActive: true,
       },
       include: {
+        employee: {
+          select: {
+            positions: {
+              select: {
+                positionLabel: true,
+                positionValue: true,
+              },
+            },
+          },
+        },
         vehicleAssignments: {
           where: {
             isActive: true,
           },
           include: {
-            vehicle: true,
+            vehicle: {
+              include: vehicleInventoryLinkInclude,
+            },
           },
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         },
@@ -590,6 +608,9 @@ export default async function LongHaulPage({
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
   ]);
+
+  const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
+  const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 
   const vehicleCategories =
     vehicleCategoryOptions.length > 0

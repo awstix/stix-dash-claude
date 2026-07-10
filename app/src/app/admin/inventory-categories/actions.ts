@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -10,7 +11,7 @@ function optionalString(value: FormDataEntryValue | null) {
 
 function parseSortOrder(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
-  if (!text) return 0;
+  if (!text) return null;
 
   const number = Number.parseInt(text, 10);
 
@@ -19,6 +20,37 @@ function parseSortOrder(value: FormDataEntryValue | null) {
   }
 
   return number;
+}
+
+async function getNextCategorySortOrder(parentCategoryId: string | null) {
+  const lastCategory = await prisma.inventoryCategory.findFirst({
+    where: {
+      parentCategoryId,
+    },
+    orderBy: {
+      sortOrder: "desc",
+    },
+    select: {
+      sortOrder: true,
+    },
+  });
+
+  return (lastCategory?.sortOrder ?? 0) + 10;
+}
+
+async function assertCategoryNameAvailable(name: string, currentCategoryId?: string) {
+  const existingCategory = await prisma.inventoryCategory.findUnique({
+    where: {
+      name,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingCategory && existingCategory.id !== currentCategoryId) {
+    throw new Error(`Inventarkategorie „${name}“ existiert bereits.`);
+  }
 }
 
 function parseObjectNumber(value: FormDataEntryValue | null, label: string) {
@@ -80,10 +112,15 @@ function getObjectNumberRange(formData: FormData) {
 type ObjectNumberRange = ReturnType<typeof getObjectNumberRange>;
 
 type SubcategoryPayload = ObjectNumberRange & {
+  asphaltDispositionUsage: string;
+  dailyReportMachineLabel: string | null;
   id: string | null;
   isActive: boolean;
   name: string;
-  sortOrder: number;
+  sortOrder: number | null;
+  useInSpecialVehicleDisposition: boolean;
+  useInTeamManagement: boolean;
+  useInTruckDispatchSelection: boolean;
 };
 
 async function validateCategoryHierarchy({
@@ -199,6 +236,21 @@ function getSubcategoryPayloads(formData: FormData) {
   const nextValues = formData.getAll("subcategoryNextObjectNumber");
   const sortOrders = formData.getAll("subcategorySortOrder");
   const activeValues = formData.getAll("subcategoryIsActiveValue");
+  const specialVehicleValues = formData.getAll(
+    "subcategoryUseInSpecialVehicleDisposition",
+  );
+  const teamManagementValues = formData.getAll(
+    "subcategoryUseInTeamManagement",
+  );
+  const truckDispatchSelectionValues = formData.getAll(
+    "subcategoryUseInTruckDispatchSelection",
+  );
+  const asphaltUsageValues = formData.getAll(
+    "subcategoryAsphaltDispositionUsage",
+  );
+  const dailyReportMachineLabelValues = formData.getAll(
+    "subcategoryDailyReportMachineLabel",
+  );
 
   return names.map((nameValue, index) => {
     const name = String(nameValue ?? "").trim();
@@ -247,6 +299,12 @@ function getSubcategoryPayloads(formData: FormData) {
     }
 
     return {
+      asphaltDispositionUsage: normalizeAsphaltDispositionUsage(
+        asphaltUsageValues[index],
+      ),
+      dailyReportMachineLabel: optionalString(
+        dailyReportMachineLabelValues[index] ?? null,
+      ),
       id,
       isActive: String(activeValues[index] ?? "0") === "1",
       name,
@@ -254,6 +312,12 @@ function getSubcategoryPayloads(formData: FormData) {
       objectNumberStart,
       nextObjectNumber: nextObjectNumber ?? objectNumberStart,
       sortOrder: parseSortOrder(sortOrders[index] ?? null),
+      useInSpecialVehicleDisposition:
+        String(specialVehicleValues[index] ?? "0") === "1",
+      useInTeamManagement:
+        String(teamManagementValues[index] ?? "0") === "1",
+      useInTruckDispatchSelection:
+        String(truckDispatchSelectionValues[index] ?? "0") === "1",
     } satisfies SubcategoryPayload;
   });
 }
@@ -272,6 +336,20 @@ async function validateInlineSubcategories({
   const activeSubcategories = subcategories.filter(
     (subcategory) => subcategory.name.length > 0,
   );
+  const seenNames = new Map<string, string>();
+
+  for (const subcategory of activeSubcategories) {
+    const normalizedName = subcategory.name.trim().toLowerCase();
+    const previousName = seenNames.get(normalizedName);
+
+    if (previousName) {
+      throw new Error(
+        `Unterkategorie „${subcategory.name}“ ist doppelt eingetragen.`,
+      );
+    }
+
+    seenNames.set(normalizedName, subcategory.name);
+  }
 
   for (const subcategory of activeSubcategories) {
     if (
@@ -327,6 +405,29 @@ async function validateInlineSubcategories({
     }
   }
 
+  for (const subcategory of activeSubcategories) {
+    if (subcategory.id) continue;
+
+    const existingCategory = await prisma.inventoryCategory.findUnique({
+      where: {
+        name: subcategory.name,
+      },
+      select: {
+        parentCategoryId: true,
+      },
+    });
+
+    if (
+      existingCategory &&
+      (!parentCategoryId ||
+        existingCategory.parentCategoryId !== parentCategoryId)
+    ) {
+      throw new Error(
+        `Der Name „${subcategory.name}“ ist bereits bei einer anderen Kategorie vergeben. Bitte einen eindeutigen Namen verwenden.`,
+      );
+    }
+  }
+
   if (!parentCategoryId) {
     return;
   }
@@ -343,12 +444,37 @@ async function validateInlineSubcategories({
       continue;
     }
 
+    const additionalExcludedIds: string[] = [];
+
+    if (!subcategory.id) {
+      const existingCategoryWithSameName = await prisma.inventoryCategory.findUnique({
+        where: {
+          name: subcategory.name,
+        },
+        select: {
+          id: true,
+          parentCategoryId: true,
+        },
+      });
+
+      if (existingCategoryWithSameName) {
+        if (existingCategoryWithSameName.parentCategoryId !== parentCategoryId) {
+          throw new Error(
+            `Unterkategorie „${subcategory.name}“ existiert bereits an anderer Stelle. Bitte einen eindeutigen Namen verwenden.`,
+          );
+        }
+
+        additionalExcludedIds.push(existingCategoryWithSameName.id);
+      }
+    }
+
     const overlappingSibling = await prisma.inventoryCategory.findFirst({
       where: {
         id: {
           notIn: [
             parentCategoryId,
             ...siblingIds,
+            ...additionalExcludedIds,
           ],
         },
         parentCategoryId,
@@ -388,6 +514,11 @@ function dailyReportSection(value: FormDataEntryValue | null) {
   return allowedSections.has(text) ? text : "NONE";
 }
 
+function normalizeAsphaltDispositionUsage(value: unknown) {
+  const usage = String(value ?? "NONE").trim().toUpperCase();
+  return ["ASPHALT_MIX", "TACK_COAT"].includes(usage) ? usage : "NONE";
+}
+
 function getTruckDispatchUsage(formData: FormData) {
   const useInTruckDispatchMaterial =
     formData.get("useInTruckDispatchMaterial") === "on";
@@ -411,40 +542,50 @@ function revalidateInventoryCategoryViews() {
   revalidatePath("/admin/inventory-categories");
   revalidatePath("/inventory");
   revalidatePath("/inventory/storage");
+  revalidatePath("/truck-dispatch");
+  revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/truck-dispatch/long-haul");
 }
 
 async function syncInlineSubcategories({
   categoryData,
+  db,
   parentCategoryId,
   subcategories,
 }: {
   categoryData: {
     colorClass: string | null;
     dailyReportSection: string;
+    dailyReportMachineLabel: string | null;
     description: string | null;
     useInDailyReports: boolean;
     useInInventory: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
+    useInTruckDispatchSelection: boolean;
     useInTruckDisposition: boolean;
+    useInSpecialVehicleDisposition: boolean;
+    useInTeamManagement: boolean;
+    asphaltDispositionUsage: string;
   };
+  db: Prisma.TransactionClient;
   parentCategoryId: string;
   subcategories: SubcategoryPayload[];
 }) {
-  for (const subcategory of subcategories) {
+  for (const [index, subcategory] of subcategories.entries()) {
     if (!subcategory.name) {
       if (!subcategory.id) {
         continue;
       }
 
-      const itemCount = await prisma.inventoryItem.count({
+      const itemCount = await db.inventoryItem.count({
         where: {
           categoryId: subcategory.id,
         },
       });
 
       if (itemCount > 0) {
-        await prisma.inventoryCategory.update({
+        await db.inventoryCategory.update({
           where: {
             id: subcategory.id,
           },
@@ -453,7 +594,7 @@ async function syncInlineSubcategories({
           },
         });
       } else {
-        await prisma.inventoryCategory.delete({
+        await db.inventoryCategory.delete({
           where: {
             id: subcategory.id,
           },
@@ -464,6 +605,8 @@ async function syncInlineSubcategories({
 
     const data = {
       ...categoryData,
+      asphaltDispositionUsage: subcategory.asphaltDispositionUsage,
+      dailyReportMachineLabel: subcategory.dailyReportMachineLabel,
       isActive: subcategory.isActive,
       name: subcategory.name,
       nextObjectNumber: subcategory.nextObjectNumber,
@@ -474,25 +617,55 @@ async function syncInlineSubcategories({
           id: parentCategoryId,
         },
       },
-      sortOrder: subcategory.sortOrder,
+      sortOrder: subcategory.sortOrder ?? (index + 1) * 10,
+      useInSpecialVehicleDisposition:
+        subcategory.useInSpecialVehicleDisposition,
+      useInTeamManagement: subcategory.useInTeamManagement,
+      useInTruckDispatchSelection: subcategory.useInTruckDispatchSelection,
     };
 
     if (subcategory.id) {
-      await prisma.inventoryCategory.update({
+      await db.inventoryCategory.update({
         where: {
           id: subcategory.id,
         },
         data,
       });
     } else {
-      await prisma.inventoryCategory.create({
+      const existingCategory = await db.inventoryCategory.findUnique({
+        where: {
+          name: subcategory.name,
+        },
+        select: {
+          id: true,
+          parentCategoryId: true,
+        },
+      });
+
+      if (existingCategory) {
+        if (existingCategory.parentCategoryId !== parentCategoryId) {
+          throw new Error(
+            `Unterkategorie „${subcategory.name}“ existiert bereits an anderer Stelle. Bitte einen eindeutigen Namen verwenden.`,
+          );
+        }
+
+        await db.inventoryCategory.update({
+          where: {
+            id: existingCategory.id,
+          },
+          data,
+        });
+        continue;
+      }
+
+      await db.inventoryCategory.create({
         data,
       });
     }
   }
 }
 
-export async function createInventoryCategory(formData: FormData) {
+async function createInventoryCategoryInternal(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
 
   if (!name) {
@@ -503,10 +676,21 @@ export async function createInventoryCategory(formData: FormData) {
   const objectNumberRange = getObjectNumberRange(formData);
   const subcategories = getSubcategoryPayloads(formData);
   const categoryData = {
+    asphaltDispositionUsage: normalizeAsphaltDispositionUsage(
+      formData.get("asphaltDispositionUsage"),
+    ),
     colorClass: optionalString(formData.get("colorClass")),
     dailyReportSection: dailyReportSection(formData.get("dailyReportSection")),
+    dailyReportMachineLabel: optionalString(
+      formData.get("dailyReportMachineLabel"),
+    ),
     description: optionalString(formData.get("description")),
     useInDailyReports: formData.get("useInDailyReports") === "on",
+    useInSpecialVehicleDisposition:
+      formData.get("useInSpecialVehicleDisposition") === "on",
+    useInTeamManagement: formData.get("useInTeamManagement") === "on",
+    useInTruckDispatchSelection:
+      formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,
     ...getTruckDispatchUsage(formData),
   };
@@ -515,42 +699,50 @@ export async function createInventoryCategory(formData: FormData) {
     parentCategoryId,
     range: objectNumberRange,
   });
+  await assertCategoryNameAvailable(name);
   await validateInlineSubcategories({
     parentName: name,
     parentRange: objectNumberRange,
     subcategories,
   });
 
-  const category = await prisma.inventoryCategory.create({
-    data: {
-      ...categoryData,
-      isActive: formData.get("isActive") !== "off",
-      name,
-      ...objectNumberRange,
-      parentCategory: parentCategoryId
-        ? {
-            connect: {
-              id: parentCategoryId,
-            },
-          }
-        : undefined,
-      sortOrder: parseSortOrder(formData.get("sortOrder")),
-    },
-    select: {
-      id: true,
-    },
-  });
+  const sortOrder =
+    parseSortOrder(formData.get("sortOrder")) ??
+    (await getNextCategorySortOrder(parentCategoryId));
 
-  await syncInlineSubcategories({
-    categoryData,
-    parentCategoryId: category.id,
-    subcategories,
+  await prisma.$transaction(async (tx) => {
+    const category = await tx.inventoryCategory.create({
+      data: {
+        ...categoryData,
+        isActive: formData.get("isActive") !== "off",
+        name,
+        ...objectNumberRange,
+        parentCategory: parentCategoryId
+          ? {
+              connect: {
+                id: parentCategoryId,
+              },
+            }
+          : undefined,
+        sortOrder,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await syncInlineSubcategories({
+      categoryData,
+      db: tx,
+      parentCategoryId: category.id,
+      subcategories,
+    });
   });
 
   revalidateInventoryCategoryViews();
 }
 
-export async function updateInventoryCategory(formData: FormData) {
+async function updateInventoryCategoryInternal(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
 
@@ -571,10 +763,21 @@ export async function updateInventoryCategory(formData: FormData) {
   const objectNumberRange = getObjectNumberRange(formData);
   const subcategories = getSubcategoryPayloads(formData);
   const categoryData = {
+    asphaltDispositionUsage: normalizeAsphaltDispositionUsage(
+      formData.get("asphaltDispositionUsage"),
+    ),
     colorClass: optionalString(formData.get("colorClass")),
     dailyReportSection: dailyReportSection(formData.get("dailyReportSection")),
+    dailyReportMachineLabel: optionalString(
+      formData.get("dailyReportMachineLabel"),
+    ),
     description: optionalString(formData.get("description")),
     useInDailyReports: formData.get("useInDailyReports") === "on",
+    useInSpecialVehicleDisposition:
+      formData.get("useInSpecialVehicleDisposition") === "on",
+    useInTeamManagement: formData.get("useInTeamManagement") === "on",
+    useInTruckDispatchSelection:
+      formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,
     ...getTruckDispatchUsage(formData),
   };
@@ -584,6 +787,7 @@ export async function updateInventoryCategory(formData: FormData) {
     parentCategoryId,
     range: objectNumberRange,
   });
+  await assertCategoryNameAvailable(name, id);
   await validateInlineSubcategories({
     parentCategoryId: id,
     parentName: name,
@@ -591,35 +795,110 @@ export async function updateInventoryCategory(formData: FormData) {
     subcategories,
   });
 
-  await prisma.inventoryCategory.update({
-    where: {
-      id,
-    },
-    data: {
-      ...categoryData,
-      isActive: formData.get("isActive") === "on",
-      name,
-      ...objectNumberRange,
-      parentCategory: parentCategoryId
-        ? {
-            connect: {
-              id: parentCategoryId,
-            },
-          }
-        : {
-            disconnect: true,
-        },
-      sortOrder: parseSortOrder(formData.get("sortOrder")),
-    },
-  });
+  const sortOrder =
+    parseSortOrder(formData.get("sortOrder")) ??
+    (await getNextCategorySortOrder(parentCategoryId));
 
-  await syncInlineSubcategories({
-    categoryData,
-    parentCategoryId: id,
-    subcategories,
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryCategory.update({
+      where: {
+        id,
+      },
+      data: {
+        ...categoryData,
+        isActive: formData.get("isActive") === "on",
+        name,
+        ...objectNumberRange,
+        parentCategory: parentCategoryId
+          ? {
+              connect: {
+                id: parentCategoryId,
+              },
+            }
+          : {
+              disconnect: true,
+            },
+        sortOrder,
+      },
+    });
+
+    await syncInlineSubcategories({
+      categoryData,
+      db: tx,
+      parentCategoryId: id,
+      subcategories,
+    });
   });
 
   revalidateInventoryCategoryViews();
+}
+
+type CategoryActionState = {
+  error: string | null;
+  errorKey: number;
+  success: boolean;
+  successKey: number;
+};
+
+function categoryActionError(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  ) {
+    return "Dieser Kategoriename ist bereits vergeben. Bitte einen eindeutigen Namen verwenden.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Die Kategorie konnte nicht gespeichert werden. Bitte Eingaben prüfen.";
+}
+
+export async function createInventoryCategory(
+  _previousState: CategoryActionState,
+  formData: FormData,
+): Promise<CategoryActionState> {
+  try {
+    await createInventoryCategoryInternal(formData);
+    return {
+      error: null,
+      errorKey: _previousState.errorKey,
+      success: true,
+      successKey: _previousState.successKey + 1,
+    };
+  } catch (error) {
+    return {
+      error: categoryActionError(error),
+      errorKey: _previousState.errorKey + 1,
+      success: false,
+      successKey: _previousState.successKey,
+    };
+  }
+}
+
+export async function updateInventoryCategory(
+  _previousState: CategoryActionState,
+  formData: FormData,
+): Promise<CategoryActionState> {
+  try {
+    await updateInventoryCategoryInternal(formData);
+    return {
+      error: null,
+      errorKey: _previousState.errorKey,
+      success: true,
+      successKey: _previousState.successKey + 1,
+    };
+  } catch (error) {
+    return {
+      error: categoryActionError(error),
+      errorKey: _previousState.errorKey + 1,
+      success: false,
+      successKey: _previousState.successKey,
+    };
+  }
 }
 
 export async function deleteInventoryCategory(formData: FormData) {
@@ -629,28 +908,55 @@ export async function deleteInventoryCategory(formData: FormData) {
     throw new Error("Kategorie-ID fehlt.");
   }
 
-  const itemCount = await prisma.inventoryItem.count({
-    where: {
-      categoryId: id,
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    const category = await tx.inventoryCategory.findUnique({
+      where: { id },
+      select: {
+        childCategories: {
+          select: { id: true },
+        },
+      },
+    });
 
-  if (itemCount > 0) {
-    await prisma.inventoryCategory.update({
+    if (!category) return;
+
+    const categoryIds = [
+      id,
+      ...category.childCategories.map((childCategory) => childCategory.id),
+    ];
+    const itemCount = await tx.inventoryItem.count({
+      where: {
+        categoryId: {
+          in: categoryIds,
+        },
+      },
+    });
+
+    if (itemCount > 0) {
+      await tx.inventoryCategory.updateMany({
+        where: {
+          id: {
+            in: categoryIds,
+          },
+        },
+        data: {
+          isActive: false,
+        },
+      });
+      return;
+    }
+
+    await tx.inventoryCategory.deleteMany({
+      where: {
+        parentCategoryId: id,
+      },
+    });
+    await tx.inventoryCategory.delete({
       where: {
         id,
       },
-      data: {
-        isActive: false,
-      },
     });
-  } else {
-    await prisma.inventoryCategory.delete({
-      where: {
-        id,
-      },
-    });
-  }
+  });
 
   revalidateInventoryCategoryViews();
 }

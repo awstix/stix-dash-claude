@@ -8,6 +8,7 @@ import {
   sortInventoryCategoriesForSelect,
 } from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
+import { DeleteInventoryDialog } from "./DeleteInventoryDialog";
 import { deleteInventoryItem } from "./actions";
 import { InventoryPhotoThumbnailButton } from "./InventoryPhotoGallery";
 import { ProjectStatus, type Prisma } from "@prisma/client";
@@ -193,7 +194,9 @@ export default async function InventoryPage({
             { name: { contains: searchQuery } },
             { manufacturer: { contains: searchQuery } },
             { model: { contains: searchQuery } },
+            { attachmentType: { contains: searchQuery } },
             { objectNumber: { contains: searchQuery } },
+            { stixId: { contains: searchQuery } },
             { licensePlate: { contains: searchQuery } },
             { serialNumber: { contains: searchQuery } },
             { inventoryNumber: { contains: searchQuery } },
@@ -333,10 +336,11 @@ export default async function InventoryPage({
             </Link>
             <Link
               className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
-              href="/inventory/master-data"
+              href="/inventory/imports"
             >
-              Stammdaten übernehmen →
+              Inventar importieren →
             </Link>
+            <DeleteInventoryDialog itemCount={totalItems} />
           </div>
         </div>
       </section>
@@ -534,7 +538,7 @@ export default async function InventoryPage({
         </div>
 
         <div className="mt-5 overflow-x-auto">
-          <table className="min-w-[1500px] text-left text-sm">
+          <table className="min-w-[1580px] text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="w-28 p-3">Aktionen</th>
@@ -551,12 +555,13 @@ export default async function InventoryPage({
                 <th className="p-3">Container</th>
                 <th className="p-3">Lager</th>
                 <th className="p-3">Satz</th>
+                <th className="p-3">Stillgelegt</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td className="p-8 text-center text-gray-500" colSpan={14}>
+                  <td className="p-8 text-center text-gray-500" colSpan={15}>
                     Noch keine passenden Inventarobjekte vorhanden.
                   </td>
                 </tr>
@@ -621,6 +626,10 @@ export default async function InventoryPage({
                         {[
                           item.manufacturer,
                           item.model,
+                          item.attachmentType
+                            ? `Aufnahme ${item.attachmentType}`
+                            : null,
+                          item.stixId ? `STIX-ID ${item.stixId}` : null,
                           item.licensePlate ? `Kennz. ${item.licensePlate}` : null,
                           item.inventoryNumber
                             ? `Inventarnr. ${item.inventoryNumber}`
@@ -684,6 +693,9 @@ export default async function InventoryPage({
                     </td>
                     <td className="p-3 text-gray-700">
                       {formatMoney(item.billingRateCents)}
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {formatMoney(item.idleBillingRateCents)}
                     </td>
                   </tr>
                 ))

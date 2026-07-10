@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import {
@@ -9,6 +9,7 @@ import {
   getNextInventoryObjectNumber,
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
+import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 
 const allowedInventoryPhotoTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -76,6 +77,16 @@ function optionalMoneyCents(value: FormDataEntryValue | null) {
   return Math.round(number * 100);
 }
 
+function requiredDate(value: FormDataEntryValue | null, label: string) {
+  const date = optionalDate(value);
+
+  if (!date) {
+    throw new Error(`${label} fehlt.`);
+  }
+
+  return date;
+}
+
 function optionalStock(value: FormDataEntryValue | null, label: string) {
   const text = optionalString(value)?.replace(",", ".");
   if (!text) return null;
@@ -135,7 +146,7 @@ function optionalDate(value: FormDataEntryValue | null) {
 
 function inventoryStatus(value: FormDataEntryValue | null) {
   const text = optionalString(value);
-  return ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED"].includes(text ?? "")
+  return text && ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED"].includes(text)
     ? text
     : "ACTIVE";
 }
@@ -203,7 +214,9 @@ function getInventoryPayload(formData: FormData) {
   const constructionDate = optionalDate(formData.get("constructionDate"));
 
   return {
+    attachmentType: optionalString(formData.get("attachmentType")),
     billingRateCents: optionalMoneyCents(formData.get("billingRate")),
+    idleBillingRateCents: optionalMoneyCents(formData.get("idleBillingRate")),
     axleCount: optionalInt(formData.get("axleCount"), "Anzahl Achsen"),
     categoryId: optionalId(formData.get("categoryId")),
     constructionDate,
@@ -233,6 +246,15 @@ function getInventoryPayload(formData: FormData) {
       "Letzter Service Betriebsstunden",
     ),
     lastTuvInspectionDate: optionalDate(formData.get("lastTuvInspectionDate")),
+    lastTachographInspectionDate: optionalDate(
+      formData.get("lastTachographInspectionDate"),
+    ),
+    lastSafetyInspectionDate: optionalDate(
+      formData.get("lastSafetyInspectionDate"),
+    ),
+    lastAdrInspectionDate: optionalDate(
+      formData.get("lastAdrInspectionDate"),
+    ),
     manufacturer: optionalString(formData.get("manufacturer")),
     model: optionalString(formData.get("model")),
     name,
@@ -247,6 +269,15 @@ function getInventoryPayload(formData: FormData) {
       "Nächster Service Betriebsstunden",
     ),
     nextTuvInspectionDate: optionalDate(formData.get("nextTuvInspectionDate")),
+    nextTachographInspectionDate: optionalDate(
+      formData.get("nextTachographInspectionDate"),
+    ),
+    nextSafetyInspectionDate: optionalDate(
+      formData.get("nextSafetyInspectionDate"),
+    ),
+    nextAdrInspectionDate: optionalDate(
+      formData.get("nextAdrInspectionDate"),
+    ),
     notes: optionalString(formData.get("notes")),
     openingStock,
     parentItemId: optionalId(formData.get("parentItemId")),
@@ -258,6 +289,7 @@ function getInventoryPayload(formData: FormData) {
     receivedAt: optionalDate(formData.get("receivedAt")),
     serialNumber: optionalString(formData.get("serialNumber")),
     status: inventoryStatus(formData.get("status")),
+    stixId: optionalString(formData.get("stixId")),
     stockUnit: optionalString(formData.get("stockUnit")) ?? "Stk.",
     vehicleId: optionalId(formData.get("vehicleId")),
     ...getResponsibleFields(formData),
@@ -387,6 +419,49 @@ function getInventoryContacts(formData: FormData) {
     .filter((contact): contact is NonNullable<typeof contact> => Boolean(contact));
 }
 
+function getAdditionalEmployeeIds(formData: FormData) {
+  const primaryEmployeeId = optionalId(formData.get("responsibleEmployeeId"));
+
+  return Array.from(
+    new Set(
+      formData
+        .getAll("additionalEmployeeIds")
+        .map((value) => optionalId(value))
+        .filter((id): id is string => Boolean(id))
+        .filter((id) => id !== primaryEmployeeId),
+    ),
+  );
+}
+
+async function categoryAllowsInventoryAssignment(categoryId: string | null) {
+  if (!categoryId) return false;
+
+  const category = await prisma.inventoryCategory.findUnique({
+    where: {
+      id: categoryId,
+    },
+    select: {
+      name: true,
+      useInTeamManagement: true,
+      parentCategory: {
+        select: {
+          name: true,
+          useInTeamManagement: true,
+        },
+      },
+    },
+  });
+
+  return inventoryCategoryAllowsAssignment(category);
+}
+
+function clearInventoryAssignmentFields(formData: FormData) {
+  formData.set("responsibleType", "__none");
+  formData.delete("responsibleEmployeeId");
+  formData.delete("responsibleCrewId");
+  formData.delete("additionalEmployeeIds");
+}
+
 function isSpecialVehicleInventoryItem(item: {
   category: {
     name: string;
@@ -457,6 +532,12 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
       category: {
         select: {
           name: true,
+          parentCategory: {
+            select: {
+              useInSpecialVehicleDisposition: true,
+            },
+          },
+          useInSpecialVehicleDisposition: true,
         },
       },
       id: true,
@@ -472,7 +553,14 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
     },
   });
 
-  if (!item || !isSpecialVehicleInventoryItem(item)) {
+  const categoryMarksSpecialVehicle =
+    item?.category?.useInSpecialVehicleDisposition ||
+    item?.category?.parentCategory?.useInSpecialVehicleDisposition;
+
+  if (
+    !item ||
+    (!categoryMarksSpecialVehicle && !isSpecialVehicleInventoryItem(item))
+  ) {
     return;
   }
 
@@ -534,6 +622,123 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
       },
     },
   });
+}
+
+async function syncAsphaltMaterialLinkForInventoryItem(itemId: string) {
+  const item = await prisma.inventoryItem.findUnique({
+    where: { id: itemId },
+    select: {
+      category: {
+        select: {
+          asphaltDispositionUsage: true,
+          parentCategory: {
+            select: {
+              asphaltDispositionUsage: true,
+            },
+          },
+        },
+      },
+      id: true,
+      inventoryNumber: true,
+      name: true,
+      objectNumber: true,
+      sourceId: true,
+      sourceType: true,
+      stockUnit: true,
+    },
+  });
+
+  if (!item) return;
+
+  const directUsage = item.category?.asphaltDispositionUsage ?? "NONE";
+  const usage =
+    directUsage !== "NONE"
+      ? directUsage
+      : item.category?.parentCategory?.asphaltDispositionUsage ?? "NONE";
+  const referenceNumber =
+    item.objectNumber ?? item.inventoryNumber ?? item.id.slice(-6);
+
+  if (usage === "TACK_COAT") {
+    const existing =
+      item.sourceType === "MATERIAL" && item.sourceId
+        ? await prisma.materialType.findUnique({
+            where: { id: item.sourceId },
+          })
+        : await prisma.materialType.findFirst({
+            where: {
+              OR: [
+                { materialNumber: referenceNumber },
+                { category: "Anspritzmittel", name: item.name },
+              ],
+            },
+          });
+    const material = existing
+      ? await prisma.materialType.update({
+          where: { id: existing.id },
+          data: {
+            category: "Anspritzmittel",
+            isActive: true,
+            materialNumber: referenceNumber,
+            name: item.name,
+            unit: item.stockUnit || "l",
+          },
+        })
+      : await prisma.materialType.create({
+          data: {
+            category: "Anspritzmittel",
+            isActive: true,
+            materialNumber: referenceNumber,
+            name: item.name,
+            unit: item.stockUnit || "l",
+          },
+        });
+
+    await prisma.inventoryItem.update({
+      where: { id: item.id },
+      data: {
+        sourceId: material.id,
+        sourceType: "MATERIAL",
+      },
+    });
+    return;
+  }
+
+  if (usage === "ASPHALT_MIX") {
+    const existing =
+      item.sourceType === "ASPHALT_MIX" && item.sourceId
+        ? await prisma.asphaltMixType.findUnique({
+            where: { id: item.sourceId },
+          })
+        : await prisma.asphaltMixType.findUnique({
+            where: { mixNumber: referenceNumber },
+          });
+    const asphaltMix = existing
+      ? await prisma.asphaltMixType.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+            mixNumber: referenceNumber,
+            name: item.name,
+            unit: item.stockUnit || "t",
+          },
+        })
+      : await prisma.asphaltMixType.create({
+          data: {
+            isActive: true,
+            mixNumber: referenceNumber,
+            name: item.name,
+            unit: item.stockUnit || "t",
+          },
+        });
+
+    await prisma.inventoryItem.update({
+      where: { id: item.id },
+      data: {
+        sourceId: asphaltMix.id,
+        sourceType: "ASPHALT_MIX",
+      },
+    });
+  }
 }
 
 async function storeInventoryPhotos(itemId: string, formData: FormData) {
@@ -626,14 +831,17 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
 
 export async function createInventoryItem(formData: FormData) {
   const categoryId = optionalId(formData.get("categoryId"));
+  const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
+  if (!allowsAssignment) clearInventoryAssignmentFields(formData);
   const payload = getInventoryCreateData(formData);
   const contacts = getInventoryContacts(formData);
+  const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
   const item = await prisma.$transaction(async (tx) => {
     const objectNumber =
       payload.objectNumber ?? (await getNextInventoryObjectNumber(tx, categoryId));
 
-    return tx.inventoryItem.create({
+    const createdItem = await tx.inventoryItem.create({
       data: {
         ...payload,
         objectNumber,
@@ -644,9 +852,21 @@ export async function createInventoryItem(formData: FormData) {
           : undefined,
       },
     });
+
+    if (additionalEmployeeIds.length > 0) {
+      await tx.inventoryItemEmployeeAssignment.createMany({
+        data: additionalEmployeeIds.map((employeeId) => ({
+          employeeId,
+          itemId: createdItem.id,
+        })),
+      });
+    }
+
+    return createdItem;
   });
 
   await syncSpecialVehicleLinkForInventoryItem(item.id);
+  await syncAsphaltMaterialLinkForInventoryItem(item.id);
   await storeInventoryPhotos(item.id, formData);
 
   revalidateInventoryItem(item.id);
@@ -659,11 +879,20 @@ export async function updateInventoryItem(formData: FormData) {
     throw new Error("Inventar-ID fehlt.");
   }
 
+  const categoryId = optionalId(formData.get("categoryId"));
+  const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
+  if (!allowsAssignment) clearInventoryAssignmentFields(formData);
   const payload = getInventoryUpdateData(formData);
   const contacts = getInventoryContacts(formData);
+  const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
   await prisma.$transaction(async (tx) => {
     await tx.inventoryContact.deleteMany({
+      where: {
+        itemId: id,
+      },
+    });
+    await tx.inventoryItemEmployeeAssignment.deleteMany({
       where: {
         itemId: id,
       },
@@ -684,9 +913,19 @@ export async function updateInventoryItem(formData: FormData) {
         })),
       });
     }
+
+    if (additionalEmployeeIds.length > 0) {
+      await tx.inventoryItemEmployeeAssignment.createMany({
+        data: additionalEmployeeIds.map((employeeId) => ({
+          employeeId,
+          itemId: id,
+        })),
+      });
+    }
   });
 
   await syncSpecialVehicleLinkForInventoryItem(id);
+  await syncAsphaltMaterialLinkForInventoryItem(id);
   await storeInventoryPhotos(id, formData);
 
   revalidateInventoryItem(id);
@@ -706,6 +945,60 @@ export async function deleteInventoryItem(formData: FormData) {
   });
 
   revalidateInventory();
+}
+
+export async function saveInventoryIdlePeriods(formData: FormData) {
+  const itemId = String(formData.get("itemId") ?? "").trim();
+
+  if (!itemId) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  const starts = formData.getAll("idleStartsAt");
+  const ends = formData.getAll("idleEndsAt");
+  const notes = formData.getAll("idleNotes");
+
+  const periods = starts
+    .map((startValue, index) => {
+      const startText = optionalString(startValue);
+      const endText = optionalString(ends[index] ?? null);
+      const note = optionalString(notes[index] ?? null);
+
+      if (!startText && !endText && !note) {
+        return null;
+      }
+
+      const startsAt = requiredDate(startValue, "Stillgelegt von");
+      const endsAt = optionalDate(ends[index] ?? null);
+
+      if (endsAt && endsAt < startsAt) {
+        throw new Error("Stillgelegt bis darf nicht vor Stillgelegt von liegen.");
+      }
+
+      return {
+        endsAt,
+        itemId,
+        notes: note,
+        startsAt,
+      };
+    })
+    .filter((period): period is NonNullable<typeof period> => Boolean(period));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryIdlePeriod.deleteMany({
+      where: {
+        itemId,
+      },
+    });
+
+    if (periods.length > 0) {
+      await tx.inventoryIdlePeriod.createMany({
+        data: periods,
+      });
+    }
+  });
+
+  revalidateInventoryItem(itemId);
 }
 
 export async function assignInventoryItemToContainer(formData: FormData) {
@@ -755,6 +1048,34 @@ export async function updateInventoryAssignment(formData: FormData) {
 
   if (!id) {
     throw new Error("Inventar-ID fehlt.");
+  }
+
+  const item = await prisma.inventoryItem.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      category: {
+        select: {
+          name: true,
+          useInTeamManagement: true,
+          parentCategory: {
+            select: {
+              name: true,
+              useInTeamManagement: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (
+    !inventoryCategoryAllowsAssignment(item?.category)
+  ) {
+    throw new Error(
+      "Mitarbeiter- und Kolonnenzuordnungen sind für diese Kategorie nicht freigegeben.",
+    );
   }
 
   const responsibleType = optionalString(formData.get("responsibleType"));
@@ -1037,4 +1358,51 @@ export async function recordInventoryScan(formData: FormData) {
   });
 
   revalidateInventoryItem(itemId);
+}
+
+export async function deleteCompleteInventory(formData: FormData) {
+  const confirmation = String(formData.get("confirmation") ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (confirmation !== "INVENTAR LÖSCHEN") {
+    throw new Error(
+      "Zum vollständigen Löschen bitte „INVENTAR LÖSCHEN“ eingeben.",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.deleteMany();
+
+    const categories = await tx.inventoryCategory.findMany({
+      select: {
+        id: true,
+        objectNumberStart: true,
+      },
+    });
+
+    for (const category of categories) {
+      await tx.inventoryCategory.update({
+        where: {
+          id: category.id,
+        },
+        data: {
+          nextObjectNumber: category.objectNumberStart,
+        },
+      });
+    }
+  });
+
+  await rm(
+    path.join(process.cwd(), "public", "uploads", "inventory-items"),
+    {
+      force: true,
+      recursive: true,
+    },
+  );
+
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/storage");
+  revalidatePath("/inventory/scanner");
+  revalidatePath("/employees");
 }

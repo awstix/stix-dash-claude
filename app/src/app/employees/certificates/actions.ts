@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type ExcelRow = Record<string, unknown>;
@@ -438,6 +439,7 @@ export async function updateEmployeeTrainingType(formData: FormData) {
     throw new Error("Bitte ein Thema / einen Kurs eintragen.");
   }
 
+  const newTopic = payload.topic;
   const existingTrainingType =
     trainingTypeId && !trainingTypeId.startsWith("import-topic:")
       ? await prisma.employeeTrainingType.findUnique({
@@ -460,18 +462,22 @@ export async function updateEmployeeTrainingType(formData: FormData) {
     throw new Error("Schulungsvorlage fehlt.");
   }
 
+  const affectedEmployeeConditions: Prisma.EmployeeTrainingRecordWhereInput[] =
+    [
+      {
+        topic: topicToUpdate,
+      },
+    ];
+
+  if (existingTrainingType?.id) {
+    affectedEmployeeConditions.push({
+      trainingTypeId: existingTrainingType.id,
+    });
+  }
+
   const affectedEmployees = await prisma.employeeTrainingRecord.findMany({
     where: {
-      OR: [
-        existingTrainingType?.id
-          ? {
-              trainingTypeId: existingTrainingType.id,
-            }
-          : undefined,
-        {
-          topic: topicToUpdate,
-        },
-      ].filter(Boolean),
+      OR: affectedEmployeeConditions,
     },
     select: {
       employeeId: true,
@@ -490,7 +496,7 @@ export async function updateEmployeeTrainingType(formData: FormData) {
             defaultValidityMonths: payload.validityMonths,
             number: payload.number,
             provider: payload.provider,
-            topic: payload.topic,
+            topic: newTopic,
             type: payload.type,
           },
           select: {
@@ -504,7 +510,7 @@ export async function updateEmployeeTrainingType(formData: FormData) {
             defaultValidityMonths: payload.validityMonths,
             number: payload.number,
             provider: payload.provider,
-            topic: payload.topic,
+            topic: newTopic,
             type: payload.type,
           },
           select: {
@@ -514,23 +520,14 @@ export async function updateEmployeeTrainingType(formData: FormData) {
 
     await tx.employeeTrainingRecord.updateMany({
       where: {
-        OR: [
-          existingTrainingType?.id
-            ? {
-                trainingTypeId: existingTrainingType.id,
-              }
-            : undefined,
-          {
-            topic: topicToUpdate,
-          },
-        ].filter(Boolean),
+        OR: affectedEmployeeConditions,
       },
       data: {
         durationDays: payload.durationDays,
         location: payload.location,
         number: payload.number,
         provider: payload.provider,
-        topic: payload.topic,
+        topic: newTopic,
         trainingTypeId: trainingType.id,
         type: payload.type,
         validityMonths: payload.validityMonths,
@@ -569,18 +566,22 @@ export async function deleteEmployeeTrainingType(formData: FormData) {
     throw new Error("Schulungsvorlage fehlt.");
   }
 
+  const affectedEmployeeConditions: Prisma.EmployeeTrainingRecordWhereInput[] =
+    [
+      {
+        topic,
+      },
+    ];
+
+  if (trainingType?.id) {
+    affectedEmployeeConditions.push({
+      trainingTypeId: trainingType.id,
+    });
+  }
+
   const affectedEmployees = await prisma.employeeTrainingRecord.findMany({
     where: {
-      OR: [
-        trainingType?.id
-          ? {
-              trainingTypeId: trainingType.id,
-            }
-          : undefined,
-        {
-          topic,
-        },
-      ].filter(Boolean),
+      OR: affectedEmployeeConditions,
     },
     select: {
       employeeId: true,
@@ -590,16 +591,7 @@ export async function deleteEmployeeTrainingType(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await tx.employeeTrainingRecord.deleteMany({
       where: {
-        OR: [
-          trainingType?.id
-            ? {
-                trainingTypeId: trainingType.id,
-              }
-            : undefined,
-          {
-            topic,
-          },
-        ].filter(Boolean),
+        OR: affectedEmployeeConditions,
       },
     });
 
@@ -1006,6 +998,13 @@ async function readExcelRows(file: File) {
     if (headerIndex < 0) continue;
 
     const headers = matrix[headerIndex].map((cell) => String(cell ?? "").trim());
+    let previousProvider = "";
+    let previousTopic = "";
+    let previousTrainingNumber = "";
+    let previousType = "";
+    let previousLocation = "";
+    let previousDuration = "";
+    let previousValidity = "";
 
     for (const row of matrix.slice(headerIndex + 1)) {
       const mappedRow: ExcelRow = {};
@@ -1015,6 +1014,30 @@ async function readExcelRows(file: File) {
           mappedRow[header] = row[index] ?? "";
         }
       });
+
+      const provider = getCell(mappedRow, ["Anbieter"]);
+      const topic = getCell(mappedRow, ["Thema Kurs", "Kurs", "Schulung"]);
+      const trainingNumber = getCell(mappedRow, ["Nr.", "Nr"]);
+      const type = getCell(mappedRow, ["Typ"]);
+      const location = getCell(mappedRow, ["Ort"]);
+      const duration = getCell(mappedRow, ["Dauer [Tage]", "Dauer"]);
+      const validity = getCell(mappedRow, ["Gültigkeit"]);
+
+      if (provider) previousProvider = provider;
+      if (topic) previousTopic = topic;
+      if (trainingNumber) previousTrainingNumber = trainingNumber;
+      if (type) previousType = type;
+      if (location) previousLocation = location;
+      if (duration) previousDuration = duration;
+      if (validity) previousValidity = validity;
+
+      if (!provider && previousProvider) mappedRow.Anbieter = previousProvider;
+      if (!topic && previousTopic) mappedRow["Thema Kurs"] = previousTopic;
+      if (!trainingNumber && previousTrainingNumber) mappedRow["Nr."] = previousTrainingNumber;
+      if (!type && previousType) mappedRow.Typ = previousType;
+      if (!location && previousLocation) mappedRow.Ort = previousLocation;
+      if (!duration && previousDuration) mappedRow["Dauer [Tage]"] = previousDuration;
+      if (!validity && previousValidity) mappedRow.Gültigkeit = previousValidity;
 
       rows.push(mappedRow);
     }
@@ -1141,27 +1164,54 @@ export async function importEmployeeTrainingsFromExcel(formData: FormData) {
     },
     select: {
       employeeId: true,
+      id: true,
       topic: true,
       trainingDate: true,
+      validUntil: true,
+      validityMonths: true,
     },
   });
-  const existingKeys = new Set(
+  const existingByKey = new Map<string, (typeof existingRecords)[number]>(
     existingRecords.map(
       (record) =>
-        `${record.employeeId}|${record.topic.trim().toLowerCase()}|${
+        [
+          `${record.employeeId}|${record.topic.trim().toLowerCase()}|${
           record.trainingDate?.toISOString().slice(0, 10) ?? ""
-        }`,
+          }`,
+          record,
+        ] as const,
     ),
   );
+  const duplicateUpdates: {
+    id: string;
+    validUntil: Date | null;
+    validityMonths: number | null;
+  }[] = [];
   const newRecords = records.filter((record) => {
     const key = `${record.employeeId}|${record.topic.trim().toLowerCase()}|${
       record.trainingDate?.toISOString().slice(0, 10) ?? ""
     }`;
-    const isNew = !existingKeys.has(key);
+    const existingRecord = existingByKey.get(key);
+    const isNew = !existingRecord;
 
     if (!isNew) {
+      if (
+        existingRecord &&
+        (!existingRecord.validUntil || !existingRecord.validityMonths) &&
+        (record.validUntil || record.validityMonths)
+      ) {
+        duplicateUpdates.push({
+          id: existingRecord.id,
+          validUntil: record.validUntil,
+          validityMonths: record.validityMonths,
+        });
+      }
+
       importErrorRows.push(
-        getImportErrorRow(record.__importRow, "Bereits vorhanden / Dublette."),
+        getImportErrorRow(
+          record.__importRow,
+          "Bereits vorhanden / Dublette. Fehlende Gültigkeit wurde nachgetragen, falls vorhanden.",
+        ),
       );
     }
 
@@ -1248,8 +1298,20 @@ export async function importEmployeeTrainingsFromExcel(formData: FormData) {
     });
   }
 
+  for (const update of duplicateUpdates) {
+    await prisma.employeeTrainingRecord.update({
+      where: {
+        id: update.id,
+      },
+      data: {
+        validUntil: update.validUntil,
+        validityMonths: update.validityMonths,
+      },
+    });
+  }
+
   revalidateTrainingViews(
-    Array.from(new Set(newRecords.map((record) => record.employeeId))),
+    Array.from(new Set(records.map((record) => record.employeeId))),
   );
   const errorFile = await writeImportErrorWorkbook(importErrorRows);
   const params = new URLSearchParams({

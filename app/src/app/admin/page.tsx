@@ -25,6 +25,12 @@ const adminSections: AdminSection[] = [
           "Logo, Anschrift, Kontakt, Website, Social Media und rechtliche Angaben zentral pflegen.",
         href: "/admin/company-info",
       },
+      {
+        title: "Datensicherung & Reset",
+        description:
+          "Datenbank-Backup herunterladen und das Dashboard kontrolliert für einen sauberen Neustart leeren.",
+        href: "/admin/backup-reset",
+      },
     ],
   },
   {
@@ -114,15 +120,9 @@ const adminSections: AdminSection[] = [
     ],
   },
   {
-    title: "Import & Auswahllisten",
-    description: "Excel-Importe und zentrale Dropdown-Werte.",
+    title: "Auswahllisten",
+    description: "Zentrale Dropdown-Werte und Grundoptionen.",
     items: [
-      {
-        title: "Excel-Import",
-        description:
-          "Fahrer, Fahrzeuge, Mitarbeiter, Material, Asphalt- und Betonlisten per Excel importieren.",
-        href: "/admin/imports",
-      },
       {
         title: "Auswahllisten",
         description:

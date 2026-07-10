@@ -44,6 +44,7 @@ export async function GET(
       inventoryNumber: true,
       name: true,
       objectNumber: true,
+      stixId: true,
     },
   });
 
@@ -58,9 +59,9 @@ export async function GET(
     url.searchParams.get("download") === "1" ? "attachment" : "inline";
   const origin = await getOrigin();
   const targetUrl = `${origin}/inventory/${item.id}`;
-  const codeValue = item.objectNumber ?? item.inventoryNumber ?? item.id;
+  const codeValue = item.objectNumber ?? item.inventoryNumber ?? item.stixId ?? item.id;
   const fileLabel = sanitizeFileName(
-    [item.objectNumber, item.inventoryNumber, item.name].filter(Boolean).join("-") ||
+    [item.objectNumber, item.inventoryNumber, item.stixId, item.name].filter(Boolean).join("-") ||
       item.id,
   );
   const fileName = `inventar-${fileLabel}-${

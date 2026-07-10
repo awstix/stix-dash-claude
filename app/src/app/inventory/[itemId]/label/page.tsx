@@ -101,7 +101,7 @@ export default async function InventoryItemLabelPage({
   return (
     <AppShell
       title="Inventar-Etikett"
-      description={`${item.objectNumber ?? item.inventoryNumber ?? "Objekt"} · ${item.name}`}
+      description={`${item.objectNumber ?? item.inventoryNumber ?? item.stixId ?? "Objekt"} · ${item.name}`}
     >
       <style>{`
         @media print {

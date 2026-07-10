@@ -5,6 +5,10 @@ import {
   getVehicleInventoryLabel,
   vehicleInventoryLinkInclude,
 } from "@/lib/inventory-vehicle-links";
+import {
+  driverIsSelectableInTruckDispatch,
+  vehicleIsSelectableInTruckDispatch,
+} from "@/lib/truck-dispatch-selection";
 import { prisma } from "@/lib/prisma";
 import {
   getAsphaltAllocationsForDay,
@@ -281,8 +285,8 @@ export default async function TruckDispatchPage({
   const selectedWeek = formatDateInput(startOfWeek(selectedDate));
 
   const [
-    drivers,
-    vehicles,
+    allDrivers,
+    allVehicles,
     shortHaulAssignments,
     longHaulOwnAssignments,
     longHaulSubcontractorAssignments,
@@ -296,12 +300,24 @@ export default async function TruckDispatchPage({
         isActive: true,
       },
       include: {
+        employee: {
+          select: {
+            positions: {
+              select: {
+                positionLabel: true,
+                positionValue: true,
+              },
+            },
+          },
+        },
         vehicleAssignments: {
           where: {
             isActive: true,
           },
           include: {
-            vehicle: true,
+            vehicle: {
+              include: vehicleInventoryLinkInclude,
+            },
           },
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         },
@@ -379,6 +395,9 @@ export default async function TruckDispatchPage({
     getTackCoatOpenPositions(selectedDate),
     getTackCoatAllocationsForDay(selectedDate),
   ]);
+
+  const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
+  const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const shortAsphaltAllocations = asphaltAllocations.filter(
