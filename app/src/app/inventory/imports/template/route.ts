@@ -40,6 +40,8 @@ const headers = [
   "Nutzlast t",
   "Antrieb",
   "Aufnahmetyp",
+  "Kraftstofftank l",
+  "Arbeitsmitteltank l",
   "Verrechnungssatz EUR",
   "Verrechnungssatz stillgelegt EUR",
   "Letzter Service Datum",
@@ -297,6 +299,8 @@ export async function GET() {
     "Verantwortlich Typ": "",
     "Verrechnungssatz EUR": "",
     "Verrechnungssatz stillgelegt EUR": "",
+    "Kraftstofftank l": "",
+    "Arbeitsmitteltank l": "",
     "ZGG kg": "",
   };
   const rows = [exampleRow];
@@ -321,7 +325,7 @@ export async function GET() {
     "Verwendung LKW Objekttransport": category.useInTruckDispatchObject
       ? "Ja"
       : "Nein",
-    "Verwendung LKW-Einteilung": category.useInTruckDispatchSelection
+    "Fahrer-Fahrzeug-Zuordnung wählbar": category.useInTruckDispatchSelection
       ? "Ja"
       : "Nein",
     "Sonderfahrzeug-Disposition":

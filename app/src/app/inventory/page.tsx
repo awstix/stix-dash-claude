@@ -629,6 +629,12 @@ export default async function InventoryPage({
                           item.attachmentType
                             ? `Aufnahme ${item.attachmentType}`
                             : null,
+                          item.fuelTankLiters !== null
+                            ? `Kraftstofftank ${formatNumber(item.fuelTankLiters)} l`
+                            : null,
+                          item.workMaterialTankLiters !== null
+                            ? `Arbeitsmitteltank ${formatNumber(item.workMaterialTankLiters)} l`
+                            : null,
                           item.stixId ? `STIX-ID ${item.stixId}` : null,
                           item.licensePlate ? `Kennz. ${item.licensePlate}` : null,
                           item.inventoryNumber

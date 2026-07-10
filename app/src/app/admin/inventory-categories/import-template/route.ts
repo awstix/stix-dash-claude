@@ -18,7 +18,7 @@ const headers = [
   "Im Bautagesbericht",
   "Sonderfahrzeug-Disposition",
   "Teams-Verwaltung",
-  "LKW-Einteilung",
+  "Fahrer-Fahrzeug-Zuordnung",
   "Asphalt-Verwendung",
   "BTB-Bereich",
   "Zuordnung im BTB",

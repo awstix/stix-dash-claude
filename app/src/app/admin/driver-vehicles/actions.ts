@@ -2,6 +2,11 @@
 
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import {
+  ensureDriverForEmployee,
+  normalizePrimaryAssignmentForDriver,
+} from "@/lib/driver-vehicle-inventory-sync";
 import { prisma } from "@/lib/prisma";
 
 function optionalString(value: FormDataEntryValue | null) {
@@ -12,6 +17,12 @@ function optionalString(value: FormDataEntryValue | null) {
 function getPersonInput(formData: FormData) {
   return String(
     formData.get("driverPersonId") ?? formData.get("driverId") ?? "",
+  ).trim();
+}
+
+function getInventoryItemInput(formData: FormData) {
+  return String(
+    formData.get("inventoryItemId") ?? formData.get("vehicleId") ?? "",
   ).trim();
 }
 
@@ -40,43 +51,7 @@ async function resolveDriverForPersonInput(
       throw new Error("Mitarbeiter wurde nicht gefunden.");
     }
 
-    if (employee.driverId) {
-      await tx.driver.update({
-        where: {
-          id: employee.driverId,
-        },
-        data: {
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          phone: employee.mobilePhone,
-          isActive: employee.statusValue === "active",
-        },
-      });
-
-      return employee.driverId;
-    }
-
-    const driver = await tx.driver.create({
-      data: {
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        phone: employee.mobilePhone,
-        isActive: employee.statusValue === "active",
-        notes:
-          "Automatisch aus Fahrer-Fahrzeug-Zuordnung im Adminbereich erstellt.",
-      },
-    });
-
-    await tx.employee.update({
-      where: {
-        id: employee.id,
-      },
-      data: {
-        driverId: driver.id,
-      },
-    });
-
-    return driver.id;
+    return ensureDriverForEmployee(tx, employee);
   }
 
   const driverId = personInput.startsWith("driver:")
@@ -105,37 +80,157 @@ function revalidateDriverVehicleConsumers() {
   revalidatePath("/admin/drivers");
   revalidatePath("/admin/employees");
   revalidatePath("/employees");
+  revalidatePath("/inventory");
+  revalidatePath("/inventory/storage");
   revalidatePath("/truck-dispatch/long-haul");
   revalidatePath("/truck-dispatch/short-haul");
 }
 
+function getReturnTo(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "").trim();
+
+  if (!returnTo.startsWith("/admin/driver-vehicles")) {
+    return null;
+  }
+
+  return returnTo;
+}
+
+function finishDriverVehicleAction(formData: FormData) {
+  revalidateDriverVehicleConsumers();
+
+  const returnTo = getReturnTo(formData);
+
+  if (returnTo) {
+    redirect(returnTo);
+  }
+}
+
+async function syncInventoryResponsibleFromDriverVehicleAssignment(
+  tx: Prisma.TransactionClient,
+  inventoryItemId: string,
+  driverId: string,
+) {
+  const driver = await tx.driver.findUnique({
+    where: {
+      id: driverId,
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  if (!driver?.employee) {
+    return;
+  }
+
+  await tx.inventoryItem.update({
+    where: {
+      id: inventoryItemId,
+    },
+    data: {
+      responsibleCrew: {
+        disconnect: true,
+      },
+      responsibleEmployee: {
+        connect: {
+          id: driver.employee.id,
+        },
+      },
+      responsibleType: "EMPLOYEE",
+    },
+  });
+}
+
+async function clearInventoryResponsibleIfUnassigned(
+  tx: Prisma.TransactionClient,
+  inventoryItemId: string | null,
+) {
+  if (!inventoryItemId) {
+    return;
+  }
+
+  const activeAssignment = await tx.driverVehicleAssignment.findFirst({
+    where: {
+      inventoryItemId,
+      isActive: true,
+    },
+  });
+
+  if (activeAssignment) {
+    return;
+  }
+
+  await tx.inventoryItem.update({
+    where: {
+      id: inventoryItemId,
+    },
+    data: {
+      responsibleCrew: {
+        disconnect: true,
+      },
+      responsibleEmployee: {
+        disconnect: true,
+      },
+      responsibleType: null,
+    },
+  });
+}
+
+async function resolveInventoryVehicleAssignmentInput(
+  tx: Prisma.TransactionClient,
+  inventoryItemId: string,
+) {
+  if (!inventoryItemId) {
+    throw new Error("Bitte ein Inventarobjekt auswählen.");
+  }
+
+  const inventoryItem = await tx.inventoryItem.findUnique({
+    where: {
+      id: inventoryItemId,
+    },
+    include: {
+      vehicle: true,
+    },
+  });
+
+  if (!inventoryItem) {
+    throw new Error("Inventarobjekt wurde nicht gefunden.");
+  }
+
+  if (!inventoryItem.vehicleId || !inventoryItem.vehicle) {
+    throw new Error(
+      "Dieses Inventarobjekt ist noch nicht als Fahrzeug/Gerät für die Disposition verknüpft.",
+    );
+  }
+
+  return {
+    inventoryItem,
+    vehicleId: inventoryItem.vehicleId,
+  };
+}
+
 export async function createDriverVehicleAssignment(formData: FormData) {
   const personInput = getPersonInput(formData);
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const inventoryItemId = getInventoryItemInput(formData);
   const isPrimary = formData.get("isPrimary") === "on";
 
-  if (!vehicleId) {
-    throw new Error("Bitte ein Fahrzeug auswählen.");
+  if (!inventoryItemId) {
+    throw new Error("Bitte ein Inventarobjekt auswählen.");
   }
 
   await prisma.$transaction(async (tx) => {
     const driverId = await resolveDriverForPersonInput(tx, personInput);
-
-    const vehicle = await tx.vehicle.findUnique({
-      where: {
-        id: vehicleId,
-      },
-    });
-
-    if (!vehicle) {
-      throw new Error("Fahrzeug wurde nicht gefunden.");
-    }
+    const inventoryAssignment = await resolveInventoryVehicleAssignmentInput(
+      tx,
+      inventoryItemId,
+    );
 
     const existingAssignment = await tx.driverVehicleAssignment.findUnique({
       where: {
         driverId_vehicleId: {
           driverId,
-          vehicleId,
+          vehicleId: inventoryAssignment.vehicleId,
         },
       },
     });
@@ -155,32 +250,46 @@ export async function createDriverVehicleAssignment(formData: FormData) {
       });
     }
 
-    await tx.driverVehicleAssignment.create({
+    const assignment = await tx.driverVehicleAssignment.create({
       data: {
         driverId,
-        vehicleId,
+        vehicleId: inventoryAssignment.vehicleId,
+        inventoryItemId: inventoryAssignment.inventoryItem.id,
         isPrimary,
         isActive: true,
         notes: optionalString(formData.get("notes")),
       },
     });
+
+    await normalizePrimaryAssignmentForDriver(
+      tx,
+      driverId,
+      isPrimary ? assignment.id : undefined,
+    );
+    if (isPrimary) {
+      await syncInventoryResponsibleFromDriverVehicleAssignment(
+        tx,
+        inventoryAssignment.inventoryItem.id,
+        driverId,
+      );
+    }
   });
 
-  revalidateDriverVehicleConsumers();
+  finishDriverVehicleAction(formData);
 }
 
 export async function updateDriverVehicleAssignment(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const personInput = getPersonInput(formData);
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const inventoryItemId = getInventoryItemInput(formData);
   const isPrimary = formData.get("isPrimary") === "on";
 
   if (!id) {
     throw new Error("Zuordnungs-ID fehlt.");
   }
 
-  if (!vehicleId) {
-    throw new Error("Bitte ein Fahrzeug auswählen.");
+  if (!inventoryItemId) {
+    throw new Error("Bitte ein Inventarobjekt auswählen.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -195,22 +304,16 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
     }
 
     const driverId = await resolveDriverForPersonInput(tx, personInput);
-
-    const vehicle = await tx.vehicle.findUnique({
-      where: {
-        id: vehicleId,
-      },
-    });
-
-    if (!vehicle) {
-      throw new Error("Fahrzeug wurde nicht gefunden.");
-    }
+    const inventoryAssignment = await resolveInventoryVehicleAssignmentInput(
+      tx,
+      inventoryItemId,
+    );
 
     const duplicateAssignment = await tx.driverVehicleAssignment.findUnique({
       where: {
         driverId_vehicleId: {
           driverId,
-          vehicleId,
+          vehicleId: inventoryAssignment.vehicleId,
         },
       },
     });
@@ -233,20 +336,48 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
       });
     }
 
-    await tx.driverVehicleAssignment.update({
+    const assignment = await tx.driverVehicleAssignment.update({
       where: {
         id,
       },
       data: {
         driverId,
-        vehicleId,
+        vehicleId: inventoryAssignment.vehicleId,
+        inventoryItemId: inventoryAssignment.inventoryItem.id,
         isPrimary,
         notes: optionalString(formData.get("notes")),
       },
     });
+
+    if (existingAssignment.driverId !== driverId) {
+      await normalizePrimaryAssignmentForDriver(tx, existingAssignment.driverId);
+    }
+
+    if (
+      existingAssignment.inventoryItemId &&
+      existingAssignment.inventoryItemId !== inventoryAssignment.inventoryItem.id
+    ) {
+      await clearInventoryResponsibleIfUnassigned(
+        tx,
+        existingAssignment.inventoryItemId,
+      );
+    }
+
+    await normalizePrimaryAssignmentForDriver(
+      tx,
+      driverId,
+      isPrimary ? assignment.id : undefined,
+    );
+    if (isPrimary) {
+      await syncInventoryResponsibleFromDriverVehicleAssignment(
+        tx,
+        inventoryAssignment.inventoryItem.id,
+        driverId,
+      );
+    }
   });
 
-  revalidateDriverVehicleConsumers();
+  finishDriverVehicleAction(formData);
 }
 
 export async function deleteDriverVehicleAssignment(formData: FormData) {
@@ -256,11 +387,57 @@ export async function deleteDriverVehicleAssignment(formData: FormData) {
     throw new Error("Zuordnungs-ID fehlt.");
   }
 
-  await prisma.driverVehicleAssignment.delete({
-    where: {
-      id,
-    },
+  await prisma.$transaction(async (tx) => {
+    const assignment = await tx.driverVehicleAssignment.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        driverId: true,
+        inventoryItemId: true,
+      },
+    });
+
+    await tx.driverVehicleAssignment.delete({
+      where: {
+        id,
+      },
+    });
+
+    await clearInventoryResponsibleIfUnassigned(tx, assignment?.inventoryItemId ?? null);
+
+    if (assignment?.driverId) {
+      await normalizePrimaryAssignmentForDriver(tx, assignment.driverId);
+    }
   });
 
-  revalidateDriverVehicleConsumers();
+  finishDriverVehicleAction(formData);
+}
+
+export async function normalizeDriverVehicleAssignments(formData: FormData) {
+  await prisma.$transaction(async (tx) => {
+    const duplicateDrivers = await tx.driverVehicleAssignment.groupBy({
+      by: ["driverId"],
+      where: {
+        isActive: true,
+        isPrimary: true,
+      },
+      _count: {
+        id: true,
+      },
+      having: {
+        id: {
+          _count: {
+            gt: 1,
+          },
+        },
+      },
+    });
+
+    for (const group of duplicateDrivers) {
+      await normalizePrimaryAssignmentForDriver(tx, group.driverId);
+    }
+  });
+
+  finishDriverVehicleAction(formData);
 }

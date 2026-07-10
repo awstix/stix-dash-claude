@@ -478,7 +478,7 @@ export function SpecialVehicleTourFormClient({
               </label>
 
               <label className="text-xs font-semibold text-gray-700">
-                Anspritzmenge dieser Tour
+                Arbeitsmitteltank-Füllstand / verfügbare Menge
                 <input
                   name={`tourQuantity_${row.id}`}
                   type="number"
@@ -489,6 +489,10 @@ export function SpecialVehicleTourFormClient({
                   placeholder="850"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
                 />
+                <span className="mt-1 block text-[11px] font-medium text-gray-500">
+                  Bestand im Arbeitsmitteltank für diese Tour. Damit wird sichtbar,
+                  ob zusätzliches Anspritzmittel per LKW geplant werden muss.
+                </span>
               </label>
 
               <label className="text-xs font-semibold text-gray-700">

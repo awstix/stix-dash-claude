@@ -539,6 +539,9 @@ model DriverVehicleAssignment {
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
   isPrimary Boolean @default(true)
   isActive  Boolean @default(true)
   notes     String?
@@ -547,8 +550,10 @@ model DriverVehicleAssignment {
   updatedAt DateTime @updatedAt
 
   @@unique([driverId, vehicleId])
+  @@unique([driverId, inventoryItemId])
   @@index([driverId])
   @@index([vehicleId])
+  @@index([inventoryItemId])
 }
 
 model MaterialType {
@@ -632,6 +637,7 @@ model AsphaltDispatchEntry {
 
   asphaltMixTypeId String?
   asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+  asphaltInventoryItemId String?
 
   asphaltMixNumber String?
   asphaltMixName   String?
@@ -640,6 +646,7 @@ model AsphaltDispatchEntry {
 
   tackCoatMaterialTypeId String?
   tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  tackCoatInventoryItemId String?
   tackCoatMaterialName   String?
   tackCoatQuantity       Float         @default(0)
   tackCoatUnit           String?
@@ -659,7 +666,9 @@ model AsphaltDispatchEntry {
   @@index([crew])
   @@index([projectId])
   @@index([asphaltMixTypeId])
+  @@index([asphaltInventoryItemId])
   @@index([tackCoatMaterialTypeId])
+  @@index([tackCoatInventoryItemId])
 }
 
 model TruckLongHaulEntry {
@@ -681,6 +690,7 @@ model TruckLongHaulEntry {
 
   materialTypeId String?
   materialType   MaterialType? @relation(fields: [materialTypeId], references: [id], onDelete: SetNull)
+  materialInventoryItemId String?
 
   materialName     String?
   materialUnit     String?
@@ -701,6 +711,7 @@ model TruckLongHaulEntry {
   @@index([asphaltDispatchEntryId])
   @@index([projectId])
   @@index([materialTypeId])
+  @@index([materialInventoryItemId])
 }
 
 model TruckLongHaulTruckAssignment {
@@ -920,6 +931,7 @@ model AsphaltLoadAllocation {
 
   asphaltMixTypeId String?
   asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+  asphaltInventoryItemId String?
   asphaltMixNumber String?
   asphaltMixName   String?
 
@@ -964,6 +976,7 @@ model AsphaltLoadAllocation {
   @@index([asphaltDispatchEntryId])
   @@index([projectId])
   @@index([asphaltMixTypeId])
+  @@index([asphaltInventoryItemId])
   @@index([shortHaulAssignmentId])
   @@index([longHaulEntryId])
   @@index([longHaulTruckAssignmentId])
@@ -987,6 +1000,7 @@ model TackCoatLoadAllocation {
 
   tackCoatMaterialTypeId String?
   tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  tackCoatInventoryItemId String?
   materialName           String        @default("")
   quantityUnit           String        @default("l")
 
@@ -1023,6 +1037,7 @@ model TackCoatLoadAllocation {
   @@index([asphaltDispatchEntryId])
   @@index([projectId])
   @@index([tackCoatMaterialTypeId])
+  @@index([tackCoatInventoryItemId])
   @@index([shortHaulAssignmentId])
   @@index([vehicleId])
   @@index([driverId])
@@ -1577,6 +1592,8 @@ model InventoryItem {
   payloadKg       Int?
   driveType       String?
   attachmentType  String?
+  fuelTankLiters  Float?
+  workMaterialTankLiters Float?
 
   isContainer       Boolean @default(false)
   parentItemId      String?
@@ -1633,6 +1650,7 @@ model InventoryItem {
   locationAlerts          InventoryLocationAlert[]
   workshopRepairOrders    WorkshopRepairOrder[]
   workshopFormSubmissions WorkshopFormSubmission[]
+  driverAssignments       DriverVehicleAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -9,6 +9,7 @@ export type AsphaltOpenPosition = {
   projectName: string;
   constructionManager: string | null;
   asphaltMixTypeId: string | null;
+  asphaltInventoryItemId: string | null;
   asphaltMixNumber: string | null;
   asphaltMixName: string | null;
   totalTons: number;
@@ -91,13 +92,19 @@ export function getVehicleLabel(vehicle: {
 
 export function hasAsphaltQuantity(entry: {
   asphaltMixTypeId?: string | null;
+  asphaltInventoryItemId?: string | null;
   asphaltMixNumber?: string | null;
   asphaltMixName?: string | null;
   quantityTons: number;
 }) {
   return (
     entry.quantityTons > 0 &&
-    Boolean(entry.asphaltMixTypeId || entry.asphaltMixNumber || entry.asphaltMixName)
+    Boolean(
+      entry.asphaltMixTypeId ||
+        entry.asphaltInventoryItemId ||
+        entry.asphaltMixNumber ||
+        entry.asphaltMixName,
+    )
   );
 }
 
@@ -148,6 +155,7 @@ export async function getAsphaltOpenPositions(workDate: Date) {
       projectName: entry.projectName,
       constructionManager: entry.constructionManager,
       asphaltMixTypeId: entry.asphaltMixTypeId,
+      asphaltInventoryItemId: entry.asphaltInventoryItemId,
       asphaltMixNumber: entry.asphaltMixNumber,
       asphaltMixName: entry.asphaltMixName,
       totalTons: entry.quantityTons,

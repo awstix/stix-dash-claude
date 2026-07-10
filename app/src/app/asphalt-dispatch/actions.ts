@@ -45,25 +45,76 @@ async function getProject(projectId: string) {
   });
 }
 
-async function getAsphaltMixType(asphaltMixTypeId: string) {
-  if (!asphaltMixTypeId) return null;
+async function getAsphaltMixInventoryItem(itemId: string) {
+  if (!itemId) return null;
 
-  return prisma.asphaltMixType.findUnique({
+  return prisma.inventoryItem.findFirst({
     where: {
-      id: asphaltMixTypeId,
+      id: itemId,
+      status: {
+        not: "DELETED",
+      },
+      category: {
+        OR: [
+          {
+            asphaltDispositionUsage: "ASPHALT_MIX",
+          },
+          {
+            parentCategory: {
+              asphaltDispositionUsage: "ASPHALT_MIX",
+            },
+          },
+        ],
+      },
+    },
+    include: {
+      category: {
+        include: {
+          parentCategory: true,
+        },
+      },
     },
   });
 }
 
-async function getTackCoatMaterialType(materialTypeId: string) {
-  if (!materialTypeId) return null;
+async function getTackCoatInventoryItem(itemId: string) {
+  if (!itemId) return null;
 
-  return prisma.materialType.findFirst({
+  return prisma.inventoryItem.findFirst({
     where: {
-      id: materialTypeId,
-      category: "Anspritzmittel",
+      id: itemId,
+      status: {
+        not: "DELETED",
+      },
+      category: {
+        OR: [
+          {
+            asphaltDispositionUsage: "TACK_COAT",
+          },
+          {
+            parentCategory: {
+              asphaltDispositionUsage: "TACK_COAT",
+            },
+          },
+        ],
+      },
+    },
+    include: {
+      category: {
+        include: {
+          parentCategory: true,
+        },
+      },
     },
   });
+}
+
+function getInventoryItemNumber(item: {
+  inventoryNumber: string | null;
+  objectNumber: string | null;
+  stixId: string | null;
+}) {
+  return item.inventoryNumber ?? item.objectNumber ?? item.stixId ?? null;
 }
 
 function getTackCoatInput(formData: FormData) {
@@ -91,7 +142,7 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
   const workDate = parseWorkDate(formData.get("workDate"));
   const crew = String(formData.get("crew") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
-  const asphaltMixTypeId = String(formData.get("asphaltMixTypeId") ?? "").trim();
+  const asphaltInventoryItemId = String(formData.get("asphaltMixTypeId") ?? "").trim();
   const tackCoatInput = getTackCoatInput(formData);
 
   if (!crew) {
@@ -104,7 +155,7 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
 
   const isTackCoatCrew = isTackCoatCrewName(crew);
 
-  if (!asphaltMixTypeId && !isTackCoatCrew) {
+  if (!asphaltInventoryItemId && !isTackCoatCrew) {
     throw new Error("Bitte eine Asphaltsorte auswählen.");
   }
 
@@ -112,21 +163,21 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
     throw new Error("Bitte ein Anspritzmittel auswählen.");
   }
 
-  const [project, asphaltMixType, tackCoatMaterialType] = await Promise.all([
+  const [project, asphaltMixItem, tackCoatItem] = await Promise.all([
     getProject(projectId),
-    getAsphaltMixType(asphaltMixTypeId),
-    getTackCoatMaterialType(tackCoatInput.tackCoatMaterialTypeId),
+    getAsphaltMixInventoryItem(asphaltInventoryItemId),
+    getTackCoatInventoryItem(tackCoatInput.tackCoatMaterialTypeId),
   ]);
 
   if (!project) {
     throw new Error("Projekt wurde nicht gefunden.");
   }
 
-  if (asphaltMixTypeId && !asphaltMixType) {
+  if (asphaltInventoryItemId && !asphaltMixItem) {
     throw new Error("Asphaltsorte wurde nicht gefunden.");
   }
 
-  if (tackCoatInput.tackCoatMaterialTypeId && !tackCoatMaterialType) {
+  if (tackCoatInput.tackCoatMaterialTypeId && !tackCoatItem) {
     throw new Error("Anspritzmittel wurde nicht gefunden.");
   }
 
@@ -140,20 +191,24 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
       projectName: project.name,
       constructionManager: project.constructionManager,
 
-      asphaltMixTypeId: asphaltMixType?.id ?? null,
-      asphaltMixNumber: asphaltMixType?.mixNumber ?? null,
-      asphaltMixName: asphaltMixType?.name ?? null,
+      asphaltMixTypeId: null,
+      asphaltInventoryItemId: asphaltMixItem?.id ?? null,
+      asphaltMixNumber: asphaltMixItem
+        ? getInventoryItemNumber(asphaltMixItem)
+        : null,
+      asphaltMixName: asphaltMixItem?.name ?? null,
 
-      quantityTons: asphaltMixType ? parseNumber(formData.get("quantityTons")) : 0,
+      quantityTons: asphaltMixItem ? parseNumber(formData.get("quantityTons")) : 0,
 
-      tackCoatMaterialTypeId: tackCoatMaterialType?.id ?? null,
-      tackCoatMaterialName: tackCoatMaterialType?.name ?? null,
-      tackCoatQuantity: tackCoatMaterialType ? tackCoatInput.tackCoatQuantity : 0,
-      tackCoatUnit: tackCoatMaterialType
+      tackCoatMaterialTypeId: null,
+      tackCoatInventoryItemId: tackCoatItem?.id ?? null,
+      tackCoatMaterialName: tackCoatItem?.name ?? null,
+      tackCoatQuantity: tackCoatItem ? tackCoatInput.tackCoatQuantity : 0,
+      tackCoatUnit: tackCoatItem
         ? tackCoatInput.tackCoatUnit ?? "l"
         : null,
 
-      isForeignMix: asphaltMixType ? formData.get("isForeignMix") === "on" : false,
+      isForeignMix: asphaltMixItem ? formData.get("isForeignMix") === "on" : false,
       notes: optionalString(formData.get("notes")),
     },
   });
@@ -164,7 +219,7 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
 export async function updateAsphaltDispatchEntry(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
-  const asphaltMixTypeId = String(formData.get("asphaltMixTypeId") ?? "").trim();
+  const asphaltInventoryItemId = String(formData.get("asphaltMixTypeId") ?? "").trim();
   const tackCoatInput = getTackCoatInput(formData);
 
   if (!id) {
@@ -187,7 +242,7 @@ export async function updateAsphaltDispatchEntry(formData: FormData) {
 
   const isTackCoatCrew = isTackCoatCrewName(existingEntry.crew);
 
-  if (!asphaltMixTypeId && !isTackCoatCrew) {
+  if (!asphaltInventoryItemId && !isTackCoatCrew) {
     throw new Error("Bitte eine Asphaltsorte auswählen.");
   }
 
@@ -195,21 +250,21 @@ export async function updateAsphaltDispatchEntry(formData: FormData) {
     throw new Error("Bitte ein Anspritzmittel auswählen.");
   }
 
-  const [project, asphaltMixType, tackCoatMaterialType] = await Promise.all([
+  const [project, asphaltMixItem, tackCoatItem] = await Promise.all([
     getProject(projectId),
-    getAsphaltMixType(asphaltMixTypeId),
-    getTackCoatMaterialType(tackCoatInput.tackCoatMaterialTypeId),
+    getAsphaltMixInventoryItem(asphaltInventoryItemId),
+    getTackCoatInventoryItem(tackCoatInput.tackCoatMaterialTypeId),
   ]);
 
   if (!project) {
     throw new Error("Projekt wurde nicht gefunden.");
   }
 
-  if (asphaltMixTypeId && !asphaltMixType) {
+  if (asphaltInventoryItemId && !asphaltMixItem) {
     throw new Error("Asphaltsorte wurde nicht gefunden.");
   }
 
-  if (tackCoatInput.tackCoatMaterialTypeId && !tackCoatMaterialType) {
+  if (tackCoatInput.tackCoatMaterialTypeId && !tackCoatItem) {
     throw new Error("Anspritzmittel wurde nicht gefunden.");
   }
 
@@ -223,20 +278,24 @@ export async function updateAsphaltDispatchEntry(formData: FormData) {
       projectName: project.name,
       constructionManager: project.constructionManager,
 
-      asphaltMixTypeId: asphaltMixType?.id ?? null,
-      asphaltMixNumber: asphaltMixType?.mixNumber ?? null,
-      asphaltMixName: asphaltMixType?.name ?? null,
+      asphaltMixTypeId: null,
+      asphaltInventoryItemId: asphaltMixItem?.id ?? null,
+      asphaltMixNumber: asphaltMixItem
+        ? getInventoryItemNumber(asphaltMixItem)
+        : null,
+      asphaltMixName: asphaltMixItem?.name ?? null,
 
-      quantityTons: asphaltMixType ? parseNumber(formData.get("quantityTons")) : 0,
+      quantityTons: asphaltMixItem ? parseNumber(formData.get("quantityTons")) : 0,
 
-      tackCoatMaterialTypeId: tackCoatMaterialType?.id ?? null,
-      tackCoatMaterialName: tackCoatMaterialType?.name ?? null,
-      tackCoatQuantity: tackCoatMaterialType ? tackCoatInput.tackCoatQuantity : 0,
-      tackCoatUnit: tackCoatMaterialType
+      tackCoatMaterialTypeId: null,
+      tackCoatInventoryItemId: tackCoatItem?.id ?? null,
+      tackCoatMaterialName: tackCoatItem?.name ?? null,
+      tackCoatQuantity: tackCoatItem ? tackCoatInput.tackCoatQuantity : 0,
+      tackCoatUnit: tackCoatItem
         ? tackCoatInput.tackCoatUnit ?? "l"
         : null,
 
-      isForeignMix: asphaltMixType ? formData.get("isForeignMix") === "on" : false,
+      isForeignMix: asphaltMixItem ? formData.get("isForeignMix") === "on" : false,
       notes: optionalString(formData.get("notes")),
     },
   });
@@ -274,12 +333,14 @@ export async function copyAsphaltDispatchEntry(formData: FormData) {
       constructionManager: source.constructionManager,
 
       asphaltMixTypeId: source.asphaltMixTypeId,
+      asphaltInventoryItemId: source.asphaltInventoryItemId,
       asphaltMixNumber: source.asphaltMixNumber,
       asphaltMixName: source.asphaltMixName,
 
       quantityTons: source.quantityTons,
 
       tackCoatMaterialTypeId: source.tackCoatMaterialTypeId,
+      tackCoatInventoryItemId: source.tackCoatInventoryItemId,
       tackCoatMaterialName: source.tackCoatMaterialName,
       tackCoatQuantity: source.tackCoatQuantity,
       tackCoatUnit: source.tackCoatUnit,

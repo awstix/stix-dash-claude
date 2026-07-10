@@ -290,7 +290,7 @@ export function InventorySubcategoryRows({
                     }
                     type="checkbox"
                   />
-                  LKW-Einteilung
+                  Fahrer-Fahrzeug-Zuordnung
                 </label>
               </div>
               <button

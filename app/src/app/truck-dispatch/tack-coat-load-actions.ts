@@ -315,6 +315,7 @@ export async function createTackCoatLoadAllocation(formData: FormData) {
       projectNumber: position.projectNumber,
       projectName: position.projectName,
       tackCoatMaterialTypeId: position.tackCoatMaterialTypeId,
+      tackCoatInventoryItemId: position.tackCoatInventoryItemId,
       materialName: position.materialName,
       quantityUnit: position.quantityUnit,
       ownerType: "OWN",

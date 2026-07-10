@@ -449,6 +449,7 @@ async function createAsphaltLoadAllocationInternal(formData: FormData) {
       projectName: dispatchEntry.projectName,
 
       asphaltMixTypeId: dispatchEntry.asphaltMixTypeId,
+      asphaltInventoryItemId: dispatchEntry.asphaltInventoryItemId,
       asphaltMixNumber: dispatchEntry.asphaltMixNumber,
       asphaltMixName: dispatchEntry.asphaltMixName,
 

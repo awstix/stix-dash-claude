@@ -488,6 +488,7 @@ export async function importInventoryItems(formData: FormData) {
           currentStock,
           deliveryNoteNumber: text(rowValue(row, "Lieferscheinnummer")),
           driveType: driveType(rowValue(row, "Antrieb")),
+          fuelTankLiters: floatValue(rowValue(row, "Kraftstofftank l")),
           grossWeightKg: intValue(rowValue(row, "ZGG kg")),
           inventoryNumber,
           invoiceNumber: text(rowValue(row, "Rechnungsnummer")),
@@ -557,6 +558,9 @@ export async function importInventoryItems(formData: FormData) {
           status: statusValue(rowValue(row, "Status")),
           stockUnit: text(rowValue(row, "Einheit")) ?? "Stk.",
           stixId,
+          workMaterialTankLiters: floatValue(
+            rowValue(row, "Arbeitsmitteltank l", "Arbeitsmitteltank"),
+          ),
         };
 
         if (existingItem) {

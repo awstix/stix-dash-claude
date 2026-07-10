@@ -480,7 +480,7 @@ function InventoryCategoryForm({
           />
           <Checkbox
             defaultChecked={category?.useInTruckDispatchSelection ?? false}
-            label="In LKW-Einteilung wählbar"
+            label="In Fahrer-Fahrzeug-Zuordnung wählbar"
             name="useInTruckDispatchSelection"
           />
         </div>
@@ -617,7 +617,7 @@ function UsageBadges({
   }
 
   if (category.useInTruckDispatchSelection) {
-    badges.push({ label: "LKW-Einteilung", tone: "sky" });
+    badges.push({ label: "Fahrer-Fahrzeug", tone: "sky" });
   }
 
   if (category.asphaltDispositionUsage === "ASPHALT_MIX") {

@@ -77,6 +77,21 @@ type VehicleWithDriver = {
   }[];
 };
 
+type InventoryOptionItem = {
+  id: string;
+  name: string;
+  inventoryNumber: string | null;
+  objectNumber: string | null;
+  stixId: string | null;
+  stockUnit: string | null;
+  category: {
+    name: string;
+    parentCategory: {
+      name: string;
+    } | null;
+  } | null;
+};
+
 type AsphaltOpenPositionForPage = {
   asphaltDispatchEntryId: string;
   crew: string;
@@ -333,14 +348,55 @@ function normalizeOptionText(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
 
+function getInventoryOptionNumber(item: InventoryOptionItem) {
+  return item.inventoryNumber ?? item.objectNumber ?? item.stixId ?? "";
+}
+
+function getInventoryOptionGroup(item: InventoryOptionItem) {
+  if (!item.category) return null;
+  return item.category.parentCategory
+    ? `${item.category.parentCategory.name} / ${item.category.name}`
+    : item.category.name;
+}
+
+function mapMaterialInventoryOption(item: InventoryOptionItem) {
+  return {
+    id: item.id,
+    name: item.name,
+    unit: item.stockUnit ?? "t",
+    category: getInventoryOptionGroup(item),
+  };
+}
+
+function mapAsphaltInventoryOption(item: InventoryOptionItem) {
+  return {
+    id: item.id,
+    mixNumber: getInventoryOptionNumber(item),
+    name: item.name,
+    shortName: null,
+    unit: item.stockUnit ?? "t",
+    category: getInventoryOptionGroup(item),
+  };
+}
+
 function getDefaultConstructionMaterialSource(entry: {
   assignmentType: string;
   materialTypeId: string | null;
+  materialInventoryItemId?: string | null;
   materialName: string | null;
-}): "MATERIAL" | "ASPHALT" {
-  return entry.assignmentType === "CONSTRUCTION" &&
-    !entry.materialTypeId &&
-    Boolean(entry.materialName)
+}, asphaltMixes: { id: string }[]): "MATERIAL" | "ASPHALT" {
+  if (entry.assignmentType !== "CONSTRUCTION") {
+    return "MATERIAL";
+  }
+
+  if (
+    entry.materialInventoryItemId &&
+    asphaltMixes.some((mix) => mix.id === entry.materialInventoryItemId)
+  ) {
+    return "ASPHALT";
+  }
+
+  return !entry.materialTypeId && Boolean(entry.materialName)
     ? "ASPHALT"
     : "MATERIAL";
 }
@@ -427,14 +483,14 @@ export default async function LongHaulPage({
   const [
     entries,
     projects,
-    materials,
+    materialItemsRaw,
     allVehicles,
     allDrivers,
     shortHaulConflicts,
     shortAsphaltConflicts,
     shortTackCoatConflicts,
     vehicleCategoryOptions,
-    asphaltMixes,
+    asphaltMixesRaw,
     subcontractorOptions,
   ] = await Promise.all([
     prisma.truckLongHaulEntry.findMany({
@@ -465,11 +521,32 @@ export default async function LongHaulPage({
       orderBy: [{ projectNumber: "asc" }],
     }),
 
-    prisma.materialType.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "DELETED",
+        },
+        category: {
+          OR: [
+            {
+              useInTruckDispatchMaterial: true,
+            },
+            {
+              parentCategory: {
+                useInTruckDispatchMaterial: true,
+              },
+            },
+          ],
+        },
       },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
+      include: {
+        category: {
+          include: {
+            parentCategory: true,
+          },
+        },
+      },
+      orderBy: [{ objectNumber: "asc" }, { inventoryNumber: "asc" }, { name: "asc" }],
     }),
 
     prisma.vehicle.findMany({
@@ -589,15 +666,32 @@ export default async function LongHaulPage({
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
 
-    prisma.asphaltMixType.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "DELETED",
+        },
+        category: {
+          OR: [
+            {
+              asphaltDispositionUsage: "ASPHALT_MIX",
+            },
+            {
+              parentCategory: {
+                asphaltDispositionUsage: "ASPHALT_MIX",
+              },
+            },
+          ],
+        },
       },
-      orderBy: [
-        { category: "asc" },
-        { mixNumber: "asc" },
-        { name: "asc" },
-      ],
+      include: {
+        category: {
+          include: {
+            parentCategory: true,
+          },
+        },
+      },
+      orderBy: [{ objectNumber: "asc" }, { inventoryNumber: "asc" }, { name: "asc" }],
     }),
 
     prisma.adminOption.findMany({
@@ -608,6 +702,9 @@ export default async function LongHaulPage({
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
   ]);
+
+  const materials = materialItemsRaw.map(mapMaterialInventoryOption);
+  const asphaltMixes = asphaltMixesRaw.map(mapAsphaltInventoryOption);
 
   const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
   const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
@@ -1649,25 +1746,41 @@ function LongHaulEntryCard({
             Einteilung bearbeiten
           </div>
 
-          <LongHaulForm
-            action={updateLongHaulEntry}
-            id={entry.id}
-            projects={projects}
-            materials={materials}
-            asphaltMixes={asphaltMixes}
-            asphaltOpenPositions={asphaltOpenPositions}
-            defaultAssignmentType={entry.assignmentType}
-            defaultAsphaltDispatchEntryId={entry.asphaltDispatchEntryId ?? ""}
-            defaultProjectId={entry.projectId ?? ""}
-            defaultMaterialTypeId={entry.materialTypeId ?? ""}
-            defaultMaterialSource={getDefaultConstructionMaterialSource(entry)}
-            defaultAsphaltMixTypeId={getDefaultAsphaltMixTypeId(
-              entry.materialName,
-              asphaltMixes,
-            )}
-            defaultMaterialQuantity={entry.materialQuantity}
-            defaultNotes={entry.notes ?? ""}
-          />
+          {(() => {
+            const materialInventoryItemId =
+              (entry as { materialInventoryItemId?: string | null })
+                .materialInventoryItemId ?? null;
+
+            return (
+              <LongHaulForm
+                action={updateLongHaulEntry}
+                id={entry.id}
+                projects={projects}
+                materials={materials}
+                asphaltMixes={asphaltMixes}
+                asphaltOpenPositions={asphaltOpenPositions}
+                defaultAssignmentType={entry.assignmentType}
+                defaultAsphaltDispatchEntryId={entry.asphaltDispatchEntryId ?? ""}
+                defaultProjectId={entry.projectId ?? ""}
+                defaultMaterialTypeId={
+                  materialInventoryItemId ?? entry.materialTypeId ?? ""
+                }
+                defaultMaterialSource={getDefaultConstructionMaterialSource(
+                  {
+                    ...entry,
+                    materialInventoryItemId,
+                  },
+                  asphaltMixes,
+                )}
+                defaultAsphaltMixTypeId={
+                  materialInventoryItemId ??
+                  getDefaultAsphaltMixTypeId(entry.materialName, asphaltMixes)
+                }
+                defaultMaterialQuantity={entry.materialQuantity}
+                defaultNotes={entry.notes ?? ""}
+              />
+            );
+          })()}
 
           <form action={deleteLongHaulEntry} className="mt-3">
             <input type="hidden" name="id" value={entry.id} />

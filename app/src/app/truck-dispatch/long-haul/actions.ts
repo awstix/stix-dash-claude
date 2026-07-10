@@ -74,6 +74,7 @@ type LongHaulEntryData = {
   constructionManager: string | null;
 
   materialTypeId: string | null;
+  materialInventoryItemId: string | null;
   materialName: string | null;
   materialUnit: string | null;
   materialQuantity: number;
@@ -135,24 +136,68 @@ async function getProject(projectId: string) {
   });
 }
 
-async function getMaterial(materialTypeId: string) {
-  if (!materialTypeId) return null;
+async function getMaterialInventoryItem(itemId: string) {
+  if (!itemId) return null;
 
-  return prisma.materialType.findUnique({
+  return prisma.inventoryItem.findFirst({
     where: {
-      id: materialTypeId,
+      id: itemId,
+      status: {
+        not: "DELETED",
+      },
+      category: {
+        OR: [
+          {
+            useInTruckDispatchMaterial: true,
+          },
+          {
+            parentCategory: {
+              useInTruckDispatchMaterial: true,
+            },
+          },
+        ],
+      },
+    },
+    include: {
+      category: true,
     },
   });
 }
 
-async function getAsphaltMix(asphaltMixTypeId: string) {
-  if (!asphaltMixTypeId) return null;
+async function getAsphaltMixInventoryItem(itemId: string) {
+  if (!itemId) return null;
 
-  return prisma.asphaltMixType.findUnique({
+  return prisma.inventoryItem.findFirst({
     where: {
-      id: asphaltMixTypeId,
+      id: itemId,
+      status: {
+        not: "DELETED",
+      },
+      category: {
+        OR: [
+          {
+            asphaltDispositionUsage: "ASPHALT_MIX",
+          },
+          {
+            parentCategory: {
+              asphaltDispositionUsage: "ASPHALT_MIX",
+            },
+          },
+        ],
+      },
+    },
+    include: {
+      category: true,
     },
   });
+}
+
+function getInventoryItemNumber(item: {
+  inventoryNumber: string | null;
+  objectNumber: string | null;
+  stixId: string | null;
+}) {
+  return item.inventoryNumber ?? item.objectNumber ?? item.stixId ?? null;
 }
 
 async function getAsphaltDispatchEntry(asphaltDispatchEntryId: string) {
@@ -397,6 +442,7 @@ async function resolveLongHaulEntryData(
       constructionManager: asphaltDispatchEntry.constructionManager,
 
       materialTypeId: null,
+      materialInventoryItemId: asphaltDispatchEntry.asphaltInventoryItemId,
       materialName:
         [
           asphaltDispatchEntry.asphaltMixNumber,
@@ -436,9 +482,9 @@ async function resolveLongHaulEntryData(
     getProject(projectId),
     constructionMaterialSource === "ASPHALT"
       ? Promise.resolve(null)
-      : getMaterial(materialTypeId),
+      : getMaterialInventoryItem(materialTypeId),
     constructionMaterialSource === "ASPHALT"
-      ? getAsphaltMix(asphaltMixTypeId)
+      ? getAsphaltMixInventoryItem(asphaltMixTypeId)
       : Promise.resolve(null),
   ]);
 
@@ -457,8 +503,8 @@ async function resolveLongHaulEntryData(
   const materialLabel =
     constructionMaterialSource === "ASPHALT"
       ? [
-          asphaltMix?.mixNumber,
-          asphaltMix?.shortName ?? asphaltMix?.name,
+          asphaltMix ? getInventoryItemNumber(asphaltMix) : null,
+          asphaltMix?.name,
         ]
           .filter(Boolean)
           .join(" · ")
@@ -475,12 +521,16 @@ async function resolveLongHaulEntryData(
     constructionManager: project.constructionManager,
 
     materialTypeId:
-      constructionMaterialSource === "ASPHALT" ? null : material?.id ?? null,
+      null,
+    materialInventoryItemId:
+      constructionMaterialSource === "ASPHALT"
+        ? asphaltMix?.id ?? null
+        : material?.id ?? null,
     materialName: materialLabel,
     materialUnit:
       constructionMaterialSource === "ASPHALT"
-        ? asphaltMix?.unit ?? "t"
-        : material?.unit ?? null,
+        ? asphaltMix?.stockUnit ?? "t"
+        : material?.stockUnit ?? null,
     materialQuantity: parseNumber(formData.get("materialQuantity")),
 
     notes,
@@ -839,6 +889,7 @@ async function createLongHaulAsphaltAllocation({
       projectName: dispatchEntry.projectName,
 
       asphaltMixTypeId: dispatchEntry.asphaltMixTypeId,
+      asphaltInventoryItemId: dispatchEntry.asphaltInventoryItemId,
       asphaltMixNumber: dispatchEntry.asphaltMixNumber,
       asphaltMixName: dispatchEntry.asphaltMixName,
 
@@ -1002,6 +1053,7 @@ export async function createOwnTruckAssignment(formData: FormData) {
         constructionManager: entry.constructionManager,
 
         materialTypeId: entry.materialTypeId,
+        materialInventoryItemId: entry.materialInventoryItemId,
         materialName: entry.materialName,
         materialUnit: entry.materialUnit,
         materialQuantity: entry.materialQuantity,
@@ -1078,6 +1130,7 @@ export async function createSubcontractorTruckAssignment(formData: FormData) {
         constructionManager: entry.constructionManager,
 
         materialTypeId: entry.materialTypeId,
+        materialInventoryItemId: entry.materialInventoryItemId,
         materialName: entry.materialName,
         materialUnit: entry.materialUnit,
         materialQuantity: entry.materialQuantity,

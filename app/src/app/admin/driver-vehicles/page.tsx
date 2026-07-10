@@ -2,14 +2,46 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import {
+  DismissibleDetails,
+  DismissibleDetailsCloseButton,
+} from "@/components/DismissibleDetails";
 import { prisma } from "@/lib/prisma";
 import {
   createDriverVehicleAssignment,
   deleteDriverVehicleAssignment,
+  normalizeDriverVehicleAssignments,
   updateDriverVehicleAssignment,
 } from "./actions";
+import { InventoryItemPicker } from "./InventoryItemPicker";
 
 type FilterPrimary = "all" | "primary" | "secondary";
+type AssignmentStatusFilter = "all" | "assigned" | "unassigned";
+type SortMode =
+  | "driverLastAsc"
+  | "driverLastDesc"
+  | "driverFirstAsc"
+  | "driverFirstDesc"
+  | "vehicleNumberAsc"
+  | "vehicleNumberDesc"
+  | "licensePlateAsc"
+  | "vehicleTypeAsc"
+  | "categoryAsc"
+  | "primaryFirst";
+
+type DriverVehiclesSearchParams = {
+  q?: string;
+  person?: string;
+  vehicle?: string;
+  vehicleNumber?: string;
+  licensePlate?: string;
+  vehicleType?: string;
+  primary?: string;
+  assignmentStatus?: string;
+  category?: string;
+  notes?: string;
+  sort?: string;
+};
 
 type PersonOption = {
   value: string;
@@ -29,9 +61,38 @@ function normalizeFilterText(value: string | undefined) {
   return String(value ?? "").trim();
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function getFilterPrimary(value: string | undefined): FilterPrimary {
   if (value === "primary" || value === "secondary") return value;
   return "all";
+}
+
+function getAssignmentStatusFilter(
+  value: string | undefined,
+): AssignmentStatusFilter {
+  if (value === "assigned" || value === "unassigned") return value;
+  return "all";
+}
+
+function getSortMode(value: string | undefined): SortMode {
+  if (
+    value === "driverLastDesc" ||
+    value === "driverFirstAsc" ||
+    value === "driverFirstDesc" ||
+    value === "vehicleNumberAsc" ||
+    value === "vehicleNumberDesc" ||
+    value === "licensePlateAsc" ||
+    value === "vehicleTypeAsc" ||
+    value === "categoryAsc" ||
+    value === "primaryFirst"
+  ) {
+    return value;
+  }
+
+  return "driverLastAsc";
 }
 
 function getVehicleLabel(vehicle: {
@@ -47,6 +108,47 @@ function getVehicleLabel(vehicle: {
     vehicle.category,
     vehicle.vehicleType,
     vehicle.isActive === false ? "inaktiv" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getInventoryItemLabel(item: {
+  objectNumber: string | null;
+  inventoryNumber: string | null;
+  stixId: string | null;
+  name: string;
+  manufacturer: string | null;
+  model: string | null;
+  licensePlate: string | null;
+  category?: {
+    name: string;
+    parentCategory?: {
+      name: string;
+    } | null;
+  } | null;
+  vehicle?: {
+    vehicleNumber: string;
+    licensePlate: string | null;
+    vehicleType: string;
+    category: string;
+    isActive?: boolean;
+  } | null;
+}) {
+  const categoryLabel = item.category?.parentCategory
+    ? `${item.category.parentCategory.name} / ${item.category.name}`
+    : item.category?.name;
+
+  return [
+    item.objectNumber,
+    item.inventoryNumber,
+    item.stixId,
+    item.licensePlate ?? item.vehicle?.licensePlate,
+    item.manufacturer,
+    item.model,
+    item.name,
+    categoryLabel,
+    item.vehicle?.isActive === false ? "inaktiv" : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -118,20 +220,57 @@ function buildVehicleFilterText(vehicle: {
     .toLowerCase();
 }
 
+function compareText(a: unknown, b: unknown) {
+  return String(a ?? "").localeCompare(String(b ?? ""), "de-DE", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function buildDriverVehiclesHref({
+  params,
+  overrides = {},
+  hash = "zuordnungen",
+}: {
+  params: DriverVehiclesSearchParams;
+  overrides?: Partial<Record<keyof DriverVehiclesSearchParams, string | null>>;
+  hash?: string;
+}) {
+  const query = new URLSearchParams();
+  const keys: (keyof DriverVehiclesSearchParams)[] = [
+    "q",
+    "person",
+    "vehicle",
+    "vehicleNumber",
+    "licensePlate",
+    "vehicleType",
+    "primary",
+    "assignmentStatus",
+    "category",
+    "notes",
+    "sort",
+  ];
+
+  for (const key of keys) {
+    const override = overrides[key];
+    const value = override === undefined ? params[key] : override;
+
+    if (value) {
+      query.set(key, value);
+    }
+  }
+
+  const queryString = query.toString();
+
+  return `/admin/driver-vehicles${queryString ? `?${queryString}` : ""}${
+    hash ? `#${hash}` : ""
+  }`;
+}
+
 export default async function DriverVehiclesPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    person?: string;
-    vehicle?: string;
-    vehicleNumber?: string;
-    licensePlate?: string;
-    vehicleType?: string;
-    primary?: string;
-    category?: string;
-    notes?: string;
-  }>;
+  searchParams: Promise<DriverVehiclesSearchParams>;
 }) {
   const params = await searchParams;
   const searchText = normalizeSearch(params.q);
@@ -141,10 +280,16 @@ export default async function DriverVehiclesPage({
   const filterLicensePlate = normalizeSearch(params.licensePlate);
   const filterVehicleType = normalizeSearch(params.vehicleType);
   const filterPrimary = getFilterPrimary(params.primary);
+  const filterAssignmentStatus = getAssignmentStatusFilter(
+    params.assignmentStatus,
+  );
   const filterCategory = normalizeFilterText(params.category);
   const filterNotes = normalizeSearch(params.notes);
+  const sortMode = getSortMode(params.sort);
+  const returnToAssignments = buildDriverVehiclesHref({ params });
 
-  const [employees, drivers, vehicles, assignments] = await Promise.all([
+  const [employees, drivers, inventoryItems, assignments] =
+    await Promise.all([
     prisma.employee.findMany({
       where: {
         statusValue: "active",
@@ -170,38 +315,76 @@ export default async function DriverVehiclesPage({
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
 
-    prisma.vehicle.findMany({
-      orderBy: [
-        { isActive: "desc" },
-        { category: "asc" },
-        { vehicleNumber: "asc" },
-      ],
-    }),
-
-    prisma.driverVehicleAssignment.findMany({
-      where: {
-        isActive: true,
-        driver: {
-          isActive: true,
-        },
-      },
-      include: {
-        driver: {
-          include: {
-            employee: true,
+      prisma.inventoryItem.findMany({
+        where: {
+          vehicleId: {
+            not: null,
           },
         },
-        vehicle: true,
-      },
-      orderBy: [
-        { isPrimary: "desc" },
-        { driver: { lastName: "asc" } },
-        { vehicle: { vehicleNumber: "asc" } },
-      ],
-    }),
-  ]);
+        include: {
+          category: {
+            include: {
+              parentCategory: true,
+            },
+          },
+          responsibleEmployee: true,
+          vehicle: true,
+        },
+        orderBy: [
+          { objectNumber: "asc" },
+          { inventoryNumber: "asc" },
+          { name: "asc" },
+        ],
+      }),
 
-  const activeVehicles = vehicles.filter((vehicle) => vehicle.isActive);
+      prisma.driverVehicleAssignment.findMany({
+        where: {
+          isActive: true,
+          driver: {
+            isActive: true,
+          },
+        },
+        include: {
+          driver: {
+            include: {
+              employee: true,
+            },
+          },
+          vehicle: true,
+          inventoryItem: {
+            include: {
+              category: {
+                include: {
+                  parentCategory: true,
+                },
+              },
+              vehicle: true,
+            },
+          },
+        },
+        orderBy: [
+          { isPrimary: "desc" },
+          { driver: { lastName: "asc" } },
+          { vehicle: { vehicleNumber: "asc" } },
+        ],
+      }),
+    ]);
+
+  const activeInventoryItems = inventoryItems.filter(
+    (item) => item.status !== "DELETED" && item.vehicle?.isActive !== false,
+  );
+  const hasExplicitTruckSelectionCategories = activeInventoryItems.some(
+    (item) =>
+      item.category?.useInTruckDispatchSelection ||
+      item.category?.parentCategory?.useInTruckDispatchSelection,
+  );
+  const selectableInventoryItems = hasExplicitTruckSelectionCategories
+    ? activeInventoryItems.filter(
+        (item) =>
+          item.category?.useInTruckDispatchSelection ||
+          item.category?.parentCategory?.useInTruckDispatchSelection,
+      )
+    : activeInventoryItems;
 
   const employeePersonOptions: PersonOption[] = employees.map((employee) => {
     const positionLabel = getPositionLabel(employee);
@@ -258,28 +441,153 @@ export default async function DriverVehiclesPage({
       .map((person) => [person.driverId as string, person]),
   );
 
+  const inventoryItemByVehicleId = new Map(
+    inventoryItems
+      .filter((item) => item.vehicleId)
+      .map((item) => [item.vehicleId as string, item]),
+  );
+
   const vehicleCategories = Array.from(
-    new Set(vehicles.map((vehicle) => vehicle.category).filter(Boolean)),
+    new Set(
+      selectableInventoryItems
+        .map((item) =>
+          item.category?.parentCategory
+            ? `${item.category.parentCategory.name} / ${item.category.name}`
+            : item.category?.name,
+        )
+        .filter(isNonEmptyString),
+    ),
   ).sort((a, b) => a.localeCompare(b, "de-DE"));
 
   const vehicleNumbers = Array.from(
-    new Set(vehicles.map((vehicle) => vehicle.vehicleNumber).filter(Boolean)),
+    new Set(
+      selectableInventoryItems
+        .flatMap((item) => [
+          item.objectNumber,
+          item.inventoryNumber,
+          item.stixId,
+          item.vehicle?.vehicleNumber,
+        ])
+        .filter(isNonEmptyString),
+    ),
   ).sort((a, b) => a.localeCompare(b, "de-DE", { numeric: true }));
 
   const vehicleTypes = Array.from(
-    new Set(vehicles.map((vehicle) => vehicle.vehicleType).filter(Boolean)),
+    new Set(
+      selectableInventoryItems
+        .map((item) => item.vehicle?.vehicleType ?? item.category?.name)
+        .filter(isNonEmptyString),
+    ),
   ).sort((a, b) => a.localeCompare(b, "de-DE"));
 
-  const activeAssignedVehicleIds = new Set(
-    assignments.map((assignment) => assignment.vehicleId),
+  const activeAssignedInventoryItemIds = new Set<string>(
+    assignments
+      .map(
+        (assignment) =>
+          assignment.inventoryItemId ??
+          inventoryItemByVehicleId.get(assignment.vehicleId)?.id,
+      )
+      .filter(isNonEmptyString),
   );
 
   const activeAssignedDriverIds = new Set(
     assignments.map((assignment) => assignment.driverId),
   );
 
-  const freeVehicles = activeVehicles.filter(
-    (vehicle) => !activeAssignedVehicleIds.has(vehicle.id),
+  const freeInventoryItems = activeInventoryItems.filter(
+    (item) => !activeAssignedInventoryItemIds.has(item.id),
+  );
+  const assignmentByInventoryItemId = new Map(
+    assignments
+      .map((assignment) => {
+        const inventoryItemId =
+          assignment.inventoryItemId ??
+          inventoryItemByVehicleId.get(assignment.vehicleId)?.id;
+
+        return inventoryItemId ? [inventoryItemId, assignment] : null;
+      })
+      .filter((entry): entry is [string, (typeof assignments)[number]] =>
+        Boolean(entry),
+      ),
+  );
+  const assignedInventoryItemInfo = new Map<string, string>(
+    activeInventoryItems
+      .map((item) => {
+        const responsibleName = item.responsibleEmployee
+          ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
+          : null;
+        const assignment = assignmentByInventoryItemId.get(item.id);
+        const assignmentName = assignment
+          ? `${assignment.driver.lastName}, ${assignment.driver.firstName}`
+          : null;
+
+        return responsibleName || assignmentName
+          ? [item.id, responsibleName ?? assignmentName ?? ""]
+          : null;
+      })
+      .filter((entry): entry is [string, string] => Boolean(entry)),
+  );
+
+  function getInventorySelectOptions(currentInventoryItemId?: string) {
+    if (!currentInventoryItemId) {
+      return selectableInventoryItems;
+    }
+
+    if (
+      selectableInventoryItems.some((item) => item.id === currentInventoryItemId)
+    ) {
+      return selectableInventoryItems;
+    }
+
+    const currentItem = activeInventoryItems.find(
+      (item) => item.id === currentInventoryItemId,
+    );
+
+    return currentItem ? [currentItem, ...selectableInventoryItems] : selectableInventoryItems;
+  }
+
+  function inventoryItemMatchesFilters(item: (typeof activeInventoryItems)[number]) {
+    const categoryLabel = item.category?.parentCategory
+      ? `${item.category.parentCategory.name} / ${item.category.name}`
+      : item.category?.name ?? "";
+    const assigned = activeAssignedInventoryItemIds.has(item.id);
+
+    if (filterAssignmentStatus === "assigned" && !assigned) return false;
+    if (filterAssignmentStatus === "unassigned" && assigned) return false;
+    if (filterCategory && categoryLabel !== filterCategory) return false;
+    if (
+      filterVehicleType &&
+      ![item.vehicle?.vehicleType, item.category?.name, item.category?.parentCategory?.name].some(
+        (value) => includesFilter(value, filterVehicleType),
+      )
+    ) {
+      return false;
+    }
+    if (
+      filterVehicleNumber &&
+      ![item.objectNumber, item.inventoryNumber, item.stixId, item.vehicle?.vehicleNumber].some(
+        (value) => includesFilter(value, filterVehicleNumber),
+      )
+    ) {
+      return false;
+    }
+    if (
+      filterLicensePlate &&
+      ![item.licensePlate, item.vehicle?.licensePlate].some((value) =>
+        includesFilter(value, filterLicensePlate),
+      )
+    ) {
+      return false;
+    }
+    if (filterVehicleText && !getInventoryItemLabel(item).toLowerCase().includes(filterVehicleText)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  const filteredInventoryItems = selectableInventoryItems.filter(
+    inventoryItemMatchesFilters,
   );
 
   const peopleWithoutVehicle = personOptions.filter(
@@ -287,10 +595,37 @@ export default async function DriverVehiclesPage({
       !person.driverId || !activeAssignedDriverIds.has(person.driverId),
   );
 
+  const duplicatePrimaryAssignmentGroups = Array.from(
+    assignments
+      .filter((assignment) => assignment.isPrimary)
+      .reduce((groups, assignment) => {
+        const driverAssignments = groups.get(assignment.driverId) ?? [];
+        driverAssignments.push(assignment);
+        groups.set(assignment.driverId, driverAssignments);
+        return groups;
+      }, new Map<string, typeof assignments>())
+      .values(),
+  ).filter((driverAssignments) => driverAssignments.length > 1);
+
+  const duplicatePrimaryDriverIds = new Set(
+    duplicatePrimaryAssignmentGroups.map(
+      (driverAssignments) => driverAssignments[0]?.driverId,
+    ),
+  );
+
   const filteredAssignments = assignments.filter((assignment) => {
+    const assignmentInventoryItem =
+      assignment.inventoryItem ??
+      inventoryItemByVehicleId.get(assignment.vehicleId) ??
+      null;
+    const assignmentCategoryLabel = assignmentInventoryItem?.category?.parentCategory
+      ? `${assignmentInventoryItem.category.parentCategory.name} / ${assignmentInventoryItem.category.name}`
+      : assignmentInventoryItem?.category?.name ?? assignment.vehicle.category;
+
     if (filterPrimary === "primary" && !assignment.isPrimary) return false;
     if (filterPrimary === "secondary" && assignment.isPrimary) return false;
-    if (filterCategory && assignment.vehicle.category !== filterCategory) {
+    if (filterAssignmentStatus === "unassigned") return false;
+    if (filterCategory && assignmentCategoryLabel !== filterCategory) {
       return false;
     }
 
@@ -299,7 +634,15 @@ export default async function DriverVehiclesPage({
       assignment,
       personOption,
     });
-    const vehicleFilterText = buildVehicleFilterText(assignment.vehicle);
+    const vehicleFilterText = [
+      assignmentInventoryItem
+        ? getInventoryItemLabel(assignmentInventoryItem)
+        : getVehicleLabel(assignment.vehicle),
+      buildVehicleFilterText(assignment.vehicle),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
     if (filterPersonText && !personFilterText.includes(filterPersonText)) {
       return false;
@@ -311,21 +654,33 @@ export default async function DriverVehiclesPage({
 
     if (
       filterVehicleNumber &&
-      !includesFilter(assignment.vehicle.vehicleNumber, filterVehicleNumber)
+      ![
+        assignmentInventoryItem?.objectNumber,
+        assignmentInventoryItem?.inventoryNumber,
+        assignmentInventoryItem?.stixId,
+        assignment.vehicle.vehicleNumber,
+      ].some((value) => includesFilter(value, filterVehicleNumber))
     ) {
       return false;
     }
 
     if (
       filterLicensePlate &&
-      !includesFilter(assignment.vehicle.licensePlate, filterLicensePlate)
+      ![
+        assignmentInventoryItem?.licensePlate,
+        assignment.vehicle.licensePlate,
+      ].some((value) => includesFilter(value, filterLicensePlate))
     ) {
       return false;
     }
 
     if (
       filterVehicleType &&
-      !includesFilter(assignment.vehicle.vehicleType, filterVehicleType)
+      ![
+        assignment.vehicle.vehicleType,
+        assignmentInventoryItem?.category?.name,
+        assignmentInventoryItem?.category?.parentCategory?.name,
+      ].some((value) => includesFilter(value, filterVehicleType))
     ) {
       return false;
     }
@@ -345,11 +700,13 @@ export default async function DriverVehiclesPage({
       personOption?.label,
       personOption?.subLabel,
       personOption?.searchText,
-      getVehicleLabel(assignment.vehicle),
+      assignmentInventoryItem
+        ? getInventoryItemLabel(assignmentInventoryItem)
+        : getVehicleLabel(assignment.vehicle),
       assignment.vehicle.vehicleNumber,
       assignment.vehicle.licensePlate,
       assignment.vehicle.vehicleType,
-      assignment.vehicle.category,
+      assignmentCategoryLabel,
       assignment.isPrimary
         ? "hauptfahrzeug ja primär primary"
         : "kein hauptfahrzeug nein zweitfahrzeug secondary",
@@ -362,6 +719,83 @@ export default async function DriverVehiclesPage({
     return haystack.includes(searchText);
   });
 
+  const sortedAssignments = [...filteredAssignments].sort((a, b) => {
+    if (sortMode === "driverLastDesc") {
+      return (
+        compareText(b.driver.lastName, a.driver.lastName) ||
+        compareText(b.driver.firstName, a.driver.firstName) ||
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+      );
+    }
+
+    if (sortMode === "driverFirstAsc") {
+      return (
+        compareText(a.driver.firstName, b.driver.firstName) ||
+        compareText(a.driver.lastName, b.driver.lastName) ||
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+      );
+    }
+
+    if (sortMode === "driverFirstDesc") {
+      return (
+        compareText(b.driver.firstName, a.driver.firstName) ||
+        compareText(b.driver.lastName, a.driver.lastName) ||
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+      );
+    }
+
+    if (sortMode === "vehicleNumberAsc") {
+      return (
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber) ||
+        compareText(a.driver.lastName, b.driver.lastName)
+      );
+    }
+
+    if (sortMode === "vehicleNumberDesc") {
+      return (
+        compareText(b.vehicle.vehicleNumber, a.vehicle.vehicleNumber) ||
+        compareText(a.driver.lastName, b.driver.lastName)
+      );
+    }
+
+    if (sortMode === "licensePlateAsc") {
+      return (
+        compareText(a.vehicle.licensePlate, b.vehicle.licensePlate) ||
+        compareText(a.driver.lastName, b.driver.lastName)
+      );
+    }
+
+    if (sortMode === "vehicleTypeAsc") {
+      return (
+        compareText(a.vehicle.vehicleType, b.vehicle.vehicleType) ||
+        compareText(a.vehicle.category, b.vehicle.category) ||
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+      );
+    }
+
+    if (sortMode === "categoryAsc") {
+      return (
+        compareText(a.vehicle.category, b.vehicle.category) ||
+        compareText(a.vehicle.vehicleType, b.vehicle.vehicleType) ||
+        compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+      );
+    }
+
+    if (sortMode === "primaryFirst") {
+      return (
+        Number(b.isPrimary) - Number(a.isPrimary) ||
+        compareText(a.driver.lastName, b.driver.lastName) ||
+        compareText(a.driver.firstName, b.driver.firstName)
+      );
+    }
+
+    return (
+      compareText(a.driver.lastName, b.driver.lastName) ||
+      compareText(a.driver.firstName, b.driver.firstName) ||
+      compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
+    );
+  });
+
   const hasActiveFilters = Boolean(
     searchText ||
       filterPersonText ||
@@ -370,9 +804,11 @@ export default async function DriverVehiclesPage({
       filterLicensePlate ||
       filterVehicleType ||
       filterPrimary !== "all" ||
+      filterAssignmentStatus !== "all" ||
       filterCategory ||
       filterNotes,
   );
+  const hasActiveTableSettings = hasActiveFilters || sortMode !== "driverLastAsc";
 
   return (
     <AppShell
@@ -387,9 +823,9 @@ export default async function DriverVehiclesPage({
         />
 
         <SummaryCard
-          label="Freie Fahrzeuge"
-          value={String(freeVehicles.length)}
-          hint="Aktive Fahrzeuge ohne feste Zuordnung"
+          label="Freie Inventarobjekte"
+          value={String(freeInventoryItems.length)}
+          hint="Aktive Inventarobjekte ohne feste Zuordnung"
         />
 
         <SummaryCard
@@ -405,7 +841,62 @@ export default async function DriverVehiclesPage({
         />
       </div>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      {duplicatePrimaryAssignmentGroups.length > 0 ? (
+        <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-amber-950">
+                Stammdaten prüfen: mehrere Hauptfahrzeuge
+              </h2>
+              <p className="mt-1 text-sm text-amber-900">
+                Pro Fahrer darf nur ein aktives Hauptfahrzeug gesetzt sein.
+                Weitere Fahrzeuge bleiben als normale Zuordnung möglich, werden
+                aber nicht als Hauptfahrzeug verwendet.
+              </p>
+
+              <div className="mt-3 space-y-2 text-sm text-amber-950">
+                {duplicatePrimaryAssignmentGroups.map((driverAssignments) => {
+                  const driver = driverAssignments[0]?.driver;
+
+                  return (
+                    <div key={driverAssignments[0]?.driverId}>
+                      <span className="font-semibold">
+                        {driver?.lastName}, {driver?.firstName}:
+                      </span>{" "}
+                      {driverAssignments
+                        .map((assignment) => {
+                          const item =
+                            assignment.inventoryItem ??
+                            inventoryItemByVehicleId.get(assignment.vehicleId);
+
+                          return item
+                            ? getInventoryItemLabel(item)
+                            : getVehicleLabel(assignment.vehicle);
+                        })
+                        .join(" · ")}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <form action={normalizeDriverVehicleAssignments}>
+              <input type="hidden" name="returnTo" value={returnToAssignments} />
+              <button
+                type="submit"
+                className="rounded-xl bg-amber-900 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-800"
+              >
+                Hauptfahrzeuge bereinigen
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        id="new-driver-vehicle"
+        className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      >
         <h2 className="text-xl font-semibold text-gray-900">
           Neue Zuordnung anlegen
         </h2>
@@ -414,6 +905,11 @@ export default async function DriverVehiclesPage({
           action={createDriverVehicleAssignment}
           className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5"
         >
+          <input
+            type="hidden"
+            name="returnTo"
+            value="/admin/driver-vehicles#new-driver-vehicle"
+          />
           <PersonSelect
             name="driverPersonId"
             label="Mitarbeiter / Fahrer"
@@ -422,15 +918,18 @@ export default async function DriverVehiclesPage({
             required
           />
 
-          <VehicleSelect
-            name="vehicleId"
-            label="Fahrzeug / Kombination"
-            options={activeVehicles}
-            assignedVehicleIds={activeAssignedVehicleIds}
-            defaultValue=""
-            required
-            className="lg:col-span-2"
-          />
+            <InventoryItemPicker
+              name="inventoryItemId"
+              label="Inventarobjekt / Fahrzeug"
+              options={selectableInventoryItems}
+              assignedInventoryItemIds={Array.from(activeAssignedInventoryItemIds)}
+              assignedInventoryItemInfoEntries={Array.from(
+                assignedInventoryItemInfo.entries(),
+              )}
+              defaultValue=""
+              required
+              className="lg:col-span-2"
+            />
 
           <label className="text-sm font-medium text-gray-800">
             Bemerkung
@@ -469,7 +968,7 @@ export default async function DriverVehiclesPage({
               Schnellsuche
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Ein Feld für alles: Mitarbeiter/Fahrer, Fahrzeugnummer,
+              Ein Feld für alles: Mitarbeiter/Fahrer, Objekt-ID,
               Kennzeichen, Typ, Kategorie, Hauptfahrzeug oder
               Bemerkung.
             </p>
@@ -477,7 +976,7 @@ export default async function DriverVehiclesPage({
 
           {hasActiveFilters ? (
             <Link
-              href="/admin/driver-vehicles"
+              href="/admin/driver-vehicles#zuordnungen"
               className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
             >
               Suche zurücksetzen
@@ -485,7 +984,7 @@ export default async function DriverVehiclesPage({
           ) : null}
         </div>
 
-        <form action="/admin/driver-vehicles" className="mt-5 space-y-4">
+        <form action="/admin/driver-vehicles#zuordnungen" className="mt-5 space-y-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(320px,1fr)_auto] lg:items-end">
             <label className="text-sm font-medium text-gray-800">
               Schnellsuche
@@ -508,7 +1007,7 @@ export default async function DriverVehiclesPage({
 
               {hasActiveFilters ? (
                 <Link
-                  href="/admin/driver-vehicles"
+                  href="/admin/driver-vehicles#zuordnungen"
                   className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
                 >
                   Reset
@@ -516,110 +1015,14 @@ export default async function DriverVehiclesPage({
               ) : null}
             </div>
           </div>
-
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Spaltenfilter optional
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="text-sm font-medium text-gray-800">
-                Mitarbeiter / Fahrer
-                <input
-                  name="person"
-                  defaultValue={params.person ?? ""}
-                  placeholder="Name, Kürzel, Telefon ..."
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Fahrzeug / Kombination
-                <input
-                  name="vehicle"
-                  defaultValue={params.vehicle ?? ""}
-                  placeholder="Nr., Kennzeichen, Typ, Kategorie ..."
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Fahrzeugnummer
-                <select
-                  name="vehicleNumber"
-                  defaultValue={params.vehicleNumber ?? ""}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Fahrzeugnummern</option>
-                  {vehicleNumbers.map((vehicleNumber) => (
-                    <option key={vehicleNumber} value={vehicleNumber}>
-                      {vehicleNumber}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Kennzeichen
-                <input
-                  name="licensePlate"
-                  defaultValue={params.licensePlate ?? ""}
-                  placeholder="z.B. AB-ST ..."
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Typ
-                <select
-                  name="vehicleType"
-                  defaultValue={params.vehicleType ?? ""}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Typen</option>
-                  {vehicleTypes.map((vehicleType) => (
-                    <option key={vehicleType} value={vehicleType}>
-                      {vehicleType}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Kategorie
-                <select
-                  name="category"
-                  defaultValue={filterCategory}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="">Alle Kategorien</option>
-                  {vehicleCategories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-gray-800">
-                Hauptfahrzeug
-                <select
-                  name="primary"
-                  defaultValue={filterPrimary}
-                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                >
-                  <option value="all">Alle</option>
-                  <option value="primary">Nur Hauptfahrzeug</option>
-                  <option value="secondary">Nur weitere Fahrzeuge</option>
-                </select>
-              </label>
-            </div>
-          </div>
         </form>
       </div>
 
-      <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between">
+      <div
+        id="zuordnungen"
+        className="mb-6 overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+      >
+        <div className="relative flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
               Bestehende Zuordnungen
@@ -630,56 +1033,83 @@ export default async function DriverVehiclesPage({
             </p>
           </div>
 
-          <div className="text-sm font-semibold text-gray-600">
-            {filteredAssignments.length} von {assignments.length} sichtbar
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-semibold text-gray-600">
+              {sortedAssignments.length} von {assignments.length} sichtbar
+            </div>
+
+            <DriverVehicleFilterPopover
+              params={params}
+              vehicleCategories={vehicleCategories}
+              vehicleNumbers={vehicleNumbers}
+              vehicleTypes={vehicleTypes}
+              filterCategory={filterCategory}
+              filterPrimary={filterPrimary}
+              filterAssignmentStatus={filterAssignmentStatus}
+              sortMode={sortMode}
+              hasActiveTableSettings={hasActiveTableSettings}
+            />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1260px] text-left text-sm">
-            <thead className="bg-gray-50 text-gray-800">
+        <div className="overflow-visible">
+          <table className="w-full table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-[7%]" />
+              <col className="w-[19%]" />
+              <col className="w-[29%]" />
+              <col className="w-[8%]" />
+              <col className="w-[9%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[12%]" />
+            </colgroup>
+            <thead className="sticky top-16 z-20 bg-gray-50 text-gray-800 shadow-sm">
               <tr>
-                <th className="sticky left-0 z-20 w-[92px] whitespace-nowrap border-r border-gray-200 bg-gray-50 p-3 text-center font-semibold shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                <th className="border-r border-gray-200 bg-gray-50 p-3 text-center font-semibold">
                   Aktion
                 </th>
                 <Th>Mitarbeiter / Fahrer</Th>
                 <Th>Fahrzeug / Kombination</Th>
-                <Th>Fahrzeugnummer</Th>
+                <Th>Objekt-ID</Th>
                 <Th>Kennzeichen</Th>
                 <Th>Typ</Th>
-                <Th>Kategorie</Th>
                 <Th>Hauptfahrzeug</Th>
                 <Th>Bemerkung</Th>
               </tr>
             </thead>
 
             <tbody className="text-gray-900">
-              {filteredAssignments.length === 0 ? (
+              {sortedAssignments.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
                     Keine Zuordnung passt zu den aktuellen Filtern.
                   </td>
                 </tr>
               ) : (
-                filteredAssignments.map((assignment) => {
+                sortedAssignments.map((assignment) => {
                   const formId = `driver-vehicle-form-${assignment.id}`;
                   const currentPersonValue = assignment.driver.employee?.id
                     ? `employee:${assignment.driver.employee.id}`
                     : `driver:${assignment.driverId}`;
+                  const currentInventoryItemId =
+                    assignment.inventoryItemId ??
+                    inventoryItemByVehicleId.get(assignment.vehicleId)?.id ??
+                    "";
 
                   return (
                     <tr
                       key={assignment.id}
                       className="border-t border-gray-100"
                     >
-                      <td className="sticky left-0 z-10 w-[92px] border-r border-gray-200 bg-white p-3 align-top shadow-[8px_0_12px_-12px_rgba(0,0,0,0.35)]">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="border-r border-gray-200 bg-white p-3 align-top">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
                           <button
                             form={formId}
                             type="submit"
                             title="Zuordnung speichern"
                             aria-label="Zuordnung speichern"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
                           >
                             <ActionIcon name="save" className="h-4 w-4" />
                           </button>
@@ -690,13 +1120,18 @@ export default async function DriverVehiclesPage({
                               name="id"
                               value={assignment.id}
                             />
+                            <input
+                              type="hidden"
+                              name="returnTo"
+                              value={returnToAssignments}
+                            />
 
                             <button
                               type="submit"
                               title="Zuordnung löschen"
                               aria-label="Zuordnung löschen"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
-                            >
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                          >
                               <ActionIcon name="delete" className="h-4 w-4" />
                             </button>
                           </form>
@@ -712,6 +1147,11 @@ export default async function DriverVehiclesPage({
                             type="hidden"
                             name="id"
                             value={assignment.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="returnTo"
+                            value={returnToAssignments}
                           />
                         </form>
 
@@ -737,23 +1177,40 @@ export default async function DriverVehiclesPage({
                       </Td>
 
                       <Td>
-                        <VehicleSelect
+                        <InventoryItemPicker
                           formId={formId}
-                          name="vehicleId"
+                          name="inventoryItemId"
                           label=""
-                          options={vehicles}
-                          assignedVehicleIds={activeAssignedVehicleIds}
-                          currentVehicleId={assignment.vehicleId}
-                          defaultValue={assignment.vehicleId}
+                          options={getInventorySelectOptions(
+                            currentInventoryItemId,
+                          )}
+                          assignedInventoryItemIds={Array.from(
+                            activeAssignedInventoryItemIds,
+                          )}
+                          assignedInventoryItemInfoEntries={Array.from(
+                            assignedInventoryItemInfo.entries(),
+                          )}
+                          currentInventoryItemId={currentInventoryItemId}
+                          defaultValue={currentInventoryItemId}
                           required
                           compact
                         />
                       </Td>
 
-                      <Td>{assignment.vehicle.vehicleNumber}</Td>
-                      <Td>{assignment.vehicle.licensePlate ?? "-"}</Td>
+                      <Td>
+                        {assignment.inventoryItem?.objectNumber ??
+                          inventoryItemByVehicleId.get(assignment.vehicleId)
+                            ?.objectNumber ??
+                          assignment.vehicle.vehicleNumber}
+                      </Td>
+                      <Td>
+                        {assignment.inventoryItem?.licensePlate ??
+                          inventoryItemByVehicleId.get(assignment.vehicleId)
+                            ?.licensePlate ??
+                          assignment.vehicle.licensePlate ??
+                          "-"}
+                      </Td>
                       <Td>{assignment.vehicle.vehicleType}</Td>
-                      <Td>{assignment.vehicle.category}</Td>
 
                       <Td>
                         <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
@@ -766,6 +1223,13 @@ export default async function DriverVehiclesPage({
                           />
                           ja
                         </label>
+
+                        {duplicatePrimaryDriverIds.has(assignment.driverId) &&
+                        assignment.isPrimary ? (
+                          <div className="mt-1 rounded-lg bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                            mehrfach vergeben
+                          </div>
+                        ) : null}
                       </Td>
 
                       <Td>
@@ -787,13 +1251,22 @@ export default async function DriverVehiclesPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <InfoList
-          title="Freie Fahrzeuge"
-          emptyText="Keine freien Fahrzeuge vorhanden."
-          items={freeVehicles.map((vehicle) => ({
-            id: vehicle.id,
-            title: `${vehicle.vehicleNumber} · ${vehicle.licensePlate ?? "-"}`,
-            description: `${vehicle.category} · ${vehicle.vehicleType}`,
-          }))}
+          title="Inventarobjekte nach Filter"
+          emptyText="Keine Inventarobjekte passen zu den aktuellen Filtern."
+          items={filteredInventoryItems.map((item) => {
+            const assignedTo = assignedInventoryItemInfo.get(item.id);
+
+            return {
+            id: item.id,
+            title: `${assignedTo ? "⚠ " : ""}${getInventoryItemLabel(item)}`,
+            description:
+              `${assignedTo ? `vergeben an ${assignedTo} · ` : "frei · "}${
+                item.vehicle != null
+                  ? `${item.vehicle.category} · ${item.vehicle.vehicleType}`
+                  : item.category?.name ?? "ohne Kategorie"
+              }`,
+            };
+          })}
         />
 
         <InfoList
@@ -807,6 +1280,222 @@ export default async function DriverVehiclesPage({
         />
       </div>
     </AppShell>
+  );
+}
+
+function DriverVehicleFilterPopover({
+  params,
+  vehicleCategories,
+  vehicleNumbers,
+  vehicleTypes,
+  filterCategory,
+  filterPrimary,
+  filterAssignmentStatus,
+  sortMode,
+  hasActiveTableSettings,
+}: {
+  params: DriverVehiclesSearchParams;
+  vehicleCategories: string[];
+  vehicleNumbers: string[];
+  vehicleTypes: string[];
+  filterCategory: string;
+  filterPrimary: FilterPrimary;
+  filterAssignmentStatus: AssignmentStatusFilter;
+  sortMode: SortMode;
+  hasActiveTableSettings: boolean;
+}) {
+  return (
+    <DismissibleDetails className="group relative">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+        <ActionIcon name="filter" className="h-4 w-4" />
+        Filter / Sortierung
+        {hasActiveTableSettings ? (
+          <span className="rounded-full bg-gray-900 px-2 py-0.5 text-[11px] font-bold text-white">
+            aktiv
+          </span>
+        ) : null}
+      </summary>
+
+      <div className="absolute right-0 z-40 mt-3 w-[min(92vw,760px)] rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <DismissibleDetailsCloseButton
+          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 bg-white text-xl font-semibold leading-none text-gray-700 hover:bg-gray-50"
+          label="Filter schließen"
+        />
+
+        <form action="/admin/driver-vehicles#zuordnungen" className="space-y-4">
+          <input type="hidden" name="q" value={params.q ?? ""} />
+
+          <div className="flex items-start justify-between gap-4 pr-12">
+            <div>
+              <div className="text-base font-bold text-gray-950">
+                Spaltenfilter & Sortierung
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Sortierung und Detailfilter für die Zuordnungsliste.
+              </p>
+            </div>
+
+            {hasActiveTableSettings ? (
+              <Link
+                href={buildDriverVehiclesHref({
+                  params: {
+                    q: params.q,
+                  },
+                })}
+                className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Filter leeren
+              </Link>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <label className="text-sm font-medium text-gray-800">
+              Sortierung
+              <select
+                name="sort"
+                defaultValue={sortMode}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="driverLastAsc">Nachname A–Z</option>
+                <option value="driverLastDesc">Nachname Z–A</option>
+                <option value="driverFirstAsc">Vorname A–Z</option>
+                <option value="driverFirstDesc">Vorname Z–A</option>
+                <option value="vehicleNumberAsc">Objekt-ID aufsteigend</option>
+                <option value="vehicleNumberDesc">Objekt-ID absteigend</option>
+                <option value="licensePlateAsc">Kennzeichen A–Z</option>
+                <option value="vehicleTypeAsc">Typ A–Z</option>
+                <option value="categoryAsc">Kategorie A–Z</option>
+                <option value="primaryFirst">Hauptfahrzeug zuerst</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Mitarbeiter / Fahrer
+              <input
+                name="person"
+                defaultValue={params.person ?? ""}
+                placeholder="Name, Kürzel, Telefon ..."
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Fahrzeug / Kombination
+              <input
+                name="vehicle"
+                defaultValue={params.vehicle ?? ""}
+                placeholder="Nr., Kennzeichen, Typ, Kategorie ..."
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Objekt-ID
+              <select
+                name="vehicleNumber"
+                defaultValue={params.vehicleNumber ?? ""}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="">Alle Objekt-IDs</option>
+                {vehicleNumbers.map((vehicleNumber) => (
+                  <option key={vehicleNumber} value={vehicleNumber}>
+                    {vehicleNumber}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Kennzeichen
+              <input
+                name="licensePlate"
+                defaultValue={params.licensePlate ?? ""}
+                placeholder="z.B. AB-ST ..."
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Typ
+              <select
+                name="vehicleType"
+                defaultValue={params.vehicleType ?? ""}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="">Alle Typen</option>
+                {vehicleTypes.map((vehicleType) => (
+                  <option key={vehicleType} value={vehicleType}>
+                    {vehicleType}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Kategorie
+              <select
+                name="category"
+                defaultValue={filterCategory}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="">Alle Kategorien</option>
+                {vehicleCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Zuordnungsstatus
+              <select
+                name="assignmentStatus"
+                defaultValue={filterAssignmentStatus}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="all">Alle</option>
+                <option value="assigned">Nur zugeordnet</option>
+                <option value="unassigned">Nur nicht zugeordnet</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Hauptfahrzeug
+              <select
+                name="primary"
+                defaultValue={filterPrimary}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              >
+                <option value="all">Alle</option>
+                <option value="primary">Nur Hauptfahrzeug</option>
+                <option value="secondary">Nur weitere Fahrzeuge</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-800">
+              Bemerkung
+              <input
+                name="notes"
+                defaultValue={params.notes ?? ""}
+                placeholder="Bemerkung enthält ..."
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4">
+            <button
+              type="submit"
+              className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+            >
+              Anwenden
+            </button>
+          </div>
+        </form>
+      </div>
+    </DismissibleDetails>
   );
 }
 
@@ -855,76 +1544,6 @@ function PersonSelect({
 
   return (
     <label className="text-sm font-medium text-gray-800">
-      {label}
-      {select}
-    </label>
-  );
-}
-
-function VehicleSelect({
-  formId,
-  name,
-  label,
-  options,
-  assignedVehicleIds,
-  currentVehicleId,
-  defaultValue,
-  required = false,
-  compact = false,
-  className = "",
-}: {
-  formId?: string;
-  name: string;
-  label: string;
-  options: {
-    id: string;
-    vehicleNumber: string;
-    licensePlate: string | null;
-    vehicleType: string;
-    category: string;
-    isActive: boolean;
-  }[];
-  assignedVehicleIds: Set<string>;
-  currentVehicleId?: string;
-  defaultValue: string;
-  required?: boolean;
-  compact?: boolean;
-  className?: string;
-}) {
-  const select = (
-    <select
-      form={formId}
-      name={name}
-      required={required}
-      defaultValue={defaultValue}
-      className={
-        compact
-          ? "w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-          : "mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-      }
-    >
-      <option value="" disabled>
-        Fahrzeug wählen
-      </option>
-
-      {options.map((vehicle) => {
-        const assigned =
-          assignedVehicleIds.has(vehicle.id) && vehicle.id !== currentVehicleId;
-
-        return (
-          <option key={vehicle.id} value={vehicle.id}>
-            {assigned ? "bereits zugeordnet · " : ""}
-            {getVehicleLabel(vehicle)}
-          </option>
-        );
-      })}
-    </select>
-  );
-
-  if (!label) return select;
-
-  return (
-    <label className={`text-sm font-medium text-gray-800 ${className}`}>
       {label}
       {select}
     </label>
@@ -990,9 +1609,13 @@ function InfoList({
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="whitespace-nowrap p-4 font-semibold">{children}</th>;
+  return <th className="p-3 font-semibold leading-tight">{children}</th>;
 }
 
 function Td({ children }: { children: ReactNode }) {
-  return <td className="p-4 align-top">{children}</td>;
+  return (
+    <td className="break-words p-3 align-top leading-snug text-gray-900">
+      {children}
+    </td>
+  );
 }

@@ -144,6 +144,193 @@ async function getDriver(driverId: string) {
   });
 }
 
+function normalizePurposeType(value: string) {
+  if (value === "MATERIAL" || value === "ASPHALT") {
+    return "TRANSPORT_MATERIAL";
+  }
+
+  if (value === "TRANSPORT") {
+    return "TRANSPORT_MACHINE";
+  }
+
+  if (value === "TRANSPORT_MATERIAL" || value === "TRANSPORT_MACHINE") {
+    return value;
+  }
+
+  return "CUSTOM";
+}
+
+function categoryAllowsMaterialTransport(category: {
+  useInTruckDispatchMaterial: boolean;
+  parentCategory: { useInTruckDispatchMaterial: boolean } | null;
+}) {
+  return Boolean(
+    category.useInTruckDispatchMaterial ||
+      category.parentCategory?.useInTruckDispatchMaterial
+  );
+}
+
+function categoryAllowsMachineTransport(category: {
+  useInTruckDispatchObject: boolean;
+  useInTruckDispatchSelection: boolean;
+  parentCategory: {
+    useInTruckDispatchObject: boolean;
+    useInTruckDispatchSelection: boolean;
+  } | null;
+}) {
+  return Boolean(
+    category.useInTruckDispatchObject ||
+      category.useInTruckDispatchSelection ||
+      category.parentCategory?.useInTruckDispatchObject ||
+      category.parentCategory?.useInTruckDispatchSelection
+  );
+}
+
+function getCategoryPath(category: {
+  name: string;
+  parentCategory: { name: string } | null;
+}) {
+  return category.parentCategory
+    ? `${category.parentCategory.name} › ${category.name}`
+    : category.name;
+}
+
+async function resolveInventoryPurpose({
+  purposeType,
+  itemId,
+}: {
+  purposeType: string;
+  itemId: string;
+}) {
+  const [source, id] = itemId.includes(":")
+    ? itemId.split(":")
+    : ["item", itemId];
+
+  if (!source || !id) {
+    throw new Error("Die Auswahl ist ungültig. Bitte erneut auswählen.");
+  }
+
+  if (source === "category") {
+    const category = await prisma.inventoryCategory.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        name: true,
+        useInTruckDispatchMaterial: true,
+        useInTruckDispatchObject: true,
+        useInTruckDispatchSelection: true,
+        parentCategory: {
+          select: {
+            name: true,
+            useInTruckDispatchMaterial: true,
+            useInTruckDispatchObject: true,
+            useInTruckDispatchSelection: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new Error("Inventarkategorie wurde nicht gefunden.");
+    }
+
+    const isAllowed =
+      purposeType === "TRANSPORT_MATERIAL"
+        ? categoryAllowsMaterialTransport(category)
+        : categoryAllowsMachineTransport(category);
+
+    if (!isAllowed) {
+      throw new Error(
+        "Diese Inventarkategorie ist für diese Zweck-Art nicht freigegeben."
+      );
+    }
+
+    return {
+      itemId,
+      itemName: getCategoryPath(category),
+      customPurpose: null,
+      defaultUnit: null,
+    };
+  }
+
+  if (source === "item") {
+    const item = await prisma.inventoryItem.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        name: true,
+        objectNumber: true,
+        inventoryNumber: true,
+        stixId: true,
+        licensePlate: true,
+        manufacturer: true,
+        model: true,
+        stockUnit: true,
+        category: {
+          select: {
+            name: true,
+            useInTruckDispatchMaterial: true,
+            useInTruckDispatchObject: true,
+            useInTruckDispatchSelection: true,
+            parentCategory: {
+              select: {
+                name: true,
+                useInTruckDispatchMaterial: true,
+                useInTruckDispatchObject: true,
+                useInTruckDispatchSelection: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      throw new Error("Inventarobjekt wurde nicht gefunden.");
+    }
+
+    if (!item.category) {
+      throw new Error("Inventarobjekt hat keine Kategorie.");
+    }
+
+    const isAllowed =
+      purposeType === "TRANSPORT_MATERIAL"
+        ? categoryAllowsMaterialTransport(item.category)
+        : categoryAllowsMachineTransport(item.category);
+
+    if (!isAllowed) {
+      throw new Error(
+        "Dieses Inventarobjekt ist für diese Zweck-Art nicht freigegeben."
+      );
+    }
+
+    const itemName = [
+      item.objectNumber,
+      item.inventoryNumber,
+      item.stixId,
+      item.licensePlate,
+      item.name,
+      item.manufacturer,
+      item.model,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    return {
+      itemId,
+      itemName,
+      customPurpose: null,
+      defaultUnit: item.stockUnit,
+    };
+  }
+
+  throw new Error("Die Auswahl ist ungültig. Bitte erneut auswählen.");
+}
+
 async function resolvePurpose({
   purposeType,
   itemId,
@@ -153,74 +340,40 @@ async function resolvePurpose({
   itemId: string | null;
   customPurpose: string | null;
 }) {
-  if (customPurpose) {
+  const normalizedPurposeType = normalizePurposeType(purposeType);
+
+  if (normalizedPurposeType === "CUSTOM" && customPurpose) {
     return {
-      itemId,
+      itemId: null,
       itemName: customPurpose,
       customPurpose,
       defaultUnit: null,
     };
   }
 
-  if (purposeType === "MATERIAL" && itemId) {
-    const material = await prisma.materialType.findUnique({
-      where: {
-        id: itemId,
-      },
+  if (
+    (normalizedPurposeType === "TRANSPORT_MATERIAL" ||
+      normalizedPurposeType === "TRANSPORT_MACHINE") &&
+    itemId
+  ) {
+    return resolveInventoryPurpose({
+      purposeType: normalizedPurposeType,
+      itemId,
     });
-
-    if (!material) {
-      throw new Error("Material wurde nicht gefunden.");
-    }
-
-    return {
-      itemId: material.id,
-      itemName: material.name,
-      customPurpose: null,
-      defaultUnit: material.unit,
-    };
   }
 
-  if (purposeType === "ASPHALT" && itemId) {
-    const asphalt = await prisma.asphaltMixType.findUnique({
-      where: {
-        id: itemId,
-      },
+  if ((purposeType === "MATERIAL" || purposeType === "ASPHALT") && itemId) {
+    return resolveInventoryPurpose({
+      purposeType: "TRANSPORT_MATERIAL",
+      itemId,
     });
-
-    if (!asphalt) {
-      throw new Error("Asphaltsorte wurde nicht gefunden.");
-    }
-
-    return {
-      itemId: asphalt.id,
-      itemName: asphalt.name,
-      customPurpose: null,
-      defaultUnit: asphalt.unit,
-    };
   }
 
   if (purposeType === "TRANSPORT" && itemId) {
-    const option = await prisma.adminOption.findFirst({
-      where: {
-        groupKey: "transport_item",
-        value: itemId,
-        isActive: true,
-      },
+    return resolveInventoryPurpose({
+      purposeType: "TRANSPORT_MACHINE",
+      itemId,
     });
-
-    if (!option) {
-      throw new Error(
-        "Transport-/Maschinenlisten-Eintrag wurde nicht gefunden."
-      );
-    }
-
-    return {
-      itemId: option.value,
-      itemName: option.label,
-      customPurpose: null,
-      defaultUnit: null,
-    };
   }
 
   return {
@@ -422,6 +575,7 @@ async function parseTours(formData: FormData) {
     const purposeType = String(
       formData.get(`tourPurposeType_${index}`) ?? "CUSTOM"
     ).trim();
+    const normalizedPurposeType = normalizePurposeType(purposeType);
 
     const itemId = optionalString(formData.get(`tourItemId_${index}`));
     const customPurpose = optionalString(
@@ -472,6 +626,14 @@ async function parseTours(formData: FormData) {
       throw new Error(`Tour ${tours.length + 1}: Projekt wurde nicht gefunden.`);
     }
 
+    if (normalizedPurposeType === "CUSTOM" && !customPurpose) {
+      throw new Error(`Tour ${tours.length + 1}: Freier Zweck fehlt.`);
+    }
+
+    if (normalizedPurposeType !== "CUSTOM" && !itemId) {
+      throw new Error(`Tour ${tours.length + 1}: Auswahl fehlt.`);
+    }
+
     const purpose = await resolvePurpose({
       purposeType,
       itemId,
@@ -495,7 +657,7 @@ async function parseTours(formData: FormData) {
       projectNumber: project.projectNumber,
       projectName: project.name,
 
-      purposeType,
+      purposeType: normalizedPurposeType,
       itemId: purpose.itemId,
       itemName: purpose.itemName,
       customPurpose: purpose.customPurpose,
@@ -562,12 +724,9 @@ async function resolveShortHaulData(formData: FormData, workDate: Date) {
     workDate,
   });
 
-  const allowLongHaulConflict =
-    formData.get("allowLongHaulConflict") === "on";
-
-  if (longHaulConflicts.length > 0 && !allowLongHaulConflict) {
+  if (longHaulConflicts.length > 0) {
     throw new Error(
-      `${longHaulConflicts.join(" ")} Bitte bestätige bewusst die zusätzliche Kurzstrecken-Einteilung.`
+      `${longHaulConflicts.join(" ")} Fahrer oder LKW dürfen in der LKW-Dispo am selben Tag nicht doppelt eingeteilt werden. Bitte bestehende Einteilung bearbeiten oder anderes Fahrzeug/Fahrer wählen.`
     );
   }
 
@@ -576,9 +735,8 @@ async function resolveShortHaulData(formData: FormData, workDate: Date) {
     driver,
     tours,
     firstTour: tours[0],
-    allowLongHaulConflict,
-    conflictNote:
-      longHaulConflicts.length > 0 ? longHaulConflicts.join(" ") : null,
+    allowLongHaulConflict: false,
+    conflictNote: null,
   };
 }
 

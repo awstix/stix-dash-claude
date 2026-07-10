@@ -54,6 +54,53 @@ type VehiclePayloadSummary = {
   maxPayloadTons: number;
 };
 
+type InventoryOptionItem = {
+  id: string;
+  name: string;
+  inventoryNumber: string | null;
+  objectNumber: string | null;
+  stixId: string | null;
+  stockUnit: string | null;
+  category: {
+    name: string;
+    parentCategory: {
+      name: string;
+    } | null;
+  } | null;
+};
+
+function getInventoryOptionNumber(item: InventoryOptionItem) {
+  return item.inventoryNumber ?? item.objectNumber ?? item.stixId ?? "";
+}
+
+function getInventoryOptionGroup(item: InventoryOptionItem) {
+  if (!item.category) return null;
+  return item.category.parentCategory
+    ? `${item.category.parentCategory.name} / ${item.category.name}`
+    : item.category.name;
+}
+
+function mapAsphaltInventoryOption(item: InventoryOptionItem) {
+  return {
+    id: item.id,
+    mixNumber: getInventoryOptionNumber(item),
+    name: item.name,
+    shortName: null,
+    unit: item.stockUnit ?? "t",
+    category: getInventoryOptionGroup(item),
+  };
+}
+
+function mapTackCoatInventoryOption(item: InventoryOptionItem) {
+  return {
+    id: item.id,
+    materialNumber: getInventoryOptionNumber(item),
+    name: item.name,
+    category: getInventoryOptionGroup(item),
+    unit: item.stockUnit ?? "l",
+  };
+}
+
 function startOfWeek(date: Date) {
   const result = new Date(
     Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
@@ -225,8 +272,8 @@ export default async function AsphaltDispatchPage({
   const [
     entries,
     projects,
-    asphaltTypes,
-    tackCoatMaterials,
+    asphaltTypesRaw,
+    tackCoatMaterialsRaw,
     asphaltDispatchCrews,
     payloadVehicles,
     tackCoatOpenPositions,
@@ -254,19 +301,60 @@ export default async function AsphaltDispatchPage({
       orderBy: [{ projectNumber: "asc" }],
     }),
 
-    prisma.asphaltMixType.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "DELETED",
+        },
+        category: {
+          OR: [
+            {
+              asphaltDispositionUsage: "ASPHALT_MIX",
+            },
+            {
+              parentCategory: {
+                asphaltDispositionUsage: "ASPHALT_MIX",
+              },
+            },
+          ],
+        },
       },
-      orderBy: [{ mixNumber: "asc" }],
+      include: {
+        category: {
+          include: {
+            parentCategory: true,
+          },
+        },
+      },
+      orderBy: [{ objectNumber: "asc" }, { inventoryNumber: "asc" }, { name: "asc" }],
     }),
 
-    prisma.materialType.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
-        category: "Anspritzmittel",
+        status: {
+          not: "DELETED",
+        },
+        category: {
+          OR: [
+            {
+              asphaltDispositionUsage: "TACK_COAT",
+            },
+            {
+              parentCategory: {
+                asphaltDispositionUsage: "TACK_COAT",
+              },
+            },
+          ],
+        },
       },
-      orderBy: [{ materialNumber: "asc" }, { name: "asc" }],
+      include: {
+        category: {
+          include: {
+            parentCategory: true,
+          },
+        },
+      },
+      orderBy: [{ objectNumber: "asc" }, { inventoryNumber: "asc" }, { name: "asc" }],
     }),
 
     prisma.crew.findMany({
@@ -296,6 +384,9 @@ export default async function AsphaltDispatchPage({
       lt: weekEnd,
     }),
   ]);
+
+  const asphaltTypes = asphaltTypesRaw.map(mapAsphaltInventoryOption);
+  const tackCoatMaterials = tackCoatMaterialsRaw.map(mapTackCoatInventoryOption);
 
   const asphaltOpenPositionsByDayEntries = await Promise.all(
     days.map(async (day) => {
@@ -929,7 +1020,11 @@ export default async function AsphaltDispatchPage({
                                 <AsphaltTypeSelect
                                   name="asphaltMixTypeId"
                                   asphaltTypes={asphaltTypes}
-                                  defaultValue={entry.asphaltMixTypeId ?? ""}
+                                  defaultValue={
+                                    entry.asphaltInventoryItemId ??
+                                    entry.asphaltMixTypeId ??
+                                    ""
+                                  }
                                 />
 
                                 <label className="block text-xs font-medium text-gray-700">
@@ -947,7 +1042,11 @@ export default async function AsphaltDispatchPage({
 
                             <TackCoatFields
                               materials={tackCoatMaterials}
-                              defaultMaterialTypeId={entry.tackCoatMaterialTypeId ?? ""}
+                              defaultMaterialTypeId={
+                                entry.tackCoatInventoryItemId ??
+                                entry.tackCoatMaterialTypeId ??
+                                ""
+                              }
                               defaultQuantity={entry.tackCoatQuantity ? String(entry.tackCoatQuantity) : ""}
                               defaultUnit={entry.tackCoatUnit ?? ""}
                               required={isTackCoatCrew}

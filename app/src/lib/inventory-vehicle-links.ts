@@ -10,6 +10,8 @@ export const vehicleInventoryLinkInclude = {
       inventoryNumber: true,
       manufacturer: true,
       model: true,
+      fuelTankLiters: true,
+      workMaterialTankLiters: true,
       isContainer: true,
       isStockManaged: true,
       status: true,
@@ -58,6 +60,8 @@ export type VehicleInventoryLink = {
   inventoryNumber: string | null;
   manufacturer?: string | null;
   model?: string | null;
+  fuelTankLiters?: number | null;
+  workMaterialTankLiters?: number | null;
   isContainer?: boolean;
   isStockManaged?: boolean;
   status: string;

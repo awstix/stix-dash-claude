@@ -112,16 +112,19 @@ function getTourPurposeLabel(tour: {
     return tour.material;
   }
 
-  if (tour.purposeType === "MATERIAL") {
-    return "Material";
+  if (
+    tour.purposeType === "MATERIAL" ||
+    tour.purposeType === "ASPHALT" ||
+    tour.purposeType === "TRANSPORT_MATERIAL"
+  ) {
+    return "Transport Material";
   }
 
-  if (tour.purposeType === "ASPHALT") {
-    return "Asphalt";
-  }
-
-  if (tour.purposeType === "TRANSPORT") {
-    return "Transport / Maschine";
+  if (
+    tour.purposeType === "TRANSPORT" ||
+    tour.purposeType === "TRANSPORT_MACHINE"
+  ) {
+    return "Transport Maschine";
   }
 
   return "Freier Zweck";

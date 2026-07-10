@@ -36,6 +36,7 @@ export type InventoryItemFormData = {
   employeeAssignments?: {
     employeeId: string;
   }[];
+  fuelTankLiters: number | null;
   grossWeightKg: number | null;
   id: string;
   inventoryNumber: string | null;
@@ -67,6 +68,7 @@ export type InventoryItemFormData = {
   openingStock: number | null;
   parentItemId: string | null;
   payloadKg: number | null;
+  workMaterialTankLiters: number | null;
   photos?: {
     fileName: string;
     id: string;
@@ -407,6 +409,22 @@ export function InventoryItemForm({
                 list="inventory-attachment-type-options"
                 name="attachmentType"
                 placeholder="z.B. OQ 70/55"
+              />
+              <Input
+                defaultValue={item?.fuelTankLiters?.toString() ?? ""}
+                label="Kraftstofftank l"
+                name="fuelTankLiters"
+                placeholder="z.B. 450"
+                step="0.01"
+                type="number"
+              />
+              <Input
+                defaultValue={item?.workMaterialTankLiters?.toString() ?? ""}
+                label="Arbeitsmitteltank l"
+                name="workMaterialTankLiters"
+                placeholder="z.B. 8000"
+                step="0.01"
+                type="number"
               />
               <datalist id="inventory-attachment-type-options">
                 {attachmentTypeOptions.map((attachmentType) => (

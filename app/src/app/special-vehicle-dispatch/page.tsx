@@ -670,8 +670,8 @@ export default async function SpecialVehicleDispatchPage({
   const todayEnd = view === "months" ? endOfMonthInclusive(addMonths(todayStart, 4)) : addDays(todayStart, 13);
 
   const [
-    vehicles,
-    transportVehicles,
+    rawVehicles,
+    rawTransportVehicles,
     drivers,
     projects,
     crews,
@@ -772,6 +772,19 @@ export default async function SpecialVehicleDispatchPage({
       orderBy: [{ materialNumber: "asc" }, { name: "asc" }],
     }),
   ]);
+
+  const vehicles = rawVehicles.map((vehicle) => ({
+    ...vehicle,
+    tackCoatTankLiters:
+      getVehicleInventoryItem(vehicle)?.workMaterialTankLiters ??
+      vehicle.tackCoatTankLiters,
+  }));
+  const transportVehicles = rawTransportVehicles.map((vehicle) => ({
+    ...vehicle,
+    tackCoatTankLiters:
+      getVehicleInventoryItem(vehicle)?.workMaterialTankLiters ??
+      vehicle.tackCoatTankLiters,
+  }));
 
   const assignmentsForPage: AssignmentForPage[] = assignments.map((assignment) => ({
     id: assignment.id,

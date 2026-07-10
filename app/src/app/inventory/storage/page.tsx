@@ -21,6 +21,14 @@ function formatStock(value: number | null, unit: string) {
   }).format(value)} ${unit}`;
 }
 
+function formatNumber(value: number | null) {
+  if (value === null) return "";
+
+  return new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 3,
+  }).format(value);
+}
+
 function formatCreatedMeta(date: Date) {
   return `${new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
@@ -557,6 +565,12 @@ export default async function InventoryStoragePage({
                           item.objectNumber,
                           item.attachmentType
                             ? `Aufnahme ${item.attachmentType}`
+                            : null,
+                          item.fuelTankLiters !== null
+                            ? `Kraftstofftank ${formatNumber(item.fuelTankLiters)} l`
+                            : null,
+                          item.workMaterialTankLiters !== null
+                            ? `Arbeitsmitteltank ${formatNumber(item.workMaterialTankLiters)} l`
                             : null,
                           item.stixId ? `STIX-ID ${item.stixId}` : null,
                           item.inventoryNumber

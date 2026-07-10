@@ -4,12 +4,13 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
+import { syncDriverVehicleAssignmentForInventoryItem } from "@/lib/driver-vehicle-inventory-sync";
+import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import {
   formatInventoryObjectNumber,
   getNextInventoryObjectNumber,
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
-import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 
 const allowedInventoryPhotoTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -189,7 +190,14 @@ function getResponsibleFields(formData: FormData) {
 function revalidateInventory() {
   revalidatePath("/inventory");
   revalidatePath("/inventory/storage");
+  revalidatePath("/admin/driver-vehicles");
   revalidatePath("/special-vehicle-dispatch");
+}
+
+async function syncDriverVehicleAssignmentForInventoryItemId(itemId: string) {
+  await prisma.$transaction(async (tx) => {
+    await syncDriverVehicleAssignmentForInventoryItem(tx, itemId);
+  });
 }
 
 function revalidateInventoryItem(itemId?: string) {
@@ -224,6 +232,10 @@ function getInventoryPayload(formData: FormData) {
     currentProjectId: optionalId(formData.get("currentProjectId")),
     currentStock: openingStock,
     driveType: inventoryDriveType(formData.get("driveType")),
+    fuelTankLiters: optionalFloat(
+      formData.get("fuelTankLiters"),
+      "Kraftstofftank",
+    ),
     grossWeightKg: optionalInt(
       formData.get("grossWeightKg"),
       "Zulässiges Gesamtgewicht",
@@ -292,6 +304,10 @@ function getInventoryPayload(formData: FormData) {
     stixId: optionalString(formData.get("stixId")),
     stockUnit: optionalString(formData.get("stockUnit")) ?? "Stk.",
     vehicleId: optionalId(formData.get("vehicleId")),
+    workMaterialTankLiters: optionalFloat(
+      formData.get("workMaterialTankLiters"),
+      "Arbeitsmitteltank",
+    ),
     ...getResponsibleFields(formData),
   };
 }
@@ -550,6 +566,7 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
       objectNumber: true,
       status: true,
       vehicleId: true,
+      workMaterialTankLiters: true,
     },
   });
 
@@ -588,6 +605,7 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
         isSpecialVehicle: true,
         licensePlate: item.licensePlate,
         notes,
+        tackCoatTankLiters: item.workMaterialTankLiters ?? 0,
         vehicleNumber,
         vehicleType,
       },
@@ -602,6 +620,7 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
       isSpecialVehicle: true,
       licensePlate: item.licensePlate,
       notes,
+      tackCoatTankLiters: item.workMaterialTankLiters ?? 0,
       vehicleNumber,
       vehicleType,
     },
@@ -867,6 +886,7 @@ export async function createInventoryItem(formData: FormData) {
 
   await syncSpecialVehicleLinkForInventoryItem(item.id);
   await syncAsphaltMaterialLinkForInventoryItem(item.id);
+  await syncDriverVehicleAssignmentForInventoryItemId(item.id);
   await storeInventoryPhotos(item.id, formData);
 
   revalidateInventoryItem(item.id);
@@ -926,6 +946,7 @@ export async function updateInventoryItem(formData: FormData) {
 
   await syncSpecialVehicleLinkForInventoryItem(id);
   await syncAsphaltMaterialLinkForInventoryItem(id);
+  await syncDriverVehicleAssignmentForInventoryItemId(id);
   await storeInventoryPhotos(id, formData);
 
   revalidateInventoryItem(id);
@@ -1118,6 +1139,8 @@ export async function updateInventoryAssignment(formData: FormData) {
         notes,
       },
     });
+
+    await syncDriverVehicleAssignmentForInventoryItem(tx, id);
   });
 
   revalidateInventoryItem(id);
@@ -1191,6 +1214,8 @@ export async function returnInventoryItemToBaseLocation(formData: FormData) {
           : undefined,
       },
     });
+
+    await syncDriverVehicleAssignmentForInventoryItem(tx, id);
   });
 
   revalidateInventoryItem(id);

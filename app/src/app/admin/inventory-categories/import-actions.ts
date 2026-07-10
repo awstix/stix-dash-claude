@@ -104,7 +104,17 @@ function toFormData(row: ImportRow, parentCategoryId: string | null) {
   if (isYes(value(row, "Teams-Verwaltung", "In Teams-Verwaltung wählbar"))) {
     formData.set("useInTeamManagement", "on");
   }
-  if (isYes(value(row, "LKW-Einteilung", "In LKW-Einteilung wählbar"))) {
+  if (
+    isYes(
+      value(
+        row,
+        "Fahrer-Fahrzeug-Zuordnung",
+        "In Fahrer-Fahrzeug-Zuordnung wählbar",
+        "LKW-Einteilung",
+        "In LKW-Einteilung wählbar",
+      ),
+    )
+  ) {
     formData.set("useInTruckDispatchSelection", "on");
   }
 

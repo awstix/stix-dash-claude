@@ -31,7 +31,10 @@ import {
   updateTackCoatLoadAllocation,
 } from "../tack-coat-load-actions";
 import { DismissibleDetails } from "./DismissibleDetails";
-import { ShortHaulForm } from "./ShortHaulForm";
+import {
+  ShortHaulForm,
+  type TransportPurposeOption,
+} from "./ShortHaulForm";
 import { UtilizationTimeline } from "./UtilizationTimeline";
 import {
   createShortHaulAssignment,
@@ -39,15 +42,140 @@ import {
   updateShortHaulAssignment,
 } from "./actions";
 
-const transportFallback = [
-  { value: "maschine", label: "Maschine transportieren" },
-  { value: "geraete", label: "Geräte transportieren" },
-  { value: "anhaenger", label: "Anhänger umsetzen" },
-  { value: "container", label: "Container / Abroller" },
-  { value: "rueckladung", label: "Rückladung" },
-];
-
 const unitFallback = ["t", "m³", "m3", "Stk", "h", "km", "m", "Pauschal"];
+
+type InventoryPurposeParentCategory = {
+  id: string;
+  name: string;
+  useInTruckDispatchMaterial: boolean;
+  useInTruckDispatchObject: boolean;
+  useInTruckDispatchSelection: boolean;
+};
+
+type InventoryPurposeCategory = InventoryPurposeParentCategory & {
+  parentCategory: InventoryPurposeParentCategory | null;
+};
+
+type InventoryPurposeItem = {
+  id: string;
+  name: string;
+  objectNumber: string | null;
+  inventoryNumber: string | null;
+  stixId: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  licensePlate: string | null;
+  stockUnit: string;
+  category: InventoryPurposeCategory | null;
+};
+
+function categoryAllowsMaterialTransport(
+  category: InventoryPurposeCategory | null
+) {
+  return Boolean(
+    category?.useInTruckDispatchMaterial ||
+      category?.parentCategory?.useInTruckDispatchMaterial
+  );
+}
+
+function categoryAllowsMachineTransport(
+  category: InventoryPurposeCategory | null
+) {
+  return Boolean(
+    category?.useInTruckDispatchObject ||
+      category?.useInTruckDispatchSelection ||
+      category?.parentCategory?.useInTruckDispatchObject ||
+      category?.parentCategory?.useInTruckDispatchSelection
+  );
+}
+
+function getCategoryPath(category: InventoryPurposeCategory) {
+  return category.parentCategory
+    ? `${category.parentCategory.name} › ${category.name}`
+    : category.name;
+}
+
+function getPurposeGroup(category: InventoryPurposeCategory | null) {
+  if (!category) return "Ohne Kategorie";
+
+  return category.parentCategory?.name ?? "Hauptkategorien";
+}
+
+function getInventoryItemLabel(item: InventoryPurposeItem) {
+  const parts = [
+    item.objectNumber,
+    item.inventoryNumber,
+    item.stixId,
+    item.licensePlate,
+    item.name,
+    item.manufacturer,
+    item.model,
+  ].filter(Boolean);
+
+  return parts.join(" · ");
+}
+
+function buildTransportPurposeOptions({
+  categories,
+  items,
+  kind,
+}: {
+  categories: InventoryPurposeCategory[];
+  items: InventoryPurposeItem[];
+  kind: "MATERIAL" | "MACHINE";
+}): TransportPurposeOption[] {
+  const categoryMatches =
+    kind === "MATERIAL"
+      ? categoryAllowsMaterialTransport
+      : categoryAllowsMachineTransport;
+
+  const categoryOptions = categories
+    .filter(categoryMatches)
+    .map((category) => {
+      const label = getCategoryPath(category);
+
+      return {
+        value: `category:${category.id}`,
+        label,
+        group: getPurposeGroup(category),
+        categoryId: category.id,
+        categoryLabel: label,
+        parentCategoryId: category.parentCategory?.id ?? null,
+        unit: null,
+        searchText: label,
+        kind: "CATEGORY" as const,
+      };
+    });
+
+  const itemOptions = items
+    .filter((item) => categoryMatches(item.category))
+    .map((item) => {
+      const label = getInventoryItemLabel(item);
+      const categoryPath = item.category ? getCategoryPath(item.category) : "";
+
+      return {
+        value: `item:${item.id}`,
+        label,
+        group: getPurposeGroup(item.category),
+        categoryId: item.category?.id ?? null,
+        categoryLabel: item.category ? getCategoryPath(item.category) : "Ohne Kategorie",
+        parentCategoryId: item.category?.parentCategory?.id ?? null,
+        unit: item.stockUnit || null,
+        searchText: `${label} ${categoryPath}`.trim(),
+        kind: "OBJECT" as const,
+      };
+    });
+
+  return [...categoryOptions, ...itemOptions].sort((a, b) => {
+    const groupCompare = a.group.localeCompare(b.group, "de");
+
+    if (groupCompare !== 0) return groupCompare;
+
+    if (a.kind !== b.kind) return a.kind === "CATEGORY" ? -1 : 1;
+
+    return a.label.localeCompare(b.label, "de");
+  });
+}
 
 function parseDateParam(value: string | undefined) {
   if (!value) {
@@ -184,25 +312,37 @@ function getTourPurposeLabel(tour: {
     return tour.material;
   }
 
-  if (tour.purposeType === "MATERIAL") {
-    return "Material";
+  if (
+    tour.purposeType === "MATERIAL" ||
+    tour.purposeType === "ASPHALT" ||
+    tour.purposeType === "TRANSPORT_MATERIAL"
+  ) {
+    return "Transport Material";
   }
 
-  if (tour.purposeType === "ASPHALT") {
-    return "Asphalt";
-  }
-
-  if (tour.purposeType === "TRANSPORT") {
-    return "Transport / Maschine";
+  if (
+    tour.purposeType === "TRANSPORT" ||
+    tour.purposeType === "TRANSPORT_MACHINE"
+  ) {
+    return "Transport Maschine";
   }
 
   return "Freier Zweck";
 }
 
 function getTourPurposeTypeLabel(value: string) {
-  if (value === "MATERIAL") return "Material";
-  if (value === "ASPHALT") return "Asphalt";
-  if (value === "TRANSPORT") return "Transport / Maschine";
+  if (
+    value === "MATERIAL" ||
+    value === "ASPHALT" ||
+    value === "TRANSPORT_MATERIAL"
+  ) {
+    return "Transport Material";
+  }
+
+  if (value === "TRANSPORT" || value === "TRANSPORT_MACHINE") {
+    return "Transport Maschine";
+  }
+
   return "Freier Zweck";
 }
 
@@ -231,9 +371,8 @@ export default async function ShortHaulPage({
     allVehicles,
     allDrivers,
     longHaulAssignments,
-    materials,
-    asphaltMixes,
-    transportOptions,
+    inventoryCategories,
+    inventoryItems,
     unitAdminOptions,
     asphaltOpenPositions,
     asphaltAllocations,
@@ -332,26 +471,65 @@ export default async function ShortHaulPage({
       orderBy: [{ createdAt: "asc" }],
     }),
 
-    prisma.materialType.findMany({
+    prisma.inventoryCategory.findMany({
       where: {
         isActive: true,
       },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        useInTruckDispatchMaterial: true,
+        useInTruckDispatchObject: true,
+        useInTruckDispatchSelection: true,
+        parentCategory: {
+          select: {
+            id: true,
+            name: true,
+            useInTruckDispatchMaterial: true,
+            useInTruckDispatchObject: true,
+            useInTruckDispatchSelection: true,
+          },
+        },
+      },
+      orderBy: [{ parentCategoryId: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
     }),
 
-    prisma.asphaltMixType.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "DELETED",
+        },
       },
-      orderBy: [{ mixNumber: "asc" }, { name: "asc" }],
-    }),
-
-    prisma.adminOption.findMany({
-      where: {
-        isActive: true,
-        groupKey: "transport_item",
+      select: {
+        id: true,
+        name: true,
+        objectNumber: true,
+        inventoryNumber: true,
+        stixId: true,
+        manufacturer: true,
+        model: true,
+        licensePlate: true,
+        stockUnit: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            useInTruckDispatchMaterial: true,
+            useInTruckDispatchObject: true,
+            useInTruckDispatchSelection: true,
+            parentCategory: {
+              select: {
+                id: true,
+                name: true,
+                useInTruckDispatchMaterial: true,
+                useInTruckDispatchObject: true,
+                useInTruckDispatchSelection: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      orderBy: [{ objectNumber: "asc" }, { name: "asc" }],
     }),
 
     prisma.adminOption.findMany({
@@ -375,13 +553,16 @@ export default async function ShortHaulPage({
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
 
-  const transportItems =
-    transportOptions.length > 0
-      ? transportOptions.map((option) => ({
-          value: option.value,
-          label: option.label,
-        }))
-      : transportFallback;
+  const materialTransportOptions = buildTransportPurposeOptions({
+    categories: inventoryCategories,
+    items: inventoryItems,
+    kind: "MATERIAL",
+  });
+  const machineTransportOptions = buildTransportPurposeOptions({
+    categories: inventoryCategories,
+    items: inventoryItems,
+    kind: "MACHINE",
+  });
 
   const unitOptionsFromAdmin = unitAdminOptions.map((option) => option.label);
   const unitOptions = Array.from(
@@ -1207,9 +1388,8 @@ export default async function ShortHaulPage({
           projects={projects}
           vehicles={vehicles}
           drivers={drivers}
-          materials={materials}
-          asphaltMixes={asphaltMixes}
-          transportItems={transportItems}
+          materialTransportOptions={materialTransportOptions}
+          machineTransportOptions={machineTransportOptions}
           unitOptions={unitOptions}
           driverConflicts={driverConflicts}
           vehicleConflicts={vehicleConflicts}
@@ -1218,7 +1398,6 @@ export default async function ShortHaulPage({
           defaultVehicleId={assignment.vehicleId ?? ""}
           defaultDriverId={assignment.driverId ?? ""}
           defaultNotes={assignment.notes ?? ""}
-          defaultAllowLongHaulConflict={assignment.allowLongHaulConflict}
           defaultTourNumberOffset={assignmentTourOffset}
           defaultTours={
             sortedTours.length > 0
@@ -2328,9 +2507,8 @@ export default async function ShortHaulPage({
           projects={projects}
           vehicles={vehicles}
           drivers={drivers}
-          materials={materials}
-          asphaltMixes={asphaltMixes}
-          transportItems={transportItems}
+          materialTransportOptions={materialTransportOptions}
+          machineTransportOptions={machineTransportOptions}
           unitOptions={unitOptions}
           driverConflicts={driverConflicts}
           vehicleConflicts={vehicleConflicts}

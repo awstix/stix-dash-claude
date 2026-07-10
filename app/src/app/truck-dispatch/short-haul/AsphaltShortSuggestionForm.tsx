@@ -265,25 +265,43 @@ export function AsphaltShortSuggestionForm({
   );
 
   useEffect(() => {
-    setRows(firstSuggestedRow ? [firstSuggestedRow] : [createEmptyRow(0)]);
+    const timeoutId = window.setTimeout(() => {
+      setRows(firstSuggestedRow ? [firstSuggestedRow] : [createEmptyRow(0)]);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [position.asphaltDispatchEntryId, position.openTons, firstSuggestedRow]);
 
   const rowsWithCalculations = useMemo(() => {
-    let remaining = roundTons(position.openTons);
+    return rows.reduce<{
+      items: {
+        row: SuggestionRow;
+        calculation: RowCalculation;
+      }[];
+      remaining: number;
+    }>(
+      (accumulator, row) => {
+        const calculation = getRowCalculation({
+          row,
+          remainingBefore: accumulator.remaining,
+        });
 
-    return rows.map((row) => {
-      const calculation = getRowCalculation({
-        row,
-        remainingBefore: remaining,
-      });
-
-      remaining = calculation.remainingAfter;
-
-      return {
-        row,
-        calculation,
-      };
-    });
+        return {
+          items: [
+            ...accumulator.items,
+            {
+              row,
+              calculation,
+            },
+          ],
+          remaining: calculation.remainingAfter,
+        };
+      },
+      {
+        items: [],
+        remaining: roundTons(position.openTons),
+      },
+    ).items;
   }, [position.openTons, rows]);
 
   const allocatedTotal = rowsWithCalculations.reduce(

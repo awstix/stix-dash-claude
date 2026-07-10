@@ -9,6 +9,7 @@ export type TackCoatOpenPosition = {
   projectNumber: string;
   projectName: string;
   tackCoatMaterialTypeId: string | null;
+  tackCoatInventoryItemId: string | null;
   materialName: string;
   quantityUnit: string;
   plannedLiters: number;
@@ -233,6 +234,7 @@ export async function getTackCoatOpenPositionsForRange({
         projectNumber: entry.projectNumber,
         projectName: entry.projectName,
         tackCoatMaterialTypeId: entry.tackCoatMaterialTypeId,
+        tackCoatInventoryItemId: entry.tackCoatInventoryItemId,
         materialName: entry.tackCoatMaterialName,
         quantityUnit,
         plannedLiters: 0,

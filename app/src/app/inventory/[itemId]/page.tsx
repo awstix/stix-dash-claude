@@ -750,6 +750,22 @@ export default async function InventoryDetailPage({
             />
             <Info label="Aufnahmetyp" value={item.attachmentType ?? "—"} />
             <Info
+              label="Kraftstofftank"
+              value={
+                item.fuelTankLiters !== null
+                  ? `${formatNumber(item.fuelTankLiters)} l`
+                  : "—"
+              }
+            />
+            <Info
+              label="Arbeitsmitteltank"
+              value={
+                item.workMaterialTankLiters !== null
+                  ? `${formatNumber(item.workMaterialTankLiters)} l`
+                  : "—"
+              }
+            />
+            <Info
               label="Baujahr"
               value={
                 item.constructionYear

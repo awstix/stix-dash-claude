@@ -40,25 +40,16 @@ type DriverOption = {
   }[];
 };
 
-type MaterialOption = {
-  id: string;
-  name: string;
-  unit: string;
-  category: string | null;
-};
-
-type AsphaltOption = {
-  id: string;
-  mixNumber: string;
-  name: string;
-  shortName: string | null;
-  unit: string;
-  category: string | null;
-};
-
-type TransportOption = {
+export type TransportPurposeOption = {
   value: string;
   label: string;
+  group: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  parentCategoryId: string | null;
+  unit: string | null;
+  searchText: string;
+  kind: "CATEGORY" | "OBJECT";
 };
 
 type TourFormValue = {
@@ -69,6 +60,7 @@ type TourFormValue = {
   purposeType: string;
   itemGroup: string;
   itemId: string;
+  itemSearch: string;
   customPurpose: string;
   quantity: string;
   quantityUnit: string;
@@ -108,61 +100,109 @@ function getVehicleAssignmentLabel(vehicle: VehicleOption) {
   return `Stamm: ${assignedDriver.lastName}, ${assignedDriver.firstName}`;
 }
 
+function getCategoryFilters(options: TransportPurposeOption[]) {
+  const filters = new Map<
+    string,
+    {
+      id: string;
+      label: string;
+      parentCategoryId: string | null;
+    }
+  >();
+
+  for (const option of options) {
+    if (option.kind !== "CATEGORY") continue;
+    if (!option.categoryId) continue;
+
+    filters.set(option.categoryId, {
+      id: option.categoryId,
+      label: option.categoryLabel,
+      parentCategoryId: option.parentCategoryId,
+    });
+  }
+
+  return Array.from(filters.values()).sort((a, b) => {
+    if (a.parentCategoryId && !b.parentCategoryId) return 1;
+    if (!a.parentCategoryId && b.parentCategoryId) return -1;
+
+    return a.label.localeCompare(b.label, "de");
+  });
+}
+
+function normalizePurposeType(value: string | null | undefined) {
+  if (value === "MATERIAL" || value === "ASPHALT") {
+    return "TRANSPORT_MATERIAL";
+  }
+
+  if (value === "TRANSPORT") {
+    return "TRANSPORT_MACHINE";
+  }
+
+  if (value === "TRANSPORT_MATERIAL" || value === "TRANSPORT_MACHINE") {
+    return value;
+  }
+
+  return "CUSTOM";
+}
+
+function getPurposeOptions({
+  purposeType,
+  materialTransportOptions,
+  machineTransportOptions,
+}: {
+  purposeType: string;
+  materialTransportOptions: TransportPurposeOption[];
+  machineTransportOptions: TransportPurposeOption[];
+}) {
+  if (purposeType === "TRANSPORT_MATERIAL") {
+    return materialTransportOptions;
+  }
+
+  if (purposeType === "TRANSPORT_MACHINE") {
+    return machineTransportOptions;
+  }
+
+  return [];
+}
+
 function getDefaultUnitForPurpose({
   purposeType,
   itemId,
-  materials,
-  asphaltMixes,
+  materialTransportOptions,
+  machineTransportOptions,
 }: {
   purposeType: string;
   itemId: string;
-  materials: MaterialOption[];
-  asphaltMixes: AsphaltOption[];
+  materialTransportOptions: TransportPurposeOption[];
+  machineTransportOptions: TransportPurposeOption[];
 }) {
-  if (purposeType === "MATERIAL") {
-    return materials.find((material) => material.id === itemId)?.unit ?? "";
-  }
-
-  if (purposeType === "ASPHALT") {
-    return asphaltMixes.find((asphalt) => asphalt.id === itemId)?.unit ?? "";
-  }
-
-  return "";
-}
-
-function getOptionGroup(category: string | null | undefined) {
-  const text = category?.trim();
-  return text ? text : "Ohne Gruppe";
-}
-
-function getUniqueGroups(categories: (string | null | undefined)[]) {
-  return Array.from(new Set(categories.map(getOptionGroup))).sort((a, b) =>
-    a.localeCompare(b, "de")
+  return (
+    getPurposeOptions({
+      purposeType,
+      materialTransportOptions,
+      machineTransportOptions,
+    }).find((option) => option.value === itemId)?.unit ?? ""
   );
 }
 
 function getDefaultGroupForPurpose({
   purposeType,
   itemId,
-  materials,
-  asphaltMixes,
+  materialTransportOptions,
+  machineTransportOptions,
 }: {
   purposeType: string;
   itemId: string;
-  materials: MaterialOption[];
-  asphaltMixes: AsphaltOption[];
+  materialTransportOptions: TransportPurposeOption[];
+  machineTransportOptions: TransportPurposeOption[];
 }) {
-  if (purposeType === "MATERIAL") {
-    const material = materials.find((item) => item.id === itemId);
-    return material ? getOptionGroup(material.category) : "";
-  }
+  const option = getPurposeOptions({
+    purposeType,
+    materialTransportOptions,
+    machineTransportOptions,
+  }).find((item) => item.value === itemId);
 
-  if (purposeType === "ASPHALT") {
-    const asphalt = asphaltMixes.find((item) => item.id === itemId);
-    return asphalt ? getOptionGroup(asphalt.category) : "";
-  }
-
-  return "";
+  return option?.categoryId ?? "";
 }
 
 function getFirstAvailableVehicleId({
@@ -218,6 +258,7 @@ function createEmptyTour(rowId: number, startTime = "", endTime = "") {
     purposeType: "CUSTOM",
     itemGroup: "",
     itemId: "",
+    itemSearch: "",
     customPurpose: "",
     quantity: "",
     quantityUnit: "",
@@ -262,9 +303,8 @@ export function ShortHaulForm({
   projects,
   vehicles,
   drivers,
-  materials,
-  asphaltMixes,
-  transportItems,
+  materialTransportOptions,
+  machineTransportOptions,
   unitOptions,
   driverConflicts = {},
   vehicleConflicts = {},
@@ -273,7 +313,6 @@ export function ShortHaulForm({
   defaultVehicleId = "",
   defaultDriverId = "",
   defaultNotes = "",
-  defaultAllowLongHaulConflict = false,
   defaultTourNumberOffset = 0,
   defaultTours = [
     {
@@ -295,9 +334,8 @@ export function ShortHaulForm({
   projects: ProjectOption[];
   vehicles: VehicleOption[];
   drivers: DriverOption[];
-  materials: MaterialOption[];
-  asphaltMixes: AsphaltOption[];
-  transportItems: TransportOption[];
+  materialTransportOptions: TransportPurposeOption[];
+  machineTransportOptions: TransportPurposeOption[];
   unitOptions: string[];
   driverConflicts?: ConflictMap;
   vehicleConflicts?: ConflictMap;
@@ -306,7 +344,6 @@ export function ShortHaulForm({
   defaultVehicleId?: string;
   defaultDriverId?: string;
   defaultNotes?: string;
-  defaultAllowLongHaulConflict?: boolean;
   defaultTourNumberOffset?: number;
   defaultTours?: {
     startTime: string;
@@ -332,9 +369,6 @@ export function ShortHaulForm({
   const appliedTimelinePrefillKeyRef = useRef<string | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState(defaultDriverId);
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicleId);
-  const [allowLongHaulConflict, setAllowLongHaulConflict] = useState(
-    defaultAllowLongHaulConflict
-  );
 
   const [tourRows, setTourRows] = useState<TourFormValue[]>(
     defaultTours.length > 0
@@ -343,14 +377,15 @@ export function ShortHaulForm({
           startTime: tour.startTime,
           endTime: tour.endTime,
           projectId: tour.projectId,
-          purposeType: tour.purposeType || "CUSTOM",
+          purposeType: normalizePurposeType(tour.purposeType),
           itemGroup: getDefaultGroupForPurpose({
-            purposeType: tour.purposeType || "CUSTOM",
+            purposeType: normalizePurposeType(tour.purposeType),
             itemId: tour.itemId || "",
-            materials,
-            asphaltMixes,
+            materialTransportOptions,
+            machineTransportOptions,
           }),
           itemId: tour.itemId || "",
+          itemSearch: "",
           customPurpose: tour.customPurpose || "",
           quantity: tour.quantity || "",
           quantityUnit: tour.quantityUnit || "",
@@ -365,6 +400,7 @@ export function ShortHaulForm({
             purposeType: "CUSTOM",
             itemGroup: "",
             itemId: "",
+            itemSearch: "",
             customPurpose: "",
             quantity: "",
             quantityUnit: "",
@@ -373,12 +409,12 @@ export function ShortHaulForm({
         ]
   );
   const materialGroups = useMemo(
-    () => getUniqueGroups(materials.map((material) => material.category)),
-    [materials]
+    () => getCategoryFilters(materialTransportOptions),
+    [materialTransportOptions]
   );
-  const asphaltGroups = useMemo(
-    () => getUniqueGroups(asphaltMixes.map((asphalt) => asphalt.category)),
-    [asphaltMixes]
+  const machineGroups = useMemo(
+    () => getCategoryFilters(machineTransportOptions),
+    [machineTransportOptions]
   );
 
   useEffect(() => {
@@ -532,14 +568,12 @@ export function ShortHaulForm({
     : undefined;
 
   const hasLongHaulConflict = Boolean(driverConflict || vehicleConflict);
-  const mustConfirmLongHaulConflict =
-    hasLongHaulConflict && !allowLongHaulConflict;
 
   const missingVehicle = Boolean(selectedDriverId && !selectedVehicleId);
   const missingDriver = Boolean(!selectedDriverId);
 
   const submitDisabled =
-    missingDriver || missingVehicle || mustConfirmLongHaulConflict;
+    missingDriver || missingVehicle || hasLongHaulConflict;
 
   const conflictText = useMemo(() => {
     const parts = [];
@@ -555,15 +589,8 @@ export function ShortHaulForm({
     return parts.join(" ");
   }, [driverConflict, vehicleConflict]);
 
-  function resetConflictConfirmation() {
-    if (!defaultAllowLongHaulConflict) {
-      setAllowLongHaulConflict(false);
-    }
-  }
-
   function handleDriverChange(driverId: string) {
     setSelectedDriverId(driverId);
-    resetConflictConfirmation();
 
     const driver = drivers.find((item) => item.id === driverId);
     const primaryVehicle = getPrimaryVehicle(driver);
@@ -587,7 +614,6 @@ export function ShortHaulForm({
 
   function handleVehicleChange(vehicleId: string) {
     setSelectedVehicleId(vehicleId);
-    resetConflictConfirmation();
   }
 
   function useFirstAvailableVehicle() {
@@ -599,7 +625,6 @@ export function ShortHaulForm({
 
     if (vehicleId) {
       setSelectedVehicleId(vehicleId);
-      resetConflictConfirmation();
     }
   }
 
@@ -617,6 +642,7 @@ export function ShortHaulForm({
           purposeType: previousRow?.purposeType || "CUSTOM",
           itemGroup: "",
           itemId: "",
+          itemSearch: "",
           customPurpose: "",
           quantity: "",
           quantityUnit: "",
@@ -651,6 +677,7 @@ export function ShortHaulForm({
             purposeType: value,
             itemGroup: "",
             itemId: "",
+            itemSearch: "",
             customPurpose: "",
             quantityUnit: "",
           };
@@ -661,7 +688,15 @@ export function ShortHaulForm({
             ...row,
             itemGroup: value,
             itemId: "",
+            itemSearch: "",
             quantityUnit: "",
+          };
+        }
+
+        if (key === "itemSearch") {
+          return {
+            ...row,
+            itemSearch: value,
           };
         }
 
@@ -669,8 +704,8 @@ export function ShortHaulForm({
           const defaultUnit = getDefaultUnitForPurpose({
             purposeType: row.purposeType,
             itemId: value,
-            materials,
-            asphaltMixes,
+            materialTransportOptions,
+            machineTransportOptions,
           });
 
           return {
@@ -680,8 +715,8 @@ export function ShortHaulForm({
               getDefaultGroupForPurpose({
                 purposeType: row.purposeType,
                 itemId: value,
-                materials,
-                asphaltMixes,
+                materialTransportOptions,
+                machineTransportOptions,
               }),
             itemId: value,
             quantityUnit: row.quantityUnit || defaultUnit,
@@ -701,10 +736,6 @@ export function ShortHaulForm({
       {id ? <input type="hidden" name="id" value={id} /> : null}
       {workDate ? (
         <input type="hidden" name="workDate" value={workDate} />
-      ) : null}
-
-      {allowLongHaulConflict ? (
-        <input type="hidden" name="allowLongHaulConflict" value="on" />
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -841,34 +872,17 @@ export function ShortHaulForm({
       ) : null}
 
       {hasLongHaulConflict ? (
-        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4">
-          <div className="text-sm font-semibold text-yellow-900">
-            Achtung: Langstrecken-Belegung vorhanden
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+          <div className="text-sm font-semibold text-red-900">
+            Fahrer/Fahrzeug bereits belegt
           </div>
 
-          <p className="mt-1 text-sm text-yellow-800">{conflictText}</p>
-
-          <label className="mt-3 flex items-start gap-3 rounded-lg border border-yellow-300 bg-white p-3 text-sm font-semibold text-yellow-950">
-            <input
-              type="checkbox"
-              checked={allowLongHaulConflict}
-              onChange={(event) =>
-                setAllowLongHaulConflict(event.target.checked)
-              }
-              className="mt-1 h-4 w-4"
-            />
-
-            <span>
-              <span className="block">
-                Ja, Fahrer/Fahrzeug bewusst zusätzlich in der Kurzstrecke
-                einteilen.
-              </span>
-              <span className="mt-1 block text-xs font-normal leading-5 text-yellow-800">
-                Diese Kurzstrecken-Einteilung wird trotz bestehender
-                Langstrecken-Belegung gespeichert.
-              </span>
-            </span>
-          </label>
+          <p className="mt-1 text-sm text-red-800">{conflictText}</p>
+          <p className="mt-2 text-xs font-semibold text-red-800">
+            Doppelte Stammdaten-Zuordnung ist erlaubt, aber in der LKW-Dispo
+            darf derselbe Fahrer oder LKW am selben Tag nur einmal eingeteilt
+            sein.
+          </p>
         </div>
       ) : null}
 
@@ -884,22 +898,32 @@ export function ShortHaulForm({
         <div className="mt-4 space-y-4">
           {tourRows.map((tour, index) => {
             const isLastTour = index === tourRows.length - 1;
-            const hasItemGroup =
-              tour.purposeType === "MATERIAL" || tour.purposeType === "ASPHALT";
-            const itemGroups =
-              tour.purposeType === "MATERIAL" ? materialGroups : asphaltGroups;
-            const filteredMaterials = tour.itemGroup
-              ? materials.filter(
-                  (material) =>
-                    getOptionGroup(material.category) === tour.itemGroup
-                )
-              : materials;
-            const filteredAsphaltMixes = tour.itemGroup
-              ? asphaltMixes.filter(
-                  (asphalt) =>
-                    getOptionGroup(asphalt.category) === tour.itemGroup
-                )
-              : asphaltMixes;
+            const hasItemGroup = tour.purposeType !== "CUSTOM";
+            const categoryFilters =
+              tour.purposeType === "TRANSPORT_MATERIAL"
+                ? materialGroups
+                : machineGroups;
+            const purposeOptions = getPurposeOptions({
+              purposeType: tour.purposeType,
+              materialTransportOptions,
+              machineTransportOptions,
+            });
+            const normalizedItemSearch = tour.itemSearch.trim().toLowerCase();
+            const filteredPurposeOptions = purposeOptions.filter((option) => {
+              if (option.kind !== "OBJECT") {
+                return false;
+              }
+
+              const matchesGroup =
+                !tour.itemGroup ||
+                option.categoryId === tour.itemGroup ||
+                option.parentCategoryId === tour.itemGroup;
+              const matchesSearch =
+                !normalizedItemSearch ||
+                option.searchText.toLowerCase().includes(normalizedItemSearch);
+
+              return matchesGroup && matchesSearch;
+            });
 
             return (
               <div
@@ -1006,18 +1030,21 @@ export function ShortHaulForm({
                       }
                       className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
                     >
+                      <option value="TRANSPORT_MATERIAL">
+                        Transport Material
+                      </option>
+                      <option value="TRANSPORT_MACHINE">
+                        Transport Maschine
+                      </option>
                       <option value="CUSTOM">Freier Zweck</option>
-                      <option value="MATERIAL">Material</option>
-                      <option value="ASPHALT">Asphalt</option>
-                      <option value="TRANSPORT">Transport / Maschine</option>
                     </select>
                   </label>
 
                   {hasItemGroup ? (
                     <label className="text-xs font-medium text-gray-700">
-                      {tour.purposeType === "MATERIAL"
-                        ? "Materialgruppe"
-                        : "Asphaltgruppe"}
+                      {tour.purposeType === "TRANSPORT_MATERIAL"
+                        ? "Material-Kategorie"
+                        : "Maschinen-/Objekt-Kategorie"}
                       <select
                         name={`tourItemGroup_${tour.rowId}`}
                         value={tour.itemGroup}
@@ -1031,16 +1058,35 @@ export function ShortHaulForm({
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
                       >
                         <option value="">
-                          {tour.purposeType === "MATERIAL"
-                            ? "Alle Materialgruppen"
-                            : "Alle Asphaltgruppen"}
+                          {tour.purposeType === "TRANSPORT_MATERIAL"
+                            ? "Alle Materialkategorien"
+                            : "Alle Maschinen-/Objektkategorien"}
                         </option>
-                        {itemGroups.map((group) => (
-                          <option key={group} value={group}>
-                            {group}
+                        {categoryFilters.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.parentCategoryId ? "↳ " : ""}
+                            {category.label}
                           </option>
                         ))}
                       </select>
+                    </label>
+                  ) : null}
+
+                  {hasItemGroup ? (
+                    <label className="text-xs font-medium text-gray-700">
+                      Suche in Auswahl
+                      <input
+                        value={tour.itemSearch}
+                        onChange={(event) =>
+                          updateTourRow(
+                            tour.rowId,
+                            "itemSearch",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Objektnummer, Name, Kennzeichen, Kategorie…"
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                      />
                     </label>
                   ) : null}
 
@@ -1058,57 +1104,36 @@ export function ShortHaulForm({
                       <option value="">
                         {tour.purposeType === "CUSTOM"
                           ? "Nicht nötig"
-                          : "Aus Liste wählen"}
+                          : "Objekt wählen"}
                       </option>
 
-                      {tour.purposeType === "MATERIAL"
-                        ? filteredMaterials.map((material) => (
-                            <option key={material.id} value={material.id}>
-                              {material.name} · {material.unit}
-                              {material.category
-                                ? ` · ${material.category}`
-                                : ""}
-                            </option>
-                          ))
-                        : null}
-
-                      {tour.purposeType === "ASPHALT"
-                        ? filteredAsphaltMixes.map((asphalt) => (
-                            <option key={asphalt.id} value={asphalt.id}>
-                              {asphalt.mixNumber} ·{" "}
-                              {asphalt.shortName ?? asphalt.name} ·{" "}
-                              {asphalt.unit}
-                              {asphalt.category ? ` · ${asphalt.category}` : ""}
-                            </option>
-                          ))
-                        : null}
-
-                      {tour.purposeType === "TRANSPORT"
-                        ? transportItems.map((item) => (
-                            <option key={item.value} value={item.value}>
-                              {item.label}
-                            </option>
-                          ))
-                        : null}
+                      {filteredPurposeOptions.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                          {item.unit ? ` · ${item.unit}` : ""}
+                        </option>
+                      ))}
                     </select>
                   </label>
 
-                  <label className="text-xs font-medium text-gray-700">
-                    Freie Ergänzung / Zweck
-                    <input
-                      name={`tourCustomPurpose_${tour.rowId}`}
-                      value={tour.customPurpose}
-                      onChange={(event) =>
-                        updateTourRow(
-                          tour.rowId,
-                          "customPurpose",
-                          event.target.value
-                        )
-                      }
-                      placeholder="z.B. Maschine, Sondermaterial, Rückladung"
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                    />
-                  </label>
+                  {tour.purposeType === "CUSTOM" ? (
+                    <label className="text-xs font-medium text-gray-700">
+                      Freier Zweck
+                      <input
+                        name={`tourCustomPurpose_${tour.rowId}`}
+                        value={tour.customPurpose}
+                        onChange={(event) =>
+                          updateTourRow(
+                            tour.rowId,
+                            "customPurpose",
+                            event.target.value
+                          )
+                        }
+                        placeholder="z.B. Maschine, Sondermaterial, Rückladung"
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                      />
+                    </label>
+                  ) : null}
 
                   <label className="text-xs font-medium text-gray-700">
                     Menge
@@ -1202,10 +1227,10 @@ export function ShortHaulForm({
         </div>
       ) : null}
 
-      {mustConfirmLongHaulConflict ? (
-        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm font-semibold text-yellow-900">
-          Bitte bestätige zuerst bewusst die zusätzliche Kurzstrecken-Einteilung
-          trotz Langstrecke.
+      {hasLongHaulConflict ? (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-900">
+          Fahrer oder LKW ist bereits am selben Tag eingeteilt. Bitte bestehende
+          Einteilung ändern oder anderes Fahrzeug/Fahrer wählen.
         </div>
       ) : null}
 
