@@ -39,18 +39,25 @@ function revalidateEquipmentConsumers() {
 
 async function assertEquipmentIsFree({
   vehicleId,
+  inventoryItemId,
   startDate,
   endDate,
   ignoreId,
 }: {
   vehicleId: string;
+  inventoryItemId?: string | null;
   startDate: Date;
   endDate: Date;
   ignoreId?: string;
 }) {
+  const vehicleConditions = [
+    { vehicleId },
+    ...(inventoryItemId ? [{ inventoryItemId }] : []),
+  ];
+
   const conflict = await prisma.equipmentDispatchAssignment.findFirst({
     where: {
-      vehicleId,
+      OR: vehicleConditions,
       ...(ignoreId
         ? {
             id: {
@@ -66,6 +73,7 @@ async function assertEquipmentIsFree({
       },
     },
     include: {
+      inventoryItem: true,
       project: true,
       vehicle: true,
     },
@@ -77,11 +85,16 @@ async function assertEquipmentIsFree({
   }
 
   throw new Error(
-    `Gerät ${conflict.vehicle.vehicleNumber} ist bereits vom ${formatGermanDate(
-      conflict.startDate,
-    )} bis ${formatGermanDate(conflict.endDate)} auf ${
-      conflict.project.projectNumber
-    } · ${conflict.project.name} disponiert.`,
+    `Gerät ${
+      conflict.inventoryItem?.objectNumber ??
+      conflict.inventoryItem?.inventoryNumber ??
+      conflict.inventoryItem?.name ??
+      conflict.vehicle.vehicleNumber
+    } ist bereits vom ${formatGermanDate(conflict.startDate)} bis ${formatGermanDate(
+      conflict.endDate,
+    )} auf ${conflict.project.projectNumber} · ${
+      conflict.project.name
+    } disponiert.`,
   );
 }
 
@@ -167,9 +180,11 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
+  const inventoryItemId = getVehicleInventoryItemId(vehicle);
 
   await assertEquipmentIsFree({
     vehicleId,
+    inventoryItemId,
     startDate,
     endDate,
   });
@@ -181,11 +196,11 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
           id: vehicleId,
         },
       },
-      ...(getVehicleInventoryItemId(vehicle)
+      ...(inventoryItemId
         ? {
             inventoryItem: {
               connect: {
-                id: getVehicleInventoryItemId(vehicle) as string,
+                id: inventoryItemId,
               },
             },
           }
@@ -242,9 +257,11 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
+  const inventoryItemId = getVehicleInventoryItemId(vehicle);
 
   await assertEquipmentIsFree({
     vehicleId,
+    inventoryItemId,
     startDate,
     endDate,
     ignoreId: id,
@@ -260,10 +277,10 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
           id: vehicleId,
         },
       },
-      inventoryItem: getVehicleInventoryItemId(vehicle)
+      inventoryItem: inventoryItemId
         ? {
             connect: {
-              id: getVehicleInventoryItemId(vehicle) as string,
+              id: inventoryItemId,
             },
           }
         : {
@@ -319,9 +336,11 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
+  const inventoryItemId = getVehicleInventoryItemId(vehicle);
 
   await assertEquipmentIsFree({
     vehicleId,
+    inventoryItemId,
     startDate,
     endDate,
   });
@@ -333,11 +352,11 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
           id: vehicleId,
         },
       },
-      ...(getVehicleInventoryItemId(vehicle)
+      ...(inventoryItemId
         ? {
             inventoryItem: {
               connect: {
-                id: getVehicleInventoryItemId(vehicle) as string,
+                id: inventoryItemId,
               },
             },
           }
@@ -392,6 +411,7 @@ export async function updateEquipmentDispatchAssignmentDates(formData: FormData)
 
   await assertEquipmentIsFree({
     vehicleId: assignment.vehicleId,
+    inventoryItemId: assignment.inventoryItemId,
     startDate,
     endDate,
     ignoreId: id,
