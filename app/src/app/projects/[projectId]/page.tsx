@@ -4,6 +4,11 @@ import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   CloseDetailsButton,
@@ -114,6 +119,7 @@ export default async function ProjectDetailPage({
                 include: {
                   vehicle: {
                     include: {
+                      ...vehicleInventoryLinkInclude,
                       driverAssignments: {
                         where: {
                           isActive: true,
@@ -142,6 +148,7 @@ export default async function ProjectDetailPage({
           crew: true,
           vehicle: {
             include: {
+              ...vehicleInventoryLinkInclude,
               driverAssignments: {
                 where: {
                   isActive: true,
@@ -204,6 +211,7 @@ export default async function ProjectDetailPage({
           },
           transportVehicle: {
             include: {
+              ...vehicleInventoryLinkInclude,
               driverAssignments: {
                 where: {
                   isActive: true,
@@ -222,6 +230,7 @@ export default async function ProjectDetailPage({
           },
           vehicle: {
             include: {
+              ...vehicleInventoryLinkInclude,
               driverAssignments: {
                 where: {
                   isActive: true,
@@ -2176,7 +2185,22 @@ function getVehicleLabel(vehicle: {
   licensePlate: string | null;
   vehicleNumber: string | null;
   vehicleType: string | null;
-}) {
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (inventoryItem) {
+    return (
+      [
+        inventoryItem.objectNumber,
+        inventoryItem.inventoryNumber,
+        inventoryItem.name,
+        vehicle.licensePlate,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Fahrzeug / Gerät"
+    );
+  }
+
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");

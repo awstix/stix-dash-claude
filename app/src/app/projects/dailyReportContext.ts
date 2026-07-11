@@ -155,7 +155,7 @@ export async function getDailyReportSourceProject(
   reportDate: Date,
   nextDate: Date,
 ) {
-  return prisma.project.findUnique({
+  const project = await prisma.project.findUnique({
     where: {
       id: projectId,
     },
@@ -384,6 +384,62 @@ export async function getDailyReportSourceProject(
       },
     },
   });
+
+  if (!project) {
+    return null;
+  }
+
+  const inventoryItemIds = new Set<string>();
+  const addInventoryItemId = (id: string | null | undefined) => {
+    const cleanId = String(id ?? "").trim();
+    if (cleanId) inventoryItemIds.add(cleanId);
+  };
+
+  for (const entry of project.asphaltDispatchEntries) {
+    addInventoryItemId(entry.asphaltInventoryItemId);
+    addInventoryItemId(entry.tackCoatInventoryItemId);
+  }
+
+  for (const allocation of project.asphaltLoadAllocations) {
+    addInventoryItemId(allocation.asphaltInventoryItemId);
+  }
+
+  for (const allocation of project.tackCoatLoadAllocations) {
+    addInventoryItemId(allocation.tackCoatInventoryItemId);
+  }
+
+  for (const entry of project.truckLongHaulEntries) {
+    addInventoryItemId(entry.materialInventoryItemId);
+  }
+
+  for (const assignment of project.shortHaulAssignments) {
+    for (const tour of assignment.tours) {
+      addInventoryItemId(tour.itemId);
+    }
+  }
+
+  const dailyReportInventoryItems =
+    inventoryItemIds.size > 0
+      ? await prisma.inventoryItem.findMany({
+          where: {
+            id: {
+              in: Array.from(inventoryItemIds),
+            },
+          },
+          select: {
+            id: true,
+            inventoryNumber: true,
+            name: true,
+            objectNumber: true,
+            stockUnit: true,
+          },
+        })
+      : [];
+
+  return {
+    ...project,
+    dailyReportInventoryItems,
+  };
 }
 
 type ReportProject = NonNullable<
@@ -404,22 +460,37 @@ export function buildDailyReportContext(
   const workTimes: { end: string; start: string }[] = [];
   const performanceLines: string[] = [];
   const asphaltDispatchMaterialKeys = new Set<string>();
+  const inventoryItemsById = new Map(
+    project.dailyReportInventoryItems.map((item) => [item.id, item]),
+  );
 
   for (const entry of project.asphaltDispatchEntries) {
     if (entry.quantityTons > 0) {
       addMaterialReference(
         asphaltDispatchMaterialKeys,
-        entry.asphaltMixName || entry.asphaltMixType?.name || "Asphalt",
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          entry.asphaltInventoryItemId,
+          entry.asphaltMixName || entry.asphaltMixType?.name || "Asphalt",
+        ),
         "t",
       );
     }
     if ((entry.tackCoatQuantity ?? 0) > 0) {
       addMaterialReference(
         asphaltDispatchMaterialKeys,
-        entry.tackCoatMaterialName ||
-          entry.tackCoatMaterialType?.name ||
-          "Anspritzmittel",
-        entry.tackCoatUnit || "l",
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          entry.tackCoatInventoryItemId,
+          entry.tackCoatMaterialName ||
+            entry.tackCoatMaterialType?.name ||
+            "Anspritzmittel",
+        ),
+        getInventoryMaterialUnit(
+          inventoryItemsById,
+          entry.tackCoatInventoryItemId,
+          entry.tackCoatUnit || "l",
+        ),
       );
     }
   }
@@ -562,18 +633,34 @@ export function buildDailyReportContext(
         !assignment.truckLongHaulEntryId &&
         !hasMaterialReference(
           asphaltDispatchMaterialKeys,
-          tour.material || tour.itemName,
-          tour.quantityUnit,
+          getInventoryMaterialLabel(
+            inventoryItemsById,
+            tour.itemId,
+            tour.material || tour.itemName,
+          ),
+          getInventoryMaterialUnit(
+            inventoryItemsById,
+            tour.itemId,
+            tour.quantityUnit,
+          ),
         )
       ) {
         addMaterialRow(
           materialRows,
           tour.quantity,
-          tour.material ||
-            tour.itemName ||
-            tour.customPurpose ||
-            tour.purposeType,
-          tour.quantityUnit,
+          getInventoryMaterialLabel(
+            inventoryItemsById,
+            tour.itemId,
+            tour.material ||
+              tour.itemName ||
+              tour.customPurpose ||
+              tour.purposeType,
+          ),
+          getInventoryMaterialUnit(
+            inventoryItemsById,
+            tour.itemId,
+            tour.quantityUnit,
+          ),
         );
       }
     }
@@ -584,15 +671,31 @@ export function buildDailyReportContext(
       !entry.asphaltDispatchEntryId &&
       !hasMaterialReference(
         asphaltDispatchMaterialKeys,
-        entry.materialName || entry.materialType?.name,
-        entry.materialUnit,
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          entry.materialInventoryItemId,
+          entry.materialName || entry.materialType?.name,
+        ),
+        getInventoryMaterialUnit(
+          inventoryItemsById,
+          entry.materialInventoryItemId,
+          entry.materialUnit,
+        ),
       )
     ) {
       addMaterialRow(
         materialRows,
         entry.materialQuantity,
-        entry.materialName || entry.materialType?.name,
-        entry.materialUnit,
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          entry.materialInventoryItemId,
+          entry.materialName || entry.materialType?.name,
+        ),
+        getInventoryMaterialUnit(
+          inventoryItemsById,
+          entry.materialInventoryItemId,
+          entry.materialUnit,
+        ),
       );
     }
 
@@ -666,7 +769,11 @@ export function buildDailyReportContext(
       addMaterialRow(
         materialRows,
         allocation.totalTons,
-        allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          allocation.asphaltInventoryItemId,
+          allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+        ),
         "t",
       );
     }
@@ -708,8 +815,16 @@ export function buildDailyReportContext(
       addMaterialRow(
         materialRows,
         allocation.totalLiters,
-        allocation.materialName || "Anspritzmittel",
-        allocation.quantityUnit,
+        getInventoryMaterialLabel(
+          inventoryItemsById,
+          allocation.tackCoatInventoryItemId,
+          allocation.materialName || "Anspritzmittel",
+        ),
+        getInventoryMaterialUnit(
+          inventoryItemsById,
+          allocation.tackCoatInventoryItemId,
+          allocation.quantityUnit,
+        ),
       );
     }
   }
@@ -718,16 +833,28 @@ export function buildDailyReportContext(
     addMaterialRow(
       materialRows,
       entry.quantityTons,
-      entry.asphaltMixName || entry.asphaltMixType?.name || "Asphalt",
+      getInventoryMaterialLabel(
+        inventoryItemsById,
+        entry.asphaltInventoryItemId,
+        entry.asphaltMixName || entry.asphaltMixType?.name || "Asphalt",
+      ),
       "t",
     );
     addMaterialRow(
       materialRows,
       entry.tackCoatQuantity,
-      entry.tackCoatMaterialName ||
-        entry.tackCoatMaterialType?.name ||
-        "Anspritzmittel",
-      entry.tackCoatUnit || "l",
+      getInventoryMaterialLabel(
+        inventoryItemsById,
+        entry.tackCoatInventoryItemId,
+        entry.tackCoatMaterialName ||
+          entry.tackCoatMaterialType?.name ||
+          "Anspritzmittel",
+      ),
+      getInventoryMaterialUnit(
+        inventoryItemsById,
+        entry.tackCoatInventoryItemId,
+        entry.tackCoatUnit || "l",
+      ),
     );
   }
 
@@ -1620,6 +1747,45 @@ function addMaterialRow(
     quantity: Math.round(((current?.quantity ?? 0) + quantityValue) * 10) / 10,
     unit,
   });
+}
+
+function getInventoryMaterialLabel(
+  itemsById: Map<
+    string,
+    {
+      inventoryNumber: string | null;
+      name: string;
+      objectNumber: string | null;
+    }
+  >,
+  inventoryItemId: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const item = inventoryItemId ? itemsById.get(inventoryItemId) : null;
+
+  if (!item) {
+    return fallback;
+  }
+
+  return (
+    [item.inventoryNumber, item.name].filter(Boolean).join(" · ") ||
+    item.objectNumber ||
+    fallback
+  );
+}
+
+function getInventoryMaterialUnit(
+  itemsById: Map<
+    string,
+    {
+      stockUnit: string;
+    }
+  >,
+  inventoryItemId: string | null | undefined,
+  fallback: string | null | undefined,
+) {
+  const item = inventoryItemId ? itemsById.get(inventoryItemId) : null;
+  return item?.stockUnit || fallback;
 }
 
 function addMaterialReference(
