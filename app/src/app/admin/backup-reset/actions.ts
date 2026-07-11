@@ -1,7 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { resetDashboardData } from "@/lib/data-maintenance";
+import {
+  cleanupLegacyMasterData,
+  resetDashboardData,
+} from "@/lib/data-maintenance";
 
 export async function resetDashboardDataAction(formData: FormData) {
   const confirmation = String(formData.get("confirmation") ?? "").trim();
@@ -24,6 +27,17 @@ export async function resetDashboardDataAction(formData: FormData) {
     deleted: String(result.deletedRows),
     reset: "1",
     uploads: String(result.uploadsCleared.length),
+  });
+
+  redirect(`/admin/backup-reset?${params.toString()}`);
+}
+
+export async function cleanupLegacyMasterDataAction() {
+  const result = cleanupLegacyMasterData();
+  const params = new URLSearchParams({
+    backup: result.backupPath,
+    deleted: String(result.deletedRows),
+    legacyCleanup: "1",
   });
 
   redirect(`/admin/backup-reset?${params.toString()}`);

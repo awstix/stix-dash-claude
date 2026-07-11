@@ -5,7 +5,6 @@ import {
   getVehicleInventoryItem,
   getVehicleInventoryLabel,
   getVehicleInventoryResponsibleLabel,
-  vehicleInventoryLinkInclude,
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
@@ -670,8 +669,8 @@ export default async function SpecialVehicleDispatchPage({
   const todayEnd = view === "months" ? endOfMonthInclusive(addMonths(todayStart, 4)) : addDays(todayStart, 13);
 
   const [
-    rawVehicles,
-    rawTransportVehicles,
+    inventoryVehicleItems,
+    transportInventoryVehicleItems,
     drivers,
     projects,
     crews,
@@ -679,51 +678,134 @@ export default async function SpecialVehicleDispatchPage({
     tackCoatOpenPositions,
     tackCoatMaterials,
   ] = await Promise.all([
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
-        OR: [
-          {
-            isSpecialVehicle: true,
-          },
-          {
-            inventoryItems: {
-              some: {
-                category: {
-                  is: {
-                    OR: [
-                      {
-                        useInSpecialVehicleDisposition: true,
-                      },
-                      {
-                        parentCategory: {
-                          is: {
-                            useInSpecialVehicleDisposition: true,
-                          },
-                        },
-                      },
-                    ],
-                  },
-                },
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        category: {
+          OR: [
+            {
+              useInSpecialVehicleDisposition: true,
+            },
+            {
+              parentCategory: {
+                useInSpecialVehicleDisposition: true,
               },
             },
-          },
-        ],
+          ],
+        },
       },
       include: {
-        ...vehicleInventoryLinkInclude,
+        category: {
+          select: {
+            dailyReportMachineLabel: true,
+            name: true,
+            parentCategory: {
+              select: {
+                name: true,
+                useInTruckDispatchSelection: true,
+              },
+            },
+            useInTruckDispatchSelection: true,
+          },
+        },
+        currentProject: {
+          select: {
+            id: true,
+            name: true,
+            projectNumber: true,
+          },
+        },
+        responsibleCrew: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        responsibleEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        vehicle: true,
       },
-      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        category: {
+          OR: [
+            {
+              useInTruckDispatchSelection: true,
+            },
+            {
+              parentCategory: {
+                useInTruckDispatchSelection: true,
+              },
+            },
+          ],
+        },
       },
       include: {
-        ...vehicleInventoryLinkInclude,
+        category: {
+          select: {
+            dailyReportMachineLabel: true,
+            name: true,
+            parentCategory: {
+              select: {
+                name: true,
+                useInTruckDispatchSelection: true,
+              },
+            },
+            useInTruckDispatchSelection: true,
+          },
+        },
+        currentProject: {
+          select: {
+            id: true,
+            name: true,
+            projectNumber: true,
+          },
+        },
+        responsibleCrew: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        responsibleEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        vehicle: true,
       },
-      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
     prisma.driver.findMany({
@@ -773,18 +855,53 @@ export default async function SpecialVehicleDispatchPage({
     }),
   ]);
 
-  const vehicles = rawVehicles.map((vehicle) => ({
-    ...vehicle,
-    tackCoatTankLiters:
-      getVehicleInventoryItem(vehicle)?.workMaterialTankLiters ??
-      vehicle.tackCoatTankLiters,
-  }));
-  const transportVehicles = rawTransportVehicles.map((vehicle) => ({
-    ...vehicle,
-    tackCoatTankLiters:
-      getVehicleInventoryItem(vehicle)?.workMaterialTankLiters ??
-      vehicle.tackCoatTankLiters,
-  }));
+  const vehicles = inventoryVehicleItems.flatMap((item) => {
+    if (!item.vehicle) {
+      return [];
+    }
+
+    const categoryName = item.category?.name ?? item.vehicle.category;
+    const parentCategoryName = item.category?.parentCategory?.name;
+    const categoryLabel = parentCategoryName
+      ? `${parentCategoryName} / ${categoryName}`
+      : categoryName;
+
+    return [
+      {
+        ...item.vehicle,
+        category: categoryLabel,
+        licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
+        tackCoatTankLiters:
+          item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
+        vehicleNumber: item.objectNumber ?? item.vehicle.vehicleNumber,
+        inventoryItems: [item],
+      },
+    ];
+  });
+
+  const transportVehicles = transportInventoryVehicleItems.flatMap((item) => {
+    if (!item.vehicle) {
+      return [];
+    }
+
+    const categoryName = item.category?.name ?? item.vehicle.category;
+    const parentCategoryName = item.category?.parentCategory?.name;
+    const categoryLabel = parentCategoryName
+      ? `${parentCategoryName} / ${categoryName}`
+      : categoryName;
+
+    return [
+      {
+        ...item.vehicle,
+        category: categoryLabel,
+        licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
+        tackCoatTankLiters:
+          item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
+        vehicleNumber: item.objectNumber ?? item.vehicle.vehicleNumber,
+        inventoryItems: [item],
+      },
+    ];
+  });
 
   const assignmentsForPage: AssignmentForPage[] = assignments.map((assignment) => ({
     id: assignment.id,

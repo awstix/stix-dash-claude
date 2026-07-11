@@ -729,6 +729,8 @@ model TruckLongHaulTruckAssignment {
 
   vehicleId     String?
   vehicle       Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
   vehicleNumber String?
   licensePlate  String?
   vehicleType   String?
@@ -753,6 +755,7 @@ model TruckLongHaulTruckAssignment {
   @@index([vehicleCategory])
   @@index([driverId])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
 }
 
 model ShortHaulAssignment {
@@ -772,6 +775,8 @@ model ShortHaulAssignment {
 
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
   vehicleNumber   String?
   licensePlate    String?
@@ -800,6 +805,7 @@ model ShortHaulAssignment {
   @@index([truckLongHaulEntryId])
   @@index([projectId])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
   @@index([driverId])
 }
 
@@ -851,6 +857,8 @@ model SpecialVehicleTask {
 
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
   vehicleName String
   taskText    String
@@ -860,6 +868,7 @@ model SpecialVehicleTask {
 
   @@index([workDate])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
   @@index([vehicleName])
 }
 
@@ -872,11 +881,15 @@ model SpecialVehicleDispatchAssignment {
 
   vehicleId String?
   vehicle   Vehicle? @relation("SpecialVehicleDispatchVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation("SpecialVehicleDispatchInventoryItem", fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
   vehicleName String @default("")
 
   transportVehicleId   String?
   transportVehicle     Vehicle? @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
+  transportVehicleInventoryItemId String?
+  transportVehicleInventoryItem   InventoryItem? @relation("SpecialVehicleTransportInventoryItem", fields: [transportVehicleInventoryItemId], references: [id], onDelete: SetNull)
   transportVehicleName String?
 
   operatorDriverId   String?
@@ -907,7 +920,9 @@ model SpecialVehicleDispatchAssignment {
 
   @@index([workDate])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
   @@index([transportVehicleId])
+  @@index([transportVehicleInventoryItemId])
   @@index([operatorDriverId])
   @@index([projectId])
   @@index([crewId])
@@ -948,6 +963,8 @@ model AsphaltLoadAllocation {
 
   vehicleId       String?
   vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
   vehicleNumber   String?
   licensePlate    String?
   vehicleType     String?
@@ -981,6 +998,7 @@ model AsphaltLoadAllocation {
   @@index([longHaulEntryId])
   @@index([longHaulTruckAssignmentId])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
   @@index([driverId])
 }
 
@@ -1011,6 +1029,8 @@ model TackCoatLoadAllocation {
 
   vehicleId       String?
   vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleInventoryItemId String?
+  vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
   vehicleNumber   String?
   licensePlate    String?
   vehicleType     String?
@@ -1040,6 +1060,7 @@ model TackCoatLoadAllocation {
   @@index([tackCoatInventoryItemId])
   @@index([shortHaulAssignmentId])
   @@index([vehicleId])
+  @@index([vehicleInventoryItemId])
   @@index([driverId])
 }
 
@@ -1380,6 +1401,8 @@ model CrewDefaultVehicle {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   notes     String?
   sortOrder Int     @default(0)
@@ -1391,6 +1414,7 @@ model CrewDefaultVehicle {
   @@unique([crewId, vehicleId])
   @@index([crewId])
   @@index([vehicleId])
+  @@index([inventoryItemId])
 }
 
 model EquipmentDispatchAssignment {
@@ -1398,6 +1422,8 @@ model EquipmentDispatchAssignment {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1414,6 +1440,7 @@ model EquipmentDispatchAssignment {
   updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
+  @@index([inventoryItemId])
   @@index([projectId])
   @@index([crewId])
   @@index([startDate])
@@ -1509,6 +1536,8 @@ model CrewPlanningAssignmentVehicle {
 
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   mode String @default("EXTRA")
 
@@ -1520,6 +1549,7 @@ model CrewPlanningAssignmentVehicle {
   @@unique([assignmentId, vehicleId, mode])
   @@index([assignmentId])
   @@index([vehicleId])
+  @@index([inventoryItemId])
   @@index([mode])
 }
 
@@ -1651,6 +1681,16 @@ model InventoryItem {
   workshopRepairOrders    WorkshopRepairOrder[]
   workshopFormSubmissions WorkshopFormSubmission[]
   driverAssignments       DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments TruckLongHaulTruckAssignment[]
+  shortHaulAssignments ShortHaulAssignment[]
+  specialVehicleTasks SpecialVehicleTask[]
+  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchInventoryItem")
+  specialVehicleTransportAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleTransportInventoryItem")
+  asphaltLoadAllocations AsphaltLoadAllocation[]
+  tackCoatLoadAllocations TackCoatLoadAllocation[]
+  crewDefaultVehicles CrewDefaultVehicle[]
+  equipmentDispatchAssignments EquipmentDispatchAssignment[]
+  crewPlanningAssignmentVehicles CrewPlanningAssignmentVehicle[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -54,19 +54,14 @@ const adminSections: AdminSection[] = [
   },
   {
     title: "Fuhrpark & LKW",
-    description: "Fahrer, Fahrzeuge und feste Fahrer-Fahrzeug-Zuordnungen.",
+    description:
+      "Fahrer und feste Fahrer-Fahrzeug-Zuordnungen. Fahrzeuge und Geräte werden zentral im Inventar gepflegt.",
     items: [
       {
         title: "Fahrer",
         description:
           "LKW-Fahrer verwalten. Wird zusätzlich automatisch über Mitarbeiter mit Berufsgruppe LKW Fahrer*in gepflegt.",
         href: "/admin/drivers",
-      },
-      {
-        title: "Fahrzeuge",
-        description:
-          "Fahrzeuge, Kennzeichen, Fahrzeugtypen, Kategorien und Sonderfahrzeuge verwalten.",
-        href: "/admin/vehicles",
       },
       {
         title: "Fahrer-Fahrzeug-Zuordnung",
@@ -79,7 +74,7 @@ const adminSections: AdminSection[] = [
   {
     title: "Inventar",
     description:
-      "Kategorien und Grunddaten für Inventar, Lagerobjekte und spätere Etiketten.",
+      "Zentrale Stammdaten für Material, Asphalt, Anspritzmittel, Fahrzeuge, Maschinen, Lagerobjekte und Etiketten.",
     items: [
       {
         title: "Inventarkategorien",
@@ -87,35 +82,11 @@ const adminSections: AdminSection[] = [
           "Kategorien für Geräte, Maschinen, Werkzeuge, Lagerartikel und Containerobjekte pflegen.",
         href: "/admin/inventory-categories",
       },
-    ],
-  },
-  {
-    title: "Material & Sorten",
-    description: "Materialien, Asphalt- und Betonsorten verwalten.",
-    items: [
       {
-        title: "Materialliste",
+        title: "Inventar importieren",
         description:
-          "Materialien mit Materialnummer, Kategorie, Einheit und Bemerkung verwalten.",
-        href: "/admin/materials",
-      },
-      {
-        title: "Asphaltsorten",
-        description:
-          "Asphaltsorten mit Sortennummer, Einheit, Kategorie und Mischanlage verwalten.",
-        href: "/admin/asphalt-types",
-      },
-      {
-        title: "Anspritzmittel",
-        description:
-          "Haftkleber und Anspritzmittel getrennt von normalen Materialien und Asphaltsorten verwalten.",
-        href: "/admin/tack-coat-types",
-      },
-      {
-        title: "Betonsorten",
-        description:
-          "Betonsorten mit Festigkeitsklasse, Expositionsklasse, Körnung, Konsistenz und Einheit verwalten.",
-        href: "/admin/concrete-types",
+          "Materialien, Fahrzeuge, Sonderfahrzeuge, Maschinen und Lagerobjekte über eine zentrale Vorlage importieren.",
+        href: "/inventory/imports",
       },
     ],
   },
@@ -126,7 +97,7 @@ const adminSections: AdminSection[] = [
       {
         title: "Auswahllisten",
         description:
-          "Dropdown-Werte für Mitarbeiter, Fahrzeuge, Material, Asphalt, Beton und Kolonnen verwalten.",
+          "Dropdown-Werte für Mitarbeiter, Arbeitsbereiche, Kolonnen und allgemeine Eingabefelder verwalten.",
         href: "/admin/options",
       },
     ],
@@ -137,7 +108,7 @@ export default function AdminPage() {
   return (
     <AppShell
       title="Admin"
-      description="Zentrale Verwaltung für Stammdaten, Mitarbeiter, Kolonnen, Fuhrpark, Material und Auswahllisten."
+      description="Zentrale Verwaltung für Unternehmen, Mitarbeiter, Kolonnen, Inventar und Auswahllisten."
     >
       <div className="space-y-8">
         {adminSections.map((section) => (

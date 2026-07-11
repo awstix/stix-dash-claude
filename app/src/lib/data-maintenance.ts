@@ -35,6 +35,12 @@ export type FullBackupArchive = {
   savedDbBackupPath: string;
 };
 
+export type LegacyMasterDataCleanupResult = {
+  backupPath: string;
+  deletedRows: number;
+  tablesCleared: MaintenanceTableInfo[];
+};
+
 const BASE_KEEP_TABLES = [
   "_prisma_migrations",
   "AdminOption",
@@ -331,6 +337,67 @@ export function resetDashboardData(options?: {
       tablesToClear: preview.tablesToClear,
       uploadDirectories: getUploadDirectories(),
       uploadsCleared,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+export function cleanupLegacyMasterData(): LegacyMasterDataCleanupResult {
+  const dbPath = getDbPath();
+
+  if (!existsSync(dbPath)) {
+    throw new Error(`Datenbank nicht gefunden: ${dbPath}`);
+  }
+
+  const legacyTables = ["MaterialType", "AsphaltMixType", "ConcreteType"];
+  const { backupPath } = createDatabaseBackup();
+  const db = new Database(dbPath);
+
+  try {
+    const availableTables = new Set(getTables(db));
+    const tablesCleared = legacyTables
+      .filter((table) => availableTables.has(table))
+      .map((name) => ({
+        count: getTableCount(db, name),
+        name,
+      }));
+    const deletedRows = tablesCleared.reduce(
+      (sum, table) => sum + table.count,
+      0,
+    );
+    const hasSqliteSequence = Boolean(
+      db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'",
+        )
+        .get(),
+    );
+
+    db.pragma("foreign_keys = OFF");
+
+    const cleanupTransaction = db.transaction(() => {
+      for (const table of tablesCleared) {
+        db.prepare(`DELETE FROM ${quoteIdentifier(table.name)}`).run();
+      }
+
+      if (hasSqliteSequence) {
+        for (const table of tablesCleared) {
+          db.prepare("DELETE FROM sqlite_sequence WHERE name = ?").run(
+            table.name,
+          );
+        }
+      }
+    });
+
+    cleanupTransaction();
+    db.pragma("foreign_keys = ON");
+    db.exec("VACUUM");
+
+    return {
+      backupPath,
+      deletedRows,
+      tablesCleared,
     };
   } finally {
     db.close();

@@ -90,6 +90,14 @@ async function getVehicle(vehicleId: string) {
     where: {
       id: vehicleId,
     },
+    include: {
+      inventoryItems: {
+        select: {
+          id: true,
+        },
+        take: 1,
+      },
+    },
   });
 
   if (!vehicle) {
@@ -97,6 +105,12 @@ async function getVehicle(vehicleId: string) {
   }
 
   return vehicle;
+}
+
+function getVehicleInventoryItemId(vehicle: {
+  inventoryItems?: { id: string }[];
+}) {
+  return vehicle.inventoryItems?.[0]?.id ?? null;
 }
 
 async function getProject(projectId: string) {
@@ -148,7 +162,11 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
     throw new Error("Enddatum darf nicht vor Startdatum liegen.");
   }
 
-  await Promise.all([getVehicle(vehicleId), getProject(projectId), getCrewOrNull(crewId)]);
+  const [vehicle] = await Promise.all([
+    getVehicle(vehicleId),
+    getProject(projectId),
+    getCrewOrNull(crewId),
+  ]);
 
   await assertEquipmentIsFree({
     vehicleId,
@@ -163,6 +181,15 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
           id: vehicleId,
         },
       },
+      ...(getVehicleInventoryItemId(vehicle)
+        ? {
+            inventoryItem: {
+              connect: {
+                id: getVehicleInventoryItemId(vehicle) as string,
+              },
+            },
+          }
+        : {}),
       project: {
         connect: {
           id: projectId,
@@ -210,7 +237,11 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
     throw new Error("Enddatum darf nicht vor Startdatum liegen.");
   }
 
-  await Promise.all([getVehicle(vehicleId), getProject(projectId), getCrewOrNull(crewId)]);
+  const [vehicle] = await Promise.all([
+    getVehicle(vehicleId),
+    getProject(projectId),
+    getCrewOrNull(crewId),
+  ]);
 
   await assertEquipmentIsFree({
     vehicleId,
@@ -229,6 +260,15 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
           id: vehicleId,
         },
       },
+      inventoryItem: getVehicleInventoryItemId(vehicle)
+        ? {
+            connect: {
+              id: getVehicleInventoryItemId(vehicle) as string,
+            },
+          }
+        : {
+            disconnect: true,
+          },
       project: {
         connect: {
           id: projectId,
@@ -274,7 +314,11 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
     throw new Error("Enddatum darf nicht vor Startdatum liegen.");
   }
 
-  await Promise.all([getVehicle(vehicleId), getProject(projectId), getCrewOrNull(crewId)]);
+  const [vehicle] = await Promise.all([
+    getVehicle(vehicleId),
+    getProject(projectId),
+    getCrewOrNull(crewId),
+  ]);
 
   await assertEquipmentIsFree({
     vehicleId,
@@ -289,6 +333,15 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
           id: vehicleId,
         },
       },
+      ...(getVehicleInventoryItemId(vehicle)
+        ? {
+            inventoryItem: {
+              connect: {
+                id: getVehicleInventoryItemId(vehicle) as string,
+              },
+            },
+          }
+        : {}),
       project: {
         connect: {
           id: projectId,

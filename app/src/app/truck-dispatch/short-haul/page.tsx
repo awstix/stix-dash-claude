@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import { ProjectStatus } from "@prisma/client";
 import { ActionIcon, type ActionIconName } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
-import { vehicleInventoryLinkInclude } from "@/lib/inventory-vehicle-links";
+import {
+  inventoryItemToVehicleWithInventoryLink,
+  inventoryVehicleBridgeInclude,
+  vehicleInventoryLinkInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   driverIsSelectableInTruckDispatch,
@@ -368,7 +372,7 @@ export default async function ShortHaulPage({
   const [
     assignments,
     projects,
-    allVehicles,
+    allVehicleItems,
     allDrivers,
     longHaulAssignments,
     inventoryCategories,
@@ -407,22 +411,34 @@ export default async function ShortHaulPage({
       orderBy: [{ projectNumber: "asc" }],
     }),
 
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
-      },
-      include: {
-        ...vehicleInventoryLinkInclude,
-        driverAssignments: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            driver: true,
-          },
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        category: {
+          OR: [
+            {
+              useInTruckDispatchSelection: true,
+            },
+            {
+              parentCategory: {
+                useInTruckDispatchSelection: true,
+              },
+            },
+          ],
         },
       },
-      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+      include: inventoryVehicleBridgeInclude,
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
     prisma.driver.findMany({
@@ -548,6 +564,10 @@ export default async function ShortHaulPage({
     getTackCoatAllocationsForDay(selectedDate),
   ]);
 
+  const allVehicles = allVehicleItems.flatMap((item) => {
+    const vehicle = inventoryItemToVehicleWithInventoryLink(item);
+    return vehicle ? [vehicle] : [];
+  });
   const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
   const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 

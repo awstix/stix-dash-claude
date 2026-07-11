@@ -7,6 +7,10 @@ import {
   DismissibleDetails,
   DismissibleDetailsCloseButton,
 } from "@/components/DismissibleDetails";
+import {
+  inventoryItemToVehicleWithInventoryLink,
+  inventoryVehicleBridgeInclude,
+} from "@/lib/inventory-vehicle-links";
 import { getInventoryCategoryLabel } from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
 import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
@@ -346,7 +350,7 @@ export default async function InventoryDetailPage({
   const [
     workshopTemplates,
     workshopEmployees,
-    workshopVehicles,
+    workshopVehicleItems,
     allEmployees,
     crews,
     projects,
@@ -367,17 +371,22 @@ export default async function InventoryDetailPage({
         lastName: true,
       },
     }),
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
       },
-      orderBy: [{ vehicleNumber: "asc" }],
-      select: {
-        id: true,
-        licensePlate: true,
-        vehicleNumber: true,
-        vehicleType: true,
-      },
+      include: inventoryVehicleBridgeInclude,
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
     prisma.employee.findMany({
       where: {
@@ -441,6 +450,10 @@ export default async function InventoryDetailPage({
     id: employee.id,
     name: `${employee.firstName} ${employee.lastName}`,
   }));
+  const workshopVehicles = workshopVehicleItems.flatMap((vehicleItem) => {
+    const vehicle = inventoryItemToVehicleWithInventoryLink(vehicleItem);
+    return vehicle ? [vehicle] : [];
+  });
   const itemLabel = [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
     .filter(Boolean)
     .join(" · ");

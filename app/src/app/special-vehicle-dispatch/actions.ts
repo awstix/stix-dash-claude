@@ -155,6 +155,7 @@ async function getVehicle(vehicleId: string) {
     include: {
       inventoryItems: {
         select: {
+          id: true,
           category: {
             select: {
               parentCategory: {
@@ -225,6 +226,14 @@ async function getTransportVehicleOrNull(vehicleId: string | null) {
     where: {
       id: vehicleId,
     },
+    include: {
+      inventoryItems: {
+        select: {
+          id: true,
+        },
+        take: 1,
+      },
+    },
   });
 
   if (!vehicle) {
@@ -232,6 +241,12 @@ async function getTransportVehicleOrNull(vehicleId: string | null) {
   }
 
   return vehicle;
+}
+
+function getVehicleInventoryItemId(vehicle: {
+  inventoryItems?: { id: string }[];
+} | null) {
+  return vehicle?.inventoryItems?.[0]?.id ?? null;
 }
 
 async function getDriverOrNull(driverId: string | null) {
@@ -385,6 +400,15 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
+      ...(getVehicleInventoryItemId(vehicle)
+        ? {
+            vehicleInventoryItem: {
+              connect: {
+                id: getVehicleInventoryItemId(vehicle) as string,
+              },
+            },
+          }
+        : {}),
       vehicleName: getVehicleName(vehicle),
       ...(transportVehicle
         ? {
@@ -394,6 +418,15 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
               },
             },
             transportVehicleName: getVehicleName(transportVehicle),
+            ...(getVehicleInventoryItemId(transportVehicle)
+              ? {
+                  transportVehicleInventoryItem: {
+                    connect: {
+                      id: getVehicleInventoryItemId(transportVehicle) as string,
+                    },
+                  },
+                }
+              : {}),
           }
         : {}),
       ...(operatorDriver
@@ -538,6 +571,15 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
             id: vehicle.id,
           },
         },
+        ...(getVehicleInventoryItemId(vehicle)
+          ? {
+              vehicleInventoryItem: {
+                connect: {
+                  id: getVehicleInventoryItemId(vehicle) as string,
+                },
+              },
+            }
+          : {}),
         vehicleName: getVehicleName(vehicle),
         ...(transportVehicle
           ? {
@@ -547,6 +589,17 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
                 },
               },
               transportVehicleName: getVehicleName(transportVehicle),
+              ...(getVehicleInventoryItemId(transportVehicle)
+                ? {
+                    transportVehicleInventoryItem: {
+                      connect: {
+                        id: getVehicleInventoryItemId(
+                          transportVehicle,
+                        ) as string,
+                      },
+                    },
+                  }
+                : {}),
             }
           : {}),
         ...(operatorDriver
@@ -626,6 +679,15 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
+      vehicleInventoryItem: getVehicleInventoryItemId(vehicle)
+        ? {
+            connect: {
+              id: getVehicleInventoryItemId(vehicle) as string,
+            },
+          }
+        : {
+            disconnect: true,
+          },
       vehicleName: getVehicleName(vehicle),
       transportVehicle: transportVehicle
         ? {
@@ -637,6 +699,15 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
             disconnect: true,
           },
       transportVehicleName: transportVehicle ? getVehicleName(transportVehicle) : null,
+      transportVehicleInventoryItem: getVehicleInventoryItemId(transportVehicle)
+        ? {
+            connect: {
+              id: getVehicleInventoryItemId(transportVehicle) as string,
+            },
+          }
+        : {
+            disconnect: true,
+          },
       operatorDriver: operatorDriver
         ? {
             connect: {

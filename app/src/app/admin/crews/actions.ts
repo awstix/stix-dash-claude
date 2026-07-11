@@ -262,6 +262,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
       vehicleId,
     },
     select: {
+      id: true,
       category: {
         select: {
           name: true,
@@ -277,9 +278,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
     },
   });
 
-  if (
-    !inventoryCategoryAllowsAssignment(inventoryItem?.category)
-  ) {
+  if (!inventoryItem || !inventoryCategoryAllowsAssignment(inventoryItem.category)) {
     throw new Error(
       "Dieses Gerät/Fahrzeug ist für eine Teamzuordnung nicht freigegeben."
     );
@@ -347,6 +346,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
         },
       },
       update: {
+        inventoryItemId: inventoryItem.id,
         isActive: true,
         notes: optionalString(formData.get("notes")),
         sortOrder,
@@ -354,6 +354,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
       create: {
         crewId,
         vehicleId,
+        inventoryItemId: inventoryItem.id,
         notes: optionalString(formData.get("notes")),
         sortOrder,
         isActive: true,

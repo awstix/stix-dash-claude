@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import {
+  inventoryItemToVehicleWithInventoryLink,
+  inventoryVehicleBridgeInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   createWorkshopRepairOrder,
@@ -225,18 +229,23 @@ export default async function WorkshopPage({
   const sortMode = String(params.sort ?? "newest");
   const editFormId = String(params.editForm ?? "").trim();
 
-  const [vehicles, repairOrders, workshopTemplates, workshopSubmissions, employees] = await Promise.all([
-    prisma.vehicle.findMany({
+  const [vehicleItems, repairOrders, workshopTemplates, workshopSubmissions, employees] = await Promise.all([
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
       },
-      orderBy: [{ vehicleNumber: "asc" }],
-      select: {
-        id: true,
-        licensePlate: true,
-        vehicleNumber: true,
-        vehicleType: true,
-      },
+      include: inventoryVehicleBridgeInclude,
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
     prisma.workshopRepairOrder.findMany({
       include: {
@@ -268,6 +277,10 @@ export default async function WorkshopPage({
     id: employee.id,
     name: `${employee.firstName} ${employee.lastName}`,
   }));
+  const vehicles = vehicleItems.flatMap((item) => {
+    const vehicle = inventoryItemToVehicleWithInventoryLink(item);
+    return vehicle ? [vehicle] : [];
+  });
   const repairTemplate =
     workshopTemplates.find(
       (template) => template.id === WORKSHOP_REPAIR_TEMPLATE_ID,

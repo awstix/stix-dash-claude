@@ -3,6 +3,8 @@ import { AppShell } from "@/components/AppShell";
 import {
   getVehicleInventoryItem,
   getVehicleInventoryLabel,
+  inventoryItemToVehicleWithInventoryLink,
+  inventoryVehicleBridgeInclude,
   vehicleInventoryLinkInclude,
 } from "@/lib/inventory-vehicle-links";
 import {
@@ -289,7 +291,7 @@ export default async function TruckDispatchPage({
 
   const [
     allDrivers,
-    allVehicles,
+    allVehicleItems,
     shortHaulAssignments,
     longHaulOwnAssignments,
     longHaulSubcontractorAssignments,
@@ -328,22 +330,34 @@ export default async function TruckDispatchPage({
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
 
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
-      },
-      include: {
-        ...vehicleInventoryLinkInclude,
-        driverAssignments: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            driver: true,
-          },
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        category: {
+          OR: [
+            {
+              useInTruckDispatchSelection: true,
+            },
+            {
+              parentCategory: {
+                useInTruckDispatchSelection: true,
+              },
+            },
+          ],
         },
       },
-      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+      include: inventoryVehicleBridgeInclude,
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
     prisma.shortHaulAssignment.findMany({
@@ -399,6 +413,10 @@ export default async function TruckDispatchPage({
     getTackCoatAllocationsForDay(selectedDate),
   ]);
 
+  const allVehicles = allVehicleItems.flatMap((item) => {
+    const vehicle = inventoryItemToVehicleWithInventoryLink(item);
+    return vehicle ? [vehicle] : [];
+  });
   const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
   const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 

@@ -196,7 +196,7 @@ function buildWeekHref(week: string, includeWeekend: boolean) {
 function buildPayloadSummaries(
   vehicles: {
     category: string;
-    asphaltPayloadTons: number;
+    payloadTons: number;
   }[]
 ) {
   const groups = new Map<
@@ -208,7 +208,7 @@ function buildPayloadSummaries(
   >();
 
   for (const vehicle of vehicles) {
-    if (!vehicle.category || vehicle.asphaltPayloadTons <= 0) {
+    if (!vehicle.category || vehicle.payloadTons <= 0) {
       continue;
     }
 
@@ -217,7 +217,7 @@ function buildPayloadSummaries(
       payloads: [],
     };
 
-    existing.payloads.push(vehicle.asphaltPayloadTons);
+    existing.payloads.push(vehicle.payloadTons);
     groups.set(vehicle.category, existing);
   }
 
@@ -365,18 +365,49 @@ export default async function AsphaltDispatchPage({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
 
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
-        asphaltPayloadTons: {
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        payloadKg: {
           gt: 0,
+        },
+        category: {
+          OR: [
+            {
+              useInTruckDispatchSelection: true,
+            },
+            {
+              parentCategory: {
+                useInTruckDispatchSelection: true,
+              },
+            },
+          ],
         },
       },
       select: {
-        category: true,
-        asphaltPayloadTons: true,
+        payloadKg: true,
+        category: {
+          select: {
+            name: true,
+            parentCategory: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: [{ category: "asc" }, { vehicleNumber: "asc" }],
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
+      ],
     }),
 
     getTackCoatOpenPositionsForRange({
@@ -399,7 +430,19 @@ export default async function AsphaltDispatchPage({
 
   const asphaltOpenPositionsByDay = new Map(asphaltOpenPositionsByDayEntries);
 
-  const payloadSummaries = buildPayloadSummaries(payloadVehicles);
+  const payloadSummaries = buildPayloadSummaries(
+    payloadVehicles.map((item) => {
+      const categoryName = item.category?.name ?? "Ohne Kategorie";
+      const parentCategoryName = item.category?.parentCategory?.name;
+
+      return {
+        category: parentCategoryName
+          ? `${parentCategoryName} / ${categoryName}`
+          : categoryName,
+        payloadTons: (item.payloadKg ?? 0) / 1000,
+      };
+    }),
+  );
 
   const crews = asphaltDispatchCrews.map((crew) => crew.name);
   const asphaltEntries = entries.filter(hasAsphaltQuantity);

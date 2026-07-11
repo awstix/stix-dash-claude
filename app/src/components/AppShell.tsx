@@ -36,7 +36,6 @@ const inventoryNavigation = [
   { name: "Inventarverwaltung", href: "/inventory" },
   { name: "Objekt anlegen", href: "/inventory/new" },
   { name: "Inventar importieren", href: "/inventory/imports" },
-  { name: "Stammdaten übernehmen", href: "/inventory/master-data" },
   { name: "Lagerverwaltung", href: "/inventory/storage" },
   { name: "Standortmeldungen", href: "/inventory/location-alerts" },
   { name: "Etikettenvorlagen", href: "/inventory/labels" },

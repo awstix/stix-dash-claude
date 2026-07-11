@@ -5,7 +5,6 @@ import {
   getVehicleInventoryItem,
   getVehicleInventoryLabel,
   getVehicleInventoryResponsibleLabel,
-  vehicleInventoryLinkInclude,
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
@@ -548,6 +547,31 @@ function getVehicleLabel(vehicle: {
     vehicle.licensePlate,
     vehicle.category,
     vehicle.vehicleType,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getEquipmentVehicleSelectLabel(vehicle: {
+  vehicleNumber: string;
+  licensePlate: string | null;
+  vehicleType: string;
+  category: string;
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (!inventoryItem) {
+    return getVehicleLabel(vehicle);
+  }
+
+  return [
+    inventoryItem.objectNumber ?? vehicle.vehicleNumber,
+    inventoryItem.name,
+    inventoryItem.manufacturer,
+    inventoryItem.model,
+    inventoryItem.licensePlate ?? vehicle.licensePlate,
+    inventoryItem.category?.parentCategory?.name,
+    inventoryItem.category?.name,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -1420,7 +1444,7 @@ export default async function EquipmentDispatchPage({
   };
 
   const [
-    vehicles,
+    inventoryVehicleItems,
     projects,
     crews,
     equipmentAssignments,
@@ -1432,17 +1456,68 @@ export default async function EquipmentDispatchPage({
     tackCoatLoadAllocations,
     vehicleTypeAdminOptions,
   ] = await Promise.all([
-    prisma.vehicle.findMany({
+    prisma.inventoryItem.findMany({
       where: {
-        isActive: true,
+        status: {
+          not: "INACTIVE",
+        },
+        vehicleId: {
+          not: null,
+        },
+        category: {
+          OR: [
+            {
+              useInTeamManagement: true,
+            },
+            {
+              parentCategory: {
+                useInTeamManagement: true,
+              },
+            },
+          ],
+        },
       },
       include: {
-        ...vehicleInventoryLinkInclude,
+        category: {
+          select: {
+            dailyReportMachineLabel: true,
+            name: true,
+            parentCategory: {
+              select: {
+                name: true,
+                useInTruckDispatchSelection: true,
+              },
+            },
+            useInTruckDispatchSelection: true,
+          },
+        },
+        currentProject: {
+          select: {
+            id: true,
+            name: true,
+            projectNumber: true,
+          },
+        },
+        responsibleCrew: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        responsibleEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        vehicle: true,
       },
       orderBy: [
-        { isSpecialVehicle: "desc" },
-        { category: "asc" },
-        { vehicleNumber: "asc" },
+        { category: { sortOrder: "asc" } },
+        { category: { name: "asc" } },
+        { objectNumber: "asc" },
+        { name: "asc" },
       ],
     }),
 
@@ -1610,6 +1685,28 @@ export default async function EquipmentDispatchPage({
       },
     }),
   ]);
+
+  const vehicles = inventoryVehicleItems.flatMap((item) => {
+    if (!item.vehicle) {
+      return [];
+    }
+
+    const categoryName = item.category?.name ?? item.vehicle.category;
+    const parentCategoryName = item.category?.parentCategory?.name;
+    const categoryLabel = parentCategoryName
+      ? `${parentCategoryName} / ${categoryName}`
+      : categoryName;
+
+    return [
+      {
+        ...item.vehicle,
+        category: categoryLabel,
+        licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
+        vehicleNumber: item.objectNumber ?? item.vehicle.vehicleNumber,
+        inventoryItems: [item],
+      },
+    ];
+  });
 
   const vehicleTypeOptions = getVehicleTypeCheckboxOptions({
     adminOptions: vehicleTypeAdminOptions,
@@ -2128,10 +2225,10 @@ export default async function EquipmentDispatchPage({
         </Link>
 
         <Link
-          href="/admin/vehicles"
+          href="/inventory"
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
-          Geräte/Fahrzeuge öffnen
+          Inventar öffnen
         </Link>
 
         <Link
@@ -2633,6 +2730,26 @@ export default async function EquipmentDispatchPage({
                 const inventoryLabel = getVehicleInventoryLabel(vehicle);
                 const inventoryResponsibleLabel =
                   getVehicleInventoryResponsibleLabel(inventoryItem);
+                const primaryLabel = inventoryItem
+                  ? [
+                      inventoryItem.objectNumber,
+                      inventoryItem.name,
+                      inventoryItem.manufacturer,
+                      inventoryItem.model,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : `${vehicle.vehicleNumber} · ${vehicle.licensePlate ?? "-"}`;
+                const secondaryLabel = inventoryItem
+                  ? [
+                      inventoryItem.category?.parentCategory?.name,
+                      inventoryItem.category?.name,
+                      inventoryItem.licensePlate ?? vehicle.licensePlate,
+                      vehicle.vehicleType,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : `${vehicle.category} · ${vehicle.vehicleType}`;
 
                 return (
                   <div
@@ -2644,10 +2761,10 @@ export default async function EquipmentDispatchPage({
                     }}
                   >
                     <div className="truncate text-sm font-bold text-gray-900">
-                      {vehicle.vehicleNumber} · {vehicle.licensePlate ?? "-"}
+                      {primaryLabel}
                     </div>
                     <div className="mt-1 text-xs font-semibold text-gray-600">
-                      {vehicle.category} · {vehicle.vehicleType}
+                      {secondaryLabel}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {inventoryItem && inventoryLabel ? (
@@ -3151,7 +3268,7 @@ function EquipmentAssignmentForm({
             </option>
             {vehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
-                {getVehicleLabel(vehicle)}
+                {getEquipmentVehicleSelectLabel(vehicle)}
               </option>
             ))}
           </select>

@@ -14,31 +14,6 @@ const importTypes = [
     help: "Erwartete Spalten: Vorname, Nachname, Kürzel, Telefon, Bemerkung",
   },
   {
-    value: "vehicles",
-    label: "Fahrzeuge",
-    help: "Erwartete Spalten: Fahrzeugnummer, Kennzeichen, Fahrzeugtyp, Kategorie, Nutzlast t, Arbeitsmitteltank l, Sonderfahrzeug, Aktiv, Bemerkung",
-  },
-  {
-    value: "materials",
-    label: "Materialliste",
-    help: "Erwartete Spalten: Materialnummer, Materialname, Kategorie, Einheit, Aktiv, Bemerkung",
-  },
-  {
-    value: "asphalt-types",
-    label: "Sortenliste Asphalt",
-    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Kurzbezeichnung, Einheit, Kategorie, Mischanlage, Aktiv, Bemerkung",
-  },
-  {
-    value: "tack-coat-types",
-    label: "Anspritzmittel",
-    help: "Erwartete Spalten: Nummer, Bezeichnung, Einheit, Aktiv, Bemerkung",
-  },
-  {
-    value: "concrete-types",
-    label: "Sortenliste Beton",
-    help: "Erwartete Spalten: Sortennummer, Bezeichnung, Festigkeitsklasse, Expositionsklasse, Körnung, Konsistenz, Einheit, Aktiv, Bemerkung",
-  },
-  {
     value: "options",
     label: "Auswahllisten",
     help: "Erwartete Spalten: Gruppe, Interner Wert, Bezeichnung, Position, Aktiv. Bestehende Werte werden über Gruppe + Interner Wert aktualisiert.",
@@ -63,7 +38,7 @@ export default async function ImportsPage({
   return (
     <AppShell
       title="Excel-Import"
-      description="Stammdaten aus vorhandenen Excel-Listen importieren oder passende Vorlagen herunterladen."
+      description="Allgemeine Mitarbeiter-/Fahrer-/Auswahllisten importieren. Inventar, Material, Asphalt, Geräte und Fahrzeuge werden zentral unter Inventar importiert."
     >
       {hasResult ? (
         <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-6 text-green-900">

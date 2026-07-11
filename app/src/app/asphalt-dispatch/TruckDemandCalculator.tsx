@@ -420,24 +420,21 @@ export function TruckDemandCalculator({
   days: DemandDay[];
   payloadSummaries: VehiclePayloadSummary[];
 }) {
-  const [defaultMaxRounds, setDefaultMaxRounds] = useState(
-    String(DEFAULT_MAX_ROUNDS_PER_TRUCK),
-  );
+  const [defaultMaxRounds, setDefaultMaxRounds] = useState(() => {
+    if (typeof window === "undefined") {
+      return String(DEFAULT_MAX_ROUNDS_PER_TRUCK);
+    }
+
+    return (
+      window.localStorage.getItem(STORAGE_KEY_DEFAULT_MAX_ROUNDS) ??
+      String(DEFAULT_MAX_ROUNDS_PER_TRUCK)
+    );
+  });
   const [truckCountOverrides, setTruckCountOverrides] = useState<OverrideMap>({});
   const [roundOverrides, setRoundOverrides] = useState<OverrideMap>({});
   const [maxRoundsOverrides, setMaxRoundsOverrides] = useState<DaySettingsMap>(
     {},
   );
-
-  useEffect(() => {
-    const storedValue = window.localStorage.getItem(
-      STORAGE_KEY_DEFAULT_MAX_ROUNDS,
-    );
-
-    if (storedValue) {
-      setDefaultMaxRounds(storedValue);
-    }
-  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -573,7 +570,7 @@ export function TruckDemandCalculator({
           </label>
 
           <Link
-            href="/admin/vehicles"
+            href="/inventory"
             className="inline-flex rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs font-semibold text-orange-950 hover:bg-orange-100"
           >
             Nutzlasten pflegen →
@@ -591,8 +588,8 @@ export function TruckDemandCalculator({
 
       {payloadSummaries.length === 0 ? (
         <div className="mt-4 rounded-xl border border-orange-300 bg-white p-3 text-sm font-semibold text-orange-900">
-          Noch keine Nutzlasten bei aktiven Fahrzeugen hinterlegt. Bitte in
-          Admin → Fahrzeuge die Nutzlast in Tonnen eintragen.
+          Noch keine Nutzlasten bei aktiven Fahrzeugen hinterlegt. Bitte im
+          Inventar die Nutzlast in Tonnen eintragen.
         </div>
       ) : !hasOpenTons ? (
         <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800">
@@ -605,10 +602,6 @@ export function TruckDemandCalculator({
             const maxRoundsKey = getMaxRoundsKey(day.dateKey);
             const dayHasOwnMaxRounds =
               maxRoundsOverrides[maxRoundsKey] !== undefined;
-            const maxRoundsPerTruck = parsePositiveInt(
-              maxRoundsOverrides[maxRoundsKey],
-              parsedDefaultMaxRounds,
-            );
 
             return (
               <div

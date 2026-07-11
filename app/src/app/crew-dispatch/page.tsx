@@ -2,6 +2,10 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import {
+  inventoryItemToVehicleWithInventoryLink,
+  inventoryVehicleBridgeInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { createCrewPlanningRow, deleteCrewPlanningAssignment } from "./actions";
 import { CrewAssignmentBar } from "./CrewAssignmentBar";
@@ -3334,7 +3338,7 @@ export default async function CrewDispatchPage({
     projects,
     allCrews,
     allEmployees,
-    allVehicles,
+    allVehicleItems,
     asphaltDispatchEntries,
     truckLongHaulEntries,
     shortHaulAssignments,
@@ -3466,11 +3470,34 @@ export default async function CrewDispatchPage({
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       }),
 
-      prisma.vehicle.findMany({
+      prisma.inventoryItem.findMany({
         where: {
-          isActive: true,
+          status: {
+            not: "INACTIVE",
+          },
+          vehicleId: {
+            not: null,
+          },
+          category: {
+            OR: [
+              {
+                useInTeamManagement: true,
+              },
+              {
+                parentCategory: {
+                  useInTeamManagement: true,
+                },
+              },
+            ],
+          },
         },
-        orderBy: [{ vehicleNumber: "asc" }],
+        include: inventoryVehicleBridgeInclude,
+        orderBy: [
+          { category: { sortOrder: "asc" } },
+          { category: { name: "asc" } },
+          { objectNumber: "asc" },
+          { name: "asc" },
+        ],
       }),
 
       showAsphaltDispatchCrews
@@ -3786,6 +3813,10 @@ export default async function CrewDispatchPage({
       }),
     ] as const),
   );
+  const allVehicles = allVehicleItems.flatMap((item) => {
+    const vehicle = inventoryItemToVehicleWithInventoryLink(item);
+    return vehicle ? [vehicle] : [];
+  });
 
   const projectAxisRows: PlanningAxisRow[] = projects.map((project) => ({
     id: project.id,
@@ -4199,10 +4230,10 @@ export default async function CrewDispatchPage({
         </Link>
 
         <Link
-          href="/admin/vehicles"
+          href="/inventory"
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
-          Großgeräte/Fahrzeuge öffnen
+          Inventar öffnen
         </Link>
       </div>
 

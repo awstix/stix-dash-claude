@@ -41,12 +41,6 @@ export default async function InventoryImportsPage({
         >
           Kategorien / Nummernkreise pflegen →
         </Link>
-        <Link
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/inventory/master-data"
-        >
-          Übergang: alte Stammdaten übernehmen →
-        </Link>
       </div>
 
       {hasResult ? (

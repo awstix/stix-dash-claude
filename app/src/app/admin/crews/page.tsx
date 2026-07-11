@@ -46,6 +46,50 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+function getInventoryVehicleLabel(item: {
+  category: {
+    name: string;
+    parentCategory: { name: string } | null;
+  } | null;
+  inventoryNumber: string | null;
+  licensePlate: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  name: string;
+  objectNumber: string | null;
+  responsibleCrew: { name: string } | null;
+  vehicle: {
+    category: string;
+    isSpecialVehicle: boolean;
+    licensePlate: string | null;
+    vehicleNumber: string;
+    vehicleType: string;
+  } | null;
+}) {
+  const categoryLabel = item.category?.parentCategory
+    ? `${item.category.parentCategory.name} / ${item.category.name}`
+    : item.category?.name;
+  const objectLabel = item.objectNumber ?? item.inventoryNumber;
+  const title = [
+    objectLabel,
+    item.name,
+    item.manufacturer,
+    item.model,
+    item.licensePlate,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return [
+    item.vehicle?.isSpecialVehicle ? "⭐" : null,
+    title || (item.vehicle ? getVehicleLabel(item.vehicle) : item.name),
+    categoryLabel,
+    item.responsibleCrew ? `zugeordnet: ${item.responsibleCrew.name}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function getEmployeePositionLabel(employee: {
   positions: { positionLabel: string }[];
 }) {
@@ -114,7 +158,13 @@ function getOtherCrewNamesForVehicle({
 }
 
 export default async function CrewsAdminPage() {
-  const [crews, employees, vehicles, crewTypeOptions, positionOptions] =
+  const [
+    crews,
+    employees,
+    inventoryVehicleItems,
+    crewTypeOptions,
+    positionOptions,
+  ] =
     await Promise.all([
       prisma.crew.findMany({
         include: {
@@ -144,7 +194,21 @@ export default async function CrewsAdminPage() {
           },
           defaultVehicles: {
             include: {
-              vehicle: true,
+              vehicle: {
+                include: {
+                  inventoryItems: {
+                    include: {
+                      category: {
+                        include: {
+                          parentCategory: true,
+                        },
+                      },
+                      responsibleCrew: true,
+                    },
+                    orderBy: [{ objectNumber: "asc" }, { name: "asc" }],
+                  },
+                },
+              },
             },
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
           },
@@ -171,30 +235,41 @@ export default async function CrewsAdminPage() {
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       }),
 
-      prisma.vehicle.findMany({
+      prisma.inventoryItem.findMany({
         where: {
-          isActive: true,
-          inventoryItems: {
-            some: {
-              category: {
-                OR: [
-                  {
-                    useInTeamManagement: true,
-                  },
-                  {
-                    parentCategory: {
-                      useInTeamManagement: true,
-                    },
-                  },
-                ],
+          status: {
+            not: "INACTIVE",
+          },
+          vehicleId: {
+            not: null,
+          },
+          category: {
+            OR: [
+              {
+                useInTeamManagement: true,
               },
-            },
+              {
+                parentCategory: {
+                  useInTeamManagement: true,
+                },
+              },
+            ],
           },
         },
+        include: {
+          category: {
+            include: {
+              parentCategory: true,
+            },
+          },
+          responsibleCrew: true,
+          vehicle: true,
+        },
         orderBy: [
-          { isSpecialVehicle: "desc" },
-          { category: "asc" },
-          { vehicleNumber: "asc" },
+          { category: { sortOrder: "asc" } },
+          { category: { name: "asc" } },
+          { objectNumber: "asc" },
+          { name: "asc" },
         ],
       }),
 
@@ -250,10 +325,10 @@ export default async function CrewsAdminPage() {
         </Link>
 
         <Link
-          href="/admin/vehicles"
+          href="/inventory"
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
         >
-          Geräte/Fahrzeuge öffnen
+          Inventar öffnen
         </Link>
 
         <Link
@@ -588,7 +663,24 @@ export default async function CrewsAdminPage() {
                         >
                           <div>
                             <div className="text-sm font-semibold text-gray-900">
-                              {getVehicleLabel(item.vehicle)}
+                              {getInventoryVehicleLabel(
+                                item.vehicle.inventoryItems[0]
+                                  ? {
+                                      ...item.vehicle.inventoryItems[0],
+                                      vehicle: item.vehicle,
+                                    }
+                                  : {
+                                      category: null,
+                                      inventoryNumber: null,
+                                      licensePlate: item.vehicle.licensePlate,
+                                      manufacturer: null,
+                                      model: null,
+                                      name: getVehicleLabel(item.vehicle),
+                                      objectNumber: item.vehicle.vehicleNumber,
+                                      responsibleCrew: null,
+                                      vehicle: item.vehicle,
+                                    },
+                              )}
                             </div>
 
                             {item.notes ? (
@@ -635,19 +727,21 @@ export default async function CrewsAdminPage() {
                             Gerät/Fahrzeug wählen
                           </option>
 
-                          {vehicles.map((vehicle) => {
+                          {inventoryVehicleItems.map((item) => {
+                            const vehicle = item.vehicle;
+                            if (!vehicle || !item.vehicleId) {
+                              return null;
+                            }
                             const otherCrewNames =
                               getOtherCrewNamesForVehicle({
-                                vehicleId: vehicle.id,
+                                vehicleId: item.vehicleId,
                                 crews,
                               });
 
                             const isAssignedToOtherCrew =
                               otherCrewNames.length > 0;
 
-                            const vehicleLabel = `${
-                              vehicle.isSpecialVehicle ? "⭐ " : ""
-                            }${getVehicleLabel(vehicle)}`;
+                            const vehicleLabel = getInventoryVehicleLabel(item);
 
                             const assignedLabel = isAssignedToOtherCrew
                               ? `! ${vehicleLabel} · bereits in: ${otherCrewNames.join(
@@ -657,8 +751,8 @@ export default async function CrewsAdminPage() {
 
                             return (
                               <option
-                                key={vehicle.id}
-                                value={vehicle.id}
+                                key={item.id}
+                                value={item.vehicleId}
                                 disabled={isAssignedToOtherCrew}
                               >
                                 {assignedLabel}
