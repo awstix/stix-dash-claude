@@ -1485,9 +1485,11 @@ export default async function EquipmentDispatchPage({
             parentCategory: {
               select: {
                 name: true,
+                useInSpecialVehicleDisposition: true,
                 useInTruckDispatchSelection: true,
               },
             },
+            useInSpecialVehicleDisposition: true,
             useInTruckDispatchSelection: true,
           },
         },

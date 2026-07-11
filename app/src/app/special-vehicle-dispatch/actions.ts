@@ -1,6 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 
 function parseDate(value: FormDataEntryValue | null, fieldName: string) {
@@ -153,22 +158,7 @@ async function getVehicle(vehicleId: string) {
       id: vehicleId,
     },
     include: {
-      inventoryItems: {
-        select: {
-          id: true,
-          category: {
-            select: {
-              parentCategory: {
-                select: {
-                  useInSpecialVehicleDisposition: true,
-                },
-              },
-              useInSpecialVehicleDisposition: true,
-            },
-          },
-        },
-        take: 1,
-      },
+      ...vehicleInventoryLinkInclude,
     },
   });
 
@@ -176,10 +166,10 @@ async function getVehicle(vehicleId: string) {
     throw new Error("Sonderfahrzeug wurde nicht gefunden.");
   }
 
-  const inventoryCategoryMarksSpecialVehicle = vehicle.inventoryItems.some(
-    (item) =>
-      item.category?.useInSpecialVehicleDisposition ||
-      item.category?.parentCategory?.useInSpecialVehicleDisposition,
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+  const inventoryCategoryMarksSpecialVehicle = Boolean(
+    inventoryItem?.category?.useInSpecialVehicleDisposition ||
+      inventoryItem?.category?.parentCategory?.useInSpecialVehicleDisposition,
   );
 
   if (!vehicle.isSpecialVehicle && !inventoryCategoryMarksSpecialVehicle) {
@@ -227,12 +217,7 @@ async function getTransportVehicleOrNull(vehicleId: string | null) {
       id: vehicleId,
     },
     include: {
-      inventoryItems: {
-        select: {
-          id: true,
-        },
-        take: 1,
-      },
+      ...vehicleInventoryLinkInclude,
     },
   });
 
@@ -243,10 +228,8 @@ async function getTransportVehicleOrNull(vehicleId: string | null) {
   return vehicle;
 }
 
-function getVehicleInventoryItemId(vehicle: {
-  inventoryItems?: { id: string }[];
-} | null) {
-  return vehicle?.inventoryItems?.[0]?.id ?? null;
+function getVehicleInventoryItemId(vehicle: VehicleWithInventoryLink | null) {
+  return vehicle ? getVehicleInventoryItem(vehicle)?.id ?? null : null;
 }
 
 async function getDriverOrNull(driverId: string | null) {
@@ -269,7 +252,20 @@ function getVehicleName(vehicle: {
   vehicleNumber: string | null;
   licensePlate: string | null;
   vehicleType: string | null;
-}) {
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (inventoryItem) {
+    return [
+      inventoryItem.objectNumber,
+      inventoryItem.inventoryNumber,
+      inventoryItem.name,
+      inventoryItem.licensePlate ?? vehicle.licensePlate,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");
@@ -281,12 +277,14 @@ function getDriverName(driver: { lastName: string; firstName: string }) {
 
 async function assertSpecialVehicleTimeIsFree({
   vehicleId,
+  vehicleInventoryItemId,
   workDate,
   startTime,
   endTime,
   ignoreId,
 }: {
   vehicleId: string;
+  vehicleInventoryItemId?: string | null;
   workDate: Date;
   startTime: string;
   endTime: string;
@@ -300,7 +298,10 @@ async function assertSpecialVehicleTimeIsFree({
 
   const assignments = await prisma.specialVehicleDispatchAssignment.findMany({
     where: {
-      vehicleId,
+      OR: [
+        { vehicleId },
+        ...(vehicleInventoryItemId ? [{ vehicleInventoryItemId }] : []),
+      ],
       workDate: {
         gte: dayStart,
         lt: dayEnd,
@@ -382,9 +383,12 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
     getTransportVehicleOrNull(input.transportVehicleId),
     getDriverOrNull(input.operatorDriverId),
   ]);
+  const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
+  const transportVehicleInventoryItemId = getVehicleInventoryItemId(transportVehicle);
 
   await assertSpecialVehicleTimeIsFree({
     vehicleId: vehicle.id,
+    vehicleInventoryItemId,
     workDate: input.workDate,
     startTime: input.startTime,
     endTime: input.endTime,
@@ -400,11 +404,11 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
-      ...(getVehicleInventoryItemId(vehicle)
+      ...(vehicleInventoryItemId
         ? {
             vehicleInventoryItem: {
               connect: {
-                id: getVehicleInventoryItemId(vehicle) as string,
+                id: vehicleInventoryItemId,
               },
             },
           }
@@ -418,11 +422,11 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
               },
             },
             transportVehicleName: getVehicleName(transportVehicle),
-            ...(getVehicleInventoryItemId(transportVehicle)
+            ...(transportVehicleInventoryItemId
               ? {
                   transportVehicleInventoryItem: {
                     connect: {
-                      id: getVehicleInventoryItemId(transportVehicle) as string,
+                      id: transportVehicleInventoryItemId,
                     },
                   },
                 }
@@ -484,6 +488,8 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
     getTransportVehicleOrNull(transportVehicleId),
     getDriverOrNull(operatorDriverId),
   ]);
+  const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
+  const transportVehicleInventoryItemId = getVehicleInventoryItemId(transportVehicle);
 
   const indexes = getIndexesFromFormData(formData, [
     "tourProjectId",
@@ -556,6 +562,7 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
 
     await assertSpecialVehicleTimeIsFree({
       vehicleId: vehicle.id,
+      vehicleInventoryItemId,
       workDate: input.workDate,
       startTime: input.startTime,
       endTime: input.endTime,
@@ -571,11 +578,11 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
             id: vehicle.id,
           },
         },
-        ...(getVehicleInventoryItemId(vehicle)
+        ...(vehicleInventoryItemId
           ? {
               vehicleInventoryItem: {
                 connect: {
-                  id: getVehicleInventoryItemId(vehicle) as string,
+                  id: vehicleInventoryItemId,
                 },
               },
             }
@@ -589,13 +596,11 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
                 },
               },
               transportVehicleName: getVehicleName(transportVehicle),
-              ...(getVehicleInventoryItemId(transportVehicle)
+              ...(transportVehicleInventoryItemId
                 ? {
                     transportVehicleInventoryItem: {
                       connect: {
-                        id: getVehicleInventoryItemId(
-                          transportVehicle,
-                        ) as string,
+                        id: transportVehicleInventoryItemId,
                       },
                     },
                   }
@@ -657,9 +662,12 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
     getTransportVehicleOrNull(input.transportVehicleId),
     getDriverOrNull(input.operatorDriverId),
   ]);
+  const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
+  const transportVehicleInventoryItemId = getVehicleInventoryItemId(transportVehicle);
 
   await assertSpecialVehicleTimeIsFree({
     vehicleId: vehicle.id,
+    vehicleInventoryItemId,
     workDate: input.workDate,
     startTime: input.startTime,
     endTime: input.endTime,
@@ -679,10 +687,10 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
           id: vehicle.id,
         },
       },
-      vehicleInventoryItem: getVehicleInventoryItemId(vehicle)
+      vehicleInventoryItem: vehicleInventoryItemId
         ? {
             connect: {
-              id: getVehicleInventoryItemId(vehicle) as string,
+              id: vehicleInventoryItemId,
             },
           }
         : {
@@ -699,10 +707,10 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
             disconnect: true,
           },
       transportVehicleName: transportVehicle ? getVehicleName(transportVehicle) : null,
-      transportVehicleInventoryItem: getVehicleInventoryItemId(transportVehicle)
+      transportVehicleInventoryItem: transportVehicleInventoryItemId
         ? {
             connect: {
-              id: getVehicleInventoryItemId(transportVehicle) as string,
+              id: transportVehicleInventoryItemId,
             },
           }
         : {

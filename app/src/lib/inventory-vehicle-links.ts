@@ -31,9 +31,11 @@ export const vehicleInventoryLinkInclude = {
           parentCategory: {
             select: {
               name: true,
+              useInSpecialVehicleDisposition: true,
               useInTruckDispatchSelection: true,
             },
           },
+          useInSpecialVehicleDisposition: true,
           useInTruckDispatchSelection: true,
         },
       },
@@ -63,9 +65,11 @@ export const inventoryVehicleBridgeInclude = {
       parentCategory: {
         select: {
           name: true,
+          useInSpecialVehicleDisposition: true,
           useInTruckDispatchSelection: true,
         },
       },
+      useInSpecialVehicleDisposition: true,
       useInTruckDispatchSelection: true,
     },
   },
@@ -131,8 +135,10 @@ export type VehicleInventoryLink = {
     name: string;
     parentCategory?: {
       name: string;
+      useInSpecialVehicleDisposition: boolean;
       useInTruckDispatchSelection: boolean;
     } | null;
+    useInSpecialVehicleDisposition: boolean;
     useInTruckDispatchSelection: boolean;
   } | null;
   responsibleEmployee?: {

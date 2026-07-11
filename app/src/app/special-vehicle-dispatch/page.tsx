@@ -707,9 +707,11 @@ export default async function SpecialVehicleDispatchPage({
             parentCategory: {
               select: {
                 name: true,
+                useInSpecialVehicleDisposition: true,
                 useInTruckDispatchSelection: true,
               },
             },
+            useInSpecialVehicleDisposition: true,
             useInTruckDispatchSelection: true,
           },
         },
@@ -772,9 +774,11 @@ export default async function SpecialVehicleDispatchPage({
             parentCategory: {
               select: {
                 name: true,
+                useInSpecialVehicleDisposition: true,
                 useInTruckDispatchSelection: true,
               },
             },
+            useInSpecialVehicleDisposition: true,
             useInTruckDispatchSelection: true,
           },
         },
