@@ -407,10 +407,12 @@ async function resolvePurpose({
 async function findLongHaulConflicts({
   driverId,
   vehicleId,
+  vehicleInventoryItemId,
   workDate,
 }: {
   driverId: string;
   vehicleId: string;
+  vehicleInventoryItemId?: string | null;
   workDate: Date;
 }) {
   const orConditions = [];
@@ -421,6 +423,10 @@ async function findLongHaulConflicts({
 
   if (vehicleId) {
     orConditions.push({ vehicleId });
+  }
+
+  if (vehicleInventoryItemId) {
+    orConditions.push({ vehicleInventoryItemId });
   }
 
   if (orConditions.length === 0) {
@@ -456,20 +462,27 @@ async function findLongHaulConflicts({
 async function assertShortHaulAvailability({
   driverId,
   vehicleId,
+  vehicleInventoryItemId,
   workDate,
   tours,
   excludeId,
 }: {
   driverId: string;
   vehicleId: string;
+  vehicleInventoryItemId?: string | null;
   workDate: Date;
   tours: { startTime: string; endTime: string }[];
   excludeId?: string;
 }) {
+  const vehicleConditions = [
+    { vehicleId },
+    ...(vehicleInventoryItemId ? [{ vehicleInventoryItemId }] : []),
+  ];
+
   const existing = await prisma.shortHaulAssignment.findFirst({
     where: {
       workDate: getDayRange(workDate),
-      OR: [{ driverId }, { vehicleId }],
+      OR: [{ driverId }, ...vehicleConditions],
       ...(excludeId
         ? {
             NOT: {
@@ -496,11 +509,20 @@ async function assertShortHaulAvailability({
     );
   }
 
+  if (
+    vehicleInventoryItemId &&
+    existing.vehicleInventoryItemId === vehicleInventoryItemId
+  ) {
+    throw new Error(
+      `Fahrzeug ${existing.licensePlate ?? existing.vehicleNumber ?? ""} ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen.`
+    );
+  }
+
   const existingAsphaltAllocations = await prisma.asphaltLoadAllocation.findMany({
     where: {
       sourceType: "SHORT",
       workDate: getDayRange(workDate),
-      OR: [{ driverId }, { vehicleId }],
+      OR: [{ driverId }, ...vehicleConditions],
     },
     orderBy: {
       createdAt: "asc",
@@ -529,6 +551,19 @@ async function assertShortHaulAvailability({
         } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`
       );
     }
+
+    if (
+      vehicleInventoryItemId &&
+      existingAsphaltAllocation.vehicleInventoryItemId === vehicleInventoryItemId
+    ) {
+      throw new Error(
+        `Fahrzeug ${
+          existingAsphaltAllocation.licensePlate ??
+          existingAsphaltAllocation.vehicleNumber ??
+          ""
+        } ist an diesem Tag bereits über eine Asphaltmenge in der Kurzstrecke eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`
+      );
+    }
   }
 
   const existingTackCoatAllocations =
@@ -536,7 +571,7 @@ async function assertShortHaulAvailability({
     where: {
       sourceType: "SHORT",
       workDate: getDayRange(workDate),
-      OR: [{ driverId }, { vehicleId }],
+      OR: [{ driverId }, ...vehicleConditions],
     },
     orderBy: {
       createdAt: "asc",
@@ -557,6 +592,20 @@ async function assertShortHaulAvailability({
     }
 
     if (existingTackCoatAllocation.vehicleId === vehicleId) {
+      throw new Error(
+        `Fahrzeug ${
+          existingTackCoatAllocation.licensePlate ??
+          existingTackCoatAllocation.vehicleNumber ??
+          ""
+        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`
+      );
+    }
+
+    if (
+      vehicleInventoryItemId &&
+      existingTackCoatAllocation.vehicleInventoryItemId ===
+        vehicleInventoryItemId
+    ) {
       throw new Error(
         `Fahrzeug ${
           existingTackCoatAllocation.licensePlate ??
@@ -738,9 +787,12 @@ async function resolveShortHaulData(formData: FormData, workDate: Date) {
     throw new Error("Fahrer wurde nicht gefunden.");
   }
 
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
   const longHaulConflicts = await findLongHaulConflicts({
     driverId,
     vehicleId,
+    vehicleInventoryItemId: inventoryItem?.id ?? null,
     workDate,
   });
 
@@ -771,15 +823,15 @@ export async function createShortHaulAssignment(formData: FormData) {
     allowLongHaulConflict,
     conflictNote,
   } = await resolveShortHaulData(formData, workDate);
+  const inventoryItem = getVehicleInventoryItem(vehicle);
 
   await assertShortHaulAvailability({
     driverId: driver.id,
     vehicleId: vehicle.id,
+    vehicleInventoryItemId: inventoryItem?.id ?? null,
     workDate,
     tours,
   });
-
-  const inventoryItem = getVehicleInventoryItem(vehicle);
 
   await prisma.shortHaulAssignment.create({
     data: {
@@ -844,16 +896,16 @@ export async function updateShortHaulAssignment(formData: FormData) {
     allowLongHaulConflict,
     conflictNote,
   } = await resolveShortHaulData(formData, workDate);
+  const inventoryItem = getVehicleInventoryItem(vehicle);
 
   await assertShortHaulAvailability({
     driverId: driver.id,
     vehicleId: vehicle.id,
+    vehicleInventoryItemId: inventoryItem?.id ?? null,
     workDate,
     tours,
     excludeId: id,
   });
-
-  const inventoryItem = getVehicleInventoryItem(vehicle);
 
   await prisma.$transaction(async (tx) => {
     await tx.shortHaulAssignment.update({

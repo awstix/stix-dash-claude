@@ -21,20 +21,16 @@ import {
   deleteAsphaltLoadAllocation,
   updateAsphaltLoadAllocation,
 } from "../asphalt-load-actions";
-import { InitialTruckRows } from "./InitialTruckRows";
-import {
-  LongHaulAssignmentTypeFields,
-  LongHaulConstructionFields,
-} from "./LongHaulAssignmentTypeFields";
+import { LongHaulForm } from "./LongHaulForm";
 import { LongHaulOwnTruckSuggestionForm } from "./LongHaulOwnTruckSuggestionForm";
 import { LongHaulPlannedPerformanceFields } from "./LongHaulPlannedPerformanceFields";
 import {
-  createLongHaulEntry,
+  createLongHaulEntryFormAction,
   createOwnTruckAssignment,
   createSubcontractorTruckAssignment,
   deleteLongHaulEntry,
   deleteTruckAssignment,
-  updateLongHaulEntry,
+  updateLongHaulEntryFormAction,
 } from "./actions";
 
 const weekdayLabels = [
@@ -93,6 +89,17 @@ type InventoryOptionItem = {
     parentCategory: {
       name: string;
     } | null;
+  } | null;
+};
+
+type TruckDispatchCategoryOption = {
+  id: string;
+  name: string;
+  useInTruckDispatchSelection: boolean;
+  parentCategory: {
+    id: string;
+    name: string;
+    useInTruckDispatchSelection: boolean;
   } | null;
 };
 
@@ -363,6 +370,21 @@ function getInventoryOptionGroup(item: InventoryOptionItem) {
     : item.category.name;
 }
 
+function getTruckDispatchCategoryLabel(category: TruckDispatchCategoryOption) {
+  return category.parentCategory
+    ? `${category.parentCategory.name} / ${category.name}`
+    : category.name;
+}
+
+function categoryIsSelectableForTruckDispatch(
+  category: TruckDispatchCategoryOption,
+) {
+  return Boolean(
+    category.useInTruckDispatchSelection ||
+      category.parentCategory?.useInTruckDispatchSelection,
+  );
+}
+
 function mapMaterialInventoryOption(item: InventoryOptionItem) {
   return {
     id: item.id,
@@ -493,7 +515,7 @@ export default async function LongHaulPage({
     shortHaulConflicts,
     shortAsphaltConflicts,
     shortTackCoatConflicts,
-    vehicleCategoryOptions,
+    vehicleCategoryOptionsRaw,
     asphaltMixesRaw,
     subcontractorOptions,
   ] = await Promise.all([
@@ -674,12 +696,33 @@ export default async function LongHaulPage({
       },
     }),
 
-    prisma.adminOption.findMany({
+    prisma.inventoryCategory.findMany({
       where: {
         isActive: true,
-        groupKey: "vehicle_category",
+        OR: [
+          {
+            useInTruckDispatchSelection: true,
+          },
+          {
+            parentCategory: {
+              useInTruckDispatchSelection: true,
+            },
+          },
+        ],
       },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        useInTruckDispatchSelection: true,
+        parentCategory: {
+          select: {
+            id: true,
+            name: true,
+            useInTruckDispatchSelection: true,
+          },
+        },
+      },
+      orderBy: [{ parentCategoryId: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
     }),
 
     prisma.inventoryItem.findMany({
@@ -729,16 +772,9 @@ export default async function LongHaulPage({
   const vehicles = allVehicles.filter(vehicleIsSelectableInTruckDispatch);
   const drivers = allDrivers.filter(driverIsSelectableInTruckDispatch);
 
-  const vehicleCategories =
-    vehicleCategoryOptions.length > 0
-      ? vehicleCategoryOptions.map((option) => option.label)
-      : [
-          "2-Achser",
-          "3-Achser",
-          "3-Achser + Anhänger",
-          "4-Achser",
-          "Sattelzug",
-        ];
+  const vehicleCategories = vehicleCategoryOptionsRaw
+    .filter(categoryIsSelectableForTruckDispatch)
+    .map(getTruckDispatchCategoryLabel);
 
   const subcontractors = subcontractorOptions.map((option) => option.label);
 
@@ -1056,7 +1092,7 @@ export default async function LongHaulPage({
                   </summary>
 
                   <LongHaulForm
-                    action={createLongHaulEntry}
+                    action={createLongHaulEntryFormAction}
                     workDate={formatDateInput(day.date)}
                     projects={projects}
                     materials={materials}
@@ -1773,7 +1809,7 @@ function LongHaulEntryCard({
 
             return (
               <LongHaulForm
-                action={updateLongHaulEntry}
+                action={updateLongHaulEntryFormAction}
                 id={entry.id}
                 projects={projects}
                 materials={materials}
@@ -2511,135 +2547,6 @@ function SubcontractorTruckForm({
         className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-700"
       >
         Fremd-LKW hinzufügen
-      </button>
-    </form>
-  );
-}
-
-function LongHaulForm({
-  action,
-  id,
-  workDate,
-  projects,
-  materials,
-  asphaltMixes,
-  asphaltOpenPositions = [],
-  showInitialTruckRows = false,
-  drivers = [],
-  vehicles = [],
-  vehicleCategories = [],
-  subcontractors = [],
-  busyDrivers = new Map<string, string>(),
-  busyVehicles = new Map<string, string>(),
-  shortDriverConflicts = new Map<string, string>(),
-  shortVehicleConflicts = new Map<string, string>(),
-  defaultAssignmentType = "CONSTRUCTION",
-  defaultMaterialSource = "MATERIAL",
-  defaultAsphaltDispatchEntryId = "",
-  defaultProjectId = "",
-  defaultMaterialTypeId = "",
-  defaultAsphaltMixTypeId = "",
-  defaultMaterialQuantity = 0,
-  defaultNotes = "",
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  id?: string;
-  workDate?: string;
-  projects: {
-    id: string;
-    projectNumber: string;
-    name: string;
-    constructionManager: string | null;
-  }[];
-  materials: {
-    id: string;
-    name: string;
-    unit: string;
-    category: string | null;
-  }[];
-  asphaltMixes: {
-    id: string;
-    mixNumber: string;
-    name: string;
-    shortName: string | null;
-    unit: string;
-    category: string | null;
-  }[];
-  asphaltOpenPositions?: AsphaltOpenPositionForPage[];
-  showInitialTruckRows?: boolean;
-  drivers?: DriverWithVehicles[];
-  vehicles?: VehicleWithDriver[];
-  vehicleCategories?: string[];
-  subcontractors?: string[];
-  busyDrivers?: Map<string, string>;
-  busyVehicles?: Map<string, string>;
-  shortDriverConflicts?: Map<string, string>;
-  shortVehicleConflicts?: Map<string, string>;
-  defaultAssignmentType?: string;
-  defaultMaterialSource?: "MATERIAL" | "ASPHALT";
-  defaultAsphaltDispatchEntryId?: string;
-  defaultProjectId?: string;
-  defaultMaterialTypeId?: string;
-  defaultAsphaltMixTypeId?: string;
-  defaultMaterialQuantity?: number;
-  defaultNotes?: string;
-}) {
-  return (
-    <form
-      action={action}
-      className="mt-4 space-y-3 border-t border-gray-100 pt-3"
-    >
-      {id ? <input type="hidden" name="id" value={id} /> : null}
-      {workDate ? (
-        <input type="hidden" name="workDate" value={workDate} />
-      ) : null}
-
-      <LongHaulAssignmentTypeFields
-        asphaltOpenPositions={asphaltOpenPositions}
-        defaultAssignmentType={defaultAssignmentType}
-        defaultAsphaltDispatchEntryId={defaultAsphaltDispatchEntryId}
-      />
-
-      <LongHaulConstructionFields
-        projects={projects}
-        materials={materials}
-        asphaltMixes={asphaltMixes}
-        defaultAssignmentType={defaultAssignmentType}
-        defaultMaterialSource={defaultMaterialSource}
-        defaultProjectId={defaultProjectId}
-        defaultMaterialTypeId={defaultMaterialTypeId}
-        defaultAsphaltMixTypeId={defaultAsphaltMixTypeId}
-        defaultMaterialQuantity={defaultMaterialQuantity}
-      />
-
-      {showInitialTruckRows ? (
-        <InitialTruckRows
-          drivers={drivers}
-          vehicles={vehicles}
-          vehicleCategories={vehicleCategories}
-          subcontractors={subcontractors}
-          busyDrivers={Object.fromEntries(busyDrivers)}
-          busyVehicles={Object.fromEntries(busyVehicles)}
-          shortDriverConflicts={Object.fromEntries(shortDriverConflicts)}
-          shortVehicleConflicts={Object.fromEntries(shortVehicleConflicts)}
-        />
-      ) : null}
-
-      <label className="block text-sm font-medium text-gray-700">
-        Bemerkung
-        <textarea
-          name="notes"
-          rows={3}
-          defaultValue={defaultNotes}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        />
-      </label>
-
-      <button
-        type="submit"
-        className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-      >
-        Speichern
       </button>
     </form>
   );

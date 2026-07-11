@@ -9,6 +9,17 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 
+type LongHaulFormState = {
+  error?: string | null;
+  success?: string | null;
+};
+
+function getActionErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Die Eingabe konnte nicht gespeichert werden.";
+}
+
 function parseWorkDate(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
 
@@ -349,14 +360,21 @@ async function assertDriverAvailableForLongHaul({
 
 async function assertVehicleAvailableForLongHaul({
   vehicleId,
+  vehicleInventoryItemId,
   workDate,
 }: {
   vehicleId: string;
+  vehicleInventoryItemId?: string | null;
   workDate: Date;
 }) {
+  const vehicleConditions = [
+    { vehicleId },
+    ...(vehicleInventoryItemId ? [{ vehicleInventoryItemId }] : []),
+  ];
+
   const existing = await prisma.truckLongHaulTruckAssignment.findFirst({
     where: {
-      vehicleId,
+      OR: vehicleConditions,
       entry: {
         workDate: getDayRange(workDate),
       },
@@ -374,7 +392,7 @@ async function assertVehicleAvailableForLongHaul({
 
   const shortHaulExisting = await prisma.shortHaulAssignment.findFirst({
     where: {
-      vehicleId,
+      OR: vehicleConditions,
       workDate: getDayRange(workDate),
     },
   });
@@ -388,7 +406,7 @@ async function assertVehicleAvailableForLongHaul({
   const asphaltAllocationExisting = await prisma.asphaltLoadAllocation.findFirst({
     where: {
       sourceType: "SHORT",
-      vehicleId,
+      OR: vehicleConditions,
       workDate: getDayRange(workDate),
     },
   });
@@ -409,7 +427,7 @@ async function assertVehicleAvailableForLongHaul({
     await prisma.tackCoatLoadAllocation.findFirst({
       where: {
         sourceType: "SHORT",
-        vehicleId,
+        OR: vehicleConditions,
         workDate: getDayRange(workDate),
       },
     });
@@ -595,6 +613,7 @@ async function resolveOwnTruckAssignment({
 
   await assertVehicleAvailableForLongHaul({
     vehicleId: vehicle.id,
+    vehicleInventoryItemId: inventoryItem?.id ?? null,
     workDate,
   });
 
@@ -996,6 +1015,25 @@ export async function createLongHaulEntry(formData: FormData) {
   revalidateLongHaulConsumers();
 }
 
+export async function createLongHaulEntryFormAction(
+  _state: LongHaulFormState,
+  formData: FormData,
+): Promise<LongHaulFormState> {
+  try {
+    await createLongHaulEntry(formData);
+
+    return {
+      error: null,
+      success: "Einteilung wurde gespeichert.",
+    };
+  } catch (error) {
+    return {
+      error: getActionErrorMessage(error),
+      success: null,
+    };
+  }
+}
+
 export async function updateLongHaulEntry(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
 
@@ -1013,6 +1051,25 @@ export async function updateLongHaulEntry(formData: FormData) {
   });
 
   revalidateLongHaulConsumers();
+}
+
+export async function updateLongHaulEntryFormAction(
+  _state: LongHaulFormState,
+  formData: FormData,
+): Promise<LongHaulFormState> {
+  try {
+    await updateLongHaulEntry(formData);
+
+    return {
+      error: null,
+      success: "Einteilung wurde gespeichert.",
+    };
+  } catch (error) {
+    return {
+      error: getActionErrorMessage(error),
+      success: null,
+    };
+  }
 }
 
 export async function deleteLongHaulEntry(formData: FormData) {
