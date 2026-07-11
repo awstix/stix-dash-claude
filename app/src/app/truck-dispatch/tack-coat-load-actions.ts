@@ -1,6 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
   getDayRange,
@@ -68,6 +72,7 @@ async function getVehicleSnapshot(vehicleId: string | null) {
     where: {
       id: vehicleId,
     },
+    include: vehicleInventoryLinkInclude,
   });
 }
 
@@ -302,6 +307,7 @@ export async function createTackCoatLoadAllocation(formData: FormData) {
     getVehicleSnapshot(manualVehicleId),
     getDriverSnapshot(manualDriverId),
   ]);
+  const inventoryItem = vehicle ? getVehicleInventoryItem(vehicle) : null;
 
   const driverName =
     driver != null ? `${driver.lastName}, ${driver.firstName}` : null;
@@ -320,10 +326,14 @@ export async function createTackCoatLoadAllocation(formData: FormData) {
       quantityUnit: position.quantityUnit,
       ownerType: "OWN",
       vehicleId: vehicle?.id ?? null,
-      vehicleNumber: vehicle?.vehicleNumber ?? null,
-      licensePlate: vehicle?.licensePlate ?? null,
+      vehicleInventoryItemId: inventoryItem?.id ?? null,
+      vehicleNumber: inventoryItem?.objectNumber ?? vehicle?.vehicleNumber ?? null,
+      licensePlate: inventoryItem?.licensePlate ?? vehicle?.licensePlate ?? null,
       vehicleType: vehicle?.vehicleType ?? null,
-      vehicleCategory: vehicle?.category ?? null,
+      vehicleCategory:
+        inventoryItem?.category?.parentCategory?.name && inventoryItem?.category?.name
+          ? `${inventoryItem.category.parentCategory.name} / ${inventoryItem.category.name}`
+          : inventoryItem?.category?.name ?? vehicle?.category ?? null,
       driverId: driver?.id ?? null,
       driverName,
       tourCount,

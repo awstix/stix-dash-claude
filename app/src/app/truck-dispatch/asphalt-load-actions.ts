@@ -1,6 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { getOpenTonsForDispatchEntry, roundTons } from "@/lib/asphalt-loads";
 
@@ -77,6 +81,7 @@ async function getVehicleSnapshot(vehicleId: string | null) {
     where: {
       id: vehicleId,
     },
+    include: vehicleInventoryLinkInclude,
   });
 }
 
@@ -392,14 +397,17 @@ async function createAsphaltLoadAllocationInternal(formData: FormData) {
     getVehicleSnapshot(resolvedVehicleId),
     getDriverSnapshot(resolvedDriverId),
   ]);
+  const inventoryItem = vehicle ? getVehicleInventoryItem(vehicle) : null;
 
   const vehicleNumber =
+    inventoryItem?.objectNumber ??
     vehicle?.vehicleNumber ??
     shortHaul?.vehicleNumber ??
     longHaulTruck?.vehicleNumber ??
     null;
 
   const licensePlate =
+    inventoryItem?.licensePlate ??
     vehicle?.licensePlate ??
     shortHaul?.licensePlate ??
     longHaulTruck?.licensePlate ??
@@ -412,6 +420,9 @@ async function createAsphaltLoadAllocationInternal(formData: FormData) {
     null;
 
   const vehicleCategory =
+    inventoryItem?.category?.parentCategory?.name && inventoryItem?.category?.name
+      ? `${inventoryItem.category.parentCategory.name} / ${inventoryItem.category.name}`
+      : inventoryItem?.category?.name ??
     vehicle?.category ??
     shortHaul?.vehicleCategory ??
     longHaulTruck?.vehicleCategory ??
@@ -460,6 +471,11 @@ async function createAsphaltLoadAllocationInternal(formData: FormData) {
       ownerType,
 
       vehicleId: vehicle?.id ?? null,
+      vehicleInventoryItemId:
+        inventoryItem?.id ??
+        shortHaul?.vehicleInventoryItemId ??
+        longHaulTruck?.vehicleInventoryItemId ??
+        null,
       vehicleNumber,
       licensePlate,
       vehicleType,

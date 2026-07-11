@@ -2,6 +2,11 @@
 
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 
 function parseWorkDate(value: FormDataEntryValue | null) {
@@ -100,6 +105,7 @@ type OwnTruckAssignmentInput = {
     driverName: string;
 
     vehicleId: string;
+    vehicleInventoryItemId: string | null;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -117,6 +123,7 @@ type SubcontractorTruckAssignmentInput = {
     driverId: null;
     driverName: null;
     vehicleId: null;
+    vehicleInventoryItemId: null;
     vehicleNumber: null;
     licensePlate: null;
     vehicleType: null;
@@ -229,7 +236,9 @@ async function getDriverWithPrimaryVehicle(driverId: string) {
           isActive: true,
         },
         include: {
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
       },
@@ -244,7 +253,22 @@ async function getVehicle(vehicleId: string | null) {
     where: {
       id: vehicleId,
     },
+    include: vehicleInventoryLinkInclude,
   });
+}
+
+function getInventoryCategoryLabel(
+  vehicle: ({
+    category: string;
+  } & VehicleWithInventoryLink) | null,
+) {
+  const item = vehicle ? getVehicleInventoryItem(vehicle) : null;
+  const categoryName = item?.category?.name ?? vehicle?.category ?? "";
+  const parentCategoryName = item?.category?.parentCategory?.name;
+
+  return parentCategoryName
+    ? `${parentCategoryName} / ${categoryName}`
+    : categoryName;
 }
 
 async function assertDriverAvailableForLongHaul({
@@ -556,6 +580,7 @@ async function resolveOwnTruckAssignment({
 
   const primaryVehicle = driver.vehicleAssignments[0]?.vehicle ?? null;
   const vehicle = vehicleId ? await getVehicle(vehicleId) : primaryVehicle;
+  const inventoryItem = vehicle ? getVehicleInventoryItem(vehicle) : null;
 
   if (!vehicle) {
     throw new Error(
@@ -575,14 +600,15 @@ async function resolveOwnTruckAssignment({
 
   return {
     ownerType: "OWN",
-    vehicleCategory: vehicle.category,
+    vehicleCategory: getInventoryCategoryLabel(vehicle),
 
     driverId: driver.id,
     driverName: `${driver.lastName}, ${driver.firstName}`,
 
     vehicleId: vehicle.id,
-    vehicleNumber: vehicle.vehicleNumber,
-    licensePlate: vehicle.licensePlate,
+    vehicleInventoryItemId: inventoryItem?.id ?? null,
+    vehicleNumber: inventoryItem?.objectNumber ?? vehicle.vehicleNumber,
+    licensePlate: inventoryItem?.licensePlate ?? vehicle.licensePlate,
     vehicleType: vehicle.vehicleType,
 
     subcontractorName: null,
@@ -797,6 +823,7 @@ function parseInitialSubcontractorTruckAssignments(formData: FormData) {
         driverId: null,
         driverName: null,
         vehicleId: null,
+        vehicleInventoryItemId: null,
         vehicleNumber: null,
         licensePlate: null,
         vehicleType: null,
@@ -829,6 +856,7 @@ async function createLongHaulAsphaltAllocation({
     driverId: string | null;
     driverName: string | null;
     vehicleId: string | null;
+    vehicleInventoryItemId: string | null;
     vehicleNumber: string | null;
     licensePlate: string | null;
     vehicleType: string | null;
@@ -899,6 +927,7 @@ async function createLongHaulAsphaltAllocation({
       ownerType: truckAssignment.ownerType,
 
       vehicleId: truckAssignment.vehicleId,
+      vehicleInventoryItemId: truckAssignment.vehicleInventoryItemId,
       vehicleNumber: truckAssignment.vehicleNumber,
       licensePlate: truckAssignment.licensePlate,
       vehicleType: truckAssignment.vehicleType,
@@ -1094,6 +1123,7 @@ export async function createSubcontractorTruckAssignment(formData: FormData) {
     driverId: null,
     driverName: null,
     vehicleId: null,
+    vehicleInventoryItemId: null,
     vehicleNumber: null,
     licensePlate: null,
     vehicleType: null,

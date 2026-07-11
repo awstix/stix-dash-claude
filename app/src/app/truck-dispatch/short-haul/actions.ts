@@ -1,6 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 
 function parseWorkDate(value: FormDataEntryValue | null) {
@@ -131,7 +136,22 @@ async function getVehicle(vehicleId: string) {
     where: {
       id: vehicleId,
     },
+    include: vehicleInventoryLinkInclude,
   });
+}
+
+function getInventoryCategoryLabel(
+  vehicle: ({
+    category: string;
+  } & VehicleWithInventoryLink) | null,
+) {
+  const item = vehicle ? getVehicleInventoryItem(vehicle) : null;
+  const categoryName = item?.category?.name ?? vehicle?.category ?? "";
+  const parentCategoryName = item?.category?.parentCategory?.name;
+
+  return parentCategoryName
+    ? `${parentCategoryName} / ${categoryName}`
+    : categoryName;
 }
 
 async function getDriver(driverId: string) {
@@ -759,6 +779,8 @@ export async function createShortHaulAssignment(formData: FormData) {
     tours,
   });
 
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
   await prisma.shortHaulAssignment.create({
     data: {
       workDate,
@@ -769,10 +791,11 @@ export async function createShortHaulAssignment(formData: FormData) {
       projectName: firstTour.projectName,
 
       vehicleId: vehicle.id,
-      vehicleNumber: vehicle.vehicleNumber,
-      licensePlate: vehicle.licensePlate,
+      vehicleInventoryItemId: inventoryItem?.id ?? null,
+      vehicleNumber: inventoryItem?.objectNumber ?? vehicle.vehicleNumber,
+      licensePlate: inventoryItem?.licensePlate ?? vehicle.licensePlate,
       vehicleType: vehicle.vehicleType,
-      vehicleCategory: vehicle.category,
+      vehicleCategory: getInventoryCategoryLabel(vehicle),
 
       driverId: driver.id,
       driverName: `${driver.lastName}, ${driver.firstName}`,
@@ -830,6 +853,8 @@ export async function updateShortHaulAssignment(formData: FormData) {
     excludeId: id,
   });
 
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
   await prisma.$transaction(async (tx) => {
     await tx.shortHaulAssignment.update({
       where: {
@@ -843,10 +868,11 @@ export async function updateShortHaulAssignment(formData: FormData) {
         projectName: firstTour.projectName,
 
         vehicleId: vehicle.id,
-        vehicleNumber: vehicle.vehicleNumber,
-        licensePlate: vehicle.licensePlate,
+        vehicleInventoryItemId: inventoryItem?.id ?? null,
+        vehicleNumber: inventoryItem?.objectNumber ?? vehicle.vehicleNumber,
+        licensePlate: inventoryItem?.licensePlate ?? vehicle.licensePlate,
         vehicleType: vehicle.vehicleType,
-        vehicleCategory: vehicle.category,
+        vehicleCategory: getInventoryCategoryLabel(vehicle),
 
         driverId: driver.id,
         driverName: `${driver.lastName}, ${driver.firstName}`,
