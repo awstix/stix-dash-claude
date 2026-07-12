@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
+  getVehicleInventoryItem,
   vehicleInventoryLinkInclude,
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
@@ -96,6 +97,25 @@ type CountHours = {
 
 type MachineBucket = CountHours & {
   label: string;
+};
+
+type DailyReportInventoryItem = {
+  category: {
+    dailyReportMachineLabel: string | null;
+    dailyReportSection: string;
+    name: string;
+    parentCategory: {
+      dailyReportMachineLabel: string | null;
+      dailyReportSection: string;
+      name: string;
+      useInDailyReports: boolean;
+    } | null;
+    useInDailyReports: boolean;
+  } | null;
+  inventoryNumber: string | null;
+  name: string;
+  objectNumber: string | null;
+  stockUnit: string;
 };
 
 const laborLabels = [
@@ -425,8 +445,27 @@ export async function getDailyReportSourceProject(
             id: {
               in: Array.from(inventoryItemIds),
             },
+            status: {
+              notIn: ["DELETED", "INACTIVE"],
+            },
           },
           select: {
+            category: {
+              select: {
+                dailyReportMachineLabel: true,
+                dailyReportSection: true,
+                name: true,
+                parentCategory: {
+                  select: {
+                    dailyReportMachineLabel: true,
+                    dailyReportSection: true,
+                    name: true,
+                    useInDailyReports: true,
+                  },
+                },
+                useInDailyReports: true,
+              },
+            },
             id: true,
             inventoryNumber: true,
             name: true,
@@ -460,6 +499,7 @@ export function buildDailyReportContext(
   const workTimes: { end: string; start: string }[] = [];
   const performanceLines: string[] = [];
   const asphaltDispatchMaterialKeys = new Set<string>();
+  const specialVehicleMachineKeys = new Set<string>();
   const inventoryItemsById = new Map(
     project.dailyReportInventoryItems.map((item) => [item.id, item]),
   );
@@ -558,16 +598,31 @@ export function buildDailyReportContext(
       start: assignment.startTime,
     });
     const hours = durationHours(assignment.startTime, assignment.endTime);
+    const timedMachineKey = getTimedMachineKey(
+      assignment.vehicle,
+      assignment.startTime,
+      assignment.endTime,
+    );
 
-    if (assignment.vehicle) {
-      addMachine(machines, realMachines, assignment.vehicle, hours);
-    } else if (assignment.vehicleName) {
+    if (assignment.vehicle && getVehicleInventoryItem(assignment.vehicle)) {
+      addMachineOnce(
+        machines,
+        realMachines,
+        specialVehicleMachineKeys,
+        assignment.vehicle,
+        hours,
+        timedMachineKey,
+      );
+    } else if (!assignment.vehicleId && assignment.vehicleName) {
       addFallbackMachine(machines, realMachines, assignment.vehicleName, hours);
     }
 
-    if (assignment.transportVehicle) {
+    if (
+      assignment.transportVehicle &&
+      getVehicleInventoryItem(assignment.transportVehicle)
+    ) {
       addMachine(machines, realMachines, assignment.transportVehicle, hours);
-    } else if (assignment.transportVehicleName) {
+    } else if (!assignment.transportVehicleId && assignment.transportVehicleName) {
       addFallbackMachine(
         machines,
         realMachines,
@@ -629,6 +684,23 @@ export function buildDailyReportContext(
         end: tour.endTime,
         start: tour.startTime,
       });
+      const tourInventoryItem = tour.itemId
+        ? inventoryItemsById.get(tour.itemId)
+        : null;
+      const tourIsMachineTransport =
+        tour.purposeType === "TRANSPORT_MACHINE" ||
+        isDailyReportMachineInventoryItem(tourInventoryItem);
+
+      if (tourIsMachineTransport && tourInventoryItem) {
+        addInventoryMachine(
+          machines,
+          realMachines,
+          tourInventoryItem,
+          durationHours(tour.startTime, tour.endTime),
+        );
+        continue;
+      }
+
       if (
         !assignment.truckLongHaulEntryId &&
         !hasMaterialReference(
@@ -667,8 +739,13 @@ export function buildDailyReportContext(
   }
 
   for (const entry of project.truckLongHaulEntries) {
+    const entryInventoryItem = entry.materialInventoryItemId
+      ? inventoryItemsById.get(entry.materialInventoryItemId)
+      : null;
+
     if (
       !entry.asphaltDispatchEntryId &&
+      !isDailyReportMachineInventoryItem(entryInventoryItem) &&
       !hasMaterialReference(
         asphaltDispatchMaterialKeys,
         getInventoryMaterialLabel(
@@ -785,6 +862,11 @@ export function buildDailyReportContext(
       start: allocation.startTime,
     });
     const allocationHours = durationHours(allocation.startTime, allocation.endTime);
+    const timedMachineKey = getTimedMachineKey(
+      allocation.vehicle,
+      allocation.startTime,
+      allocation.endTime,
+    );
     if (allocation.ownerType !== "OWN") {
       addCountHours(
         subcontractors,
@@ -798,7 +880,14 @@ export function buildDailyReportContext(
       );
     }
     if (allocation.vehicle) {
-      addMachine(machines, realMachines, allocation.vehicle, allocationHours);
+      addMachineOnce(
+        machines,
+        realMachines,
+        specialVehicleMachineKeys,
+        allocation.vehicle,
+        allocationHours,
+        timedMachineKey,
+      );
     } else {
       addFallbackMachine(
         machines,
@@ -1546,15 +1635,44 @@ function addMachineOnce(
     vehicleType: string;
   } & VehicleWithInventoryLink,
   hours: number,
+  explicitKey?: string | null,
 ) {
   const machine = getVehicleDailyReportMachineInput(vehicle);
-  const key = vehicle.id || machine.label;
+  const key = explicitKey || vehicle.id || machine.label;
 
   if (keys.has(key)) return;
 
   keys.add(key);
   addMachineLabel(map, machine.label, hours, machine.classify);
   addMachineLabel(realMap, getVehicleRealMachineLabel(vehicle), hours, false);
+}
+
+function getTimedMachineKey(
+  vehicle:
+    | ({
+        category: string;
+        dailyReportMachineLabel?: string | null;
+        id?: string;
+        licensePlate?: string | null;
+        vehicleNumber: string;
+        vehicleType: string;
+      } & VehicleWithInventoryLink)
+    | null,
+  start: string,
+  end: string,
+) {
+  if (!vehicle) return null;
+
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+  const machine = getVehicleDailyReportMachineInput(vehicle);
+  const vehicleKey =
+    inventoryItem?.id ||
+    inventoryItem?.objectNumber ||
+    vehicle.id ||
+    vehicle.vehicleNumber ||
+    machine.label;
+
+  return `${vehicleKey}:${start}-${end}`;
 }
 
 function getVehicleDailyReportMachineInput(vehicle: {
@@ -1667,6 +1785,22 @@ function addFallbackMachine(
   addMachineLabel(realMap, rawLabel, hours, false);
 }
 
+function addInventoryMachine(
+  map: Map<string, MachineBucket>,
+  realMap: Map<string, MachineBucket>,
+  item: DailyReportInventoryItem,
+  hours: number,
+) {
+  const configuredLabel = getInventoryItemDailyReportMachineLabel(item);
+  const groupedLabel =
+    configuredLabel ||
+    getInventoryItemCategoryLabel(item) ||
+    getInventoryItemRealMachineLabel(item);
+
+  addMachineLabel(map, groupedLabel, hours, !configuredLabel);
+  addMachineLabel(realMap, getInventoryItemRealMachineLabel(item), hours, false);
+}
+
 function addMachineLabel(
   map: Map<string, MachineBucket>,
   rawLabel: string,
@@ -1710,6 +1844,62 @@ function classifyMachine(label: string) {
   if (text.includes("radlader")) return "Radlader";
 
   return label || "Sonstige Maschine";
+}
+
+function getInventoryItemDailyReportSection(
+  item: DailyReportInventoryItem | null | undefined,
+) {
+  if (!item?.category) return "NONE";
+
+  if (item.category.useInDailyReports && item.category.dailyReportSection !== "NONE") {
+    return item.category.dailyReportSection;
+  }
+
+  const parentCategory = item.category.parentCategory;
+
+  if (
+    parentCategory?.useInDailyReports &&
+    parentCategory.dailyReportSection !== "NONE"
+  ) {
+    return parentCategory.dailyReportSection;
+  }
+
+  return item.category.dailyReportSection !== "NONE"
+    ? item.category.dailyReportSection
+    : parentCategory?.dailyReportSection ?? "NONE";
+}
+
+function getInventoryItemDailyReportMachineLabel(
+  item: DailyReportInventoryItem | null | undefined,
+) {
+  return (
+    String(item?.category?.dailyReportMachineLabel ?? "").trim() ||
+    String(item?.category?.parentCategory?.dailyReportMachineLabel ?? "").trim()
+  );
+}
+
+function getInventoryItemCategoryLabel(
+  item: DailyReportInventoryItem | null | undefined,
+) {
+  if (!item?.category) return "";
+
+  return item.category.parentCategory
+    ? `${item.category.parentCategory.name} ${item.category.name}`
+    : item.category.name;
+}
+
+function getInventoryItemRealMachineLabel(item: DailyReportInventoryItem) {
+  return (
+    [item.objectNumber, item.inventoryNumber, item.name].filter(Boolean).join(" · ") ||
+    item.name ||
+    "Sonstige Maschine"
+  );
+}
+
+function isDailyReportMachineInventoryItem(
+  item: DailyReportInventoryItem | null | undefined,
+) {
+  return getInventoryItemDailyReportSection(item) === "MACHINES";
 }
 
 function vehicleLabel({

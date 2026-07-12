@@ -681,7 +681,7 @@ export default async function SpecialVehicleDispatchPage({
     prisma.inventoryItem.findMany({
       where: {
         status: {
-          not: "INACTIVE",
+          notIn: ["DELETED", "INACTIVE"],
         },
         vehicleId: {
           not: null,
@@ -748,7 +748,7 @@ export default async function SpecialVehicleDispatchPage({
     prisma.inventoryItem.findMany({
       where: {
         status: {
-          not: "INACTIVE",
+          notIn: ["DELETED", "INACTIVE"],
         },
         vehicleId: {
           not: null,
@@ -1015,6 +1015,14 @@ export default async function SpecialVehicleDispatchPage({
     filters,
     focusDate: todayStart,
   });
+  const closeCreateHref = buildSpecialVehicleDispatchHref({
+    fromDate,
+    toDate,
+    view,
+    showWeekend,
+    filters,
+    focusDate,
+  });
   const timelineRangePresets = [
     {
       label: "1W",
@@ -1113,10 +1121,20 @@ export default async function SpecialVehicleDispatchPage({
         open={shouldOpenCreateForm}
         className={
           shouldOpenCreateForm
-            ? "mb-6 scroll-mt-28 rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-md ring-2 ring-blue-100"
+            ? "fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[220] mx-auto max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl scroll-mt-28 overflow-y-auto rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-2xl ring-2 ring-blue-100"
             : "mb-6 scroll-mt-28 rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm"
         }
       >
+        {shouldOpenCreateForm ? (
+          <Link
+            href={closeCreateHref}
+            scroll={false}
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-white text-lg font-bold text-blue-950 shadow-sm hover:bg-blue-50"
+            aria-label="Sonderfahrzeug-Einsatz schließen"
+          >
+            ×
+          </Link>
+        ) : null}
         <summary className="cursor-pointer text-lg font-semibold text-blue-950">
           Sonderfahrzeug-Einsatz eintragen
           {quickVehicle ? ` · ${getVehicleLabel(quickVehicle)}` : null}
@@ -1208,7 +1226,7 @@ export default async function SpecialVehicleDispatchPage({
                 ) : null}
               </summary>
 
-              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+              <div className="fixed left-4 right-4 top-24 z-[140] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                 <div className="text-sm font-bold text-gray-900">
                   Sonderfahrzeuge filtern
                 </div>
@@ -1659,17 +1677,46 @@ function SpecialVehicleAssignmentCard({
   }[];
 }) {
   const quantityLabel = formatQuantity(assignment.quantity, assignment.quantityUnit);
+  const overlayId = `special-vehicle-assignment-${assignment.id}`;
 
   return (
-    <details className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs text-purple-950 shadow-sm">
-      <summary className="cursor-pointer font-semibold leading-5">
+    <div className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs text-purple-950 shadow-sm">
+      <input id={overlayId} type="checkbox" className="peer sr-only" />
+      <label
+        htmlFor={overlayId}
+        className="block cursor-pointer font-semibold leading-5"
+      >
         <span className="block truncate" title={getAssignmentSummary(assignment)}>
           {getAssignmentSummary(assignment)}
         </span>
-      </summary>
+      </label>
 
-      <div className="mt-3 rounded-lg border border-purple-100 bg-white p-3 text-gray-900">
-        <div className="mb-3 space-y-1 text-xs text-gray-600">
+      <label
+        htmlFor={overlayId}
+        aria-label="Sonderfahrzeug-Einsatz schließen"
+        className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+      />
+
+      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl overflow-y-auto rounded-2xl border border-purple-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+              Sonderfahrzeug-Einsatz bearbeiten
+            </div>
+            <h3 className="mt-1 text-xl font-bold text-gray-950">
+              {getAssignmentSummary(assignment)}
+            </h3>
+          </div>
+          <label
+            htmlFor={overlayId}
+            className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
+            aria-label="Sonderfahrzeug-Einsatz schließen"
+          >
+            ×
+          </label>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-purple-100 bg-purple-50 p-3 text-xs text-gray-700">
           <div>
             <strong>Baustelle:</strong> {assignment.projectNumber} · {assignment.projectName}
           </div>
@@ -1721,17 +1768,16 @@ function SpecialVehicleAssignmentCard({
           defaultQuantityUnit={assignment.quantityUnit ?? ""}
           defaultNotes={assignment.notes ?? ""}
           tackCoatMaterials={tackCoatMaterials}
-          compact
         />
 
-        <form action={deleteSpecialVehicleDispatchAssignment} className="mt-3">
+        <form action={deleteSpecialVehicleDispatchAssignment} className="mt-4">
           <input type="hidden" name="id" value={assignment.id} />
           <button type="submit" className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">
             Einsatz löschen
           </button>
         </form>
       </div>
-    </details>
+    </div>
   );
 }
 

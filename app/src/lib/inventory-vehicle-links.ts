@@ -2,6 +2,11 @@ import type { Prisma } from "@prisma/client";
 
 export const vehicleInventoryLinkInclude = {
   inventoryItems: {
+    where: {
+      status: {
+        notIn: ["DELETED", "INACTIVE"],
+      },
+    },
     orderBy: [{ objectNumber: "asc" }, { name: "asc" }],
     select: {
       id: true,
