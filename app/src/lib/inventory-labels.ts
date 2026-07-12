@@ -444,15 +444,14 @@ function getInventoryCategoryLabelForLabel(
 }
 
 export function getInventoryResponsibleLabel(item: InventoryLabelItem) {
-  if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
-    return `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`;
-  }
-
-  if (item.responsibleType === "CREW" && item.responsibleCrew) {
-    return item.responsibleCrew.name;
-  }
-
-  return "";
+  return [
+    item.responsibleEmployee
+      ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
+      : null,
+    item.responsibleCrew?.name ?? null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export function getInventoryLocationLabel(item: InventoryLabelItem) {

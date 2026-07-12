@@ -7,6 +7,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { getTackCoatOpenPositions } from "@/lib/tack-coat-loads";
 
 function parseDate(value: FormDataEntryValue | null, fieldName: string) {
   const text = String(value ?? "").trim();
@@ -373,6 +374,68 @@ function getAssignmentInput(formData: FormData) {
   };
 }
 
+function looksLikeTackCoatAssignment({
+  quantityUnit,
+  taskText,
+}: {
+  quantityUnit: string | null;
+  taskText: string | null;
+}) {
+  const normalizedTaskText = String(taskText ?? "").trim().toLowerCase();
+  const normalizedUnit = String(quantityUnit ?? "").trim().toLowerCase();
+
+  return (
+    normalizedTaskText.includes("anspritz") ||
+    normalizedUnit === "l" ||
+    normalizedUnit === "liter"
+  );
+}
+
+async function resolveSpecialVehicleMaterialName({
+  materialName,
+  projectId,
+  quantityUnit,
+  taskText,
+  workDate,
+}: {
+  materialName: string | null;
+  projectId: string | null;
+  quantityUnit: string | null;
+  taskText: string | null;
+  workDate: Date;
+}) {
+  if (materialName) {
+    return materialName;
+  }
+
+  if (
+    !projectId ||
+    !looksLikeTackCoatAssignment({
+      quantityUnit,
+      taskText,
+    })
+  ) {
+    return null;
+  }
+
+  const positions = await getTackCoatOpenPositions(workDate);
+  const normalizedUnit = String(quantityUnit ?? "").trim().toLowerCase();
+  const position =
+    positions.find(
+      (item) =>
+        item.projectId === projectId &&
+        item.openLiters > 0 &&
+        (!normalizedUnit ||
+          item.quantityUnit.trim().toLowerCase() === normalizedUnit),
+    ) ??
+    positions.find(
+      (item) => item.projectId === projectId && item.openLiters > 0,
+    ) ??
+    positions.find((item) => item.projectId === projectId);
+
+  return position?.materialName ?? "Anspritzmittel";
+}
+
 export async function createSpecialVehicleDispatchAssignment(formData: FormData) {
   const input = getAssignmentInput(formData);
 
@@ -385,6 +448,13 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
   ]);
   const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
   const transportVehicleInventoryItemId = getVehicleInventoryItemId(transportVehicle);
+  const materialName = await resolveSpecialVehicleMaterialName({
+    materialName: input.materialName,
+    projectId: project.id,
+    quantityUnit: input.quantityUnit,
+    taskText: input.taskText,
+    workDate: input.workDate,
+  });
 
   await assertSpecialVehicleTimeIsFree({
     vehicleId: vehicle.id,
@@ -461,7 +531,7 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
           }
         : {}),
       taskText: input.taskText,
-      materialName: input.materialName,
+      materialName,
       quantity: input.quantity,
       quantityUnit: input.quantityUnit,
       notes: input.notes,
@@ -559,6 +629,13 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
 
   for (const input of inputs) {
     const project = await getProject(input.projectId);
+    const materialName = await resolveSpecialVehicleMaterialName({
+      materialName: input.materialName,
+      projectId: project.id,
+      quantityUnit: input.quantityUnit,
+      taskText: input.taskText,
+      workDate: input.workDate,
+    });
 
     await assertSpecialVehicleTimeIsFree({
       vehicleId: vehicle.id,
@@ -635,7 +712,7 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
             }
           : {}),
         taskText: input.taskText,
-        materialName: input.materialName,
+        materialName,
         quantity: input.quantity,
         quantityUnit: input.quantityUnit,
         notes: input.notes,
@@ -664,6 +741,13 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
   ]);
   const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
   const transportVehicleInventoryItemId = getVehicleInventoryItemId(transportVehicle);
+  const materialName = await resolveSpecialVehicleMaterialName({
+    materialName: input.materialName,
+    projectId: project.id,
+    quantityUnit: input.quantityUnit,
+    taskText: input.taskText,
+    workDate: input.workDate,
+  });
 
   await assertSpecialVehicleTimeIsFree({
     vehicleId: vehicle.id,
@@ -744,7 +828,7 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
           },
       crewName: crew?.name ?? null,
       taskText: input.taskText,
-      materialName: input.materialName,
+      materialName,
       quantity: input.quantity,
       quantityUnit: input.quantityUnit,
       notes: input.notes,

@@ -394,6 +394,48 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+function normalizePersonName(value: string | null | undefined) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function getDefaultOperatorDriverForResponsibleEmployee(
+  responsibleEmployee:
+    | {
+        firstName: string;
+        lastName: string;
+      }
+    | null
+    | undefined,
+  drivers: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  }[],
+) {
+  if (!responsibleEmployee) return null;
+
+  const responsibleFirstName = normalizePersonName(responsibleEmployee.firstName);
+  const responsibleLastName = normalizePersonName(responsibleEmployee.lastName);
+
+  if (!responsibleFirstName || !responsibleLastName) return null;
+
+  const driver = drivers.find(
+    (candidate) =>
+      normalizePersonName(candidate.firstName) === responsibleFirstName &&
+      normalizePersonName(candidate.lastName) === responsibleLastName,
+  );
+
+  if (!driver) return null;
+
+  return {
+    id: driver.id,
+    name: `${driver.lastName}, ${driver.firstName}`,
+  };
+}
+
 function getSpecialVehicleListRowMinHeight(vehicle: VehicleWithInventoryLink) {
   const inventoryItem = getVehicleInventoryItem(vehicle);
   let minHeight = SPECIAL_VEHICLE_LEFT_ROW_MIN_HEIGHT_PX;
@@ -869,11 +911,17 @@ export default async function SpecialVehicleDispatchPage({
     const categoryLabel = parentCategoryName
       ? `${parentCategoryName} / ${categoryName}`
       : categoryName;
+    const defaultOperatorDriver = getDefaultOperatorDriverForResponsibleEmployee(
+      item.responsibleEmployee,
+      drivers,
+    );
 
     return [
       {
         ...item.vehicle,
         category: categoryLabel,
+        defaultOperatorDriverId: defaultOperatorDriver?.id ?? null,
+        defaultOperatorDriverName: defaultOperatorDriver?.name ?? null,
         licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
         tackCoatTankLiters:
           item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
@@ -893,11 +941,17 @@ export default async function SpecialVehicleDispatchPage({
     const categoryLabel = parentCategoryName
       ? `${parentCategoryName} / ${categoryName}`
       : categoryName;
+    const defaultOperatorDriver = getDefaultOperatorDriverForResponsibleEmployee(
+      item.responsibleEmployee,
+      drivers,
+    );
 
     return [
       {
         ...item.vehicle,
         category: categoryLabel,
+        defaultOperatorDriverId: defaultOperatorDriver?.id ?? null,
+        defaultOperatorDriverName: defaultOperatorDriver?.name ?? null,
         licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
         tackCoatTankLiters:
           item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
@@ -945,6 +999,25 @@ export default async function SpecialVehicleDispatchPage({
     openQuantity: position.openLiters,
     crewName: position.crewNames.join(", "),
   }));
+  const tackCoatMaterialsForForm = [
+    ...tackCoatMaterials,
+    ...tackCoatNeedsForForm
+      .filter(
+        (need) =>
+          need.materialName &&
+          !tackCoatMaterials.some(
+            (material) =>
+              material.name.trim().toLowerCase() ===
+              need.materialName.trim().toLowerCase(),
+          ),
+      )
+      .map((need) => ({
+        id: `need-${need.key}`,
+        materialNumber: null,
+        name: need.materialName,
+        unit: need.quantityUnit,
+      })),
+  ];
 
   const q = filters.q.toLowerCase();
 
@@ -1116,12 +1189,21 @@ export default async function SpecialVehicleDispatchPage({
         <SummaryCard label="Aktive Filter" value={String(activeFilterCount)} />
       </div>
 
+      {shouldOpenCreateForm ? (
+        <Link
+          href={closeCreateHref}
+          scroll={false}
+          aria-label="Sonderfahrzeug-Einsatz schließen"
+          className="fixed inset-0 z-[210] bg-gray-950/30 backdrop-blur-sm"
+        />
+      ) : null}
+
       <details
         id="special-vehicle-create"
         open={shouldOpenCreateForm}
         className={
           shouldOpenCreateForm
-            ? "fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[220] mx-auto max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl scroll-mt-28 overflow-y-auto rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-2xl ring-2 ring-blue-100"
+            ? "fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl scroll-mt-28 overflow-y-auto rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-2xl ring-2 ring-blue-100"
             : "mb-6 scroll-mt-28 rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm"
         }
       >
@@ -1156,7 +1238,7 @@ export default async function SpecialVehicleDispatchPage({
           defaultVehicleId={quickVehicle?.id ?? ""}
           defaultWorkDate={quickDate}
           tackCoatNeeds={tackCoatNeedsForForm}
-          tackCoatMaterials={tackCoatMaterials}
+          tackCoatMaterials={tackCoatMaterialsForForm}
         />
       </details>
 
@@ -1613,7 +1695,7 @@ export default async function SpecialVehicleDispatchPage({
                                     drivers={drivers}
                                     projects={projects}
                                     crews={crews}
-                                    tackCoatMaterials={tackCoatMaterials}
+                                    tackCoatMaterials={tackCoatMaterialsForForm}
                                   />
                                 ))}
                               </div>
@@ -1653,6 +1735,8 @@ function SpecialVehicleAssignmentCard({
 }: {
   assignment: AssignmentForPage;
   vehicles: {
+    defaultOperatorDriverId?: string | null;
+    defaultOperatorDriverName?: string | null;
     id: string;
     vehicleNumber: string;
     licensePlate: string | null;
@@ -1660,6 +1744,8 @@ function SpecialVehicleAssignmentCard({
     category: string;
   }[];
   transportVehicles: {
+    defaultOperatorDriverId?: string | null;
+    defaultOperatorDriverName?: string | null;
     id: string;
     vehicleNumber: string;
     licensePlate: string | null;
@@ -1808,6 +1894,8 @@ function SpecialVehicleAssignmentForm({
   action: (formData: FormData) => Promise<void>;
   id?: string;
   vehicles: {
+    defaultOperatorDriverId?: string | null;
+    defaultOperatorDriverName?: string | null;
     id: string;
     vehicleNumber: string;
     licensePlate: string | null;
@@ -1815,6 +1903,8 @@ function SpecialVehicleAssignmentForm({
     category: string;
   }[];
   transportVehicles: {
+    defaultOperatorDriverId?: string | null;
+    defaultOperatorDriverName?: string | null;
     id: string;
     vehicleNumber: string;
     licensePlate: string | null;
@@ -1845,6 +1935,10 @@ function SpecialVehicleAssignmentForm({
   }[];
   compact?: boolean;
 }) {
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
+  const resolvedOperatorDriverId =
+    defaultOperatorDriverId || selectedVehicle?.defaultOperatorDriverId || "";
+
   return (
     <form action={action} className={compact ? "space-y-3" : "mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"}>
       {id ? <input type="hidden" name="id" value={id} /> : null}
@@ -1875,7 +1969,7 @@ function SpecialVehicleAssignmentForm({
 
       <label className="text-xs font-semibold text-gray-700">
         Fahrer/Bediener optional
-        <select name="operatorDriverId" defaultValue={defaultOperatorDriverId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+        <select name="operatorDriverId" defaultValue={resolvedOperatorDriverId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
           <option value="">Kein Fahrer/Bediener</option>
           {drivers.map((driver) => (
             <option key={driver.id} value={driver.id}>
@@ -1883,6 +1977,11 @@ function SpecialVehicleAssignmentForm({
             </option>
           ))}
         </select>
+        {selectedVehicle?.defaultOperatorDriverName && !defaultOperatorDriverId ? (
+          <span className="mt-1 block text-[11px] font-medium text-gray-500">
+            Verantwortlicher: {selectedVehicle.defaultOperatorDriverName}
+          </span>
+        ) : null}
       </label>
 
       <label className="text-xs font-semibold text-gray-700">

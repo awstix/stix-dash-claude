@@ -9,6 +9,8 @@ type VehicleOption = {
   vehicleType: string;
   category: string;
   tackCoatTankLiters: number;
+  defaultOperatorDriverId?: string | null;
+  defaultOperatorDriverName?: string | null;
 };
 
 type DriverOption = {
@@ -67,6 +69,21 @@ function getVehicleLabel(vehicle: VehicleOption) {
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.category, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");
+}
+
+function getDefaultOperatorDriverId(vehicle: VehicleOption | undefined) {
+  return vehicle?.defaultOperatorDriverId ?? "";
+}
+
+function hasMaterialOption(
+  materials: TackCoatMaterialOption[],
+  materialName: string,
+) {
+  const normalizedMaterialName = materialName.trim().toLowerCase();
+
+  return materials.some(
+    (material) => material.name.trim().toLowerCase() === normalizedMaterialName,
+  );
 }
 
 function formatNumber(value: number) {
@@ -147,6 +164,9 @@ export function SpecialVehicleTourFormClient({
 }) {
   const initialVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
   const [vehicleId, setVehicleId] = useState(defaultVehicleId);
+  const [operatorDriverId, setOperatorDriverId] = useState(() =>
+    getDefaultOperatorDriverId(initialVehicle),
+  );
   const [workDate, setWorkDate] = useState(defaultWorkDate);
   const [rows, setRows] = useState<TourRow[]>(() =>
     getDefaultRows(tackCoatNeeds, defaultWorkDate, initialVehicle?.tackCoatTankLiters ?? 0),
@@ -270,6 +290,7 @@ export function SpecialVehicleTourFormClient({
               const nextVehicleId = event.currentTarget.value;
               const nextVehicle = vehicles.find((vehicle) => vehicle.id === nextVehicleId);
               setVehicleId(nextVehicleId);
+              setOperatorDriverId(getDefaultOperatorDriverId(nextVehicle));
               setRows(getDefaultRows(tackCoatNeeds, workDate, nextVehicle?.tackCoatTankLiters ?? 0));
             }}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
@@ -292,6 +313,11 @@ export function SpecialVehicleTourFormClient({
                 : "nicht hinterlegt"
               : "Spritzwagen wählen"}
           </span>
+          {selectedVehicle?.defaultOperatorDriverName ? (
+            <span className="mt-1 block text-[11px] font-medium text-gray-500">
+              Verantwortlicher: {selectedVehicle.defaultOperatorDriverName}
+            </span>
+          ) : null}
         </label>
 
         <label className="text-xs font-semibold text-gray-700">
@@ -314,7 +340,8 @@ export function SpecialVehicleTourFormClient({
           Fahrer/Bediener optional
           <select
             name="operatorDriverId"
-            defaultValue=""
+            value={operatorDriverId}
+            onChange={(event) => setOperatorDriverId(event.currentTarget.value)}
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="">Kein Fahrer/Bediener</option>
@@ -469,6 +496,10 @@ export function SpecialVehicleTourFormClient({
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
                 >
                   <option value="">Kein Anspritzmittel / anderer Einsatz</option>
+                  {row.materialName &&
+                  !hasMaterialOption(tackCoatMaterials, row.materialName) ? (
+                    <option value={row.materialName}>{row.materialName}</option>
+                  ) : null}
                   {tackCoatMaterials.map((material) => (
                     <option key={material.id} value={material.name}>
                       {[material.materialNumber, material.name].filter(Boolean).join(" · ")}

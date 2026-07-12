@@ -59,15 +59,14 @@ function getResponsibleLabel(item: {
   responsibleEmployee: { firstName: string; id: string; lastName: string } | null;
   responsibleType: string | null;
 }) {
-  if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
-    return `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`;
-  }
+  const parts = [
+    item.responsibleEmployee
+      ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
+      : null,
+    item.responsibleCrew?.name ?? null,
+  ].filter(Boolean);
 
-  if (item.responsibleType === "CREW" && item.responsibleCrew) {
-    return item.responsibleCrew.name;
-  }
-
-  return "—";
+  return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
 function ResponsibleCell({
@@ -83,15 +82,22 @@ function ResponsibleCell({
     responsibleType: string | null;
   };
 }) {
-  if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
+  if (item.responsibleEmployee) {
     return (
-      <Link
-        className="font-semibold text-gray-900 hover:underline"
-        href={`/employees/certificates/${item.responsibleEmployee.id}`}
-      >
-        {item.responsibleEmployee.lastName},{" "}
-        {item.responsibleEmployee.firstName}
-      </Link>
+      <span className="space-y-1">
+        <Link
+          className="font-semibold text-gray-900 hover:underline"
+          href={`/employees/certificates/${item.responsibleEmployee.id}`}
+        >
+          {item.responsibleEmployee.lastName},{" "}
+          {item.responsibleEmployee.firstName}
+        </Link>
+        {item.responsibleCrew ? (
+          <span className="block text-xs text-gray-500">
+            Kolonne: {item.responsibleCrew.name}
+          </span>
+        ) : null}
+      </span>
     );
   }
 

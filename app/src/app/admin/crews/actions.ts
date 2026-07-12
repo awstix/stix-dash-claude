@@ -367,7 +367,15 @@ export async function addCrewDefaultVehicle(formData: FormData) {
       },
       data: {
         responsibleCrewId: crewId,
+      },
+    });
+
+    await tx.inventoryItem.updateMany({
+      where: {
+        vehicleId,
         responsibleEmployeeId: null,
+      },
+      data: {
         responsibleType: "CREW",
       },
     });
@@ -413,6 +421,28 @@ export async function removeCrewDefaultVehicle(formData: FormData) {
       },
       data: {
         responsibleCrewId: null,
+      },
+    });
+
+    await tx.inventoryItem.updateMany({
+      where: {
+        vehicleId: assignment.vehicleId,
+        responsibleEmployeeId: {
+          not: null,
+        },
+      },
+      data: {
+        responsibleType: "EMPLOYEE",
+      },
+    });
+
+    await tx.inventoryItem.updateMany({
+      where: {
+        vehicleId: assignment.vehicleId,
+        responsibleEmployeeId: null,
+        responsibleCrewId: null,
+      },
+      data: {
         responsibleType: null,
       },
     });

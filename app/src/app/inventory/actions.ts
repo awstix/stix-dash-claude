@@ -162,28 +162,22 @@ function inventoryDriveType(value: FormDataEntryValue | null) {
 }
 
 function getResponsibleFields(formData: FormData) {
-  const responsibleType = optionalString(formData.get("responsibleType"));
+  const requestedResponsibleType = optionalString(formData.get("responsibleType"));
+  const responsibleEmployeeId = optionalId(formData.get("responsibleEmployeeId"));
+  const responsibleCrewId = optionalId(formData.get("responsibleCrewId"));
 
-  if (responsibleType === "EMPLOYEE") {
-    return {
-      responsibleCrewId: null,
-      responsibleEmployeeId: optionalId(formData.get("responsibleEmployeeId")),
-      responsibleType,
-    };
-  }
-
-  if (responsibleType === "CREW") {
-    return {
-      responsibleCrewId: optionalId(formData.get("responsibleCrewId")),
-      responsibleEmployeeId: null,
-      responsibleType,
-    };
-  }
+  const responsibleType = responsibleEmployeeId
+    ? "EMPLOYEE"
+    : responsibleCrewId
+      ? "CREW"
+      : requestedResponsibleType === "EMPLOYEE" || requestedResponsibleType === "CREW"
+        ? requestedResponsibleType
+        : null;
 
   return {
-    responsibleCrewId: null,
-    responsibleEmployeeId: null,
-    responsibleType: null,
+    responsibleCrewId,
+    responsibleEmployeeId,
+    responsibleType: responsibleEmployeeId || responsibleCrewId ? responsibleType : null,
   };
 }
 
@@ -1099,13 +1093,8 @@ export async function updateInventoryAssignment(formData: FormData) {
     );
   }
 
-  const responsibleType = optionalString(formData.get("responsibleType"));
-  const responsibleEmployeeId =
-    responsibleType === "EMPLOYEE"
-      ? optionalId(formData.get("responsibleEmployeeId"))
-      : null;
-  const responsibleCrewId =
-    responsibleType === "CREW" ? optionalId(formData.get("responsibleCrewId")) : null;
+  const responsibleEmployeeId = optionalId(formData.get("responsibleEmployeeId"));
+  const responsibleCrewId = optionalId(formData.get("responsibleCrewId"));
   const notes = optionalString(formData.get("notes"));
 
   await prisma.$transaction(async (tx) => {
@@ -1117,7 +1106,7 @@ export async function updateInventoryAssignment(formData: FormData) {
         responsibleCrew: relationUpdate(responsibleCrewId),
         responsibleEmployee: relationUpdate(responsibleEmployeeId),
         responsibleType:
-          responsibleEmployeeId || responsibleCrewId ? responsibleType : null,
+          responsibleEmployeeId ? "EMPLOYEE" : responsibleCrewId ? "CREW" : null,
       },
     });
 

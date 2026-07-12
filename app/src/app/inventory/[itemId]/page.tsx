@@ -195,15 +195,14 @@ function getResponsibleLabel(item: {
   responsibleEmployee: { firstName: string; id?: string; lastName: string } | null;
   responsibleType: string | null;
 }) {
-  if (item.responsibleType === "EMPLOYEE" && item.responsibleEmployee) {
-    return `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`;
-  }
+  const parts = [
+    item.responsibleEmployee
+      ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
+      : null,
+    item.responsibleCrew?.name ?? null,
+  ].filter(Boolean);
 
-  if (item.responsibleType === "CREW" && item.responsibleCrew) {
-    return item.responsibleCrew.name;
-  }
-
-  return "—";
+  return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
 function getCurrentLocationLabel(item: {
@@ -1086,19 +1085,7 @@ export default async function InventoryDetailPage({
         >
           <input name="id" type="hidden" value={item.id} />
           <label className="text-sm font-semibold text-gray-800">
-            Zuweisungstyp
-            <select
-              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              defaultValue={item.responsibleType ?? "__none"}
-              name="responsibleType"
-            >
-              <option value="__none">Nicht zugeordnet</option>
-              <option value="EMPLOYEE">Mitarbeiter</option>
-              <option value="CREW">Kolonne</option>
-            </select>
-          </label>
-          <label className="text-sm font-semibold text-gray-800">
-            Mitarbeiter
+            Verantwortlicher Mitarbeiter/Fahrer
             <select
               className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={item.responsibleEmployeeId ?? "__none"}
@@ -1113,7 +1100,7 @@ export default async function InventoryDetailPage({
             </select>
           </label>
           <label className="text-sm font-semibold text-gray-800">
-            Kolonne
+            Zugeordnete Kolonne
             <select
               className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               defaultValue={item.responsibleCrewId ?? "__none"}

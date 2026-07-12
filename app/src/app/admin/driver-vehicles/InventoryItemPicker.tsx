@@ -151,12 +151,11 @@ export function InventoryItemPicker({
   }, [options]);
 
   const filteredOptions = useMemo(() => {
-    if (!categoryId) {
-      return [];
-    }
+    const source = categoryId
+      ? options.filter((item) => getCategoryId(item) === categoryId)
+      : options;
 
-    return options
-      .filter((item) => getCategoryId(item) === categoryId)
+    return source
       .sort((a, b) =>
         getInventoryItemLabel(a).localeCompare(getInventoryItemLabel(b), "de-DE", {
           numeric: true,
@@ -175,11 +174,12 @@ export function InventoryItemPicker({
       name={name}
       required={required}
       defaultValue={defaultValue}
-      disabled={!categoryId}
-      className={`${selectClass} disabled:bg-gray-100 disabled:text-gray-400`}
+      className={selectClass}
     >
       <option value="" disabled>
-        {categoryId ? "Inventarobjekt wählen" : "Erst Kategorie wählen"}
+        {categoryId
+          ? "Inventarobjekt wählen"
+          : "Alle Kategorien – Inventarobjekt wählen"}
       </option>
 
       {filteredOptions.map((item) => {

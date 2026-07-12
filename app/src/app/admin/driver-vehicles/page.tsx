@@ -220,6 +220,18 @@ function buildVehicleFilterText(vehicle: {
     .toLowerCase();
 }
 
+function isDriverVehicleSelectableCategory(category: {
+  useInTruckDispatchSelection?: boolean | null;
+  parentCategory?: {
+    useInTruckDispatchSelection?: boolean | null;
+  } | null;
+} | null) {
+  return Boolean(
+    category?.useInTruckDispatchSelection ||
+      category?.parentCategory?.useInTruckDispatchSelection,
+  );
+}
+
 function compareText(a: unknown, b: unknown) {
   return String(a ?? "").localeCompare(String(b ?? ""), "de-DE", {
     numeric: true,
@@ -328,6 +340,25 @@ export default async function DriverVehiclesPage({
             },
           },
           responsibleEmployee: true,
+          crewDefaultVehicles: {
+            where: {
+              isActive: true,
+            },
+            include: {
+              crew: {
+                include: {
+                  members: {
+                    include: {
+                      employee: true,
+                    },
+                    orderBy: {
+                      sortOrder: "asc",
+                    },
+                  },
+                },
+              },
+            },
+          },
           vehicle: true,
         },
         orderBy: [
@@ -373,18 +404,9 @@ export default async function DriverVehiclesPage({
   const activeInventoryItems = inventoryItems.filter(
     (item) => item.status !== "DELETED" && item.vehicle?.isActive !== false,
   );
-  const hasExplicitTruckSelectionCategories = activeInventoryItems.some(
-    (item) =>
-      item.category?.useInTruckDispatchSelection ||
-      item.category?.parentCategory?.useInTruckDispatchSelection,
+  const selectableInventoryItems = activeInventoryItems.filter((item) =>
+    isDriverVehicleSelectableCategory(item.category),
   );
-  const selectableInventoryItems = hasExplicitTruckSelectionCategories
-    ? activeInventoryItems.filter(
-        (item) =>
-          item.category?.useInTruckDispatchSelection ||
-          item.category?.parentCategory?.useInTruckDispatchSelection,
-      )
-    : activeInventoryItems;
 
   const employeePersonOptions: PersonOption[] = employees.map((employee) => {
     const positionLabel = getPositionLabel(employee);
@@ -494,9 +516,45 @@ export default async function DriverVehiclesPage({
     assignments.map((assignment) => assignment.driverId),
   );
 
-  const freeInventoryItems = activeInventoryItems.filter(
+  const freeInventoryItems = selectableInventoryItems.filter(
     (item) => !activeAssignedInventoryItemIds.has(item.id),
   );
+  function getSuggestedResponsibleEmployeeId(
+    item: (typeof activeInventoryItems)[number],
+  ) {
+    if (item.responsibleEmployeeId) {
+      return item.responsibleEmployeeId;
+    }
+
+    const crewEmployees = item.crewDefaultVehicles
+      .flatMap((assignment) =>
+        assignment.crew.members.map((member) => member.employee),
+      )
+      .filter((employee) => employee.statusValue === "active");
+    const uniqueEmployeeIds = new Set(crewEmployees.map((employee) => employee.id));
+
+    return uniqueEmployeeIds.size === 1 ? crewEmployees[0]?.id ?? null : null;
+  }
+
+  function getSuggestedResponsibleEmployeeName(
+    item: (typeof activeInventoryItems)[number],
+  ) {
+    if (item.responsibleEmployee) {
+      return `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`;
+    }
+
+    const suggestedEmployeeId = getSuggestedResponsibleEmployeeId(item);
+    const suggestedEmployee = item.crewDefaultVehicles
+      .flatMap((assignment) =>
+        assignment.crew.members.map((member) => member.employee),
+      )
+      .find((employee) => employee.id === suggestedEmployeeId);
+
+    return suggestedEmployee
+      ? `${suggestedEmployee.lastName}, ${suggestedEmployee.firstName}`
+      : null;
+  }
+
   const assignmentByInventoryItemId = new Map(
     assignments
       .map((assignment) => {
@@ -513,9 +571,7 @@ export default async function DriverVehiclesPage({
   const assignedInventoryItemInfo = new Map<string, string>(
     activeInventoryItems
       .map((item) => {
-        const responsibleName = item.responsibleEmployee
-          ? `${item.responsibleEmployee.lastName}, ${item.responsibleEmployee.firstName}`
-          : null;
+        const responsibleName = getSuggestedResponsibleEmployeeName(item);
         const assignment = assignmentByInventoryItemId.get(item.id);
         const assignmentName = assignment
           ? `${assignment.driver.lastName}, ${assignment.driver.firstName}`
@@ -581,6 +637,27 @@ export default async function DriverVehiclesPage({
     }
     if (filterVehicleText && !getInventoryItemLabel(item).toLowerCase().includes(filterVehicleText)) {
       return false;
+    }
+    if (searchText) {
+      const haystack = [
+        getInventoryItemLabel(item),
+        item.objectNumber,
+        item.inventoryNumber,
+        item.stixId,
+        item.licensePlate,
+        item.vehicle?.licensePlate,
+        item.vehicle?.vehicleNumber,
+        item.vehicle?.vehicleType,
+        item.vehicle?.category,
+        item.category?.name,
+        item.category?.parentCategory?.name,
+        activeAssignedInventoryItemIds.has(item.id) ? "zugeordnet vergeben" : "frei nicht zugeordnet",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (!haystack.includes(searchText)) return false;
     }
 
     return true;
@@ -795,6 +872,46 @@ export default async function DriverVehiclesPage({
       compareText(a.vehicle.vehicleNumber, b.vehicle.vehicleNumber)
     );
   });
+
+  const freeAssignmentTableItems =
+    filterAssignmentStatus !== "assigned" &&
+    filterPrimary === "all" &&
+    !filterPersonText &&
+    !filterNotes
+      ? filteredInventoryItems
+          .filter((item) => !activeAssignedInventoryItemIds.has(item.id))
+          .sort((a, b) => {
+            if (sortMode === "vehicleNumberDesc") {
+              return compareText(b.objectNumber, a.objectNumber);
+            }
+
+            if (sortMode === "vehicleTypeAsc") {
+              return (
+                compareText(a.vehicle?.vehicleType, b.vehicle?.vehicleType) ||
+                compareText(a.category?.name, b.category?.name) ||
+                compareText(a.objectNumber, b.objectNumber)
+              );
+            }
+
+            if (sortMode === "categoryAsc") {
+              const categoryA = a.category?.parentCategory
+                ? `${a.category.parentCategory.name} / ${a.category.name}`
+                : a.category?.name;
+              const categoryB = b.category?.parentCategory
+                ? `${b.category.parentCategory.name} / ${b.category.name}`
+                : b.category?.name;
+
+              return (
+                compareText(categoryA, categoryB) ||
+                compareText(a.objectNumber, b.objectNumber)
+              );
+            }
+
+            return compareText(a.objectNumber, b.objectNumber);
+          })
+      : [];
+  const visibleAssignmentRowCount =
+    sortedAssignments.length + freeAssignmentTableItems.length;
 
   const hasActiveFilters = Boolean(
     searchText ||
@@ -1035,7 +1152,8 @@ export default async function DriverVehiclesPage({
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-sm font-semibold text-gray-600">
-              {sortedAssignments.length} von {assignments.length} sichtbar
+              {visibleAssignmentRowCount} von{" "}
+              {assignments.length + freeInventoryItems.length} sichtbar
             </div>
 
             <DriverVehicleFilterPopover
@@ -1080,14 +1198,15 @@ export default async function DriverVehiclesPage({
             </thead>
 
             <tbody className="text-gray-900">
-              {sortedAssignments.length === 0 ? (
+              {visibleAssignmentRowCount === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-500">
                     Keine Zuordnung passt zu den aktuellen Filtern.
                   </td>
                 </tr>
               ) : (
-                sortedAssignments.map((assignment) => {
+                <>
+                {sortedAssignments.map((assignment) => {
                   const formId = `driver-vehicle-form-${assignment.id}`;
                   const currentPersonValue = assignment.driver.employee?.id
                     ? `employee:${assignment.driver.employee.id}`
@@ -1242,7 +1361,103 @@ export default async function DriverVehiclesPage({
                       </Td>
                     </tr>
                   );
-                })
+                })}
+
+                {freeAssignmentTableItems.map((item) => {
+                  const formId = `driver-vehicle-create-form-${item.id}`;
+                  const categoryLabel = item.category?.parentCategory
+                    ? `${item.category.parentCategory.name} / ${item.category.name}`
+                    : item.category?.name ?? "ohne Kategorie";
+
+                  return (
+                    <tr
+                      key={`free-${item.id}`}
+                      className="border-t border-amber-100 bg-amber-50/30"
+                    >
+                      <td className="border-r border-gray-200 bg-white p-3 align-top">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          <button
+                            form={formId}
+                            type="submit"
+                            title="Zuordnung anlegen"
+                            aria-label="Zuordnung anlegen"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700"
+                          >
+                            <ActionIcon name="save" className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+
+                      <Td>
+                        <form
+                          id={formId}
+                          action={createDriverVehicleAssignment}
+                        >
+                          <input
+                            type="hidden"
+                            name="returnTo"
+                            value={returnToAssignments}
+                          />
+                          <input
+                            type="hidden"
+                            name="inventoryItemId"
+                            value={item.id}
+                          />
+                        </form>
+
+                        <PersonSelect
+                          formId={formId}
+                          name="driverPersonId"
+                          label=""
+                          options={personOptions}
+                          defaultValue={
+                            getSuggestedResponsibleEmployeeId(item)
+                              ? `employee:${getSuggestedResponsibleEmployeeId(item)}`
+                              : ""
+                          }
+                          required
+                          compact
+                        />
+
+                        <div className="mt-1 rounded-lg bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                          nicht zugeordnet
+                        </div>
+                      </Td>
+
+                      <Td>
+                        <div className="rounded-lg border border-amber-200 bg-white px-2 py-2 text-sm font-semibold text-gray-900">
+                          {getInventoryItemLabel(item)}
+                        </div>
+                      </Td>
+
+                      <Td>{item.objectNumber ?? item.vehicle?.vehicleNumber ?? "-"}</Td>
+                      <Td>{item.licensePlate ?? item.vehicle?.licensePlate ?? "-"}</Td>
+                      <Td>{item.vehicle?.vehicleType ?? categoryLabel}</Td>
+
+                      <Td>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                          <input
+                            form={formId}
+                            type="checkbox"
+                            name="isPrimary"
+                            className="h-4 w-4"
+                          />
+                          ja
+                        </label>
+                      </Td>
+
+                      <Td>
+                        <input
+                          form={formId}
+                          name="notes"
+                          placeholder="z.B. Stammfahrzeug"
+                          className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                        />
+                      </Td>
+                    </tr>
+                  );
+                })}
+                </>
               )}
             </tbody>
           </table>

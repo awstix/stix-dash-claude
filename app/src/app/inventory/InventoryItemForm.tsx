@@ -484,17 +484,8 @@ export function InventoryItemForm({
             ) : null}
             <div className={innerGridClass}>
               <Select
-                defaultValue={item?.responsibleType ?? "__none"}
-                label="Verantwortlicher Typ"
-                name="responsibleType"
-              >
-                <option value="__none">Nicht zugeordnet</option>
-                <option value="EMPLOYEE">Mitarbeiter</option>
-                <option value="CREW">Kolonne</option>
-              </Select>
-              <Select
                 defaultValue={item?.responsibleEmployeeId ?? "__none"}
-                label="Mitarbeiter"
+                label="Verantwortlicher Mitarbeiter/Fahrer"
                 name="responsibleEmployeeId"
               >
                 <option value="__none">Kein Mitarbeiter</option>
@@ -506,7 +497,7 @@ export function InventoryItemForm({
               </Select>
               <Select
                 defaultValue={item?.responsibleCrewId ?? "__none"}
-                label="Kolonne"
+                label="Zugeordnete Kolonne"
                 name="responsibleCrewId"
               >
                 <option value="__none">Keine Kolonne</option>

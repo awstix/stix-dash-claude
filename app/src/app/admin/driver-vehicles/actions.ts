@@ -129,9 +129,6 @@ async function syncInventoryResponsibleFromDriverVehicleAssignment(
       id: inventoryItemId,
     },
     data: {
-      responsibleCrew: {
-        disconnect: true,
-      },
       responsibleEmployee: {
         connect: {
           id: driver.employee.id,
@@ -150,12 +147,22 @@ async function clearInventoryResponsibleIfUnassigned(
     return;
   }
 
-  const activeAssignment = await tx.driverVehicleAssignment.findFirst({
-    where: {
-      inventoryItemId,
-      isActive: true,
-    },
-  });
+  const [activeAssignment, inventoryItem] = await Promise.all([
+    tx.driverVehicleAssignment.findFirst({
+      where: {
+        inventoryItemId,
+        isActive: true,
+      },
+    }),
+    tx.inventoryItem.findUnique({
+      where: {
+        id: inventoryItemId,
+      },
+      select: {
+        responsibleCrewId: true,
+      },
+    }),
+  ]);
 
   if (activeAssignment) {
     return;
@@ -172,7 +179,7 @@ async function clearInventoryResponsibleIfUnassigned(
       responsibleEmployee: {
         disconnect: true,
       },
-      responsibleType: null,
+      responsibleType: inventoryItem?.responsibleCrewId ? "CREW" : null,
     },
   });
 }
