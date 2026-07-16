@@ -1334,6 +1334,7 @@ model WorkTimePreset {
   name      String
   startTime String  @default("06:30")
   endTime   String  @default("17:00")
+  weeklyScheduleJson String?
   isDefault Boolean @default(false)
   isActive  Boolean @default(true)
   sortOrder Int     @default(0)

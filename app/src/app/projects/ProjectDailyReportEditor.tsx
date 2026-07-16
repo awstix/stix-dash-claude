@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { saveProjectDailyReport } from "./actions";
 import type {
+  DailyReportCompositionLine,
   DailyReportContext,
   DailyReportCountRow,
   DailyReportMaterialRow,
@@ -580,6 +581,7 @@ export function ProjectDailyReportEditor({
 
       <CountRowsSection
         approved={form.approvedFields.includes("labor")}
+        compositionLines={context.composition.labor}
         fieldId="labor"
         onRowsChange={(rows) => updateValue("laborRows", rows)}
         onToggle={toggleApproval}
@@ -590,6 +592,7 @@ export function ProjectDailyReportEditor({
       <CountRowsSection
         allowCustomRows
         approved={form.approvedFields.includes("labor")}
+        compositionLines={context.composition.subcontractors}
         fieldId="labor"
         onRowsChange={(rows) => updateValue("subcontractorRows", rows)}
         onToggle={toggleApproval}
@@ -599,6 +602,7 @@ export function ProjectDailyReportEditor({
 
       <CountRowsSection
         approved={form.approvedFields.includes("machines")}
+        compositionLines={context.composition.machines}
         fieldId="machines"
         headerAddon={
           <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
@@ -620,6 +624,7 @@ export function ProjectDailyReportEditor({
 
       <MaterialRowsSection
         approved={form.approvedFields.includes("materials")}
+        compositionLines={context.composition.materials}
         fieldId="materials"
         onRowsChange={(rows) => updateValue("materialRows", rows)}
         onToggle={toggleApproval}
@@ -629,6 +634,7 @@ export function ProjectDailyReportEditor({
 
       <MaterialRowsSection
         approved={form.approvedFields.includes("materials")}
+        compositionLines={context.composition.other}
         fieldId="materials"
         onRowsChange={(rows) => updateValue("otherRows", rows)}
         onToggle={toggleApproval}
@@ -1172,11 +1178,13 @@ function SignaturePad({
 
 function SectionHeader({
   approved,
+  compositionLines,
   fieldId,
   onToggle,
   title,
 }: {
   approved: boolean;
+  compositionLines?: DailyReportCompositionLine[];
   fieldId: string;
   onToggle: (fieldId: string, checked: boolean) => void;
   title: string;
@@ -1184,15 +1192,126 @@ function SectionHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-      <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
-        <input
-          checked={approved}
-          onChange={(event) => onToggle(fieldId, event.currentTarget.checked)}
-          type="checkbox"
-        />
-        freigegeben
-      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <CompositionButton lines={compositionLines ?? []} title={title} />
+        <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
+          <input
+            checked={approved}
+            onChange={(event) => onToggle(fieldId, event.currentTarget.checked)}
+            type="checkbox"
+          />
+          freigegeben
+        </label>
+      </div>
     </div>
+  );
+}
+
+function CompositionButton({
+  lines,
+  title,
+}: {
+  lines: DailyReportCompositionLine[];
+  title: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen]);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+        onClick={() => setIsOpen(true)}
+        type="button"
+      >
+        Zusammensetzung
+      </button>
+
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-950/45 p-4"
+          onClick={() => setIsOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="max-h-[82vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Zusammensetzung ${title}`}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-950">
+                  Zusammensetzung: {title}
+                </h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Herleitung der automatisch vorgeschlagenen Werte aus Planung,
+                  Disposition und Inventar.
+                </p>
+              </div>
+              <button
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50"
+                onClick={() => setIsOpen(false)}
+                type="button"
+                aria-label="Schließen"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[64vh] overflow-auto p-5">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="sticky top-0 bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Quelle</th>
+                    <th className="px-3 py-2 font-semibold">Eintrag</th>
+                    <th className="px-3 py-2 font-semibold">Details</th>
+                    <th className="px-3 py-2 font-semibold">Menge / Stunden</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line, index) => (
+                    <tr
+                      className="border-t border-gray-100 text-gray-800"
+                      key={`${line.source}-${line.label}-${line.quantity}-${index}`}
+                    >
+                      <td className="px-3 py-2 font-semibold text-gray-950">
+                        {line.source}
+                      </td>
+                      <td className="px-3 py-2">{line.label}</td>
+                      <td className="px-3 py-2 text-gray-600">
+                        {line.detail || "-"}
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-gray-950">
+                        {line.quantity || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1251,6 +1370,7 @@ function formatEditableNumber(value: number) {
 
 function MaterialRowsSection({
   approved,
+  compositionLines,
   fieldId,
   onRowsChange,
   onToggle,
@@ -1258,6 +1378,7 @@ function MaterialRowsSection({
   title,
 }: {
   approved: boolean;
+  compositionLines?: DailyReportCompositionLine[];
   fieldId: string;
   onRowsChange: (rows: DailyReportMaterialRow[]) => void;
   onToggle: (fieldId: string, checked: boolean) => void;
@@ -1308,6 +1429,7 @@ function MaterialRowsSection({
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <SectionHeader
         approved={approved}
+        compositionLines={compositionLines}
         fieldId={fieldId}
         onToggle={onToggle}
         title={title}
@@ -1383,6 +1505,7 @@ function MaterialRowsSection({
 function CountRowsSection({
   allowCustomRows = false,
   approved,
+  compositionLines,
   fieldId,
   headerAddon,
   onRowsChange,
@@ -1392,6 +1515,7 @@ function CountRowsSection({
 }: {
   allowCustomRows?: boolean;
   approved: boolean;
+  compositionLines?: DailyReportCompositionLine[];
   fieldId: string;
   headerAddon?: ReactNode;
   onRowsChange: (rows: DailyReportCountRow[]) => void;
@@ -1443,6 +1567,7 @@ function CountRowsSection({
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <SectionHeader
         approved={approved}
+        compositionLines={compositionLines}
         fieldId={fieldId}
         onToggle={onToggle}
         title={title}

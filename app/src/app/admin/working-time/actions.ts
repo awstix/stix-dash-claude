@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { ensureDefaultWorkTimePresets } from "@/lib/work-time";
+import {
+  createWeeklySchedule,
+  ensureDefaultWorkTimePresets,
+  workTimeDayKeys,
+  type WorkTimeDaySettings,
+} from "@/lib/work-time";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -42,6 +47,68 @@ function validateTimeRange(startTime: string, endTime: string) {
   }
 }
 
+function normalizeOptionalTime(value: string) {
+  if (!value.trim()) return "";
+  return normalizeTime(value);
+}
+
+function validateOptionalBreakRange(
+  startTime: string,
+  endTime: string,
+  label: string,
+) {
+  if (!startTime && !endTime) return;
+
+  if (!startTime || !endTime) {
+    throw new Error(`${label}: Beginn und Ende der Pause müssen beide ausgefüllt sein.`);
+  }
+
+  validateTimeRange(startTime, endTime);
+}
+
+function getWeeklySchedulePayload(
+  formData: FormData,
+  startTime: string,
+  endTime: string,
+) {
+  const fallbackSchedule = createWeeklySchedule(startTime, endTime);
+  const schedule = Object.fromEntries(
+    workTimeDayKeys.map((dayKey) => {
+      const day: WorkTimeDaySettings = {
+        breakfastEnd: normalizeOptionalTime(
+          text(formData.get(`${dayKey}BreakfastEnd`)),
+        ),
+        breakfastStart: normalizeOptionalTime(
+          text(formData.get(`${dayKey}BreakfastStart`)),
+        ),
+        endTime: normalizeOptionalTime(text(formData.get(`${dayKey}EndTime`))) ||
+          fallbackSchedule[dayKey].endTime,
+        lunchEnd: normalizeOptionalTime(text(formData.get(`${dayKey}LunchEnd`))),
+        lunchStart: normalizeOptionalTime(text(formData.get(`${dayKey}LunchStart`))),
+        startTime:
+          normalizeOptionalTime(text(formData.get(`${dayKey}StartTime`))) ||
+          fallbackSchedule[dayKey].startTime,
+      };
+
+      validateTimeRange(day.startTime, day.endTime);
+      validateOptionalBreakRange(
+        day.breakfastStart,
+        day.breakfastEnd,
+        `${dayKey} Frühstück`,
+      );
+      validateOptionalBreakRange(
+        day.lunchStart,
+        day.lunchEnd,
+        `${dayKey} Mittag`,
+      );
+
+      return [dayKey, day];
+    }),
+  );
+
+  return JSON.stringify(schedule);
+}
+
 function revalidateWorkingTimeConsumers() {
   revalidatePath("/admin/working-time");
   revalidatePath("/truck-dispatch");
@@ -67,12 +134,14 @@ export async function createWorkTimePreset(formData: FormData) {
   }
 
   validateTimeRange(startTime, endTime);
+  const weeklyScheduleJson = getWeeklySchedulePayload(formData, startTime, endTime);
 
   await prisma.workTimePreset.create({
     data: {
       name,
       startTime,
       endTime,
+      weeklyScheduleJson,
       sortOrder: Number.isNaN(sortOrder) ? 9999 : sortOrder,
       isActive: true,
       isDefault: false,
@@ -94,6 +163,7 @@ export async function updateWorkTimePreset(formData: FormData) {
   }
 
   validateTimeRange(startTime, endTime);
+  const weeklyScheduleJson = getWeeklySchedulePayload(formData, startTime, endTime);
 
   await prisma.workTimePreset.update({
     where: {
@@ -103,6 +173,7 @@ export async function updateWorkTimePreset(formData: FormData) {
       name,
       startTime,
       endTime,
+      weeklyScheduleJson,
       sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
       isActive: formData.get("isActive") === "on",
     },

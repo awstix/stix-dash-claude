@@ -4,7 +4,11 @@ import {
   vehicleInventoryLinkInclude,
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
-import type { WorkTimeSettings } from "@/lib/work-time";
+import {
+  getNetWorkHoursForDay,
+  getWorkTimeForDate,
+  type WorkTimeSettings,
+} from "@/lib/work-time";
 
 export type DailyReportCountRow = {
   count: number;
@@ -18,6 +22,21 @@ export type DailyReportMaterialRow = {
   label: string;
   quantity: number;
   unit: string;
+};
+
+export type DailyReportCompositionLine = {
+  detail: string;
+  label: string;
+  quantity: string;
+  source: string;
+};
+
+export type DailyReportComposition = {
+  labor: DailyReportCompositionLine[];
+  machines: DailyReportCompositionLine[];
+  materials: DailyReportCompositionLine[];
+  other: DailyReportCompositionLine[];
+  subcontractors: DailyReportCompositionLine[];
 };
 
 export type DailyReportPhoto = {
@@ -35,6 +54,7 @@ export type DailyReportContext = {
   approvedAt: Date | null;
   approvedByName: string;
   approvedFields: string[];
+  composition: DailyReportComposition;
   dateKey: string;
   dateLabel: string;
   id: string | null;
@@ -98,6 +118,12 @@ type CountHours = {
 type MachineBucket = CountHours & {
   label: string;
   section: "MACHINES" | "OTHER";
+};
+
+type DriverLaborBucket = {
+  category: string;
+  hours: number;
+  sourceKeys: Set<string>;
 };
 
 type DailyReportInventoryItem = {
@@ -203,6 +229,15 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
+          driver: {
+            include: {
+              employee: {
+                include: {
+                  positions: true,
+                },
+              },
+            },
+          },
           vehicle: {
             include: vehicleInventoryLinkInclude,
           },
@@ -314,6 +349,15 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
+          driver: {
+            include: {
+              employee: {
+                include: {
+                  positions: true,
+                },
+              },
+            },
+          },
           tours: true,
           vehicle: {
             include: vehicleInventoryLinkInclude,
@@ -328,6 +372,15 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
+          operatorDriver: {
+            include: {
+              employee: {
+                include: {
+                  positions: true,
+                },
+              },
+            },
+          },
           transportVehicle: {
             include: vehicleInventoryLinkInclude,
           },
@@ -344,6 +397,15 @@ export async function getDailyReportSourceProject(
           },
         },
         include: {
+          driver: {
+            include: {
+              employee: {
+                include: {
+                  positions: true,
+                },
+              },
+            },
+          },
           vehicle: {
             include: vehicleInventoryLinkInclude,
           },
@@ -360,6 +422,15 @@ export async function getDailyReportSourceProject(
           materialType: true,
           truckAssignments: {
             include: {
+              driver: {
+                include: {
+                  employee: {
+                    include: {
+                      positions: true,
+                    },
+                  },
+                },
+              },
               vehicle: {
                 include: vehicleInventoryLinkInclude,
               },
@@ -479,9 +550,43 @@ export async function getDailyReportSourceProject(
           },
         })
       : [];
+  const asphaltDispatchCrewNames = Array.from(
+    new Set(
+      project.asphaltDispatchEntries
+        .map((entry) => entry.crew.trim())
+        .filter(Boolean),
+    ),
+  );
+  const dailyReportAsphaltCrews =
+    asphaltDispatchCrewNames.length > 0
+      ? await prisma.crew.findMany({
+          where: {
+            name: {
+              in: asphaltDispatchCrewNames,
+            },
+            isActive: true,
+          },
+          include: {
+            members: {
+              where: {
+                isActive: true,
+              },
+              include: {
+                employee: {
+                  include: {
+                    positions: true,
+                  },
+                },
+              },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        })
+      : [];
 
   return {
     ...project,
+    dailyReportAsphaltCrews,
     dailyReportInventoryItems,
   };
 }
@@ -497,16 +602,32 @@ export function buildDailyReportContext(
   defaultWorkTime: WorkTimeSettings,
 ): DailyReportContext {
   const labor = new Map<string, CountHours>();
+  const crewLaborEmployeeIds = new Set<string>();
+  const driverLabor = new Map<string, DriverLaborBucket>();
   const materialRows = new Map<string, DailyReportMaterialRow>();
   const machines = new Map<string, MachineBucket>();
   const realMachines = new Map<string, MachineBucket>();
   const subcontractors = new Map<string, CountHours>();
+  const composition: DailyReportComposition = {
+    labor: [],
+    machines: [],
+    materials: [],
+    other: [],
+    subcontractors: [],
+  };
   const workTimes: { end: string; start: string }[] = [];
   const performanceLines: string[] = [];
   const specialVehicleMachineKeys = new Set<string>();
   const inventoryItemsById = new Map(
     project.dailyReportInventoryItems.map((item) => [item.id, item]),
   );
+  const asphaltCrewsByName = new Map(
+    project.dailyReportAsphaltCrews.map((crew) => [crew.name.trim(), crew]),
+  );
+  const reportWorkDay = getWorkTimeForDate(defaultWorkTime, toDailyReportDate(dateKey));
+  const reportWorkHours =
+    getNetWorkHoursForDay(reportWorkDay) ||
+    durationHours(reportWorkDay.startTime, reportWorkDay.endTime);
 
   for (const row of project.crewPlanningRows) {
     for (const assignment of row.assignments) {
@@ -517,15 +638,23 @@ export function buildDailyReportContext(
       const hours = durationHours(assignment.startTime, assignment.endTime);
 
       for (const member of assignment.crew?.members ?? []) {
+        crewLaborEmployeeIds.add(member.employeeId);
         const category = mapLaborCategory([
           member.roleText,
           ...member.employee.positions.map((position) => position.positionLabel),
           ...member.employee.positions.map((position) => position.positionValue),
         ]);
         addCountHours(labor, category, 1, hours);
+        addCompositionLine(composition.labor, {
+          detail: `${category} · ${assignment.startTime}–${assignment.endTime} Uhr`,
+          label: employeeName(member.employee),
+          quantity: `${formatDecimal(hours)} Std.`,
+          source: `Kolonnenplanung · ${assignment.crew?.name ?? "Kolonne"}`,
+        });
       }
 
       for (const extraEmployee of assignment.extraEmployees) {
+        crewLaborEmployeeIds.add(extraEmployee.employeeId);
         const category = mapLaborCategory([
           ...extraEmployee.employee.positions.map(
             (position) => position.positionLabel,
@@ -535,6 +664,12 @@ export function buildDailyReportContext(
           ),
         ]);
         addCountHours(labor, category, 1, hours);
+        addCompositionLine(composition.labor, {
+          detail: `${category} · ${assignment.startTime}–${assignment.endTime} Uhr`,
+          label: employeeName(extraEmployee.employee),
+          quantity: `${formatDecimal(hours)} Std.`,
+          source: "Kolonnenplanung · Zusatz-Mitarbeiter",
+        });
       }
 
       const assignmentVehicleKeys = new Set<string>();
@@ -546,6 +681,7 @@ export function buildDailyReportContext(
           defaultVehicle.vehicle,
           hours,
         );
+        addVehicleCompositionLine(composition, defaultVehicle.vehicle, hours, "Kolonnenplanung");
       }
 
       for (const extraVehicle of assignment.extraVehicles) {
@@ -556,13 +692,46 @@ export function buildDailyReportContext(
           extraVehicle.vehicle,
           hours,
         );
+        addVehicleCompositionLine(composition, extraVehicle.vehicle, hours, "Kolonnenplanung · Zusatzgerät");
       }
 
     }
   }
 
+  const asphaltCrewHours = reportWorkHours;
+  const countedAsphaltCrewNames = new Set<string>();
+
+  for (const entry of project.asphaltDispatchEntries) {
+    const crewName = entry.crew.trim();
+    if (!crewName || countedAsphaltCrewNames.has(crewName)) continue;
+
+    const crew = asphaltCrewsByName.get(crewName);
+    if (!crew) continue;
+
+    countedAsphaltCrewNames.add(crewName);
+
+    for (const member of crew.members) {
+      if (crewLaborEmployeeIds.has(member.employeeId)) continue;
+
+      crewLaborEmployeeIds.add(member.employeeId);
+      const category = mapLaborCategory([
+        member.roleText,
+        ...member.employee.positions.map((position) => position.positionLabel),
+        ...member.employee.positions.map((position) => position.positionValue),
+      ]);
+      addCountHours(labor, category, 1, asphaltCrewHours);
+      addCompositionLine(composition.labor, {
+        detail: `${category} · ${reportWorkDay.startTime}–${reportWorkDay.endTime} Uhr`,
+        label: employeeName(member.employee),
+        quantity: `${formatDecimal(asphaltCrewHours)} Std.`,
+        source: `Asphalt-Dispo · ${crewName}`,
+      });
+    }
+  }
+
   for (const equipment of project.equipmentDispatchAssignments) {
     addMachine(machines, realMachines, equipment.vehicle, 8);
+    addVehicleCompositionLine(composition, equipment.vehicle, 8, "Gerätedisposition");
   }
 
   for (const assignment of project.specialVehicleDispatchAssignments) {
@@ -571,6 +740,18 @@ export function buildDailyReportContext(
       start: assignment.startTime,
     });
     const hours = durationHours(assignment.startTime, assignment.endTime);
+    addDriverLaborHours({
+      crewLaborEmployeeIds,
+      driver: assignment.operatorDriver,
+      driverLabor,
+      driverName: assignment.operatorDriverName,
+      fallbackCategory: "Baugeräteführer",
+      forcedCategory: "Baugeräteführer",
+      hours,
+      sourceKey: `special-${assignment.id}`,
+      compositionLines: composition.labor,
+      sourceLabel: "Sonderfahrzeugdispo",
+    });
     const timedMachineKey = getTimedMachineKey(
       assignment.vehicle,
       assignment.startTime,
@@ -586,8 +767,15 @@ export function buildDailyReportContext(
         hours,
         timedMachineKey,
       );
+      addVehicleCompositionLine(composition, assignment.vehicle, hours, "Sonderfahrzeugdispo");
     } else if (!assignment.vehicleId && assignment.vehicleName) {
       addFallbackMachine(machines, realMachines, assignment.vehicleName, hours);
+      addCompositionLine(composition.machines, {
+        detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
+        label: assignment.vehicleName,
+        quantity: `${formatDecimal(hours)} Std.`,
+        source: "Sonderfahrzeugdispo",
+      });
     }
 
     if (
@@ -595,6 +783,7 @@ export function buildDailyReportContext(
       getVehicleInventoryItem(assignment.transportVehicle)
     ) {
       addMachine(machines, realMachines, assignment.transportVehicle, hours);
+      addVehicleCompositionLine(composition, assignment.transportVehicle, hours, "Sonderfahrzeugdispo · Transportfahrzeug");
     } else if (!assignment.transportVehicleId && assignment.transportVehicleName) {
       addFallbackMachine(
         machines,
@@ -602,19 +791,34 @@ export function buildDailyReportContext(
         assignment.transportVehicleName,
         hours,
       );
+      addCompositionLine(composition.machines, {
+        detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
+        label: assignment.transportVehicleName,
+        quantity: `${formatDecimal(hours)} Std.`,
+        source: "Sonderfahrzeugdispo · Transportfahrzeug",
+      });
     }
 
-    addMaterialRow(
-      materialRows,
-      assignment.quantity,
-      getSpecialVehicleMaterialLabel(
+    const specialVehicleMaterialLabel = getSpecialVehicleMaterialLabel(
         assignment.materialName,
         assignment.taskText,
         assignment.quantityUnit,
         project.asphaltDispatchEntries,
         inventoryItemsById,
-      ),
+      );
+    addMaterialRow(
+      materialRows,
+      assignment.quantity,
+      specialVehicleMaterialLabel,
       assignment.quantityUnit,
+    );
+    addMaterialCompositionLine(
+      composition.materials,
+      specialVehicleMaterialLabel,
+      assignment.quantity,
+      assignment.quantityUnit,
+      "Sonderfahrzeugdispo",
+      `${assignment.startTime}–${assignment.endTime} Uhr`,
     );
   }
 
@@ -627,9 +831,21 @@ export function buildDailyReportContext(
             0,
           )
         : 8;
+    addDriverLaborHours({
+      crewLaborEmployeeIds,
+      driver: assignment.driver,
+      driverLabor,
+      driverName: assignment.driverName,
+      fallbackCategory: "LKW-Fahrer",
+      hours,
+      sourceKey: `short-${assignment.id}`,
+      compositionLines: composition.labor,
+      sourceLabel: "LKW-Kurzstrecke",
+    });
 
     if (assignment.vehicle) {
       addMachine(machines, realMachines, assignment.vehicle, hours);
+      addVehicleCompositionLine(composition, assignment.vehicle, hours, "LKW-Kurzstrecke");
     } else {
       addFallbackMachine(
         machines,
@@ -641,6 +857,16 @@ export function buildDailyReportContext(
         }),
         hours,
       );
+      addCompositionLine(composition.machines, {
+        detail: compactLine([assignment.vehicleCategory, assignment.vehicleType]),
+        label: vehicleLabel({
+          category: assignment.vehicleCategory,
+          number: assignment.vehicleNumber,
+          type: assignment.vehicleType,
+        }),
+        quantity: `${formatDecimal(hours)} Std.`,
+        source: "LKW-Kurzstrecke",
+      });
     }
 
     if (!tours.length && assignment.startTime) {
@@ -669,26 +895,42 @@ export function buildDailyReportContext(
           tourInventoryItem,
           durationHours(tour.startTime, tour.endTime),
         );
+        addInventoryMachineCompositionLine(
+          composition,
+          tourInventoryItem,
+          durationHours(tour.startTime, tour.endTime),
+          "LKW-Kurzstrecke · Maschinentransport",
+        );
         continue;
       }
 
       if (!assignment.truckLongHaulEntryId) {
+        const materialLabel = getInventoryMaterialLabel(
+          inventoryItemsById,
+          tour.itemId,
+          tour.material ||
+            tour.itemName ||
+            tour.customPurpose ||
+            tour.purposeType,
+        );
+        const materialUnit = getInventoryMaterialUnit(
+          inventoryItemsById,
+          tour.itemId,
+          tour.quantityUnit,
+        );
         addMaterialRow(
           materialRows,
           tour.quantity,
-          getInventoryMaterialLabel(
-            inventoryItemsById,
-            tour.itemId,
-            tour.material ||
-              tour.itemName ||
-              tour.customPurpose ||
-              tour.purposeType,
-          ),
-          getInventoryMaterialUnit(
-            inventoryItemsById,
-            tour.itemId,
-            tour.quantityUnit,
-          ),
+          materialLabel,
+          materialUnit,
+        );
+        addMaterialCompositionLine(
+          composition.materials,
+          materialLabel,
+          tour.quantity,
+          materialUnit,
+          "LKW-Kurzstrecke",
+          `${tour.startTime}–${tour.endTime} Uhr`,
         );
       }
     }
@@ -700,19 +942,29 @@ export function buildDailyReportContext(
       : null;
 
     if (!isDailyReportMachineInventoryItem(entryInventoryItem)) {
+      const materialLabel = getInventoryMaterialLabel(
+        inventoryItemsById,
+        entry.materialInventoryItemId,
+        entry.materialName || entry.materialType?.name,
+      );
+      const materialUnit = getInventoryMaterialUnit(
+        inventoryItemsById,
+        entry.materialInventoryItemId,
+        entry.materialUnit,
+      );
       addMaterialRow(
         materialRows,
         entry.materialQuantity,
-        getInventoryMaterialLabel(
-          inventoryItemsById,
-          entry.materialInventoryItemId,
-          entry.materialName || entry.materialType?.name,
-        ),
-        getInventoryMaterialUnit(
-          inventoryItemsById,
-          entry.materialInventoryItemId,
-          entry.materialUnit,
-        ),
+        materialLabel,
+        materialUnit,
+      );
+      addMaterialCompositionLine(
+        composition.materials,
+        materialLabel,
+        entry.materialQuantity,
+        materialUnit,
+        "LKW-Fernverkehr",
+        "",
       );
     }
 
@@ -732,9 +984,27 @@ export function buildDailyReportContext(
           1,
           truckHours,
         );
+        addCompositionLine(composition.subcontractors, {
+          detail: `${truck.plannedStartTime}–${truck.plannedEndTime} Uhr`,
+          label: truck.subcontractorName?.trim() || "Nachunternehmer",
+          quantity: `1 Fzg. · ${formatDecimal(truckHours)} Std.`,
+          source: "LKW-Fernverkehr",
+        });
       }
+      addDriverLaborHours({
+        crewLaborEmployeeIds,
+        driver: truck.driver,
+        driverLabor,
+        driverName: truck.driverName,
+        fallbackCategory: "LKW-Fahrer",
+        hours: truckHours,
+        sourceKey: `long-${truck.id}`,
+        compositionLines: composition.labor,
+        sourceLabel: "LKW-Fernverkehr",
+      });
       if (truck.vehicle) {
         addMachine(machines, realMachines, truck.vehicle, truckHours);
+        addVehicleCompositionLine(composition, truck.vehicle, truckHours, "LKW-Fernverkehr");
       } else {
         addFallbackMachine(
           machines,
@@ -746,6 +1016,16 @@ export function buildDailyReportContext(
           }),
           truckHours,
         );
+        addCompositionLine(composition.machines, {
+          detail: `${truck.plannedStartTime}–${truck.plannedEndTime} Uhr`,
+          label: vehicleLabel({
+            category: truck.vehicleCategory,
+            number: truck.vehicleNumber,
+            type: truck.vehicleType,
+          }),
+          quantity: `${formatDecimal(truckHours)} Std.`,
+          source: "LKW-Fernverkehr",
+        });
       }
     }
   }
@@ -756,6 +1036,17 @@ export function buildDailyReportContext(
       start: allocation.startTime,
     });
     const allocationHours = durationHours(allocation.startTime, allocation.endTime);
+    addDriverLaborHours({
+      crewLaborEmployeeIds,
+      driver: allocation.driver,
+      driverLabor,
+      driverName: allocation.driverName,
+      fallbackCategory: "LKW-Fahrer",
+      hours: allocationHours,
+      sourceKey: `asphalt-${allocation.id}`,
+      compositionLines: composition.labor,
+      sourceLabel: "Asphalt-LKW-Verteilung",
+    });
     if (allocation.ownerType !== "OWN") {
       addCountHours(
         subcontractors,
@@ -767,9 +1058,21 @@ export function buildDailyReportContext(
         1,
         allocationHours,
       );
+      addCompositionLine(composition.subcontractors, {
+        detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        label:
+          vehicleLabel({
+            category: allocation.vehicleCategory,
+            number: allocation.vehicleNumber,
+            type: allocation.vehicleType,
+          }) || "Nachunternehmer",
+        quantity: `1 Fzg. · ${formatDecimal(allocationHours)} Std.`,
+        source: "Asphalt-LKW-Verteilung",
+      });
     }
     if (allocation.vehicle) {
       addMachine(machines, realMachines, allocation.vehicle, allocationHours);
+      addVehicleCompositionLine(composition, allocation.vehicle, allocationHours, "Asphalt-LKW-Verteilung");
     } else {
       addFallbackMachine(
         machines,
@@ -781,16 +1084,35 @@ export function buildDailyReportContext(
         }),
         allocationHours,
       );
+      addCompositionLine(composition.machines, {
+        detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        label: vehicleLabel({
+          category: allocation.vehicleCategory,
+          number: allocation.vehicleNumber,
+          type: allocation.vehicleType,
+        }),
+        quantity: `${formatDecimal(allocationHours)} Std.`,
+        source: "Asphalt-LKW-Verteilung",
+      });
     }
+    const asphaltMaterialLabel = getInventoryMaterialLabel(
+      inventoryItemsById,
+      allocation.asphaltInventoryItemId,
+      allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+    );
     addMaterialRow(
       materialRows,
       allocation.totalTons,
-      getInventoryMaterialLabel(
-        inventoryItemsById,
-        allocation.asphaltInventoryItemId,
-        allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
-      ),
+      asphaltMaterialLabel,
       "t",
+    );
+    addMaterialCompositionLine(
+      composition.materials,
+      asphaltMaterialLabel,
+      allocation.totalTons,
+      "t",
+      "Asphalt-LKW-Verteilung",
+      `${allocation.startTime}–${allocation.endTime} Uhr`,
     );
   }
 
@@ -800,6 +1122,17 @@ export function buildDailyReportContext(
       start: allocation.startTime,
     });
     const allocationHours = durationHours(allocation.startTime, allocation.endTime);
+    addDriverLaborHours({
+      crewLaborEmployeeIds,
+      driver: allocation.driver,
+      driverLabor,
+      driverName: allocation.driverName,
+      fallbackCategory: "LKW-Fahrer",
+      hours: allocationHours,
+      sourceKey: `tack-${allocation.id}`,
+      compositionLines: composition.labor,
+      sourceLabel: "Anspritzmittel-Verteilung",
+    });
     const timedMachineKey = getTimedMachineKey(
       allocation.vehicle,
       allocation.startTime,
@@ -816,6 +1149,17 @@ export function buildDailyReportContext(
         1,
         allocationHours,
       );
+      addCompositionLine(composition.subcontractors, {
+        detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        label:
+          vehicleLabel({
+            category: allocation.vehicleCategory,
+            number: allocation.vehicleNumber,
+            type: allocation.vehicleType,
+          }) || "Nachunternehmer",
+        quantity: `1 Fzg. · ${formatDecimal(allocationHours)} Std.`,
+        source: "Anspritzmittel-Verteilung",
+      });
     }
     if (allocation.vehicle) {
       addMachineOnce(
@@ -826,6 +1170,7 @@ export function buildDailyReportContext(
         allocationHours,
         timedMachineKey,
       );
+      addVehicleCompositionLine(composition, allocation.vehicle, allocationHours, "Anspritzmittel-Verteilung");
     } else {
       addFallbackMachine(
         machines,
@@ -837,20 +1182,40 @@ export function buildDailyReportContext(
         }),
         allocationHours,
       );
+      addCompositionLine(composition.machines, {
+        detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        label: vehicleLabel({
+          category: allocation.vehicleCategory,
+          number: allocation.vehicleNumber,
+          type: allocation.vehicleType,
+        }),
+        quantity: `${formatDecimal(allocationHours)} Std.`,
+        source: "Anspritzmittel-Verteilung",
+      });
     }
+    const tackMaterialLabel = getInventoryMaterialLabel(
+      inventoryItemsById,
+      allocation.tackCoatInventoryItemId,
+      allocation.materialName || "Anspritzmittel",
+    );
+    const tackMaterialUnit = getInventoryMaterialUnit(
+      inventoryItemsById,
+      allocation.tackCoatInventoryItemId,
+      allocation.quantityUnit,
+    );
     addMaterialRow(
       materialRows,
       allocation.totalLiters,
-      getInventoryMaterialLabel(
-        inventoryItemsById,
-        allocation.tackCoatInventoryItemId,
-        allocation.materialName || "Anspritzmittel",
-      ),
-      getInventoryMaterialUnit(
-        inventoryItemsById,
-        allocation.tackCoatInventoryItemId,
-        allocation.quantityUnit,
-      ),
+      tackMaterialLabel,
+      tackMaterialUnit,
+    );
+    addMaterialCompositionLine(
+      composition.materials,
+      tackMaterialLabel,
+      allocation.totalLiters,
+      tackMaterialUnit,
+      "Anspritzmittel-Verteilung",
+      `${allocation.startTime}–${allocation.endTime} Uhr`,
     );
   }
 
@@ -869,10 +1234,10 @@ export function buildDailyReportContext(
   const dailyReport = project.dailyReports[0] ?? null;
   const weatherLog = project.weatherLogs[0] ?? null;
   const suggestedWorkStart =
-    defaultWorkTime.startTime ||
+    reportWorkDay.startTime ||
     earliestTime(workTimes.map((time) => time.start));
   const suggestedWorkEnd =
-    defaultWorkTime.endTime || latestTime(workTimes.map((time) => time.end));
+    reportWorkDay.endTime || latestTime(workTimes.map((time) => time.end));
   const workTimeWeather = getWeatherForWorkTime(
     weatherLog,
     dateKey,
@@ -895,6 +1260,7 @@ export function buildDailyReportContext(
     weatherLog?.currentTemperatureC ??
     null;
   const suggestedWeatherNotes = workTimeWeather.notes || weatherLog?.notes || "";
+  addDriverLaborToLaborRows(labor, driverLabor);
   const suggestedLaborRows = buildLaborRows(labor);
   const suggestedSubcontractorRows = buildSubcontractorRows(subcontractors);
   const showRealMachineNames = dailyReport?.showRealMachineNames ?? false;
@@ -933,6 +1299,7 @@ export function buildDailyReportContext(
     approvedAt: dailyReport?.approvedAt ?? null,
     approvedByName: dailyReport?.approvedByName ?? "",
     approvedFields,
+    composition,
     dateKey,
     dateLabel: formatDateLabel(dateKey),
     id: dailyReport?.id ?? null,
@@ -1465,6 +1832,120 @@ function mapLaborCategory(values: Array<string | null | undefined>) {
   return "Facharbeiter";
 }
 
+function addDriverLaborHours({
+  compositionLines,
+  crewLaborEmployeeIds,
+  driver,
+  driverLabor,
+  driverName,
+  fallbackCategory,
+  forcedCategory,
+  hours,
+  sourceLabel,
+  sourceKey,
+}: {
+  compositionLines?: DailyReportCompositionLine[];
+  crewLaborEmployeeIds: Set<string>;
+  driver: {
+    employee?: {
+      id: string;
+      positions: Array<{
+        positionLabel: string;
+        positionValue: string;
+      }>;
+    } | null;
+    firstName: string;
+    id: string;
+    lastName: string;
+  } | null;
+  driverLabor: Map<string, DriverLaborBucket>;
+  driverName: string | null;
+  fallbackCategory: string;
+  forcedCategory?: string;
+  hours: number;
+  sourceLabel?: string;
+  sourceKey: string;
+}) {
+  if (hours <= 0) return;
+
+  const employeeId = driver?.employee?.id ?? null;
+
+  if (employeeId && crewLaborEmployeeIds.has(employeeId)) {
+    return;
+  }
+
+  const normalizedDriverName = normalize(driverName ?? "");
+  const driverKey =
+    employeeId || driver?.id || (normalizedDriverName ? `name:${normalizedDriverName}` : "");
+
+  if (!driverKey) return;
+
+  const category = forcedCategory
+    ? forcedCategory
+    : driver?.employee?.positions.length
+      ? mapLaborCategory([
+          ...driver.employee.positions.map((position) => position.positionLabel),
+          ...driver.employee.positions.map((position) => position.positionValue),
+        ])
+      : fallbackCategory;
+
+  const current = driverLabor.get(driverKey) ?? {
+    category,
+    hours: 0,
+    sourceKeys: new Set<string>(),
+  };
+
+  if (current.sourceKeys.has(sourceKey)) return;
+
+  current.sourceKeys.add(sourceKey);
+  current.hours += hours;
+  current.category = category;
+  driverLabor.set(driverKey, current);
+
+  if (compositionLines) {
+    addCompositionLine(compositionLines, {
+      detail: category,
+      label: driverLabel(driver, driverName),
+      quantity: `${formatDecimal(hours)} Std.`,
+      source: sourceLabel || "Disposition",
+    });
+  }
+}
+
+function addDriverLaborToLaborRows(
+  labor: Map<string, CountHours>,
+  driverLabor: Map<string, DriverLaborBucket>,
+) {
+  for (const bucket of driverLabor.values()) {
+    addCountHours(labor, bucket.category, 1, bucket.hours);
+  }
+}
+
+function employeeName(employee: {
+  firstName?: string | null;
+  lastName?: string | null;
+}) {
+  return compactLine([employee.firstName, employee.lastName]) || "Mitarbeiter";
+}
+
+function driverLabel(
+  driver: {
+    firstName: string;
+    lastName: string;
+  } | null,
+  fallback: string | null,
+) {
+  return compactLine([driver?.firstName, driver?.lastName]) || fallback || "Fahrer";
+}
+
+function addCompositionLine(
+  lines: DailyReportCompositionLine[],
+  line: DailyReportCompositionLine,
+) {
+  if (!line.label.trim()) return;
+  lines.push(line);
+}
+
 function addCountHours(
   map: Map<string, CountHours>,
   label: string,
@@ -1677,6 +2158,55 @@ function addInventoryMachine(
   );
 }
 
+function addVehicleCompositionLine(
+  composition: DailyReportComposition,
+  vehicle: ({
+    category: string;
+    dailyReportMachineLabel?: string | null;
+    licensePlate?: string | null;
+    vehicleNumber: string;
+    vehicleType: string;
+  } & VehicleWithInventoryLink) | null,
+  hours: number,
+  source: string,
+) {
+  if (!vehicle || hours <= 0) return;
+
+  const target =
+    getVehicleDailyReportSection(vehicle) === "OTHER"
+      ? composition.other
+      : composition.machines;
+  addCompositionLine(target, {
+    detail: compactLine([vehicle.category, vehicle.vehicleType, vehicle.licensePlate]),
+    label: getVehicleRealMachineLabel(vehicle),
+    quantity: `${formatDecimal(hours)} Std.`,
+    source,
+  });
+}
+
+function addInventoryMachineCompositionLine(
+  composition: DailyReportComposition,
+  item: DailyReportInventoryItem,
+  hours: number,
+  source: string,
+) {
+  const target =
+    getInventoryItemDailyReportSection(item) === "OTHER"
+      ? composition.other
+      : composition.machines;
+
+  addCompositionLine(target, {
+    detail: compactLine([
+      item.category?.parentCategory?.name ?? item.category?.name,
+      item.manufacturer,
+      item.model,
+    ]),
+    label: getInventoryItemRealMachineLabel(item),
+    quantity: `${formatDecimal(hours)} Std.`,
+    source,
+  });
+}
+
 function addMachineLabel(
   map: Map<string, MachineBucket>,
   rawLabel: string,
@@ -1877,6 +2407,27 @@ function addMaterialRow(
     label,
     quantity: Math.round(((current?.quantity ?? 0) + quantityValue) * 10) / 10,
     unit,
+  });
+}
+
+function addMaterialCompositionLine(
+  lines: DailyReportCompositionLine[],
+  label: string | null | undefined,
+  quantity: number | null | undefined,
+  unit: string | null | undefined,
+  source: string,
+  detail: string,
+) {
+  const quantityValue = Number(quantity ?? 0);
+  const cleanLabel = String(label ?? "").trim();
+
+  if (!cleanLabel || !Number.isFinite(quantityValue) || quantityValue <= 0) return;
+
+  addCompositionLine(lines, {
+    detail,
+    label: cleanLabel,
+    quantity: `${formatDecimal(quantityValue)} ${String(unit ?? "").trim()}`.trim(),
+    source,
   });
 }
 

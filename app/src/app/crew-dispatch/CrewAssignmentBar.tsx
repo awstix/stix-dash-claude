@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { updateCrewPlanningAssignmentDates } from "./actions";
 
 type TimelineUnitForClient = {
@@ -40,6 +41,11 @@ type CloseablePanelProps = {
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
+};
+
+type PanelPosition = {
+  left: number;
+  top: number;
 };
 
 type DragMode = "move" | "resize-start" | "resize-end";
@@ -275,9 +281,14 @@ function renderChildrenWithCloseButton({
 
   if (childArray.length === 1 && isValidElement(childArray[0])) {
     const panel = childArray[0] as ReactElement<CloseablePanelProps>;
+    const panelClassName = (panel.props.className ?? "")
+      .replace(/\babsolute\b/g, "relative")
+      .replace(/\bz-\[[^\]]+\]\b/g, "")
+      .replace(/\bz-\d+\b/g, "")
+      .trim();
 
     return cloneElement(panel, {
-      className: `${panel.props.className ?? ""} relative pr-8`,
+      className: `${panelClassName} pr-8`,
       style: { ...(panel.props.style ?? {}), zIndex: 100001 },
       children: (
         <>
@@ -294,6 +305,38 @@ function renderChildrenWithCloseButton({
       {children}
     </div>
   );
+}
+
+function getPanelPosition(
+  anchorElement: HTMLElement | null,
+): PanelPosition | null {
+  if (!anchorElement) return null;
+
+  const rect = anchorElement.getBoundingClientRect();
+  const padding = 12;
+  const panelWidth = 460;
+  const panelHeight = 520;
+  const viewportWidth = window.innerWidth || panelWidth;
+  const viewportHeight = window.innerHeight || panelHeight;
+
+  const left = Math.max(
+    padding,
+    Math.min(rect.left, viewportWidth - panelWidth - padding),
+  );
+
+  const preferredTop = rect.bottom + 8;
+  const maxTop = Math.max(
+    padding,
+    viewportHeight -
+      Math.min(panelHeight, viewportHeight - padding * 2) -
+      padding,
+  );
+  const top = Math.max(padding, Math.min(preferredTop, maxTop));
+
+  return {
+    left,
+    top,
+  };
 }
 
 export function CrewAssignmentBar({
@@ -314,8 +357,10 @@ export function CrewAssignmentBar({
   const [displayEndDate, setDisplayEndDate] = useState(endDate);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
   const isDateEditable = !id.startsWith("asphalt-");
@@ -353,6 +398,20 @@ export function CrewAssignmentBar({
     ? `${crewName} · ${dateLabel} · Ziehen = verschieben · Rand ziehen = verlängern/verkürzen`
     : `${crewName} · ${dateLabel}`;
 
+  function updatePanelPosition() {
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+  }
+
+  function togglePanel() {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+    setIsOpen(true);
+  }
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -362,7 +421,9 @@ export function CrewAssignmentBar({
       if (
         target instanceof Node &&
         wrapperRef.current &&
-        !wrapperRef.current.contains(target)
+        !wrapperRef.current.contains(target) &&
+        panelRef.current &&
+        !panelRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -376,10 +437,14 @@ export function CrewAssignmentBar({
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
     };
   }, [isOpen]);
 
@@ -502,7 +567,7 @@ export function CrewAssignmentBar({
       dragStateRef.current = null;
 
       if (!moved && dragState.mode === "move") {
-        setIsOpen((current) => !current);
+        togglePanel();
         return;
       }
 
@@ -543,7 +608,7 @@ export function CrewAssignmentBar({
           onPointerDown={(event) => startDrag(event, "move")}
           onClick={() => {
             if (!isDateEditable) {
-              setIsOpen((current) => !current);
+              togglePanel();
             }
           }}
           className={`${barClassName} flex min-h-[44px] w-full min-w-0 items-center overflow-hidden text-left hover:brightness-95 ${
@@ -616,11 +681,24 @@ export function CrewAssignmentBar({
         </div>
       ) : null}
 
-      {isOpen
-        ? renderChildrenWithCloseButton({
-            children,
-            onClose: () => setIsOpen(false),
-          })
+      {isOpen && panelPosition
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-visible"
+              style={{
+                left: `${panelPosition.left}px`,
+                top: `${panelPosition.top}px`,
+                zIndex: 2147483646,
+              }}
+            >
+              {renderChildrenWithCloseButton({
+                children,
+                onClose: () => setIsOpen(false),
+              })}
+            </div>,
+            document.body,
+          )
         : null}
     </div>
   );
