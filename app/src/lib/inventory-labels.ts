@@ -470,6 +470,7 @@ export function getInventoryStatusLabel(status: string | null | undefined) {
   if (status === "DEFECT") return "Defekt";
   if (status === "LOCKED") return "Gesperrt";
   if (status === "IN_SERVICE") return "In Wartung";
+  if (status === "INACTIVE" || status === "DELETED") return "Archiviert";
   return "Aktiv";
 }
 

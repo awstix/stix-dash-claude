@@ -8,7 +8,7 @@ import {
   sortInventoryCategoriesForSelect,
 } from "@/lib/inventory-categories";
 import { prisma } from "@/lib/prisma";
-import { deleteInventoryItem } from "../actions";
+import { ArchiveInventoryItemDialog } from "../ArchiveInventoryItemDialog";
 import { InventoryPhotoThumbnailButton } from "../InventoryPhotoGallery";
 import { InventoryStockMovementDialog } from "../InventoryStockMovementDialog";
 import { ProjectStatus, type Prisma } from "@prisma/client";
@@ -56,6 +56,7 @@ function getInventoryStatusLabel(status: string | null) {
   if (status === "DEFECT") return "Defekt";
   if (status === "LOCKED") return "Gesperrt";
   if (status === "IN_SERVICE") return "In Wartung";
+  if (status === "INACTIVE" || status === "DELETED") return "Archiviert";
   return "Aktiv";
 }
 
@@ -63,6 +64,9 @@ function getInventoryStatusClass(status: string | null) {
   if (status === "DEFECT") return "bg-red-100 text-red-900 ring-red-200";
   if (status === "LOCKED") return "bg-orange-100 text-orange-950 ring-orange-200";
   if (status === "IN_SERVICE") return "bg-blue-100 text-blue-900 ring-blue-200";
+  if (status === "INACTIVE" || status === "DELETED") {
+    return "bg-gray-100 text-gray-700 ring-gray-200";
+  }
   return "bg-green-100 text-green-900 ring-green-200";
 }
 
@@ -164,7 +168,9 @@ export default async function InventoryStoragePage({
       : projectFilter
         ? { currentProjectId: projectFilter }
         : {}),
-    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(statusFilter
+      ? { status: statusFilter }
+      : { status: { notIn: ["INACTIVE", "DELETED"] } }),
     ...getStockWhere(stockFilter),
     ...(containerFilter === "only"
       ? { isContainer: true }
@@ -269,6 +275,9 @@ export default async function InventoryStoragePage({
     prisma.inventoryItem.count({
       where: {
         isStockManaged: true,
+        status: {
+          notIn: ["INACTIVE", "DELETED"],
+        },
       },
     }),
   ]);
@@ -524,17 +533,11 @@ export default async function InventoryStoragePage({
                           projects={projects}
                           stockUnit={item.stockUnit}
                         />
-                        <form action={deleteInventoryItem}>
-                          <input name="id" type="hidden" value={item.id} />
-                          <button
-                            aria-label={`${item.name} löschen`}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
-                            title="Löschen"
-                            type="submit"
-                          >
-                            <ActionIcon name="delete" className="h-4 w-4" />
-                          </button>
-                        </form>
+                        <ArchiveInventoryItemDialog
+                          itemId={item.id}
+                          itemName={item.name}
+                          objectNumber={item.objectNumber}
+                        />
                       </div>
                     </td>
                     <td className="p-3">

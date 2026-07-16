@@ -35,8 +35,8 @@ const cards = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-gray-100 px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">
+      <div className="w-full">
         <h1 className="text-4xl font-bold text-gray-900">Dashboard Stix</h1>
 
         <p className="mt-2 text-gray-600">

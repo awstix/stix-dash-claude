@@ -183,6 +183,7 @@ function getResponsibleFields(formData: FormData) {
 
 function revalidateInventory() {
   revalidatePath("/inventory");
+  revalidatePath("/inventory/archive");
   revalidatePath("/inventory/storage");
   revalidatePath("/admin/driver-vehicles");
   revalidatePath("/special-vehicle-dispatch");
@@ -953,10 +954,116 @@ export async function deleteInventoryItem(formData: FormData) {
     throw new Error("Inventar-ID fehlt.");
   }
 
-  await prisma.inventoryItem.delete({
+  await prisma.inventoryItem.update({
     where: {
       id,
     },
+    data: {
+      currentLocationLabel: null,
+      currentLocationType: null,
+      currentProjectId: null,
+      parentItemId: null,
+      responsibleCrewId: null,
+      responsibleEmployeeId: null,
+      responsibleType: null,
+      status: "INACTIVE",
+    },
+  });
+
+  revalidateInventoryItem(id);
+}
+
+export async function restoreInventoryItem(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  await prisma.inventoryItem.update({
+    where: {
+      id,
+    },
+    data: {
+      status: "ACTIVE",
+    },
+  });
+
+  revalidateInventoryItem(id);
+}
+
+export async function deleteInventoryItemPermanently(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Inventar-ID fehlt.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.inventoryItem.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        categoryId: true,
+        objectNumber: true,
+        status: true,
+      },
+    });
+
+    if (!item) {
+      return;
+    }
+
+    if (item.status !== "INACTIVE" && item.status !== "DELETED") {
+      throw new Error(
+        "Inventarobjekte müssen zuerst archiviert werden, bevor sie endgültig gelöscht werden.",
+      );
+    }
+
+    await tx.inventoryItem.delete({
+      where: {
+        id,
+      },
+    });
+
+    const objectNumber = item.objectNumber
+      ? Number.parseInt(item.objectNumber, 10)
+      : Number.NaN;
+
+    if (item.categoryId && Number.isInteger(objectNumber)) {
+      const category = await tx.inventoryCategory.findUnique({
+        where: {
+          id: item.categoryId,
+        },
+        select: {
+          nextObjectNumber: true,
+          objectNumberStart: true,
+        },
+      });
+
+      if (
+        category?.objectNumberStart !== null &&
+        category?.objectNumberStart !== undefined
+      ) {
+        const nextObjectNumber =
+          category.nextObjectNumber ?? category.objectNumberStart;
+
+        if (objectNumber < nextObjectNumber) {
+          await tx.inventoryCategory.update({
+            where: {
+              id: item.categoryId,
+            },
+            data: {
+              nextObjectNumber: Math.max(
+                category.objectNumberStart,
+                objectNumber,
+              ),
+            },
+          });
+        }
+      }
+    }
   });
 
   revalidateInventory();

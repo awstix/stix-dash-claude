@@ -88,7 +88,7 @@ export function AppHeader({
       className="sticky top-0 z-[100] border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur"
       ref={headerRef}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-8 py-4">
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8 2xl:px-10">
         <Link
           className="shrink-0 text-xl font-bold text-gray-900"
           href="/"

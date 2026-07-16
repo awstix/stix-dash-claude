@@ -68,7 +68,7 @@ export function AppShell({
         secondaryNavigation={secondaryNavigation}
       />
 
-      <section className="mx-auto max-w-7xl px-8 py-8">
+      <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
           {description ? (

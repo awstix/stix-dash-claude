@@ -180,6 +180,7 @@ function getInventoryStatusLabel(status: string | null) {
   if (status === "DEFECT") return "Defekt";
   if (status === "LOCKED") return "Gesperrt";
   if (status === "IN_SERVICE") return "In Wartung";
+  if (status === "INACTIVE" || status === "DELETED") return "Archiviert";
   return "Aktiv";
 }
 
@@ -187,6 +188,9 @@ function getInventoryStatusClass(status: string | null) {
   if (status === "DEFECT") return "border-red-200 bg-red-50 text-red-900";
   if (status === "LOCKED") return "border-orange-200 bg-orange-50 text-orange-950";
   if (status === "IN_SERVICE") return "border-blue-200 bg-blue-50 text-blue-900";
+  if (status === "INACTIVE" || status === "DELETED") {
+    return "border-gray-200 bg-gray-50 text-gray-700";
+  }
   return "border-green-200 bg-green-50 text-green-900";
 }
 
