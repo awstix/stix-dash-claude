@@ -97,6 +97,7 @@ type CountHours = {
 
 type MachineBucket = CountHours & {
   label: string;
+  section: "MACHINES" | "OTHER";
 };
 
 type DailyReportInventoryItem = {
@@ -112,6 +113,8 @@ type DailyReportInventoryItem = {
     } | null;
     useInDailyReports: boolean;
   } | null;
+  manufacturer: string | null;
+  model: string | null;
   inventoryNumber: string | null;
   name: string;
   objectNumber: string | null;
@@ -467,6 +470,8 @@ export async function getDailyReportSourceProject(
               },
             },
             id: true,
+            manufacturer: true,
+            model: true,
             inventoryNumber: true,
             name: true,
             objectNumber: true,
@@ -892,22 +897,20 @@ export function buildDailyReportContext(
   const suggestedWeatherNotes = workTimeWeather.notes || weatherLog?.notes || "";
   const suggestedLaborRows = buildLaborRows(labor);
   const suggestedSubcontractorRows = buildSubcontractorRows(subcontractors);
+  const showRealMachineNames = dailyReport?.showRealMachineNames ?? false;
   const suggestedGroupedMachineRows = buildMachineRows(machines);
   const suggestedMaterialRows = buildMaterialRows(materialRows);
-  const suggestedOtherRows = buildOtherRows(machines);
+  const suggestedOtherRows = showRealMachineNames
+    ? buildRealOtherRows(realMachines)
+    : buildOtherRows(machines);
   const suggestedRealMachineRows = buildRealMachineRows(realMachines);
-  const suggestedRealMachineRowsForDisplay = buildMachineRowsForRealNameDisplay(
-    suggestedGroupedMachineRows,
-    suggestedRealMachineRows,
-  );
   const suggestedPerformanceLines = compactUnique(performanceLines).slice(
     0,
     dailyReportPerformanceLineLimit,
   );
   const suggestedWeekday = formatWeekday(dateKey);
-  const showRealMachineNames = dailyReport?.showRealMachineNames ?? false;
   const suggestedMachineRows = showRealMachineNames
-    ? suggestedRealMachineRowsForDisplay
+    ? suggestedRealMachineRows
     : suggestedGroupedMachineRows;
 
   const approvedFields = parseStringList(dailyReport?.approvedFieldsJson).filter(
@@ -1192,7 +1195,7 @@ function buildSubcontractorRows(map: Map<string, CountHours>) {
 function buildMachineRows(map: Map<string, MachineBucket>) {
   const knownLabels = [...leftMachineLabels, ...rightMachineLabels];
   return knownLabels.map((label) => {
-    const value = map.get(label) ?? { count: 0, hours: 0, label };
+    const value = map.get(label) ?? { count: 0, hours: 0, label, section: "MACHINES" as const };
 
     return {
       count: value.count,
@@ -1231,8 +1234,12 @@ function buildMaterialRows(map: Map<string, DailyReportMaterialRow>) {
     .slice(0, 12);
 }
 
-function buildRealMachineRows(map: Map<string, MachineBucket>) {
+function buildRealMachineRows(
+  map: Map<string, MachineBucket>,
+  section: "MACHINES" | "OTHER" = "MACHINES",
+) {
   return Array.from(map.values())
+    .filter((value) => value.section === section)
     .filter((value) => value.count > 0 || value.hours > 0)
     .sort((a, b) => a.label.localeCompare(b.label, "de-DE", { numeric: true }))
     .slice(0, 24)
@@ -1244,37 +1251,15 @@ function buildRealMachineRows(map: Map<string, MachineBucket>) {
     }));
 }
 
-function buildMachineRowsForRealNameDisplay(
-  groupedRows: DailyReportCountRow[],
-  realRows: DailyReportCountRow[],
-) {
-  const usedRealRowKeys = new Set<string>();
-  const rows: DailyReportCountRow[] = [];
-
-  for (const groupedRow of groupedRows) {
-    const matchingRealRows = realRows.filter((realRow) =>
-      isDetailedMachineRowForGroup(groupedRow.label, realRow.label),
-    );
-
-    if (matchingRealRows.length > 0) {
-      matchingRealRows.forEach((realRow) => {
-        usedRealRowKeys.add(realRow.key);
-        rows.push(realRow);
-      });
-      continue;
-    }
-
-    rows.push(groupedRow);
-  }
-
-  return rows;
-}
-
-function isDetailedMachineRowForGroup(groupLabel: string, detailLabel: string) {
-  const normalizedGroup = normalize(groupLabel);
-  const normalizedDetail = normalize(detailLabel);
-
-  return Boolean(normalizedGroup) && normalizedDetail.startsWith(`${normalizedGroup} ·`);
+function buildRealOtherRows(map: Map<string, MachineBucket>) {
+  return buildRealMachineRows(map, "OTHER")
+    .slice(0, 5)
+    .map((value) => ({
+      key: getMaterialRowKey(value.label, "Std."),
+      label: value.label,
+      quantity: value.hours > 0 ? value.hours : value.count,
+      unit: value.hours > 0 ? "Std." : "",
+    }));
 }
 
 function parseMaterialRows(
@@ -1369,7 +1354,7 @@ function parseMachineRows(
   }
 
   if (showRealMachineNames) {
-    return orderCountRowsByFallback(rows, fallbackRows);
+    return orderCountRowsByFallback(rows, fallbackRows, false);
   }
 
   return orderCountRowsByFallback(rows, fallbackRows);
@@ -1378,6 +1363,7 @@ function parseMachineRows(
 function orderCountRowsByFallback(
   rows: DailyReportCountRow[],
   fallbackRows: DailyReportCountRow[],
+  includeExtraRows = true,
 ) {
   const storedByKey = new Map(rows.map((row) => [row.key, row]));
   const storedByLabel = new Map(
@@ -1404,7 +1390,10 @@ function orderCountRowsByFallback(
     (row) => !usedKeys.has(row.key) && !orderedKeys.has(row.key),
   );
 
-  return [...orderedRows, ...extraRows].slice(0, 24);
+  return [
+    ...orderedRows,
+    ...(includeExtraRows ? extraRows : []),
+  ].slice(0, 24);
 }
 
 function parseStringList(
@@ -1503,8 +1492,14 @@ function addMachine(
   hours: number,
 ) {
   const machine = getVehicleDailyReportMachineInput(vehicle);
-  addMachineLabel(map, machine.label, hours, machine.classify);
-  addMachineLabel(realMap, getVehicleRealMachineLabel(vehicle), hours, false);
+  addMachineLabel(map, machine.label, hours, machine.classify, machine.section);
+  addMachineLabel(
+    realMap,
+    getVehicleRealMachineLabel(vehicle),
+    hours,
+    false,
+    machine.section,
+  );
 }
 
 function addMachineOnce(
@@ -1528,8 +1523,14 @@ function addMachineOnce(
   if (keys.has(key)) return;
 
   keys.add(key);
-  addMachineLabel(map, machine.label, hours, machine.classify);
-  addMachineLabel(realMap, getVehicleRealMachineLabel(vehicle), hours, false);
+  addMachineLabel(map, machine.label, hours, machine.classify, machine.section);
+  addMachineLabel(
+    realMap,
+    getVehicleRealMachineLabel(vehicle),
+    hours,
+    false,
+    machine.section,
+  );
 }
 
 function getTimedMachineKey(
@@ -1566,12 +1567,23 @@ function getVehicleDailyReportMachineInput(vehicle: {
   vehicleNumber: string;
   vehicleType: string;
 } & VehicleWithInventoryLink) {
+  const inventoryItem = vehicle.inventoryItems?.[0] ?? null;
+  const section = getVehicleDailyReportSection(vehicle);
+  if (inventoryItem && getInventoryItemDailyReportSection(inventoryItem) === "OTHER") {
+    return {
+      classify: false,
+      label: getInventoryItemRealMachineLabel(inventoryItem),
+      section,
+    };
+  }
+
   const customLabel = getConfiguredDailyReportMachineLabel(vehicle);
 
   if (customLabel) {
     return {
       classify: false,
       label: customLabel,
+      section,
     };
   }
 
@@ -1582,7 +1594,17 @@ function getVehicleDailyReportMachineInput(vehicle: {
       number: vehicle.vehicleNumber,
       type: vehicle.vehicleType,
     }),
+    section,
   };
+}
+
+function getVehicleDailyReportSection(
+  vehicle: VehicleWithInventoryLink,
+): "MACHINES" | "OTHER" {
+  const inventoryItem = vehicle.inventoryItems?.[0] ?? null;
+  return getInventoryItemDailyReportSection(inventoryItem) === "OTHER"
+    ? "OTHER"
+    : "MACHINES";
 }
 
 function getVehicleRealMachineLabel(vehicle: {
@@ -1592,56 +1614,17 @@ function getVehicleRealMachineLabel(vehicle: {
   vehicleNumber: string;
   vehicleType: string;
 } & VehicleWithInventoryLink) {
-  const categoryLabel = getVehicleRealMachineCategoryLabel(vehicle);
   const inventoryItem = vehicle.inventoryItems?.[0] ?? null;
-  const realLabel =
+  return (
     (inventoryItem
-      ? [
-          inventoryItem.objectNumber,
-          inventoryItem.inventoryNumber,
-          inventoryItem.name,
-          vehicle.licensePlate,
-        ]
+      ? getInventoryItemRealMachineLabel(inventoryItem)
       : [
-          vehicle.vehicleNumber,
-          vehicle.licensePlate,
           vehicle.vehicleType,
-          vehicle.category,
-        ])
-      .filter(Boolean)
-      .join(" · ") || "Sonstige Maschine";
-
-  if (!categoryLabel || normalize(realLabel) === normalize(categoryLabel)) {
-    return realLabel;
-  }
-
-  return `${categoryLabel} · ${realLabel}`;
-}
-
-function getVehicleRealMachineCategoryLabel(vehicle: {
-  category: string;
-  dailyReportMachineLabel?: string | null;
-  vehicleNumber: string;
-  vehicleType: string;
-} & VehicleWithInventoryLink) {
-  const customLabel = getConfiguredDailyReportMachineLabel(vehicle);
-
-  if (customLabel) {
-    return customLabel;
-  }
-
-  const rawLabel = vehicleLabel({
-    category: vehicle.category,
-    number: vehicle.vehicleNumber,
-    type: vehicle.vehicleType,
-  });
-  const classifiedLabel = classifyMachine(rawLabel);
-
-  if (classifiedLabel !== rawLabel) {
-    return classifiedLabel;
-  }
-
-  return vehicle.category || vehicle.vehicleType || "Sonstige Maschine";
+          vehicle.vehicleNumber,
+        ]
+          .filter(Boolean)
+          .join(" ")) || "Sonstige Maschine"
+  );
 }
 
 function getConfiguredDailyReportMachineLabel(
@@ -1677,13 +1660,21 @@ function addInventoryMachine(
   hours: number,
 ) {
   const configuredLabel = getInventoryItemDailyReportMachineLabel(item);
+  const section =
+    getInventoryItemDailyReportSection(item) === "OTHER" ? "OTHER" : "MACHINES";
   const groupedLabel =
     configuredLabel ||
     getInventoryItemCategoryLabel(item) ||
     getInventoryItemRealMachineLabel(item);
 
-  addMachineLabel(map, groupedLabel, hours, !configuredLabel);
-  addMachineLabel(realMap, getInventoryItemRealMachineLabel(item), hours, false);
+  addMachineLabel(map, groupedLabel, hours, !configuredLabel, section);
+  addMachineLabel(
+    realMap,
+    getInventoryItemRealMachineLabel(item),
+    hours,
+    false,
+    section,
+  );
 }
 
 function addMachineLabel(
@@ -1691,15 +1682,17 @@ function addMachineLabel(
   rawLabel: string,
   hours: number,
   classify = true,
+  section: "MACHINES" | "OTHER" = "MACHINES",
 ) {
   const label = classify
     ? classifyMachine(rawLabel)
     : rawLabel || "Sonstige Maschine";
-  const current = map.get(label) ?? { count: 0, hours: 0, label };
+  const current = map.get(label) ?? { count: 0, hours: 0, label, section };
   map.set(label, {
     count: current.count + 1,
     hours: current.hours + hours,
     label,
+    section,
   });
 }
 
@@ -1732,26 +1725,38 @@ function classifyMachine(label: string) {
 }
 
 function getInventoryItemDailyReportSection(
-  item: DailyReportInventoryItem | null | undefined,
+  item:
+    | {
+        category?: {
+          dailyReportSection?: string | null;
+          parentCategory?: {
+            dailyReportSection?: string | null;
+            useInDailyReports?: boolean | null;
+          } | null;
+          useInDailyReports?: boolean | null;
+        } | null;
+      }
+    | null
+    | undefined,
 ) {
   if (!item?.category) return "NONE";
+  const categorySection = item.category.dailyReportSection ?? "NONE";
 
-  if (item.category.useInDailyReports && item.category.dailyReportSection !== "NONE") {
-    return item.category.dailyReportSection;
+  if (item.category.useInDailyReports && categorySection !== "NONE") {
+    return categorySection;
   }
 
   const parentCategory = item.category.parentCategory;
+  const parentSection = parentCategory?.dailyReportSection ?? "NONE";
 
   if (
     parentCategory?.useInDailyReports &&
-    parentCategory.dailyReportSection !== "NONE"
+    parentSection !== "NONE"
   ) {
-    return parentCategory.dailyReportSection;
+    return parentSection;
   }
 
-  return item.category.dailyReportSection !== "NONE"
-    ? item.category.dailyReportSection
-    : parentCategory?.dailyReportSection ?? "NONE";
+  return categorySection !== "NONE" ? categorySection : parentSection;
 }
 
 function getInventoryItemDailyReportMachineLabel(
@@ -1773,12 +1778,12 @@ function getInventoryItemCategoryLabel(
     : item.category.name;
 }
 
-function getInventoryItemRealMachineLabel(item: DailyReportInventoryItem) {
-  return (
-    [item.objectNumber, item.inventoryNumber, item.name].filter(Boolean).join(" · ") ||
-    item.name ||
-    "Sonstige Maschine"
-  );
+function getInventoryItemRealMachineLabel(item: {
+  manufacturer?: string | null;
+  model?: string | null;
+  name: string;
+}) {
+  return String(item.name ?? "").trim() || "Sonstige Maschine";
 }
 
 function isDailyReportMachineInventoryItem(
@@ -1894,8 +1899,7 @@ function getInventoryMaterialLabel(
   }
 
   return (
-    [item.inventoryNumber, item.name].filter(Boolean).join(" · ") ||
-    item.objectNumber ||
+    String(item.name ?? "").trim() ||
     fallback
   );
 }

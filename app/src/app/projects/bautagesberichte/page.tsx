@@ -149,12 +149,10 @@ export default async function ProjectDailyReportsPage({
           </div>
 
           {selectedProject && exportHref ? (
-            <a
-              href={exportHref}
-              className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-            >
-              PDF herunterladen
-            </a>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+              PDF im Editor herunterladen, damit aktuelle Änderungen übernommen
+              werden.
+            </div>
           ) : null}
         </div>
 

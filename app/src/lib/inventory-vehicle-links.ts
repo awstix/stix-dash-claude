@@ -32,14 +32,18 @@ export const vehicleInventoryLinkInclude = {
       category: {
         select: {
           dailyReportMachineLabel: true,
+          dailyReportSection: true,
           name: true,
           parentCategory: {
             select: {
+              dailyReportSection: true,
               name: true,
+              useInDailyReports: true,
               useInSpecialVehicleDisposition: true,
               useInTruckDispatchSelection: true,
             },
           },
+          useInDailyReports: true,
           useInSpecialVehicleDisposition: true,
           useInTruckDispatchSelection: true,
         },
@@ -137,12 +141,16 @@ export type VehicleInventoryLink = {
   } | null;
   category?: {
     dailyReportMachineLabel: string | null;
+    dailyReportSection?: string | null;
     name: string;
     parentCategory?: {
+      dailyReportSection?: string | null;
       name: string;
+      useInDailyReports?: boolean | null;
       useInSpecialVehicleDisposition: boolean;
       useInTruckDispatchSelection: boolean;
     } | null;
+    useInDailyReports?: boolean | null;
     useInSpecialVehicleDisposition: boolean;
     useInTruckDispatchSelection: boolean;
   } | null;

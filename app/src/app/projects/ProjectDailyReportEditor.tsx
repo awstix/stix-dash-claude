@@ -132,18 +132,13 @@ export function ProjectDailyReportEditor({
     markDirty();
     setForm((current) => {
       if (checked) {
-        const groupedRows = current.showRealMachineNames
-          ? current.machineRowsBeforeRealNames ??
-            context.suggestions.groupedMachineRows
-          : current.machineRows;
-
         return {
           ...current,
-          machineRows: buildMachineRowsForRealNameDisplay(
-            groupedRows,
-            context.suggestions.realMachineRows,
-          ),
-          machineRowsBeforeRealNames: cloneRows(groupedRows),
+          machineRows: cloneRows(context.suggestions.realMachineRows),
+          machineRowsBeforeRealNames: current.showRealMachineNames
+            ? current.machineRowsBeforeRealNames
+            : cloneRows(current.machineRows),
+          otherRows: cloneMaterialRows(context.suggestions.otherRows),
           showRealMachineNames: true,
         };
       }
@@ -154,10 +149,9 @@ export function ProjectDailyReportEditor({
 
       return {
         ...current,
-        machineRows: mergeMachineRowsForDisplay(groupedRows, current.machineRows, {
-          appendUnmatchedRows: false,
-        }),
+        machineRows: cloneRows(groupedRows),
         machineRowsBeforeRealNames: null,
+        otherRows: cloneMaterialRows(context.suggestions.otherRows),
         showRealMachineNames: false,
       };
     });
@@ -279,6 +273,31 @@ export function ProjectDailyReportEditor({
     });
   }
 
+  function saveAndDownloadPdf() {
+    startTransition(async () => {
+      try {
+        await saveProjectDailyReport({
+          ...form,
+          projectId,
+          reportDate: context.dateKey,
+          status: isApproved ? "APPROVED" : "DRAFT",
+        });
+        setDailyReportDirty(false);
+        setSaveMessage("Aktueller Stand gespeichert. PDF wird heruntergeladen.");
+        window.location.href = `${exportHref}${
+          exportHref.includes("?") ? "&" : "?"
+        }t=${Date.now()}`;
+        router.refresh();
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Bautagesbericht konnte nicht gespeichert werden.",
+        );
+      }
+    });
+  }
+
   const isApproved = context.status === "APPROVED";
   const hasWeatherSuggestion = Boolean(
     context.suggestions.weatherLabel ||
@@ -320,12 +339,14 @@ export function ProjectDailyReportEditor({
             >
               Vorschläge übernehmen
             </button>
-            <a
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-              href={exportHref}
+            <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+              disabled={isPending}
+              onClick={saveAndDownloadPdf}
+              type="button"
             >
               PDF herunterladen
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -1019,126 +1040,7 @@ function getSuggestionMachineRowsForDisplay(
     return cloneRows(context.suggestions.groupedMachineRows);
   }
 
-  return buildMachineRowsForRealNameDisplay(
-    context.suggestions.groupedMachineRows,
-    context.suggestions.realMachineRows,
-  );
-}
-
-function buildMachineRowsForRealNameDisplay(
-  groupedRows: DailyReportCountRow[],
-  realRows: DailyReportCountRow[],
-) {
-  const usedRealRowKeys = new Set<string>();
-  const rows: DailyReportCountRow[] = [];
-
-  for (const groupedRow of groupedRows) {
-    const matchingRealRows = realRows.filter((realRow) =>
-      isDetailedMachineRowForGroup(groupedRow, realRow),
-    );
-
-    if (matchingRealRows.length > 0) {
-      matchingRealRows.forEach((realRow) => {
-        usedRealRowKeys.add(realRow.key);
-        rows.push({ ...realRow });
-      });
-      continue;
-    }
-
-    rows.push({ ...groupedRow });
-  }
-
-  realRows
-    .filter((realRow) => !usedRealRowKeys.has(realRow.key))
-    .forEach((realRow) => rows.push({ ...realRow }));
-
-  return rows;
-}
-
-function mergeMachineRowsForDisplay(
-  suggestedRows: DailyReportCountRow[],
-  currentRows: DailyReportCountRow[],
-  options: {
-    appendUnmatchedRows?: boolean;
-    includeEmptyUnmatchedRows?: boolean;
-    sortByLabel?: boolean;
-  } = {},
-) {
-  const {
-    appendUnmatchedRows = true,
-    includeEmptyUnmatchedRows = false,
-    sortByLabel = false,
-  } = options;
-  const merged = cloneRows(suggestedRows);
-
-  for (const currentRow of currentRows) {
-    if (!includeEmptyUnmatchedRows && !hasCountRowValue(currentRow)) continue;
-
-    const matchingRow = merged.find((row) => areSameMachineRows(row, currentRow));
-
-    if (matchingRow) {
-      if (hasCountRowValue(currentRow)) {
-        matchingRow.count = currentRow.count;
-        matchingRow.hours = currentRow.hours;
-      }
-      continue;
-    }
-
-    if (!appendUnmatchedRows) continue;
-
-    if (isCoveredByDetailedMachineRow(currentRow, merged)) continue;
-
-    merged.push({ ...currentRow });
-  }
-
-  if (!sortByLabel) return merged;
-
-  return merged.sort((firstRow, secondRow) =>
-    firstRow.label.localeCompare(secondRow.label, "de-DE", { numeric: true }),
-  );
-}
-
-function hasCountRowValue(row: DailyReportCountRow) {
-  return row.count > 0 || row.hours > 0;
-}
-
-function areSameMachineRows(
-  firstRow: DailyReportCountRow,
-  secondRow: DailyReportCountRow,
-) {
-  return (
-    firstRow.key === secondRow.key ||
-    normalizeMachineRowLabel(firstRow.label) ===
-      normalizeMachineRowLabel(secondRow.label)
-  );
-}
-
-function isCoveredByDetailedMachineRow(
-  row: DailyReportCountRow,
-  suggestedRows: DailyReportCountRow[],
-) {
-  const label = normalizeMachineRowLabel(row.label);
-  if (!label) return false;
-
-  return suggestedRows.some((suggestedRow) => {
-    if (!hasCountRowValue(suggestedRow)) return false;
-
-    return isDetailedMachineRowForGroup(row, suggestedRow);
-  });
-}
-
-function isDetailedMachineRowForGroup(
-  groupRow: DailyReportCountRow,
-  detailedRow: DailyReportCountRow,
-) {
-  const label = normalizeMachineRowLabel(groupRow.label);
-  const detailedLabel = normalizeMachineRowLabel(detailedRow.label);
-
-  return Boolean(label) && detailedLabel.startsWith(`${label} ·`);
-}
-
-function normalizeMachineRowLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de-DE");
+  return cloneRows(context.suggestions.realMachineRows);
 }
 
 function cloneMaterialRows(rows: DailyReportMaterialRow[]) {
