@@ -801,11 +801,11 @@ export default async function InventoryDetailPage({
               value={item.deliveryNoteNumber ?? "—"}
             />
             <Info
-              label="Verrechnungssatz"
+              label="Verrechnungssatz €/Einheit"
               value={formatMoney(item.billingRateCents)}
             />
             <Info
-              label="Verrechnungssatz stillgelegt"
+              label="Verrechnungssatz stillgelegt €/Einheit"
               value={formatMoney(item.idleBillingRateCents)}
             />
             <Info

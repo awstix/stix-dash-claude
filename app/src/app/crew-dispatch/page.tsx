@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
@@ -7,7 +7,12 @@ import {
   inventoryVehicleBridgeInclude,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
-import { createCrewPlanningRow, deleteCrewPlanningAssignment } from "./actions";
+import {
+  createCrewPlanningRow,
+  deletePlanningTimelineSource,
+  deleteCrewPlanningAssignment,
+  updatePlanningTimelineSource,
+} from "./actions";
 import { CrewAssignmentBar } from "./CrewAssignmentBar";
 import { CrewPlanningAssignmentFormClient } from "./CrewPlanningAssignmentFormClient";
 import { CrewPopover } from "./CrewPopover";
@@ -134,6 +139,7 @@ type PlanningAxisBar = {
   startDate: Date;
   endDate: Date;
   tone: "project" | "employee" | "equipment" | "special";
+  editSource?: TimelineSourceEdit | null;
 };
 
 const PLANNING_AXIS_ROW_MIN_HEIGHT_PX = 72;
@@ -149,10 +155,12 @@ type CrewDispatchMaterialItem = {
   projectName: string;
   sourceLabel: string;
   itemLabel: string;
+  taskText?: string | null;
   quantityValue: number | null;
   quantityUnit: string | null;
   quantityLabel: string | null;
   detail: string | null;
+  editSource: TimelineSourceEdit | null;
 };
 
 type CrewDispatchMaterialDayGroup = {
@@ -167,6 +175,7 @@ type CrewDispatchMaterialTimelineStrip = {
   text: string;
   tooltipText: string;
   extraCount: number;
+  editSource: TimelineSourceEdit | null;
 };
 
 type CrewDispatchTruckItem = {
@@ -185,6 +194,9 @@ type CrewDispatchTruckItem = {
   quantityUnit: string | null;
   materialLabel: string | null;
   detail: string | null;
+  editSource: TimelineSourceEdit | null;
+  startTime?: string | null;
+  endTime?: string | null;
 };
 
 type CrewDispatchTruckDayGroup = {
@@ -199,6 +211,7 @@ type CrewDispatchTruckTimelineStrip = {
   text: string;
   tooltipText: string;
   extraCount: number;
+  editSource: TimelineSourceEdit | null;
 };
 
 type CrewDispatchTruckMaps = {
@@ -240,6 +253,7 @@ type CrewDispatchEquipmentItem = {
   projectName: string;
   crewName: string | null;
   notes: string | null;
+  editSource: TimelineSourceEdit | null;
 };
 
 type CrewDispatchEquipmentTimelineStrip = {
@@ -248,6 +262,29 @@ type CrewDispatchEquipmentTimelineStrip = {
   text: string;
   tooltipText: string;
   extraCount: number;
+  editSource: TimelineSourceEdit | null;
+};
+
+type TimelineSourceEdit = {
+  sourceType:
+    | "TRUCK_LONG_HAUL_ENTRY"
+    | "SHORT_HAUL_ASSIGNMENT"
+    | "SHORT_HAUL_TOUR"
+    | "ASPHALT_LOAD_ALLOCATION"
+    | "TACK_COAT_LOAD_ALLOCATION"
+    | "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT"
+    | "EQUIPMENT_DISPATCH_ASSIGNMENT";
+  sourceId: string;
+  sourceLabel: string;
+  projectNumber: string;
+  projectName: string;
+  itemLabel: string;
+  taskText?: string | null;
+  quantityValue: number | null;
+  quantityUnit: string | null;
+  notes: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
 };
 
 type CrewDispatchNoteTimelineStrip = {
@@ -1124,6 +1161,7 @@ function getMaterialTimelineStrips({
         text,
         tooltipText,
         extraCount: 0,
+        editSource: item.editSource,
       });
     });
   }
@@ -1309,6 +1347,7 @@ function getTruckTimelineStrips({
         text: getTruckDisplayLabel(item),
         tooltipText,
         extraCount: 0,
+        editSource: item.editSource,
       });
     });
   }
@@ -1484,6 +1523,17 @@ function getEquipmentTimelineStripsForProject({
         projectName: dispatchAssignment.project.name,
         crewName: dispatchAssignment.crew?.name ?? null,
         notes: dispatchAssignment.notes,
+        editSource: {
+          sourceType: "EQUIPMENT_DISPATCH_ASSIGNMENT",
+          sourceId: dispatchAssignment.id,
+          sourceLabel: "Gerätedisposition",
+          projectNumber: dispatchAssignment.project.projectNumber,
+          projectName: dispatchAssignment.project.name,
+          itemLabel: getVehicleLabel(dispatchAssignment.vehicle),
+          quantityValue: null,
+          quantityUnit: null,
+          notes: dispatchAssignment.notes,
+        },
       });
     }
 
@@ -1526,6 +1576,7 @@ function getEquipmentTimelineStripsForProject({
           projectName: reference.projectName,
           crewName: null,
           notes: "Standardgerät der Kolonne. Gerätedisposition hat Vorrang.",
+          editSource: null,
         });
       }
     }
@@ -1569,6 +1620,7 @@ function getEquipmentTimelineStripsForProject({
         text: item.vehicleLabel,
         tooltipText: getEquipmentTooltipLabel([item]),
         extraCount: 0,
+        editSource: item.editSource,
       });
     });
   });
@@ -2721,6 +2773,20 @@ function buildCrewDispatchMaterialMap({
       quantityUnit: entry.materialUnit,
       quantityLabel,
       detail: entry.notes,
+      editSource: {
+        sourceType: "TRUCK_LONG_HAUL_ENTRY",
+        sourceId: entry.id,
+        sourceLabel:
+          entry.assignmentType === "ASPHALT"
+            ? "Langstrecke Asphalt"
+            : "Langstrecke",
+        projectNumber: entry.projectNumber,
+        projectName: entry.projectName,
+        itemLabel,
+        quantityValue: entry.materialQuantity,
+        quantityUnit: entry.materialUnit,
+        notes: entry.notes,
+      },
     });
   }
 
@@ -2733,11 +2799,22 @@ function buildCrewDispatchMaterialMap({
         projectNumber: assignment.projectNumber,
         projectName: assignment.projectName,
         sourceLabel: "Kurzstrecke",
-        itemLabel: assignment.material,
+        itemLabel: assignment.material ?? "Material",
         quantityValue: null,
         quantityUnit: null,
         quantityLabel: null,
         detail: null,
+        editSource: {
+          sourceType: "SHORT_HAUL_ASSIGNMENT",
+          sourceId: assignment.id,
+          sourceLabel: "Kurzstrecke",
+          projectNumber: assignment.projectNumber,
+          projectName: assignment.projectName,
+          itemLabel: assignment.material ?? "Material",
+          quantityValue: null,
+          quantityUnit: null,
+          notes: null,
+        },
       });
     }
 
@@ -2767,6 +2844,17 @@ function buildCrewDispatchMaterialMap({
           tour.quantityUnit ?? undefined,
         ),
         detail: tour.notes,
+        editSource: {
+          sourceType: "SHORT_HAUL_TOUR",
+          sourceId: tour.id,
+          sourceLabel: "Kurzstrecke Tour",
+          projectNumber: tour.projectNumber || assignment.projectNumber,
+          projectName: tour.projectName || assignment.projectName,
+          itemLabel,
+          quantityValue: tour.quantity,
+          quantityUnit: tour.quantityUnit,
+          notes: tour.notes,
+        },
       });
     }
   }
@@ -2801,6 +2889,20 @@ function buildCrewDispatchMaterialMap({
       ]
         .filter(Boolean)
         .join(" · ") || null,
+      editSource: {
+        sourceType: "ASPHALT_LOAD_ALLOCATION",
+        sourceId: allocation.id,
+        sourceLabel:
+          allocation.sourceType === "LONG"
+            ? "Asphalt Langstrecke"
+            : "Asphalt Kurzstrecke",
+        projectNumber: allocation.projectNumber,
+        projectName: allocation.projectName,
+        itemLabel: mixLabel,
+        quantityValue: allocation.totalTons,
+        quantityUnit: "t",
+        notes: null,
+      },
     });
   }
 
@@ -2956,6 +3058,20 @@ function buildCrewDispatchTruckMaps({
         quantityUnit: entry.materialUnit,
         materialLabel: entry.materialName,
         detail: assignment.notes ?? entry.notes,
+        editSource: {
+          sourceType: "TRUCK_LONG_HAUL_ENTRY",
+          sourceId: entry.id,
+          sourceLabel:
+            entry.assignmentType === "ASPHALT"
+              ? "Langstrecke Asphalt"
+              : "Langstrecke",
+          projectNumber: entry.projectNumber,
+          projectName: entry.projectName,
+          itemLabel: entry.materialName ?? "Material",
+          quantityValue: plannedTotal ?? entry.materialQuantity,
+          quantityUnit: entry.materialUnit,
+          notes: assignment.notes ?? entry.notes,
+        },
       });
     }
   }
@@ -3039,6 +3155,17 @@ function buildCrewDispatchTruckMaps({
               )
               .join(" · ")
           : assignment.notes ?? null,
+      editSource: {
+        sourceType: "SHORT_HAUL_ASSIGNMENT",
+        sourceId: assignment.id,
+        sourceLabel: "Kurzstrecke",
+        projectNumber: assignment.projectNumber,
+        projectName: assignment.projectName,
+        itemLabel: materialLabel ?? "Transport",
+        quantityValue,
+        quantityUnit,
+        notes: assignment.notes ?? null,
+      },
     });
   }
 
@@ -3077,6 +3204,20 @@ function buildCrewDispatchTruckMaps({
       quantityUnit: "t",
       materialLabel: mixLabel,
       detail: null,
+      editSource: {
+        sourceType: "ASPHALT_LOAD_ALLOCATION",
+        sourceId: allocation.id,
+        sourceLabel:
+          allocation.sourceType === "LONG"
+            ? "Asphalt Langstrecke"
+            : "Asphalt Kurzstrecke",
+        projectNumber: allocation.projectNumber,
+        projectName: allocation.projectName,
+        itemLabel: mixLabel,
+        quantityValue: allocation.totalTons,
+        quantityUnit: "t",
+        notes: null,
+      },
     });
   }
 
@@ -3117,6 +3258,22 @@ function buildCrewDispatchTruckMaps({
       ]
         .filter(Boolean)
         .join(" · ") || null,
+      startTime: assignment.startTime,
+      endTime: assignment.endTime,
+      editSource: {
+        sourceType: "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT",
+        sourceId: assignment.id,
+        sourceLabel: "Sonderfahrzeug-Disposition",
+        projectNumber: assignment.projectNumber,
+        projectName: assignment.projectName,
+        itemLabel: assignment.materialName ?? assignment.taskText,
+        taskText: assignment.taskText,
+        quantityValue: assignment.quantity,
+        quantityUnit: assignment.quantityUnit,
+        notes: assignment.notes,
+        startTime: assignment.startTime,
+        endTime: assignment.endTime,
+      },
     });
   }
 
@@ -4310,6 +4467,17 @@ export default async function CrewDispatchPage({
           startDate: assignment.startDate,
           endDate: assignment.endDate,
           tone: "equipment",
+          editSource: {
+            sourceType: "EQUIPMENT_DISPATCH_ASSIGNMENT",
+            sourceId: assignment.id,
+            sourceLabel: "Gerätedisposition",
+            projectNumber: assignment.project.projectNumber,
+            projectName: assignment.project.name,
+            itemLabel: getVehicleLabel(assignment.vehicle),
+            quantityValue: null,
+            quantityUnit: null,
+            notes: assignment.notes,
+          },
         });
       }
     } else {
@@ -4328,6 +4496,20 @@ export default async function CrewDispatchPage({
           startDate: assignment.workDate,
           endDate: assignment.workDate,
           tone: "special",
+          editSource: {
+            sourceType: "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT",
+            sourceId: assignment.id,
+            sourceLabel: "Sonderfahrzeug-Disposition",
+            projectNumber: assignment.projectNumber,
+            projectName: assignment.projectName,
+            itemLabel: assignment.materialName ?? assignment.taskText,
+            taskText: assignment.taskText,
+            quantityValue: assignment.quantity,
+            quantityUnit: assignment.quantityUnit,
+            notes: assignment.notes,
+            startTime: assignment.startTime,
+            endTime: assignment.endTime,
+          },
         });
       }
     }
@@ -5327,33 +5509,64 @@ export default async function CrewDispatchPage({
                           });
 
                           if (!gridColumn) return null;
-
-                          return (
-                            <div
-                              key={bar.id}
-                              className={getPlanningAxisBarClass(bar.tone, unitCount)}
-                              style={{
-                                gridColumn,
-                                gridRow: 1,
-                                alignSelf: "start",
-                                marginTop: `${
-                                  PLANNING_AXIS_BAR_TOP_OFFSET_PX +
-                                  index * PLANNING_AXIS_BAR_STACK_STEP_PX
-                                }px`,
-                                minHeight: "24px",
-                              }}
-                              title={`${bar.title}${
-                                bar.subtitle ? `\n${bar.subtitle}` : ""
-                              }\n${formatShortDate(bar.startDate)} – ${formatShortDate(
-                                bar.endDate,
-                              )}`}
-                            >
+                          const titleText = `${bar.title}${
+                            bar.subtitle ? `\n${bar.subtitle}` : ""
+                          }\n${formatShortDate(bar.startDate)} – ${formatShortDate(
+                            bar.endDate,
+                          )}`;
+                          const barContent = (
+                            <>
                               <div className="truncate">{bar.title}</div>
                               {bar.subtitle ? (
                                 <div className="truncate text-[10px] font-medium opacity-90">
                                   {bar.subtitle}
                                 </div>
                               ) : null}
+                            </>
+                          );
+                          const commonStyle = {
+                            gridColumn,
+                            gridRow: 1,
+                            alignSelf: "start",
+                            marginTop: `${
+                              PLANNING_AXIS_BAR_TOP_OFFSET_PX +
+                              index * PLANNING_AXIS_BAR_STACK_STEP_PX
+                            }px`,
+                            minHeight: "24px",
+                          };
+
+                          return bar.editSource ? (
+                            <CrewTimelineMouseTooltip
+                              key={bar.id}
+                              className={`${getPlanningAxisBarClass(
+                                bar.tone,
+                                unitCount,
+                              )} pointer-events-auto`}
+                              style={commonStyle}
+                              label={bar.tone === "special" ? "Sondergerät" : "Gerät"}
+                              text={titleText}
+                              clickTitle={
+                                bar.tone === "special"
+                                  ? "Sonderfahrzeug bearbeiten"
+                                  : "Gerätedisposition bearbeiten"
+                              }
+                              clickContent={
+                                <TimelineSourceEditForm
+                                  editSource={bar.editSource}
+                                  fallbackText={titleText}
+                                />
+                              }
+                            >
+                              {barContent}
+                            </CrewTimelineMouseTooltip>
+                          ) : (
+                            <div
+                              key={bar.id}
+                              className={getPlanningAxisBarClass(bar.tone, unitCount)}
+                              style={commonStyle}
+                              title={titleText}
+                            >
+                              {barContent}
                             </div>
                           );
                         })}
@@ -5886,6 +6099,7 @@ export default async function CrewDispatchPage({
                                       text={strip.text}
                                       extraCount={strip.extraCount}
                                       tooltipText={strip.tooltipText}
+                                      editSource={strip.editSource}
                                     />
                                   ))
                                 : null}
@@ -5907,6 +6121,7 @@ export default async function CrewDispatchPage({
                                       text={strip.text}
                                       extraCount={strip.extraCount}
                                       tooltipText={strip.tooltipText}
+                                      editSource={strip.editSource}
                                     />
                                   ))
                                 : null}
@@ -5928,6 +6143,7 @@ export default async function CrewDispatchPage({
                                       text={strip.text}
                                       extraCount={strip.extraCount}
                                       tooltipText={strip.tooltipText}
+                                      editSource={strip.editSource}
                                     />
                                   ))
                                 : null}
@@ -5949,6 +6165,7 @@ export default async function CrewDispatchPage({
                                       text={strip.text}
                                       extraCount={strip.extraCount}
                                       tooltipText={strip.tooltipText}
+                                      editSource={strip.editSource}
                                     />
                                   ))
                                 : null}
@@ -6197,6 +6414,7 @@ export default async function CrewDispatchPage({
                                     text={strip.text}
                                     extraCount={strip.extraCount}
                                     tooltipText={strip.tooltipText}
+                                    editSource={strip.editSource}
                                   />
                                 ))
                               : null}
@@ -6218,6 +6436,7 @@ export default async function CrewDispatchPage({
                                     text={strip.text}
                                     extraCount={strip.extraCount}
                                     tooltipText={strip.tooltipText}
+                                    editSource={strip.editSource}
                                   />
                                 ))
                               : null}
@@ -6239,6 +6458,7 @@ export default async function CrewDispatchPage({
                                     text={strip.text}
                                     extraCount={strip.extraCount}
                                     tooltipText={strip.tooltipText}
+                                    editSource={strip.editSource}
                                   />
                                 ))
                               : null}
@@ -6260,6 +6480,7 @@ export default async function CrewDispatchPage({
                                     text={strip.text}
                                     extraCount={strip.extraCount}
                                     tooltipText={strip.tooltipText}
+                                    editSource={strip.editSource}
                                   />
                                 ))
                               : null}
@@ -6456,6 +6677,7 @@ function TimelineSupplementStrip({
   text,
   extraCount,
   tooltipText,
+  editSource,
 }: {
   gridColumn: string;
   topOffsetPx: number;
@@ -6464,8 +6686,12 @@ function TimelineSupplementStrip({
   text: string;
   extraCount: number;
   tooltipText?: string;
+  editSource?: TimelineSourceEdit | null;
 }) {
   const tooltip = tooltipText ?? text;
+  const clickContent = editSource ? (
+    <TimelineSourceEditForm editSource={editSource} fallbackText={tooltip} />
+  ) : null;
   const className =
     tone === "equipment"
       ? "pointer-events-auto relative z-30 flex h-6 min-w-0 max-w-full cursor-pointer items-center rounded-md border border-blue-200 bg-blue-50 px-2 text-[10px] font-semibold leading-none text-blue-950 shadow-sm"
@@ -6490,7 +6716,8 @@ function TimelineSupplementStrip({
       text={tooltip}
       extraCount={extraCount}
       clickTitle={`${label} Details`}
-      clickText={tooltip}
+      clickText={clickContent ? undefined : tooltip}
+      clickContent={clickContent}
     >
       <span className="shrink-0 font-bold uppercase tracking-wide opacity-70">
         {label}:
@@ -6502,6 +6729,186 @@ function TimelineSupplementStrip({
         <span className="ml-1 shrink-0 opacity-70">+{extraCount}</span>
       ) : null}
     </CrewTimelineMouseTooltip>
+  );
+}
+
+function TimelineSourceEditForm({
+  editSource,
+  fallbackText,
+}: {
+  editSource: TimelineSourceEdit;
+  fallbackText: string;
+}) {
+  const isTimeEditable =
+    editSource.sourceType === "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT" ||
+    editSource.sourceType === "ASPHALT_LOAD_ALLOCATION" ||
+    editSource.sourceType === "TACK_COAT_LOAD_ALLOCATION";
+  const isQuantityEditable =
+    editSource.sourceType !== "EQUIPMENT_DISPATCH_ASSIGNMENT";
+  const inputClass =
+    "mt-1 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-900 shadow-sm focus:border-gray-900 focus:outline-none";
+  const labelClass =
+    "text-[11px] font-bold uppercase tracking-wide text-gray-500";
+
+  return (
+    <div className="space-y-2">
+      <div className="whitespace-pre-line rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium leading-5 text-gray-700">
+        {fallbackText}
+      </div>
+
+      <form action={updatePlanningTimelineSource} className="space-y-2">
+        <input type="hidden" name="sourceType" value={editSource.sourceType} />
+        <input type="hidden" name="sourceId" value={editSource.sourceId} />
+
+        <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+          <div className="text-xs font-bold leading-none text-gray-900">
+            Quelle bearbeiten
+          </div>
+          <div className="mt-1 text-xs font-medium leading-none text-gray-500">
+            {editSource.sourceLabel}
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
+          <label className="block">
+            <span className={labelClass}>Projektnummer</span>
+            <input
+              className={inputClass}
+              name="projectNumber"
+              defaultValue={editSource.projectNumber}
+            />
+          </label>
+          <label className="block">
+            <span className={labelClass}>Baustelle</span>
+            <input
+              className={inputClass}
+              name="projectName"
+              defaultValue={editSource.projectName}
+            />
+          </label>
+        </div>
+
+        {editSource.sourceType === "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT" ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className={labelClass}>Aufgabe</span>
+              <input
+                className={inputClass}
+                name="taskText"
+                defaultValue={editSource.taskText ?? editSource.itemLabel}
+              />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Material</span>
+              <input
+                className={inputClass}
+                name="itemLabel"
+                defaultValue={editSource.itemLabel}
+              />
+            </label>
+          </div>
+        ) : (
+          <label className="block">
+            <span className={labelClass}>Material / Leistung</span>
+            <input
+              className={inputClass}
+              name="itemLabel"
+              defaultValue={editSource.itemLabel}
+              readOnly={editSource.sourceType === "EQUIPMENT_DISPATCH_ASSIGNMENT"}
+            />
+          </label>
+        )}
+
+        {isQuantityEditable ? (
+          <div className="grid gap-2 sm:grid-cols-[1fr_0.7fr]">
+            <label className="block">
+              <span className={labelClass}>Menge</span>
+              <input
+                className={inputClass}
+                name="quantityValue"
+                inputMode="decimal"
+                defaultValue={
+                  editSource.quantityValue !== null
+                    ? String(editSource.quantityValue).replace(".", ",")
+                    : ""
+                }
+              />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Einheit</span>
+              <input
+                className={inputClass}
+                name="quantityUnit"
+                defaultValue={editSource.quantityUnit ?? ""}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {isTimeEditable ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className={labelClass}>Beginn</span>
+              <input
+                className={inputClass}
+                name="startTime"
+                type="time"
+                defaultValue={editSource.startTime ?? "06:30"}
+              />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Ende</span>
+              <input
+                className={inputClass}
+                name="endTime"
+                type="time"
+                defaultValue={editSource.endTime ?? "17:00"}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        <label className="block">
+          <span className={labelClass}>Notiz</span>
+          <textarea
+            className={`${inputClass} min-h-14 resize-y`}
+            name="notes"
+            defaultValue={editSource.notes ?? ""}
+          />
+        </label>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="text-[11px] font-medium text-gray-500">
+            Speichert direkt in die jeweilige Disposition.
+          </div>
+          <button
+            type="submit"
+            className="inline-flex rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-gray-800"
+          >
+            Änderungen speichern
+          </button>
+        </div>
+      </form>
+
+      <form action={deletePlanningTimelineSource} className="pt-1">
+        <input type="hidden" name="sourceType" value={editSource.sourceType} />
+        <input type="hidden" name="sourceId" value={editSource.sourceId} />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2">
+          <div>
+            <div className="text-xs font-bold text-red-900">Eintrag löschen</div>
+            <div className="text-xs font-medium leading-5 text-red-700">
+              Löscht direkt aus der zugehörigen Disposition.
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="inline-flex rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+          >
+            Eintrag löschen
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

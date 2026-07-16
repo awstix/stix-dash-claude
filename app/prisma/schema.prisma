@@ -84,10 +84,14 @@ model Project {
   documentFolders                   ProjectDocumentFolder[]
   documents                         ProjectDocument[]
   formSubmissions                   ProjectFormSubmission[]
-  inventoryAssignments              InventoryItem[] @relation("InventoryCurrentProject")
+  inventoryAssignments              InventoryItem[]                    @relation("InventoryCurrentProject")
   inventoryUsageHistory             InventoryUsageHistory[]
-  currentInventoryLocationAlerts    InventoryLocationAlert[] @relation("InventoryAlertCurrentProject")
-  suggestedInventoryLocationAlerts  InventoryLocationAlert[] @relation("InventoryAlertSuggestedProject")
+  currentInventoryLocationAlerts    InventoryLocationAlert[]           @relation("InventoryAlertCurrentProject")
+  suggestedInventoryLocationAlerts  InventoryLocationAlert[]           @relation("InventoryAlertSuggestedProject")
+  performanceReports                ControllingPerformanceReport[]
+  controllingDetailEntries          ControllingDetailEntry[]
+  controllingHourEntries            ControllingHourEntry[]
+  controllingInvoiceItems           ControllingInvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -101,9 +105,9 @@ model ProjectNote {
 
   noteDate    DateTime  @default(now())
   noteEndDate DateTime?
-  category String   @default("GENERAL")
-  title    String?
-  content  String
+  category    String    @default("GENERAL")
+  title       String?
+  content     String
 
   visibility           String  @default("INTERNAL")
   includeInDailyReport Boolean @default(true)
@@ -330,15 +334,15 @@ model ProjectDocument {
 }
 
 model ProjectFormTemplate {
-  id          String  @id @default(cuid())
-  name        String
-  category    String?
-  description String?
-  fieldsJson  String
-  isActive    Boolean @default(true)
-  sortOrder   Int     @default(0)
-  paperSize   String  @default("A4")
-  paperOrientation String @default("PORTRAIT")
+  id               String  @id @default(cuid())
+  name             String
+  category         String?
+  description      String?
+  fieldsJson       String
+  isActive         Boolean @default(true)
+  sortOrder        Int     @default(0)
+  paperSize        String  @default("A4")
+  paperOrientation String  @default("PORTRAIT")
 
   submissions ProjectFormSubmission[]
 
@@ -453,14 +457,14 @@ model WorkshopRepairOrder {
   priority    String  @default("NORMAL")
   status      String  @default("OPEN")
 
-  reportedAt   DateTime  @default(now())
-  plannedStart DateTime?
-  plannedEnd   DateTime?
-  completedAt  DateTime?
+  reportedAt      DateTime  @default(now())
+  plannedStart    DateTime?
+  plannedEnd      DateTime?
+  completedAt     DateTime?
   completedByName String?
 
-  assignedTo String?
-  notes      String?
+  assignedTo       String?
+  notes            String?
   customValuesJson String?
 
   createdAt DateTime @default(now())
@@ -509,7 +513,7 @@ model WorkshopFormSubmission {
 
   templateKind         String
   title                String
-  priority             String   @default("NORMAL")
+  priority             String    @default("NORMAL")
   formDate             DateTime?
   valuesJson           String
   templateSnapshotJson String?
@@ -635,8 +639,8 @@ model AsphaltDispatchEntry {
   projectName         String  @default("")
   constructionManager String?
 
-  asphaltMixTypeId String?
-  asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+  asphaltMixTypeId       String?
+  asphaltMixType         AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
   asphaltInventoryItemId String?
 
   asphaltMixNumber String?
@@ -644,12 +648,12 @@ model AsphaltDispatchEntry {
 
   quantityTons Float @default(0)
 
-  tackCoatMaterialTypeId String?
-  tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  tackCoatMaterialTypeId  String?
+  tackCoatMaterialType    MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
   tackCoatInventoryItemId String?
-  tackCoatMaterialName   String?
-  tackCoatQuantity       Float         @default(0)
-  tackCoatUnit           String?
+  tackCoatMaterialName    String?
+  tackCoatQuantity        Float         @default(0)
+  tackCoatUnit            String?
 
   isForeignMix Boolean @default(false)
 
@@ -688,8 +692,8 @@ model TruckLongHaulEntry {
   projectName         String  @default("")
   constructionManager String?
 
-  materialTypeId String?
-  materialType   MaterialType? @relation(fields: [materialTypeId], references: [id], onDelete: SetNull)
+  materialTypeId          String?
+  materialType            MaterialType? @relation(fields: [materialTypeId], references: [id], onDelete: SetNull)
   materialInventoryItemId String?
 
   materialName     String?
@@ -727,13 +731,13 @@ model TruckLongHaulTruckAssignment {
   driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
   driverName String?
 
-  vehicleId     String?
-  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
-  vehicleNumber String?
-  licensePlate  String?
-  vehicleType   String?
+  vehicleNumber          String?
+  licensePlate           String?
+  vehicleType            String?
 
   subcontractorName String?
   notes             String?
@@ -773,8 +777,8 @@ model ShortHaulAssignment {
   projectNumber String @default("")
   projectName   String @default("")
 
-  vehicleId String?
-  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
@@ -855,8 +859,8 @@ model SpecialVehicleTask {
 
   workDate DateTime
 
-  vehicleId String?
-  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
@@ -879,18 +883,18 @@ model SpecialVehicleDispatchAssignment {
   startTime String   @default("07:00")
   endTime   String   @default("17:00")
 
-  vehicleId String?
-  vehicle   Vehicle? @relation("SpecialVehicleDispatchVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation("SpecialVehicleDispatchVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation("SpecialVehicleDispatchInventoryItem", fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
 
   vehicleName String @default("")
 
-  transportVehicleId   String?
-  transportVehicle     Vehicle? @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
+  transportVehicleId              String?
+  transportVehicle                Vehicle?       @relation("SpecialVehicleTransportVehicle", fields: [transportVehicleId], references: [id], onDelete: SetNull)
   transportVehicleInventoryItemId String?
   transportVehicleInventoryItem   InventoryItem? @relation("SpecialVehicleTransportInventoryItem", fields: [transportVehicleInventoryItemId], references: [id], onDelete: SetNull)
-  transportVehicleName String?
+  transportVehicleName            String?
 
   operatorDriverId   String?
   operatorDriver     Driver? @relation("SpecialVehicleOperatorDriver", fields: [operatorDriverId], references: [id], onDelete: SetNull)
@@ -944,11 +948,11 @@ model AsphaltLoadAllocation {
   projectNumber String   @default("")
   projectName   String   @default("")
 
-  asphaltMixTypeId String?
-  asphaltMixType   AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
+  asphaltMixTypeId       String?
+  asphaltMixType         AsphaltMixType? @relation(fields: [asphaltMixTypeId], references: [id], onDelete: SetNull)
   asphaltInventoryItemId String?
-  asphaltMixNumber String?
-  asphaltMixName   String?
+  asphaltMixNumber       String?
+  asphaltMixName         String?
 
   shortHaulAssignmentId String?
   shortHaulAssignment   ShortHaulAssignment? @relation(fields: [shortHaulAssignmentId], references: [id], onDelete: Cascade)
@@ -961,14 +965,14 @@ model AsphaltLoadAllocation {
 
   ownerType String @default("OWN")
 
-  vehicleId       String?
-  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
-  vehicleNumber   String?
-  licensePlate    String?
-  vehicleType     String?
-  vehicleCategory String?
+  vehicleNumber          String?
+  licensePlate           String?
+  vehicleType            String?
+  vehicleCategory        String?
 
   driverId   String?
   driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
@@ -1016,25 +1020,25 @@ model TackCoatLoadAllocation {
   projectNumber String   @default("")
   projectName   String   @default("")
 
-  tackCoatMaterialTypeId String?
-  tackCoatMaterialType   MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
+  tackCoatMaterialTypeId  String?
+  tackCoatMaterialType    MaterialType? @relation(fields: [tackCoatMaterialTypeId], references: [id], onDelete: SetNull)
   tackCoatInventoryItemId String?
-  materialName           String        @default("")
-  quantityUnit           String        @default("l")
+  materialName            String        @default("")
+  quantityUnit            String        @default("l")
 
   shortHaulAssignmentId String?
   shortHaulAssignment   ShortHaulAssignment? @relation(fields: [shortHaulAssignmentId], references: [id], onDelete: Cascade)
 
   ownerType String @default("OWN")
 
-  vehicleId       String?
-  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId              String?
+  vehicle                Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleInventoryItemId String?
   vehicleInventoryItem   InventoryItem? @relation(fields: [vehicleInventoryItemId], references: [id], onDelete: SetNull)
-  vehicleNumber   String?
-  licensePlate    String?
-  vehicleType     String?
-  vehicleCategory String?
+  vehicleNumber          String?
+  licensePlate           String?
+  vehicleType            String?
+  vehicleCategory        String?
 
   driverId   String?
   driver     Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
@@ -1099,19 +1103,21 @@ model Employee {
   driverId String? @unique
   driver   Driver? @relation("EmployeeDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
-  positions              EmployeePositionAssignment[]
-  qualifications         EmployeeQualification[]
-  qualificationDocuments EmployeeQualificationDocument[]
-  trainingRecords        EmployeeTrainingRecord[]
+  positions               EmployeePositionAssignment[]
+  qualifications          EmployeeQualification[]
+  qualificationDocuments  EmployeeQualificationDocument[]
+  trainingRecords         EmployeeTrainingRecord[]
   trainingRecordDocuments EmployeeTrainingRecordDocument[]
 
   crewMemberships                 CrewMember[]
   crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
   dispositionEntries              EmployeeDispositionEntry[]
-  inventoryAssignments            InventoryItem[] @relation("InventoryResponsibleEmployee")
+  inventoryAssignments            InventoryItem[]                   @relation("InventoryResponsibleEmployee")
   inventoryItemAssignments        InventoryItemEmployeeAssignment[]
-  inventoryUsageHistory           InventoryUsageHistory[] @relation("InventoryUsageEmployee")
-  inventoryTransportHistory       InventoryUsageHistory[] @relation("InventoryUsageTransporter")
+  inventoryUsageHistory           InventoryUsageHistory[]           @relation("InventoryUsageEmployee")
+  inventoryTransportHistory       InventoryUsageHistory[]           @relation("InventoryUsageTransporter")
+  controllingHourEntries          ControllingHourEntry[]
+  controllingRates                ControllingEmployeeRate[]
 
   notes String?
 
@@ -1274,20 +1280,20 @@ model EmployeeTrainingRecord {
   trainingTypeId String?
   trainingType   EmployeeTrainingType? @relation(fields: [trainingTypeId], references: [id], onDelete: SetNull)
 
-  number              String?
-  provider            String?
-  topic               String
-  trainingDate        DateTime?
-  type                String?
-  location            String?
-  durationDays        Float?
-  bookedAt            DateTime?
-  bookingConfirmedAt  DateTime?
+  number                String?
+  provider              String?
+  topic                 String
+  trainingDate          DateTime?
+  type                  String?
+  location              String?
+  durationDays          Float?
+  bookedAt              DateTime?
+  bookingConfirmedAt    DateTime?
   certificateReceivedAt DateTime?
-  validityMonths      Int?
-  validUntil          DateTime?
-  notes               String?
-  documents           EmployeeTrainingRecordDocument[]
+  validityMonths        Int?
+  validUntil            DateTime?
+  notes                 String?
+  documents             EmployeeTrainingRecordDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1330,14 +1336,14 @@ model EmployeeTrainingRecordDocument {
 }
 
 model WorkTimePreset {
-  id        String  @id @default(cuid())
-  name      String
-  startTime String  @default("06:30")
-  endTime   String  @default("17:00")
+  id                 String  @id @default(cuid())
+  name               String
+  startTime          String  @default("06:30")
+  endTime            String  @default("17:00")
   weeklyScheduleJson String?
-  isDefault Boolean @default(false)
-  isActive  Boolean @default(true)
-  sortOrder Int     @default(0)
+  isDefault          Boolean @default(false)
+  isActive           Boolean @default(true)
+  sortOrder          Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1363,7 +1369,7 @@ model Crew {
   assignments                       CrewPlanningAssignment[]
   equipmentDispatchAssignments      EquipmentDispatchAssignment[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
-  inventoryAssignments              InventoryItem[] @relation("InventoryResponsibleCrew")
+  inventoryAssignments              InventoryItem[]                    @relation("InventoryResponsibleCrew")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1400,8 +1406,8 @@ model CrewDefaultVehicle {
   crewId String
   crew   Crew   @relation(fields: [crewId], references: [id], onDelete: Cascade)
 
-  vehicleId String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   inventoryItemId String?
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
@@ -1421,8 +1427,8 @@ model CrewDefaultVehicle {
 model EquipmentDispatchAssignment {
   id String @id @default(cuid())
 
-  vehicleId String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   inventoryItemId String?
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
@@ -1535,8 +1541,8 @@ model CrewPlanningAssignmentVehicle {
   assignmentId String
   assignment   CrewPlanningAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
-  vehicleId String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   inventoryItemId String?
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
@@ -1557,28 +1563,28 @@ model CrewPlanningAssignmentVehicle {
 model InventoryCategory {
   id String @id @default(cuid())
 
-  name        String
-  description String?
-  colorClass  String?
-  sortOrder   Int     @default(0)
-  isActive    Boolean @default(true)
-  parentCategoryId String?
-  parentCategory   InventoryCategory?  @relation("InventoryCategoryChildren", fields: [parentCategoryId], references: [id], onDelete: SetNull)
-  childCategories  InventoryCategory[] @relation("InventoryCategoryChildren")
-  objectNumberStart Int?
-  objectNumberEnd   Int?
-  nextObjectNumber  Int?
-  useInTruckDisposition Boolean @default(false)
-  useInTruckDispatchMaterial Boolean @default(false)
-  useInTruckDispatchObject   Boolean @default(false)
-  useInTruckDispatchSelection Boolean @default(false)
-  useInSpecialVehicleDisposition Boolean @default(false)
-  useInTeamManagement Boolean @default(false)
-  asphaltDispositionUsage String @default("NONE")
-  useInDailyReports     Boolean @default(false)
-  useInInventory        Boolean @default(true)
-  dailyReportSection    String  @default("NONE")
-  dailyReportMachineLabel String?
+  name                           String
+  description                    String?
+  colorClass                     String?
+  sortOrder                      Int                 @default(0)
+  isActive                       Boolean             @default(true)
+  parentCategoryId               String?
+  parentCategory                 InventoryCategory?  @relation("InventoryCategoryChildren", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  childCategories                InventoryCategory[] @relation("InventoryCategoryChildren")
+  objectNumberStart              Int?
+  objectNumberEnd                Int?
+  nextObjectNumber               Int?
+  useInTruckDisposition          Boolean             @default(false)
+  useInTruckDispatchMaterial     Boolean             @default(false)
+  useInTruckDispatchObject       Boolean             @default(false)
+  useInTruckDispatchSelection    Boolean             @default(false)
+  useInSpecialVehicleDisposition Boolean             @default(false)
+  useInTeamManagement            Boolean             @default(false)
+  asphaltDispositionUsage        String              @default("NONE")
+  useInDailyReports              Boolean             @default(false)
+  useInInventory                 Boolean             @default(true)
+  dailyReportSection             String              @default("NONE")
+  dailyReportMachineLabel        String?
 
   items InventoryItem[]
 
@@ -1599,37 +1605,37 @@ model InventoryCategory {
 model InventoryItem {
   id String @id @default(cuid())
 
-  name            String
-  categoryId      String?
-  category        InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  manufacturer    String?
-  model           String?
-  serialNumber    String?
-  licensePlate    String?
-  stixId          String?            @unique
-  objectNumber    String?            @unique
-  inventoryNumber String?            @unique
-  sourceType      String?
-  sourceId        String?
-  constructionYear Int?
-  constructionDate DateTime?
-  receivedAt      DateTime?
-  purchasedAt     DateTime?
-  purchasedFrom   String?
-  invoiceNumber   String?
-  deliveryNoteNumber String?
-  axleCount       Int?
-  grossWeightKg   Int?
-  payloadKg       Int?
-  driveType       String?
-  attachmentType  String?
-  fuelTankLiters  Float?
+  name                   String
+  categoryId             String?
+  category               InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  manufacturer           String?
+  model                  String?
+  serialNumber           String?
+  licensePlate           String?
+  stixId                 String?            @unique
+  objectNumber           String?            @unique
+  inventoryNumber        String?            @unique
+  sourceType             String?
+  sourceId               String?
+  constructionYear       Int?
+  constructionDate       DateTime?
+  receivedAt             DateTime?
+  purchasedAt            DateTime?
+  purchasedFrom          String?
+  invoiceNumber          String?
+  deliveryNoteNumber     String?
+  axleCount              Int?
+  grossWeightKg          Int?
+  payloadKg              Int?
+  driveType              String?
+  attachmentType         String?
+  fuelTankLiters         Float?
   workMaterialTankLiters Float?
 
-  isContainer       Boolean @default(false)
-  parentItemId      String?
-  parentItem        InventoryItem?  @relation("InventoryContainerChildren", fields: [parentItemId], references: [id], onDelete: SetNull)
-  childItems        InventoryItem[] @relation("InventoryContainerChildren")
+  isContainer  Boolean         @default(false)
+  parentItemId String?
+  parentItem   InventoryItem?  @relation("InventoryContainerChildren", fields: [parentItemId], references: [id], onDelete: SetNull)
+  childItems   InventoryItem[] @relation("InventoryContainerChildren")
 
   isStockManaged Boolean @default(false)
   stockUnit      String  @default("Stk.")
@@ -1638,70 +1644,71 @@ model InventoryItem {
 
   responsibleType       String?
   responsibleEmployeeId String?
-  responsibleEmployee   Employee? @relation("InventoryResponsibleEmployee", fields: [responsibleEmployeeId], references: [id], onDelete: SetNull)
+  responsibleEmployee   Employee?                         @relation("InventoryResponsibleEmployee", fields: [responsibleEmployeeId], references: [id], onDelete: SetNull)
   employeeAssignments   InventoryItemEmployeeAssignment[]
   responsibleCrewId     String?
-  responsibleCrew       Crew?     @relation("InventoryResponsibleCrew", fields: [responsibleCrewId], references: [id], onDelete: SetNull)
+  responsibleCrew       Crew?                             @relation("InventoryResponsibleCrew", fields: [responsibleCrewId], references: [id], onDelete: SetNull)
 
-  currentProjectId String?
-  currentProject   Project? @relation("InventoryCurrentProject", fields: [currentProjectId], references: [id], onDelete: SetNull)
+  currentProjectId     String?
+  currentProject       Project? @relation("InventoryCurrentProject", fields: [currentProjectId], references: [id], onDelete: SetNull)
   currentLocationType  String?
   currentLocationLabel String?
 
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
-  billingRateCents Int?
+  billingRateCents     Int?
   idleBillingRateCents Int?
-  notes            String?
-  status           String @default("ACTIVE")
+  notes                String?
+  status               String  @default("ACTIVE")
 
-  lastServiceAtDate       DateTime?
-  lastServiceOperatingHours Float?
-  lastServiceMileageKm    Int?
-  nextServiceAtDate       DateTime?
-  nextServiceOperatingHours Float?
-  nextServiceMileageKm    Int?
-  lastDguvInspectionDate  DateTime?
-  nextDguvInspectionDate  DateTime?
-  lastTuvInspectionDate   DateTime?
-  nextTuvInspectionDate   DateTime?
+  lastServiceAtDate            DateTime?
+  lastServiceOperatingHours    Float?
+  lastServiceMileageKm         Int?
+  nextServiceAtDate            DateTime?
+  nextServiceOperatingHours    Float?
+  nextServiceMileageKm         Int?
+  lastDguvInspectionDate       DateTime?
+  nextDguvInspectionDate       DateTime?
+  lastTuvInspectionDate        DateTime?
+  nextTuvInspectionDate        DateTime?
   lastTachographInspectionDate DateTime?
   nextTachographInspectionDate DateTime?
-  lastSafetyInspectionDate DateTime?
-  nextSafetyInspectionDate DateTime?
-  lastAdrInspectionDate DateTime?
-  nextAdrInspectionDate DateTime?
+  lastSafetyInspectionDate     DateTime?
+  nextSafetyInspectionDate     DateTime?
+  lastAdrInspectionDate        DateTime?
+  nextAdrInspectionDate        DateTime?
 
-  photos                  InventoryPhoto[]
-  contacts                InventoryContact[]
-  usageHistory            InventoryUsageHistory[]
-  idlePeriods             InventoryIdlePeriod[]
-  scanLogs                InventoryScanLog[]
-  locationAlerts          InventoryLocationAlert[]
-  workshopRepairOrders    WorkshopRepairOrder[]
-  workshopFormSubmissions WorkshopFormSubmission[]
-  driverAssignments       DriverVehicleAssignment[]
-  truckLongHaulTruckAssignments TruckLongHaulTruckAssignment[]
-  shortHaulAssignments ShortHaulAssignment[]
-  specialVehicleTasks SpecialVehicleTask[]
-  specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchInventoryItem")
+  photos                             InventoryPhoto[]
+  contacts                           InventoryContact[]
+  usageHistory                       InventoryUsageHistory[]
+  idlePeriods                        InventoryIdlePeriod[]
+  scanLogs                           InventoryScanLog[]
+  locationAlerts                     InventoryLocationAlert[]
+  workshopRepairOrders               WorkshopRepairOrder[]
+  workshopFormSubmissions            WorkshopFormSubmission[]
+  driverAssignments                  DriverVehicleAssignment[]
+  truckLongHaulTruckAssignments      TruckLongHaulTruckAssignment[]
+  shortHaulAssignments               ShortHaulAssignment[]
+  specialVehicleTasks                SpecialVehicleTask[]
+  specialVehicleDispatchAssignments  SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleDispatchInventoryItem")
   specialVehicleTransportAssignments SpecialVehicleDispatchAssignment[] @relation("SpecialVehicleTransportInventoryItem")
-  asphaltLoadAllocations AsphaltLoadAllocation[]
-  tackCoatLoadAllocations TackCoatLoadAllocation[]
-  crewDefaultVehicles CrewDefaultVehicle[]
-  equipmentDispatchAssignments EquipmentDispatchAssignment[]
-  crewPlanningAssignmentVehicles CrewPlanningAssignmentVehicle[]
+  asphaltLoadAllocations             AsphaltLoadAllocation[]
+  tackCoatLoadAllocations            TackCoatLoadAllocation[]
+  crewDefaultVehicles                CrewDefaultVehicle[]
+  equipmentDispatchAssignments       EquipmentDispatchAssignment[]
+  crewPlanningAssignmentVehicles     CrewPlanningAssignmentVehicle[]
+  controllingDetailEntries           ControllingDetailEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([sourceType, sourceId])
   @@index([categoryId])
   @@index([objectNumber])
   @@index([inventoryNumber])
   @@index([stixId])
   @@index([sourceType])
-  @@unique([sourceType, sourceId])
   @@index([status])
   @@index([serialNumber])
   @@index([licensePlate])
@@ -1787,17 +1794,17 @@ model InventoryContact {
   itemId String
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  role    String
-  company String?
-  salutation String?
-  firstName String?
-  lastName String?
-  name    String?
-  phone   String?
+  role        String
+  company     String?
+  salutation  String?
+  firstName   String?
+  lastName    String?
+  name        String?
+  phone       String?
   mobilePhone String?
-  email   String?
-  website String?
-  notes   String?
+  email       String?
+  website     String?
+  notes       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1849,27 +1856,27 @@ model InventoryScanLog {
   itemId String
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  action           String @default("VIEW")
-  scannedByName    String?
-  scannedByUserId  String?
-  rawValue         String?
-  latitude         Float?
-  longitude        Float?
-  accuracyMeters   Float?
-  locationAddressLabel String?
-  locationStreet       String?
-  locationHouseNumber  String?
-  locationPostcode     String?
-  locationCity         String?
-  locationCountry      String?
-  locationReverseGeocodedAt DateTime?
+  action                       String                  @default("VIEW")
+  scannedByName                String?
+  scannedByUserId              String?
+  rawValue                     String?
+  latitude                     Float?
+  longitude                    Float?
+  accuracyMeters               Float?
+  locationAddressLabel         String?
+  locationStreet               String?
+  locationHouseNumber          String?
+  locationPostcode             String?
+  locationCity                 String?
+  locationCountry              String?
+  locationReverseGeocodedAt    DateTime?
   locationReverseGeocodeSource String?
-  locationAddressJson  String?
-  projectId        String?
-  projectLabel     String?
-  userAgent        String?
-  notes            String?
-  locationAlert    InventoryLocationAlert?
+  locationAddressJson          String?
+  projectId                    String?
+  projectLabel                 String?
+  userAgent                    String?
+  notes                        String?
+  locationAlert                InventoryLocationAlert?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1887,7 +1894,7 @@ model InventoryLocationAlert {
   itemId String
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  scanLogId String @unique
+  scanLogId String           @unique
   scanLog   InventoryScanLog @relation(fields: [scanLogId], references: [id], onDelete: Cascade)
 
   currentProjectId String?
@@ -1896,16 +1903,16 @@ model InventoryLocationAlert {
   suggestedProjectId String?
   suggestedProject   Project? @relation("InventoryAlertSuggestedProject", fields: [suggestedProjectId], references: [id], onDelete: SetNull)
 
-  status String @default("OPEN")
-  reason String
-  distanceToCurrentMeters Float?
+  status                    String    @default("OPEN")
+  reason                    String
+  distanceToCurrentMeters   Float?
   distanceToSuggestedMeters Float?
-  scanAddressLabel String?
-  scannedByName String?
-  assignedByName String?
-  resolvedAt DateTime?
-  resolvedByName String?
-  notes String?
+  scanAddressLabel          String?
+  scannedByName             String?
+  assignedByName            String?
+  resolvedAt                DateTime?
+  resolvedByName            String?
+  notes                     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1937,4 +1944,189 @@ model InventoryLabelTemplate {
   @@index([tapeWidthMm])
   @@index([isDefault])
   @@index([name])
+}
+
+model ControllingPerformanceReport {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  reportDate  DateTime
+  periodStart DateTime?
+  periodEnd   DateTime?
+  title       String?
+  status      String    @default("DRAFT")
+  note        String?
+
+  contractValueNetCents Int   @default(0)
+  changeOrdersNetCents  Int   @default(0)
+  progressPercent       Float @default(0)
+  paymentsNetCents      Int   @default(0)
+
+  detailEntries ControllingDetailEntry[]
+  hourEntries   ControllingHourEntry[]
+  invoiceItems  ControllingInvoiceItem[]
+
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([reportDate])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([status])
+}
+
+model ControllingDetailEntry {
+  id String @id @default(cuid())
+
+  reportId String
+  report   ControllingPerformanceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  entryDate      DateTime
+  costType       String
+  description    String
+  quantity       Float    @default(0)
+  unit           String   @default("Stk.")
+  unitPriceCents Int      @default(0)
+  amountCents    Int      @default(0)
+  status         String   @default("geschätzt")
+  source         String   @default("MANUAL")
+  sourceRef      String?
+  notes          String?
+
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reportId])
+  @@index([projectId])
+  @@index([entryDate])
+  @@index([costType])
+  @@index([status])
+  @@index([source])
+  @@index([inventoryItemId])
+}
+
+model ControllingHourEntry {
+  id String @id @default(cuid())
+
+  reportId String
+  report   ControllingPerformanceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  entryDate         DateTime
+  label             String
+  startsAt          String?
+  endsAt            String?
+  breakHours        Float    @default(0)
+  employeeCount     Float    @default(1)
+  hoursPerEmployee  Float    @default(0)
+  totalHours        Float    @default(0)
+  realRateCents     Int      @default(0)
+  internalRateCents Int      @default(0)
+  realCostCents     Int      @default(0)
+  internalCostCents Int      @default(0)
+  source            String   @default("MANUAL")
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reportId])
+  @@index([projectId])
+  @@index([employeeId])
+  @@index([entryDate])
+  @@index([source])
+}
+
+model ControllingInvoiceItem {
+  id String @id @default(cuid())
+
+  reportId String
+  report   ControllingPerformanceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  positionCode           String?
+  shortText              String
+  unit                   String?
+  contractQuantity       Float?
+  billedQuantity         Float   @default(0)
+  hoursPerUnit           Float?
+  billedHours            Float   @default(0)
+  unitPriceCents         Int     @default(0)
+  revenueCents           Int     @default(0)
+  costPerUnitCents       Int     @default(0)
+  costCents              Int     @default(0)
+  laborCostCents         Int     @default(0)
+  equipmentCostCents     Int     @default(0)
+  materialCostCents      Int     @default(0)
+  subcontractorCostCents Int     @default(0)
+  otherCostCents         Int     @default(0)
+  source                 String  @default("MANUAL")
+  notes                  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reportId])
+  @@index([projectId])
+  @@index([positionCode])
+  @@index([source])
+}
+
+model ControllingEmployeeGroupRate {
+  id String @id @default(cuid())
+
+  name              String    @unique
+  description       String?
+  realRateCents     Int       @default(0)
+  internalRateCents Int       @default(0)
+  validFrom         DateTime?
+  validTo           DateTime?
+  visibilityLevel   String    @default("CONTROLLING")
+  isActive          Boolean   @default(true)
+  sortOrder         Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@index([visibilityLevel])
+}
+
+model ControllingEmployeeRate {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  realRateCents     Int       @default(0)
+  internalRateCents Int       @default(0)
+  validFrom         DateTime?
+  validTo           DateTime?
+  visibilityLevel   String    @default("CONTROLLING")
+  isActive          Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([isActive])
+  @@index([visibilityLevel])
 }

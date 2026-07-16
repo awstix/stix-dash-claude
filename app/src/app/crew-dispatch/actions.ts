@@ -24,6 +24,27 @@ function optionalString(value: FormDataEntryValue | null) {
   return text.length > 0 ? text : null;
 }
 
+function optionalNumber(value: FormDataEntryValue | null, fieldName: string) {
+  const text = String(value ?? "").trim().replace(",", ".");
+
+  if (!text) {
+    return null;
+  }
+
+  const number = Number(text);
+
+  if (Number.isNaN(number)) {
+    throw new Error(`${fieldName} muss eine Zahl sein.`);
+  }
+
+  return number;
+}
+
+function optionalTime(value: FormDataEntryValue | null, fallback: string) {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
 function parseSortOrder(value: FormDataEntryValue | null) {
   const number = Number(String(value ?? "").trim());
 
@@ -488,4 +509,222 @@ export async function createCrewPlanningAssignmentForDay(formData: FormData) {
 
   const showWeekend = optionalString(formData.get("showWeekend"));
   revalidatePath(getCrewDispatchWeekHref(weekStart, showWeekend));
+}
+
+export async function updatePlanningTimelineSource(formData: FormData) {
+  const sourceType = String(formData.get("sourceType") ?? "").trim();
+  const sourceId = String(formData.get("sourceId") ?? "").trim();
+  const projectNumber = String(formData.get("projectNumber") ?? "").trim();
+  const projectName = String(formData.get("projectName") ?? "").trim();
+  const itemLabel = optionalString(formData.get("itemLabel"));
+  const taskText = optionalString(formData.get("taskText"));
+  const quantity = optionalNumber(formData.get("quantityValue"), "Menge");
+  const quantityUnit = optionalString(formData.get("quantityUnit"));
+  const notes = optionalString(formData.get("notes"));
+  const startTime = optionalTime(formData.get("startTime"), "06:30");
+  const endTime = optionalTime(formData.get("endTime"), "17:00");
+
+  if (!sourceId) {
+    throw new Error("Quell-ID fehlt.");
+  }
+
+  switch (sourceType) {
+    case "TRUCK_LONG_HAUL_ENTRY":
+      await prisma.truckLongHaulEntry.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          materialName: itemLabel,
+          materialQuantity: quantity ?? 0,
+          materialUnit: quantityUnit,
+          notes,
+        },
+      });
+      break;
+
+    case "SHORT_HAUL_ASSIGNMENT":
+      await prisma.shortHaulAssignment.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          material: itemLabel,
+          notes,
+        },
+      });
+      break;
+
+    case "SHORT_HAUL_TOUR":
+      await prisma.shortHaulTour.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          itemName: itemLabel,
+          quantity,
+          quantityUnit,
+          notes,
+        },
+      });
+      break;
+
+    case "ASPHALT_LOAD_ALLOCATION":
+      await prisma.asphaltLoadAllocation.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          asphaltMixName: itemLabel,
+          totalTons: quantity ?? 0,
+          notes,
+          startTime,
+          endTime,
+        },
+      });
+      break;
+
+    case "TACK_COAT_LOAD_ALLOCATION":
+      await prisma.tackCoatLoadAllocation.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          materialName: itemLabel ?? "",
+          quantityUnit: quantityUnit ?? "l",
+          totalLiters: quantity ?? 0,
+          notes,
+          startTime,
+          endTime,
+        },
+      });
+      break;
+
+    case "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT":
+      await prisma.specialVehicleDispatchAssignment.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          projectNumber,
+          projectName,
+          taskText: taskText ?? itemLabel ?? "",
+          materialName: itemLabel,
+          quantity,
+          quantityUnit,
+          notes,
+          startTime,
+          endTime,
+        },
+      });
+      break;
+
+    case "EQUIPMENT_DISPATCH_ASSIGNMENT":
+      await prisma.equipmentDispatchAssignment.update({
+        where: {
+          id: sourceId,
+        },
+        data: {
+          notes,
+        },
+      });
+      break;
+
+    default:
+      throw new Error("Diese Zeitstrahl-Quelle kann noch nicht bearbeitet werden.");
+  }
+
+  revalidatePath("/crew-dispatch");
+  revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/special-vehicle-dispatch");
+  revalidatePath("/equipment-dispatch");
+  revalidatePath("/asphalt-dispatch");
+}
+
+export async function deletePlanningTimelineSource(formData: FormData) {
+  const sourceType = String(formData.get("sourceType") ?? "").trim();
+  const sourceId = String(formData.get("sourceId") ?? "").trim();
+
+  if (!sourceId) {
+    throw new Error("Quell-ID fehlt.");
+  }
+
+  switch (sourceType) {
+    case "TRUCK_LONG_HAUL_ENTRY":
+      await prisma.truckLongHaulEntry.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "SHORT_HAUL_ASSIGNMENT":
+      await prisma.shortHaulAssignment.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "SHORT_HAUL_TOUR":
+      await prisma.shortHaulTour.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "ASPHALT_LOAD_ALLOCATION":
+      await prisma.asphaltLoadAllocation.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "TACK_COAT_LOAD_ALLOCATION":
+      await prisma.tackCoatLoadAllocation.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "SPECIAL_VEHICLE_DISPATCH_ASSIGNMENT":
+      await prisma.specialVehicleDispatchAssignment.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    case "EQUIPMENT_DISPATCH_ASSIGNMENT":
+      await prisma.equipmentDispatchAssignment.delete({
+        where: {
+          id: sourceId,
+        },
+      });
+      break;
+
+    default:
+      throw new Error("Diese Zeitstrahl-Quelle kann noch nicht gelöscht werden.");
+  }
+
+  revalidatePath("/crew-dispatch");
+  revalidatePath("/truck-dispatch/long-haul");
+  revalidatePath("/truck-dispatch/short-haul");
+  revalidatePath("/special-vehicle-dispatch");
+  revalidatePath("/equipment-dispatch");
+  revalidatePath("/asphalt-dispatch");
 }

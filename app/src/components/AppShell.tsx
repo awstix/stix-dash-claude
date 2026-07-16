@@ -42,6 +42,10 @@ const inventoryNavigation = [
   { name: "Scanner", href: "/inventory/scanner" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
+const controllingNavigation = [
+  { name: "Leistungsmeldung", href: "/controlling/performance" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+
 const employeeNavigation = [
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
   { name: "Mitarbeiterakte", href: "/employees/certificates" },
@@ -60,6 +64,7 @@ export function AppShell({
   return (
     <main className="min-h-screen bg-gray-100">
       <AppHeader
+        controllingNavigation={controllingNavigation}
         dispositionNavigation={dispositionNavigation}
         employeeNavigation={employeeNavigation}
         inventoryNavigation={inventoryNavigation}

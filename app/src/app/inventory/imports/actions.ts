@@ -468,9 +468,15 @@ export async function importInventoryItems(formData: FormData) {
         const data = {
           attachmentType: text(rowValue(row, "Aufnahmetyp")),
           axleCount: intValue(rowValue(row, "Achsen")),
-          billingRateCents: moneyCents(rowValue(row, "Verrechnungssatz EUR")),
+          billingRateCents: moneyCents(
+            rowValue(row, "Verrechnungssatz EUR je Einheit", "Verrechnungssatz EUR"),
+          ),
           idleBillingRateCents: moneyCents(
-            rowValue(row, "Verrechnungssatz stillgelegt EUR"),
+            rowValue(
+              row,
+              "Verrechnungssatz stillgelegt EUR je Einheit",
+              "Verrechnungssatz stillgelegt EUR",
+            ),
           ),
           category: {
             connect: {

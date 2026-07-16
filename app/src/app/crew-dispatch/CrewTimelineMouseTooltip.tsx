@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -12,6 +13,11 @@ import { createPortal } from "react-dom";
 type TooltipPosition = {
   left: number;
   top: number;
+};
+
+type TooltipAnchor = {
+  clientX: number;
+  clientY: number;
 };
 
 type CrewTimelineMouseTooltipProps = {
@@ -26,6 +32,7 @@ type CrewTimelineMouseTooltipProps = {
   clickTitle?: string;
   clickText?: string;
   clickHint?: string;
+  clickContent?: ReactNode;
   children: ReactNode;
 };
 
@@ -58,6 +65,41 @@ function getTooltipPosition({
   // über die Maus geklappt.
   if (viewportHeight && top + estimatedHeight > viewportHeight - padding) {
     top = Math.max(padding, viewportHeight - estimatedHeight - padding);
+  }
+
+  return {
+    left: Math.max(padding, left),
+    top: Math.max(padding, top),
+  };
+}
+
+function getDialogPosition({
+  clientX,
+  clientY,
+  estimatedWidth = 620,
+  estimatedHeight,
+}: {
+  clientX: number;
+  clientY: number;
+  estimatedWidth?: number;
+  estimatedHeight?: number;
+}) {
+  const padding = 16;
+  const offset = 14;
+  const viewportWidth = window.innerWidth || 0;
+  const viewportHeight = window.innerHeight || 0;
+  const dialogHeight =
+    estimatedHeight ?? Math.max(320, Math.min(640, viewportHeight - padding * 2));
+
+  let left = clientX + offset;
+  let top = clientY + offset;
+
+  if (viewportWidth && left + estimatedWidth > viewportWidth - padding) {
+    left = clientX - estimatedWidth - offset;
+  }
+
+  if (viewportHeight && top + dialogHeight > viewportHeight - padding) {
+    top = Math.max(padding, viewportHeight - dialogHeight - padding);
   }
 
   return {
@@ -168,14 +210,17 @@ export function CrewTimelineMouseTooltip({
   clickTitle,
   clickText,
   clickHint,
+  clickContent,
   children,
 }: CrewTimelineMouseTooltipProps) {
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   const [dialogPosition, setDialogPosition] = useState<TooltipPosition | null>(null);
+  const [dialogAnchor, setDialogAnchor] = useState<TooltipAnchor | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const hasClickDialog = Boolean(clickTitle || clickText);
+  const hasClickDialog = Boolean(clickTitle || clickText || clickContent);
+  const hasRichClickDialog = Boolean(clickContent);
 
   function updatePosition(event: React.MouseEvent<HTMLDivElement>) {
     if (disabled) {
@@ -207,19 +252,42 @@ export function CrewTimelineMouseTooltip({
 
     hideTooltip();
 
+    setDialogAnchor({
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
     setDialogPosition(
-      getTooltipPosition({
+      getDialogPosition({
         clientX: event.clientX,
         clientY: event.clientY,
-        estimatedWidth: 460,
-        estimatedHeight: 320,
+        estimatedWidth: 620,
       }),
     );
   }
 
   function closeClickDialog() {
     setDialogPosition(null);
+    setDialogAnchor(null);
   }
+
+  useLayoutEffect(() => {
+    if (!dialogPosition || !dialogAnchor || !dialogRef.current) return;
+
+    const rect = dialogRef.current.getBoundingClientRect();
+    const nextPosition = getDialogPosition({
+      clientX: dialogAnchor.clientX,
+      clientY: dialogAnchor.clientY,
+      estimatedWidth: rect.width || 620,
+      estimatedHeight: rect.height || undefined,
+    });
+
+    if (
+      Math.round(nextPosition.left) !== Math.round(dialogPosition.left) ||
+      Math.round(nextPosition.top) !== Math.round(dialogPosition.top)
+    ) {
+      setDialogPosition(nextPosition);
+    }
+  }, [dialogAnchor, dialogPosition]);
 
   useEffect(() => {
     if (!position || disabled || dialogPosition) {
@@ -312,7 +380,10 @@ export function CrewTimelineMouseTooltip({
         ? createPortal(
             <div
               ref={dialogRef}
-              className="fixed w-[460px] max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-auto rounded-2xl border border-gray-200 bg-white p-4 pr-10 text-left text-sm text-gray-900 shadow-2xl"
+              className="fixed w-[620px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-gray-200 bg-white p-3 pr-9 text-left text-sm text-gray-900 shadow-2xl"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
               style={{
                 left: `${dialogPosition.left}px`,
                 top: `${dialogPosition.top}px`,
@@ -334,9 +405,13 @@ export function CrewTimelineMouseTooltip({
               <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
                 {clickTitle ?? label}
               </div>
-              <div className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-900">
-                {clickText ?? text}
-              </div>
+              {clickContent ? (
+                <div className="mt-3">{clickContent}</div>
+              ) : (
+                <div className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-900">
+                  {clickText ?? text}
+                </div>
+              )}
               {extraCount > 0 ? (
                 <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">
                   +{extraCount} weitere Einträge in der Kurzansicht

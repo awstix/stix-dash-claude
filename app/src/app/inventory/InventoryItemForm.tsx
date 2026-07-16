@@ -448,8 +448,9 @@ export function InventoryItemForm({
                     ? String(item.billingRateCents / 100)
                     : ""
                 }
-                label="Verrechnungssatz €/h"
+                label="Verrechnungssatz €/Einheit"
                 name="billingRate"
+                step="0.01"
                 type="number"
               />
               <Input
@@ -458,8 +459,9 @@ export function InventoryItemForm({
                     ? String(item.idleBillingRateCents / 100)
                     : ""
                 }
-                label="Verrechnungssatz stillgelegt €/h"
+                label="Verrechnungssatz stillgelegt €/Einheit"
                 name="idleBillingRate"
+                step="0.01"
                 type="number"
               />
             </div>
