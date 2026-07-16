@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { updateEmployeeDispositionEntryDates } from "./actions";
 
 type TimelineUnitForClient = {
@@ -39,6 +40,12 @@ type CloseablePanelProps = {
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
+};
+
+type PanelPosition = {
+  left: number;
+  maxHeight: number;
+  top: number;
 };
 
 type DragMode = "move" | "resize-start" | "resize-end";
@@ -211,11 +218,11 @@ function renderChildrenWithCloseButton({
     <button
       type="button"
       onClick={onClose}
-      className="absolute right-2 top-2 z-50 inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+      className="absolute right-2 top-2 z-50 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg leading-none text-gray-500 shadow-sm hover:bg-gray-100 hover:text-gray-900"
       aria-label="Fenster schließen"
       title="Fenster schließen"
     >
-      x
+      ×
     </button>
   );
 
@@ -223,9 +230,14 @@ function renderChildrenWithCloseButton({
 
   if (childArray.length === 1 && isValidElement(childArray[0])) {
     const panel = childArray[0] as ReactElement<CloseablePanelProps>;
+    const panelClassName = (panel.props.className ?? "")
+      .replace(/\babsolute\b/g, "relative")
+      .replace(/\bz-\[[^\]]+\]\b/g, "")
+      .replace(/\bz-\d+\b/g, "")
+      .trim();
 
     return cloneElement(panel, {
-      className: `${panel.props.className ?? ""} relative pr-10`,
+      className: `${panelClassName} pr-10`,
       style: { ...(panel.props.style ?? {}), zIndex: 100001 },
       children: (
         <>
@@ -242,6 +254,39 @@ function renderChildrenWithCloseButton({
       {children}
     </div>
   );
+}
+
+function getPanelPosition(
+  anchorElement: HTMLElement | null,
+): PanelPosition | null {
+  if (!anchorElement) return null;
+
+  const rect = anchorElement.getBoundingClientRect();
+  const padding = 12;
+  const panelWidth = 520;
+  const viewportWidth = window.innerWidth || panelWidth;
+  const viewportHeight = window.innerHeight || 720;
+  const panelHeight = Math.min(720, viewportHeight - padding * 2);
+
+  const left = Math.max(
+    padding,
+    Math.min(rect.left, viewportWidth - panelWidth - padding),
+  );
+
+  const preferredTop = rect.bottom + 8;
+  const maxTop = Math.max(
+    padding,
+    viewportHeight -
+      Math.min(panelHeight, viewportHeight - padding * 2) -
+      padding,
+  );
+  const top = Math.max(padding, Math.min(preferredTop, maxTop));
+
+  return {
+    left,
+    maxHeight: Math.max(240, viewportHeight - top - padding),
+    top,
+  };
 }
 
 export function EmployeeTimelineBar({
@@ -262,8 +307,10 @@ export function EmployeeTimelineBar({
   const [displayEndDate, setDisplayEndDate] = useState(endDate);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
   const gridColumn = useMemo(
@@ -284,6 +331,20 @@ export function EmployeeTimelineBar({
     ? `${sourceLabel} · ${label} · ${dateLabel} · ${timeLabel}`
     : `${sourceLabel} · ${label} · ${dateLabel} · Ziehen = verschieben · Rand ziehen = verlängern/verkürzen`;
 
+  function updatePanelPosition() {
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+  }
+
+  function togglePanel() {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+    setIsOpen(true);
+  }
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -293,7 +354,9 @@ export function EmployeeTimelineBar({
       if (
         target instanceof Node &&
         wrapperRef.current &&
-        !wrapperRef.current.contains(target)
+        !wrapperRef.current.contains(target) &&
+        panelRef.current &&
+        !panelRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -307,10 +370,14 @@ export function EmployeeTimelineBar({
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
     };
   }, [isOpen]);
 
@@ -433,7 +500,7 @@ export function EmployeeTimelineBar({
       dragStateRef.current = null;
 
       if (!moved && dragState.mode === "move") {
-        setIsOpen((current) => !current);
+        togglePanel();
         return;
       }
 
@@ -470,7 +537,7 @@ export function EmployeeTimelineBar({
           onPointerDown={(event) => startDrag(event, "move")}
           onClick={() => {
             if (readOnly) {
-              setIsOpen((current) => !current);
+              togglePanel();
             }
           }}
           className={`${barClassName} flex min-h-7 w-full min-w-0 items-center overflow-hidden rounded-lg px-2 py-1 text-left text-xs font-semibold shadow-sm hover:brightness-95 ${
@@ -523,11 +590,25 @@ export function EmployeeTimelineBar({
         </div>
       ) : null}
 
-      {isOpen
-        ? renderChildrenWithCloseButton({
-            children,
-            onClose: () => setIsOpen(false),
-          })
+      {isOpen && panelPosition
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl"
+              style={{
+                left: `${panelPosition.left}px`,
+                maxHeight: `${panelPosition.maxHeight}px`,
+                top: `${panelPosition.top}px`,
+                zIndex: 2147483646,
+              }}
+            >
+              {renderChildrenWithCloseButton({
+                children,
+                onClose: () => setIsOpen(false),
+              })}
+            </div>,
+            document.body,
+          )
         : null}
     </div>
   );

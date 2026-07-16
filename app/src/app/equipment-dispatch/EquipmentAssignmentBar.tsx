@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   createEquipmentDispatchAssignmentFromDefaultDates,
   updateEquipmentDispatchAssignmentDates,
@@ -50,6 +51,12 @@ type CloseablePanelProps = {
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
+};
+
+type PanelPosition = {
+  left: number;
+  maxHeight: number;
+  top: number;
 };
 
 type DragMode = "move" | "resize-start" | "resize-end";
@@ -334,9 +341,14 @@ function renderChildrenWithCloseButton({
 
   if (childArray.length === 1 && isValidElement(childArray[0])) {
     const panel = childArray[0] as ReactElement<CloseablePanelProps>;
+    const panelClassName = (panel.props.className ?? "")
+      .replace(/\babsolute\b/g, "relative")
+      .replace(/\bz-\[[^\]]+\]\b/g, "")
+      .replace(/\bz-\d+\b/g, "")
+      .trim();
 
     return cloneElement(panel, {
-      className: `${panel.props.className ?? ""} relative pr-8`,
+      className: `${panelClassName} pr-8`,
       style: { ...(panel.props.style ?? {}), zIndex: 100001 },
       children: (
         <>
@@ -353,6 +365,39 @@ function renderChildrenWithCloseButton({
       {children}
     </div>
   );
+}
+
+function getPanelPosition(
+  anchorElement: HTMLElement | null,
+): PanelPosition | null {
+  if (!anchorElement) return null;
+
+  const rect = anchorElement.getBoundingClientRect();
+  const padding = 12;
+  const panelWidth = 460;
+  const viewportWidth = window.innerWidth || panelWidth;
+  const viewportHeight = window.innerHeight || 720;
+  const panelHeight = Math.min(720, viewportHeight - padding * 2);
+
+  const left = Math.max(
+    padding,
+    Math.min(rect.left, viewportWidth - panelWidth - padding),
+  );
+
+  const preferredTop = rect.bottom + 8;
+  const maxTop = Math.max(
+    padding,
+    viewportHeight -
+      Math.min(panelHeight, viewportHeight - padding * 2) -
+      padding,
+  );
+  const top = Math.max(padding, Math.min(preferredTop, maxTop));
+
+  return {
+    left,
+    maxHeight: Math.max(240, viewportHeight - top - padding),
+    top,
+  };
 }
 
 export function EquipmentAssignmentBar({
@@ -377,8 +422,10 @@ export function EquipmentAssignmentBar({
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
   const isDateEditable =
@@ -414,6 +461,20 @@ export function EquipmentAssignmentBar({
     ? `${crewName} · ${dateLabel} · Ziehen = verschieben · Rand ziehen = verlängern/verkürzen`
     : `${crewName} · ${dateLabel}`;
 
+  function updatePanelPosition() {
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+  }
+
+  function togglePanel() {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+
+    setPanelPosition(getPanelPosition(wrapperRef.current));
+    setIsOpen(true);
+  }
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -423,7 +484,9 @@ export function EquipmentAssignmentBar({
       if (
         target instanceof Node &&
         wrapperRef.current &&
-        !wrapperRef.current.contains(target)
+        !wrapperRef.current.contains(target) &&
+        panelRef.current &&
+        !panelRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -437,10 +500,14 @@ export function EquipmentAssignmentBar({
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
     };
   }, [isOpen]);
 
@@ -611,7 +678,7 @@ export function EquipmentAssignmentBar({
       dragStateRef.current = null;
 
       if (!moved && dragState.mode === "move") {
-        setIsOpen((current) => !current);
+        togglePanel();
         return;
       }
 
@@ -654,7 +721,7 @@ export function EquipmentAssignmentBar({
           onPointerDown={(event) => startDrag(event, "move")}
           onClick={() => {
             if (!isDateEditable) {
-              setIsOpen((current) => !current);
+              togglePanel();
             }
           }}
           className={`${barClassName} flex min-h-[44px] w-full min-w-0 touch-none select-none items-center overflow-hidden text-left hover:brightness-95 ${
@@ -728,11 +795,25 @@ export function EquipmentAssignmentBar({
         </div>
       ) : null}
 
-      {isOpen
-        ? renderChildrenWithCloseButton({
-            children,
-            onClose: () => setIsOpen(false),
-          })
+      {isOpen && panelPosition
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="fixed max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl"
+              style={{
+                left: `${panelPosition.left}px`,
+                maxHeight: `${panelPosition.maxHeight}px`,
+                top: `${panelPosition.top}px`,
+                zIndex: 2147483646,
+              }}
+            >
+              {renderChildrenWithCloseButton({
+                children,
+                onClose: () => setIsOpen(false),
+              })}
+            </div>,
+            document.body,
+          )
         : null}
     </div>
   );

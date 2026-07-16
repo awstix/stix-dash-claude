@@ -45,6 +45,12 @@ type CloseablePanelProps = {
 
 type PanelPosition = {
   left: number;
+  maxHeight: number;
+  top: number;
+};
+
+type TooltipPosition = {
+  left: number;
   top: number;
 };
 
@@ -315,9 +321,9 @@ function getPanelPosition(
   const rect = anchorElement.getBoundingClientRect();
   const padding = 12;
   const panelWidth = 460;
-  const panelHeight = 520;
   const viewportWidth = window.innerWidth || panelWidth;
-  const viewportHeight = window.innerHeight || panelHeight;
+  const viewportHeight = window.innerHeight || 720;
+  const panelHeight = Math.min(720, viewportHeight - padding * 2);
 
   const left = Math.max(
     padding,
@@ -332,6 +338,33 @@ function getPanelPosition(
       padding,
   );
   const top = Math.max(padding, Math.min(preferredTop, maxTop));
+
+  return {
+    left,
+    maxHeight: Math.max(240, viewportHeight - top - padding),
+    top,
+  };
+}
+
+function getTooltipPosition({
+  clientX,
+  clientY,
+}: {
+  clientX: number;
+  clientY: number;
+}): TooltipPosition {
+  const padding = 12;
+  const tooltipWidth = Math.min(360, window.innerWidth - padding * 2);
+  const tooltipHeight = 112;
+  const left = Math.max(
+    padding,
+    Math.min(clientX + 12, window.innerWidth - tooltipWidth - padding),
+  );
+  const preferredTop = clientY + 14;
+  const top =
+    preferredTop + tooltipHeight > window.innerHeight - padding
+      ? Math.max(padding, clientY - tooltipHeight - 14)
+      : preferredTop;
 
   return {
     left,
@@ -358,6 +391,8 @@ export function CrewAssignmentBar({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
+  const [tooltipPosition, setTooltipPosition] =
+    useState<TooltipPosition | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -410,6 +445,24 @@ export function CrewAssignmentBar({
 
     setPanelPosition(getPanelPosition(wrapperRef.current));
     setIsOpen(true);
+  }
+
+  function updateTooltipPosition(event: React.MouseEvent<HTMLElement>) {
+    if (isOpen) {
+      setTooltipPosition(null);
+      return;
+    }
+
+    setTooltipPosition(
+      getTooltipPosition({
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }),
+    );
+  }
+
+  function hideTooltip() {
+    setTooltipPosition(null);
   }
 
   useEffect(() => {
@@ -602,7 +655,12 @@ export function CrewAssignmentBar({
         zIndex: isOpen ? 100000 : 20,
       }}
     >
-      <div className="group relative min-w-0">
+      <div
+        className="group relative min-w-0"
+        onMouseEnter={updateTooltipPosition}
+        onMouseMove={updateTooltipPosition}
+        onMouseLeave={hideTooltip}
+      >
         <button
           type="button"
           onPointerDown={(event) => startDrag(event, "move")}
@@ -638,18 +696,28 @@ export function CrewAssignmentBar({
           </span>
         </button>
 
-        {!isOpen ? (
-          <div className="pointer-events-none absolute left-0 top-full z-[100002] mt-2 hidden w-[360px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-800 shadow-xl group-hover:block">
-            <div className="font-bold text-gray-900">{crewName}</div>
-            <div className="mt-1 text-gray-600">{dateLabel}</div>
-            {isDateEditable ? (
-              <div className="mt-2 text-[11px] font-semibold text-gray-500">
-                Balken ziehen = verschieben · linken/rechten Rand ziehen =
-                verlängern oder verkürzen
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        {!isOpen && tooltipPosition
+          ? createPortal(
+              <div
+                className="pointer-events-none fixed w-[360px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-800 shadow-2xl"
+                style={{
+                  left: `${tooltipPosition.left}px`,
+                  top: `${tooltipPosition.top}px`,
+                  zIndex: 2147483647,
+                }}
+              >
+                <div className="font-bold text-gray-900">{crewName}</div>
+                <div className="mt-1 text-gray-600">{dateLabel}</div>
+                {isDateEditable ? (
+                  <div className="mt-2 text-[11px] font-semibold text-gray-500">
+                    Balken ziehen = verschieben · linken/rechten Rand ziehen =
+                    verlängern oder verkürzen
+                  </div>
+                ) : null}
+              </div>,
+              document.body,
+            )
+          : null}
 
         {isDateEditable ? (
           <>
@@ -685,9 +753,10 @@ export function CrewAssignmentBar({
         ? createPortal(
             <div
               ref={panelRef}
-              className="fixed max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-visible"
+              className="fixed max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl"
               style={{
                 left: `${panelPosition.left}px`,
+                maxHeight: `${panelPosition.maxHeight}px`,
                 top: `${panelPosition.top}px`,
                 zIndex: 2147483646,
               }}

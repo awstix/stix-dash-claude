@@ -39,7 +39,7 @@ type TimelineRange =
   | "12m"
   | "custom";
 type CustomUnit = "days" | "weeks" | "months";
-type EmployeePlanningSort = "name" | "project" | "planningCount";
+type PlanningResourceSort = "name" | "project" | "planningCount";
 
 const planningAxisTabs: { value: PlanningAxis; label: string }[] = [
   { value: "projects", label: "Projekte" },
@@ -91,11 +91,14 @@ type AsphaltTimelineBar = {
 };
 
 type CrewTimelineLaneLayout = {
+  itemCount: number;
   laneCount: number;
   rowHeight: number;
   laneHeight: number;
   assignmentLanes: Map<string, number>;
+  assignmentOffsets: Map<string, number>;
   asphaltLanes: Map<string, number>;
+  asphaltOffsets: Map<string, number>;
 };
 
 type CrewTimelineLaneItem = {
@@ -103,6 +106,16 @@ type CrewTimelineLaneItem = {
   kind: "assignment" | "asphalt";
   startDate: Date;
   endDate: Date;
+};
+
+type TimelineSupplementLayerItem = {
+  key: string;
+  gridColumn: string;
+};
+
+type TimelineSupplementLayerLayout = {
+  layerCount: number;
+  layerIndexes: Map<string, number>;
 };
 
 type PlanningAxisRow = {
@@ -382,7 +395,7 @@ function getPlanningAxis(value: string | undefined): PlanningAxis {
   return "teams";
 }
 
-function getEmployeePlanningSort(value: string | undefined): EmployeePlanningSort {
+function getPlanningResourceSort(value: string | undefined): PlanningResourceSort {
   if (value === "project" || value === "planningCount") {
     return value;
   }
@@ -1079,15 +1092,7 @@ function getMaterialTimelineStrips({
   groups: CrewDispatchMaterialDayGroup[];
   timelineUnits: TimelineUnit[];
 }) {
-  const stripMap = new Map<
-    string,
-    {
-      idParts: string[];
-      workDates: Date[];
-      groups: CrewDispatchMaterialDayGroup[];
-      gridColumn: string;
-    }
-  >();
+  const strips: CrewDispatchMaterialTimelineStrip[] = [];
 
   for (const group of groups) {
     const gridColumn = getTimelineGridColumnForDateRange({
@@ -1100,66 +1105,30 @@ function getMaterialTimelineStrips({
       continue;
     }
 
-    const existing = stripMap.get(gridColumn);
+    group.items.forEach((item) => {
+      const text = [item.quantityLabel, item.itemLabel]
+        .filter(Boolean)
+        .join(" ");
+      const tooltipText = [
+        `${formatShortDate(group.workDate)} · ${item.itemLabel}`,
+        item.quantityLabel ? `Menge: ${item.quantityLabel}` : null,
+        item.sourceLabel,
+        item.detail,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    if (existing) {
-      existing.idParts.push(group.key);
-      existing.workDates.push(group.workDate);
-      existing.groups.push(group);
-      continue;
-    }
-
-    stripMap.set(gridColumn, {
-      idParts: [group.key],
-      workDates: [group.workDate],
-      groups: [group],
-      gridColumn,
+      strips.push({
+        id: `${group.key}-${item.id}`,
+        gridColumn,
+        text,
+        tooltipText,
+        extraCount: 0,
+      });
     });
   }
 
-  return Array.from(stripMap.values()).map((strip): CrewDispatchMaterialTimelineStrip => {
-    const allItems = strip.groups.flatMap((group) => group.items);
-    const mergedMultipleDates = strip.groups.length > 1;
-    const text = mergedMultipleDates
-      ? strip.groups
-          .map(
-            (group) =>
-              `${formatShortDate(group.workDate)}: ${getMaterialDaySummaryLabel(
-                group.items,
-              )}`,
-          )
-          .join(" · ")
-      : getMaterialDaySummaryLabel(allItems);
-
-    const tooltipText = strip.groups
-      .map((group) => {
-        const details = group.items
-          .map((item) =>
-            [
-              item.quantityLabel,
-              item.itemLabel,
-              item.sourceLabel,
-              item.detail,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          )
-          .join("\n");
-
-        return `${formatShortDate(group.workDate)} · ${getMaterialDaySummaryLabel(
-          group.items,
-        )}${details ? `\n${details}` : ""}`;
-      })
-      .join("\n\n");
-
-    return {
-      id: strip.idParts.join("-"),
-      gridColumn: strip.gridColumn,
-      text,
-      tooltipText,
-      extraCount: Math.max(0, allItems.length - 3),
-    };
-  });
+  return strips;
 }
 
 
@@ -1306,15 +1275,7 @@ function getTruckTimelineStrips({
   groups: CrewDispatchTruckDayGroup[];
   timelineUnits: TimelineUnit[];
 }) {
-  const stripMap = new Map<
-    string,
-    {
-      idParts: string[];
-      workDates: Date[];
-      groups: CrewDispatchTruckDayGroup[];
-      gridColumn: string;
-    }
-  >();
+  const strips: CrewDispatchTruckTimelineStrip[] = [];
 
   for (const group of groups) {
     const gridColumn = getTimelineGridColumnForDateRange({
@@ -1327,81 +1288,32 @@ function getTruckTimelineStrips({
       continue;
     }
 
-    const existing = stripMap.get(gridColumn);
+    group.items.forEach((item) => {
+      const quantityText = formatMaterialQuantity(
+        item.quantityValue,
+        item.quantityUnit ?? undefined,
+      );
+      const tooltipText = [
+        `${formatShortDate(group.workDate)} · ${getTruckDisplayLabel(item)}`,
+        item.sourceLabel,
+        item.materialLabel ? `Material: ${item.materialLabel}` : null,
+        quantityText ? `Menge: ${quantityText}` : null,
+        item.detail,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    if (existing) {
-      existing.idParts.push(group.key);
-      existing.workDates.push(group.workDate);
-      existing.groups.push(group);
-      continue;
-    }
-
-    stripMap.set(gridColumn, {
-      idParts: [group.key],
-      workDates: [group.workDate],
-      groups: [group],
-      gridColumn,
+      strips.push({
+        id: `${group.key}-${item.id}`,
+        gridColumn,
+        text: getTruckDisplayLabel(item),
+        tooltipText,
+        extraCount: 0,
+      });
     });
   }
 
-  return Array.from(stripMap.values()).map((strip): CrewDispatchTruckTimelineStrip => {
-    const allItems = strip.groups.flatMap((group) => group.items);
-    const mergedMultipleDates = strip.groups.length > 1;
-    const text = mergedMultipleDates
-      ? strip.groups
-          .map(
-            (group) =>
-              `${formatShortDate(group.workDate)}: ${getTruckDaySummaryLabel(
-                group.items,
-              )}`,
-          )
-          .join(" · ")
-      : getTruckDaySummaryLabel(allItems);
-
-    const tooltipText = strip.groups
-      .map((group) => {
-        const details = group.items
-          .map((item) => {
-            const quantityText = formatMaterialQuantity(
-              item.quantityValue,
-              item.quantityUnit ?? undefined,
-            );
-
-            return [
-              getTruckDisplayLabel(item),
-              item.sourceLabel,
-              item.materialLabel ? `Material: ${item.materialLabel}` : null,
-              quantityText ? `Menge: ${quantityText}` : null,
-              item.detail,
-            ]
-              .filter(Boolean)
-              .join(" · ");
-          })
-          .join("\n");
-
-        return `${formatShortDate(group.workDate)} · ${group.items.length} LKW${details ? `\n${details}` : ""}`;
-      })
-      .join("\n\n");
-
-    return {
-      id: strip.idParts.join("-"),
-      gridColumn: strip.gridColumn,
-      text,
-      tooltipText,
-      extraCount: Math.max(0, allItems.length - 2),
-    };
-  });
-}
-
-function getEquipmentSummaryLabel(items: CrewDispatchEquipmentItem[]) {
-  if (items.length === 0) {
-    return "Keine Geräte";
-  }
-
-  return items
-    .slice(0, 3)
-    .map((item) => item.vehicleLabel)
-    .join(" · ");
+  return strips;
 }
 
 function getEquipmentTooltipLabel(items: CrewDispatchEquipmentItem[]) {
@@ -1650,12 +1562,14 @@ function getEquipmentTimelineStripsForProject({
   closeCurrentGroup();
 
   groups.forEach((group) => {
-    strips.push({
-      id: `${timelineUnits[group.startIndex]?.key ?? group.startIndex}-${timelineUnits[group.endIndex]?.key ?? group.endIndex}-${group.key}`,
-      gridColumn: `${group.startIndex + 1} / ${group.endIndex + 2}`,
-      text: getEquipmentSummaryLabel(group.items),
-      tooltipText: getEquipmentTooltipLabel(group.items),
-      extraCount: Math.max(0, group.items.length - 3),
+    group.items.forEach((item) => {
+      strips.push({
+        id: `${timelineUnits[group.startIndex]?.key ?? group.startIndex}-${timelineUnits[group.endIndex]?.key ?? group.endIndex}-${item.vehicleId}-${item.sourceLabel}`,
+        gridColumn: `${group.startIndex + 1} / ${group.endIndex + 2}`,
+        text: item.vehicleLabel,
+        tooltipText: getEquipmentTooltipLabel([item]),
+        extraCount: 0,
+      });
     });
   });
 
@@ -1844,6 +1758,63 @@ function getTimelineGridColumnForDateRange({
   return `${firstIndex + 1} / ${lastIndex + 2}`;
 }
 
+function getGridColumnBounds(gridColumn: string) {
+  const match = gridColumn.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    end: Number(match[2]),
+    start: Number(match[1]),
+  };
+}
+
+function buildTimelineSupplementLayerLayout(
+  strips: TimelineSupplementLayerItem[],
+): TimelineSupplementLayerLayout {
+  const sortedStrips = strips
+    .map((strip, index) => {
+      const bounds = getGridColumnBounds(strip.gridColumn);
+
+      return {
+        ...strip,
+        end: bounds?.end ?? Number.MAX_SAFE_INTEGER,
+        index,
+        start: bounds?.start ?? Number.MAX_SAFE_INTEGER,
+      };
+    })
+    .sort((first, second) => {
+      if (first.start !== second.start) return first.start - second.start;
+      if (first.end !== second.end) return first.end - second.end;
+      return first.index - second.index;
+    });
+
+  const layerEndColumns: number[] = [];
+  const layerIndexes = new Map<string, number>();
+
+  for (const strip of sortedStrips) {
+    let layerIndex = layerEndColumns.findIndex(
+      (endColumn) => endColumn <= strip.start,
+    );
+
+    if (layerIndex === -1) {
+      layerIndex = layerEndColumns.length;
+      layerEndColumns.push(strip.end);
+    } else {
+      layerEndColumns[layerIndex] = strip.end;
+    }
+
+    layerIndexes.set(strip.key, layerIndex);
+  }
+
+  return {
+    layerCount: layerEndColumns.length,
+    layerIndexes,
+  };
+}
+
 function normalizeTimeFieldValue(value: unknown) {
   if (typeof value === "string") {
     const trimmedValue = value.trim();
@@ -1973,6 +1944,21 @@ function isDayInDateRange(day: Date, startDate: Date, endDate: Date) {
   );
 }
 
+function rangeOverlapsTimelineUnits(
+  startDate: Date,
+  endDate: Date,
+  timelineUnits: TimelineUnit[],
+) {
+  return timelineUnits.some((unit) =>
+    rangesOverlapInclusive(
+      startDate,
+      endDate,
+      unit.startDate,
+      unit.endDateExclusive,
+    ),
+  );
+}
+
 function buildCrewDispatchHref({
   planningAxis,
   extraParams,
@@ -1991,9 +1977,16 @@ function buildCrewDispatchHref({
   showSpecialVehicles,
   showMaterial,
   showNotes,
+  compactView,
   employeeSort,
   employeeSearch,
   employeeOnlyPlanned,
+  equipmentSort,
+  equipmentSearch,
+  equipmentOnlyPlanned,
+  specialEquipmentSort,
+  specialEquipmentSearch,
+  specialEquipmentOnlyPlanned,
   focusDate,
   highlightCrewId,
 }: {
@@ -2014,9 +2007,16 @@ function buildCrewDispatchHref({
   showSpecialVehicles: boolean;
   showMaterial: boolean;
   showNotes: boolean;
-  employeeSort?: EmployeePlanningSort;
+  compactView?: boolean;
+  employeeSort?: PlanningResourceSort;
   employeeSearch?: string | null;
   employeeOnlyPlanned?: boolean;
+  equipmentSort?: PlanningResourceSort;
+  equipmentSearch?: string | null;
+  equipmentOnlyPlanned?: boolean;
+  specialEquipmentSort?: PlanningResourceSort;
+  specialEquipmentSearch?: string | null;
+  specialEquipmentOnlyPlanned?: boolean;
   focusDate?: Date | string;
   highlightCrewId?: string | null;
 }) {
@@ -2076,6 +2076,10 @@ function buildCrewDispatchHref({
     params.set("showNotes", "1");
   }
 
+  if (compactView) {
+    params.set("compactView", "1");
+  }
+
   if (employeeSort && employeeSort !== "name") {
     params.set("employeeSort", employeeSort);
   }
@@ -2086,6 +2090,30 @@ function buildCrewDispatchHref({
 
   if (employeeOnlyPlanned) {
     params.set("employeeOnlyPlanned", "1");
+  }
+
+  if (equipmentSort && equipmentSort !== "name") {
+    params.set("equipmentSort", equipmentSort);
+  }
+
+  if (equipmentSearch?.trim()) {
+    params.set("equipmentSearch", equipmentSearch.trim());
+  }
+
+  if (equipmentOnlyPlanned) {
+    params.set("equipmentOnlyPlanned", "1");
+  }
+
+  if (specialEquipmentSort && specialEquipmentSort !== "name") {
+    params.set("specialEquipmentSort", specialEquipmentSort);
+  }
+
+  if (specialEquipmentSearch?.trim()) {
+    params.set("specialEquipmentSearch", specialEquipmentSearch.trim());
+  }
+
+  if (specialEquipmentOnlyPlanned) {
+    params.set("specialEquipmentOnlyPlanned", "1");
   }
 
   if (focusDate) {
@@ -2321,6 +2349,7 @@ function getCustomUnitLabel(unit: CustomUnit) {
 }
 
 const CREW_TIMELINE_ROW_MIN_HEIGHT_PX = 180;
+const CREW_TIMELINE_COMPACT_ROW_MIN_HEIGHT_PX = 112;
 const CREW_TIMELINE_PLUS_ROW_HEIGHT_PX = 42;
 const CREW_TIMELINE_BAR_TOP_PX = CREW_TIMELINE_PLUS_ROW_HEIGHT_PX + 14;
 const CREW_TIMELINE_SUPPLEMENT_ROW_HEIGHT_PX = 26;
@@ -2348,45 +2377,6 @@ function getSupplementLayerCount({
     Number(showSpecialVehicles) +
     Number(showMaterial) +
     Number(showNotes)
-  );
-}
-
-function getLayerIndex({
-  showEquipment,
-  showTrucks,
-  showSpecialVehicles,
-  showMaterial,
-  layer,
-}: {
-  showEquipment: boolean;
-  showTrucks: boolean;
-  showSpecialVehicles: boolean;
-  showMaterial: boolean;
-  layer: "equipment" | "truck" | "special" | "material" | "notes";
-}) {
-  if (layer === "equipment") {
-    return 0;
-  }
-
-  if (layer === "truck") {
-    return Number(showEquipment);
-  }
-
-  if (layer === "special") {
-    return Number(showEquipment) + Number(showTrucks);
-  }
-
-  if (layer === "material") {
-    return (
-      Number(showEquipment) + Number(showTrucks) + Number(showSpecialVehicles)
-    );
-  }
-
-  return (
-    Number(showEquipment) +
-    Number(showTrucks) +
-    Number(showSpecialVehicles) +
-    Number(showMaterial)
   );
 }
 
@@ -2445,9 +2435,13 @@ function buildCrewTimelineLaneLayout({
   visibleAssignments,
   asphaltTimelineBars,
   laneHeight,
+  compactView,
+  getItemLayerCount,
 }: {
+  compactView: boolean;
   crewId: string;
   crewName: string;
+  getItemLayerCount: (item: CrewTimelineLaneItem) => number;
   laneHeight: number;
   visibleAssignments: {
     assignment: {
@@ -2460,7 +2454,9 @@ function buildCrewTimelineLaneLayout({
   asphaltTimelineBars: AsphaltTimelineBar[];
 }): CrewTimelineLaneLayout {
   const assignmentLanes = new Map<string, number>();
+  const assignmentOffsets = new Map<string, number>();
   const asphaltLanes = new Map<string, number>();
+  const asphaltOffsets = new Map<string, number>();
 
   const items: CrewTimelineLaneItem[] = [
     ...visibleAssignments
@@ -2497,6 +2493,10 @@ function buildCrewTimelineLaneLayout({
   });
 
   const laneEndDates: Date[] = [];
+  const laneHeights: number[] = [];
+  const baseLaneHeight = compactView
+    ? getCrewTimelineLaneHeight(0)
+    : laneHeight;
 
   /*
     Balken brauchen nur dann eine neue Lane, wenn sie sich zeitlich
@@ -2513,8 +2513,16 @@ function buildCrewTimelineLaneLayout({
     if (laneIndex === -1) {
       laneIndex = laneEndDates.length;
       laneEndDates.push(item.endDate);
+      laneHeights.push(baseLaneHeight);
     } else {
       laneEndDates[laneIndex] = item.endDate;
+    }
+
+    if (compactView) {
+      laneHeights[laneIndex] = Math.max(
+        laneHeights[laneIndex] ?? baseLaneHeight,
+        getCrewTimelineLaneHeight(getItemLayerCount(item)),
+      );
     }
 
     if (item.kind === "assignment") {
@@ -2525,13 +2533,39 @@ function buildCrewTimelineLaneLayout({
   });
 
   const laneCount = Math.max(1, laneEndDates.length);
+  const laneOffsets = new Map<number, number>();
+  let runningOffset = 0;
+
+  for (let index = 0; index < laneCount; index += 1) {
+    laneOffsets.set(index, runningOffset);
+    runningOffset += compactView
+      ? laneHeights[index] ?? baseLaneHeight
+      : laneHeight;
+  }
+
+  assignmentLanes.forEach((laneIndex, id) => {
+    assignmentOffsets.set(id, laneOffsets.get(laneIndex) ?? laneIndex * laneHeight);
+  });
+  asphaltLanes.forEach((laneIndex, id) => {
+    asphaltOffsets.set(id, laneOffsets.get(laneIndex) ?? laneIndex * laneHeight);
+  });
 
   return {
+    itemCount: items.length,
     laneCount,
-    rowHeight: getCrewTimelineRowHeight(laneCount, laneHeight),
+    rowHeight: compactView
+      ? Math.max(
+          CREW_TIMELINE_COMPACT_ROW_MIN_HEIGHT_PX,
+          CREW_TIMELINE_BAR_TOP_PX +
+            Math.max(baseLaneHeight, runningOffset) +
+            CREW_TIMELINE_ROW_BOTTOM_PADDING_PX,
+        )
+      : getCrewTimelineRowHeight(laneCount, laneHeight),
     laneHeight,
     assignmentLanes,
+    assignmentOffsets,
     asphaltLanes,
+    asphaltOffsets,
   };
 }
 
@@ -3193,9 +3227,16 @@ export default async function CrewDispatchPage({
     showSpecialVehicles?: string;
     showMaterial?: string;
     showNotes?: string;
+    compactView?: string;
     employeeSort?: string;
     employeeSearch?: string;
     employeeOnlyPlanned?: string;
+    equipmentSort?: string;
+    equipmentSearch?: string;
+    equipmentOnlyPlanned?: string;
+    specialEquipmentSort?: string;
+    specialEquipmentSearch?: string;
+    specialEquipmentOnlyPlanned?: string;
     axis?: string;
     hideWeekend?: string;
   }>;
@@ -3215,17 +3256,16 @@ export default async function CrewDispatchPage({
   const showSpecialVehicles = params.showSpecialVehicles === "1";
   const showMaterial = params.showMaterial === "1";
   const showNotes = params.showNotes === "1";
-  const employeeSort = getEmployeePlanningSort(params.employeeSort);
+  const compactView = params.compactView === "1";
+  const employeeSort = getPlanningResourceSort(params.employeeSort);
   const employeeSearch = params.employeeSearch?.trim() ?? "";
   const employeeOnlyPlanned = params.employeeOnlyPlanned === "1";
-  const supplementalLayerCount = getSupplementLayerCount({
-    showEquipment,
-    showTrucks,
-    showSpecialVehicles,
-    showMaterial,
-    showNotes,
-  });
-  const crewTimelineLaneHeight = getCrewTimelineLaneHeight(supplementalLayerCount);
+  const equipmentSort = getPlanningResourceSort(params.equipmentSort);
+  const equipmentSearch = params.equipmentSearch?.trim() ?? "";
+  const equipmentOnlyPlanned = params.equipmentOnlyPlanned === "1";
+  const specialEquipmentSort = getPlanningResourceSort(params.specialEquipmentSort);
+  const specialEquipmentSearch = params.specialEquipmentSearch?.trim() ?? "";
+  const specialEquipmentOnlyPlanned = params.specialEquipmentOnlyPlanned === "1";
   const highlightedCrewId = params.highlightCrew ?? null;
 
   const defaultBufferBack = 0;
@@ -3761,15 +3801,30 @@ export default async function CrewDispatchPage({
   );
 
   const visibleAssignments = assignmentsWithRows.filter(({ assignment }) =>
-    timelineUnits.some((unit) =>
-      rangesOverlapInclusive(
-        assignment.startDate,
-        assignment.endDate,
-        unit.startDate,
-        unit.endDateExclusive,
-      ),
+    rangeOverlapsTimelineUnits(
+      assignment.startDate,
+      assignment.endDate,
+      timelineUnits,
     ),
   );
+  const compactRelevantAssignments = compactView
+    ? assignmentsWithRows.filter(({ assignment }) =>
+        rangeOverlapsTimelineUnits(
+          assignment.startDate,
+          assignment.endDate,
+          visibleTimelineUnits,
+        ),
+      )
+    : visibleAssignments;
+  const compactRelevantAsphaltTimelineBars = compactView
+    ? asphaltTimelineBars.filter((bar) =>
+        rangeOverlapsTimelineUnits(
+          bar.startDate,
+          bar.endDate,
+          visibleTimelineUnits,
+        ),
+      )
+    : asphaltTimelineBars;
 
   const conflictAssignmentsForClient = assignmentsWithRows
     .filter(({ assignment }) => Boolean(assignment.crewId))
@@ -3784,6 +3839,7 @@ export default async function CrewDispatchPage({
     }));
 
   const planningSettingsParams = {
+    compactView,
     hideWeekend,
     rangeMode: isCustomDateRange ? "dates" : "count",
     daysBufferBack: view === "days" ? bufferBack : viewBuffers.days.back,
@@ -3796,6 +3852,173 @@ export default async function CrewDispatchPage({
     monthsBufferForward:
       view === "months" ? bufferForward : viewBuffers.months.forward,
   };
+  const compactSupplementTimelineUnits = compactView
+    ? visibleTimelineUnits
+    : timelineUnits;
+
+  function getSupplementStripCountForReference({
+    assignmentEndDate,
+    assignmentStartDate,
+    defaultVehicles,
+    reference,
+  }: {
+    assignmentEndDate: Date;
+    assignmentStartDate: Date;
+    defaultVehicles: {
+      vehicle: {
+        id: string;
+        vehicleNumber: string;
+        licensePlate: string | null;
+        vehicleType: string;
+        category: string;
+      };
+    }[];
+    reference: ProjectMaterialReference;
+  }) {
+    const equipmentStrips = showEquipment
+      ? getEquipmentTimelineStripsForProject({
+          reference,
+          assignmentStartDate,
+          assignmentEndDate,
+          defaultVehicles,
+          equipmentDispatchAssignments,
+          timelineUnits: compactSupplementTimelineUnits,
+        })
+      : [];
+    const truckStrips = showTrucks
+      ? getTruckTimelineStrips({
+          groups: getTruckDayGroupsForProject(projectTruckMap, reference),
+          timelineUnits: compactSupplementTimelineUnits,
+        })
+      : [];
+    const specialVehicleStrips = showSpecialVehicles
+      ? getTruckTimelineStrips({
+          groups: getTruckDayGroupsForProject(projectSpecialVehicleMap, reference),
+          timelineUnits: compactSupplementTimelineUnits,
+        })
+      : [];
+    const materialStrips = showMaterial
+      ? getMaterialTimelineStrips({
+          groups: getMaterialDayGroupsForProject(projectMaterialMap, reference),
+          timelineUnits: compactSupplementTimelineUnits,
+        })
+      : [];
+    const noteStrip =
+      showNotes &&
+      getNoteTimelineStripForProject({
+        assignmentEndDate,
+        assignmentStartDate,
+        projectNotesById,
+        projectNotesByKey,
+        reference,
+        timelineUnits: compactSupplementTimelineUnits,
+      });
+    const supplementLayerLayout = buildTimelineSupplementLayerLayout([
+      ...equipmentStrips.map((strip) => ({
+        gridColumn: strip.gridColumn,
+        key: `equipment-${strip.id}`,
+      })),
+      ...truckStrips.map((strip) => ({
+        gridColumn: strip.gridColumn,
+        key: `truck-${strip.id}`,
+      })),
+      ...specialVehicleStrips.map((strip) => ({
+        gridColumn: strip.gridColumn,
+        key: `special-${strip.id}`,
+      })),
+      ...materialStrips.map((strip) => ({
+        gridColumn: strip.gridColumn,
+        key: `material-${strip.id}`,
+      })),
+      ...(noteStrip
+        ? [
+            {
+              gridColumn: noteStrip.gridColumn,
+              key: `note-${noteStrip.id}`,
+            },
+          ]
+        : []),
+    ]);
+
+    return supplementLayerLayout.layerCount;
+  }
+
+  const rowLayoutAssignments = compactRelevantAssignments;
+  const rowLayoutAsphaltTimelineBars = compactRelevantAsphaltTimelineBars;
+
+  const dynamicSupplementalLayerCount = Math.max(
+    0,
+    ...rowLayoutAssignments.map(({ row, assignment }) =>
+      getSupplementStripCountForReference({
+        reference: {
+          projectId: row.projectId,
+          projectNumber: row.projectNumber,
+          projectName: row.projectName,
+        },
+        assignmentStartDate: assignment.startDate,
+        assignmentEndDate: assignment.endDate,
+        defaultVehicles: assignment.crew?.defaultVehicles ?? [],
+      }),
+    ),
+    ...rowLayoutAsphaltTimelineBars.map((bar) =>
+      getSupplementStripCountForReference({
+        reference: {
+          projectId: bar.projectId,
+          projectNumber: bar.projectNumber,
+          projectName: bar.projectName,
+        },
+        assignmentStartDate: bar.startDate,
+        assignmentEndDate: bar.endDate,
+        defaultVehicles:
+          crews.find(
+            (crew) =>
+              normalizeCrewName(crew.name) === normalizeCrewName(bar.crewName),
+          )?.defaultVehicles ?? [],
+      }),
+    ),
+  );
+  const crewTimelineLaneHeight = getCrewTimelineLaneHeight(
+    dynamicSupplementalLayerCount,
+  );
+
+  const assignmentSupplementLayerCounts = new Map<string, number>();
+  const asphaltSupplementLayerCounts = new Map<string, number>();
+
+  rowLayoutAssignments.forEach(({ row, assignment }) => {
+    assignmentSupplementLayerCounts.set(
+      assignment.id,
+      getSupplementStripCountForReference({
+        reference: {
+          projectId: row.projectId,
+          projectNumber: row.projectNumber,
+          projectName: row.projectName,
+        },
+        assignmentStartDate: assignment.startDate,
+        assignmentEndDate: assignment.endDate,
+        defaultVehicles: assignment.crew?.defaultVehicles ?? [],
+      }),
+    );
+  });
+
+  rowLayoutAsphaltTimelineBars.forEach((bar) => {
+    asphaltSupplementLayerCounts.set(
+      bar.id,
+      getSupplementStripCountForReference({
+        reference: {
+          projectId: bar.projectId,
+          projectNumber: bar.projectNumber,
+          projectName: bar.projectName,
+        },
+        assignmentStartDate: bar.startDate,
+        assignmentEndDate: bar.endDate,
+        defaultVehicles:
+          crews.find(
+            (crew) =>
+              normalizeCrewName(crew.name) === normalizeCrewName(bar.crewName),
+          )?.defaultVehicles ?? [],
+      }),
+    );
+  });
 
   const leftColumnWidth = getLeftColumnWidth(unitCount);
   const timelineGridColumns = getTimelineGridColumns(view, unitCount);
@@ -3805,14 +4028,23 @@ export default async function CrewDispatchPage({
     crews.map((crew) => [
       crew.id,
       buildCrewTimelineLaneLayout({
+        compactView,
         crewId: crew.id,
         crewName: crew.name,
-        visibleAssignments,
-        asphaltTimelineBars,
+        getItemLayerCount: (item) =>
+          item.kind === "assignment"
+            ? assignmentSupplementLayerCounts.get(item.id) ?? 0
+            : asphaltSupplementLayerCounts.get(item.id) ?? 0,
+        visibleAssignments: rowLayoutAssignments,
+        asphaltTimelineBars: rowLayoutAsphaltTimelineBars,
         laneHeight: crewTimelineLaneHeight,
       }),
     ] as const),
   );
+  const displayedCrews =
+    compactView && planningAxis === "teams"
+      ? crews.filter((crew) => (crewTimelineRows.get(crew.id)?.itemCount ?? 0) > 0)
+      : crews;
   const allVehicles = allVehicleItems.flatMap((item) => {
     const vehicle = inventoryItemToVehicleWithInventoryLink(item);
     return vehicle ? [vehicle] : [];
@@ -3853,6 +4085,15 @@ export default async function CrewDispatchPage({
       label: getVehicleLabel(vehicle),
       subLabel: vehicle.category,
       href: `/admin/vehicles#vehicle-${vehicle.id}`,
+      searchText: [
+        getVehicleLabel(vehicle),
+        vehicle.vehicleNumber,
+        vehicle.licensePlate,
+        vehicle.category,
+        vehicle.vehicleType,
+      ]
+        .filter(Boolean)
+        .join(" "),
     }));
 
   const specialEquipmentAxisRows: PlanningAxisRow[] = allVehicles
@@ -3862,6 +4103,15 @@ export default async function CrewDispatchPage({
       label: getVehicleLabel(vehicle),
       subLabel: vehicle.category,
       href: `/admin/vehicles#vehicle-${vehicle.id}`,
+      searchText: [
+        getVehicleLabel(vehicle),
+        vehicle.vehicleNumber,
+        vehicle.licensePlate,
+        vehicle.category,
+        vehicle.vehicleType,
+      ]
+        .filter(Boolean)
+        .join(" "),
     }));
 
   const planningAxisRows =
@@ -4094,58 +4344,86 @@ export default async function CrewDispatchPage({
     });
   }
 
-  const normalizedEmployeeSearch = normalizePlanningFilterText(employeeSearch);
-  const displayedPlanningAxisRows =
+  const resourceFilterByAxis:
+    | {
+        onlyPlanned: boolean;
+        search: string;
+        sort: PlanningResourceSort;
+      }
+    | null =
     planningAxis === "employees"
-      ? planningAxisRows
-          .filter((row) => {
-            const bars = planningAxisBars.get(row.id) ?? [];
-
-            if (employeeOnlyPlanned && bars.length === 0) {
-              return false;
+      ? {
+          onlyPlanned: employeeOnlyPlanned,
+          search: employeeSearch,
+          sort: employeeSort,
+        }
+      : planningAxis === "equipment"
+        ? {
+            onlyPlanned: equipmentOnlyPlanned,
+            search: equipmentSearch,
+            sort: equipmentSort,
+          }
+        : planningAxis === "specialEquipment"
+          ? {
+              onlyPlanned: specialEquipmentOnlyPlanned,
+              search: specialEquipmentSearch,
+              sort: specialEquipmentSort,
             }
+          : null;
 
-            if (!normalizedEmployeeSearch) {
-              return true;
-            }
+  const normalizedResourceSearch = normalizePlanningFilterText(
+    resourceFilterByAxis?.search ?? "",
+  );
+  const displayedPlanningAxisRows = resourceFilterByAxis
+    ? planningAxisRows
+        .filter((row) => {
+          const bars = planningAxisBars.get(row.id) ?? [];
 
-            const searchText = normalizePlanningFilterText(
-              [
-                row.label,
-                row.subLabel,
-                row.searchText,
-                ...bars.flatMap((bar) => [bar.title, bar.subtitle]),
-              ]
-                .filter(Boolean)
-                .join(" "),
+          if (resourceFilterByAxis.onlyPlanned && bars.length === 0) {
+            return false;
+          }
+
+          if (!normalizedResourceSearch) {
+            return true;
+          }
+
+          const searchText = normalizePlanningFilterText(
+            [
+              row.label,
+              row.subLabel,
+              row.searchText,
+              ...bars.flatMap((bar) => [bar.title, bar.subtitle]),
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+
+          return searchText.includes(normalizedResourceSearch);
+        })
+        .sort((a, b) => {
+          const aBars = planningAxisBars.get(a.id) ?? [];
+          const bBars = planningAxisBars.get(b.id) ?? [];
+
+          if (resourceFilterByAxis.sort === "planningCount") {
+            const countCompare = bBars.length - aBars.length;
+
+            if (countCompare !== 0) return countCompare;
+          }
+
+          if (resourceFilterByAxis.sort === "project") {
+            const firstProject = (row: PlanningAxisRow, bars: PlanningAxisBar[]) =>
+              bars[0]?.title ?? row.label;
+            const projectCompare = firstProject(a, aBars).localeCompare(
+              firstProject(b, bBars),
+              "de-DE",
             );
 
-            return searchText.includes(normalizedEmployeeSearch);
-          })
-          .sort((a, b) => {
-            const aBars = planningAxisBars.get(a.id) ?? [];
-            const bBars = planningAxisBars.get(b.id) ?? [];
+            if (projectCompare !== 0) return projectCompare;
+          }
 
-            if (employeeSort === "planningCount") {
-              const countCompare = bBars.length - aBars.length;
-
-              if (countCompare !== 0) return countCompare;
-            }
-
-            if (employeeSort === "project") {
-              const firstProject = (row: PlanningAxisRow, bars: PlanningAxisBar[]) =>
-                bars[0]?.title ?? row.label;
-              const projectCompare = firstProject(a, aBars).localeCompare(
-                firstProject(b, bBars),
-                "de-DE",
-              );
-
-              if (projectCompare !== 0) return projectCompare;
-            }
-
-            return a.label.localeCompare(b.label, "de-DE");
-          })
-      : planningAxisRows;
+          return a.label.localeCompare(b.label, "de-DE");
+        })
+    : planningAxisRows;
 
   const hrefBase = {
     planningAxis,
@@ -4163,9 +4441,16 @@ export default async function CrewDispatchPage({
     showSpecialVehicles,
     showMaterial,
     showNotes,
+    compactView,
     employeeSort,
     employeeSearch,
     employeeOnlyPlanned,
+    equipmentSort,
+    equipmentSearch,
+    equipmentOnlyPlanned,
+    specialEquipmentSort,
+    specialEquipmentSearch,
+    specialEquipmentOnlyPlanned,
   };
 
   const previousHref = buildCrewDispatchHref({
@@ -4189,13 +4474,76 @@ export default async function CrewDispatchPage({
     ...hrefBase,
   });
 
+  const resourceFilterUi =
+    planningAxis === "employees"
+      ? {
+          axis: "employees" as const,
+          buttonLabel: "Mitarbeiter filtern",
+          title: "Mitarbeiter-Ansicht",
+          description: "Suche, Filter und Sortierung für die Mitarbeiter-Zeitstrahlen.",
+          searchName: "employeeSearch",
+          searchValue: employeeSearch,
+          searchPlaceholder: "Name, Baustelle, Abteilung, LKW…",
+          sortName: "employeeSort",
+          sortValue: employeeSort,
+          onlyPlannedName: "employeeOnlyPlanned",
+          onlyPlannedValue: employeeOnlyPlanned,
+          onlyPlannedLabel: "Nur Mitarbeiter mit Planung anzeigen",
+          resetParams: {
+            employeeSort: "name" as PlanningResourceSort,
+            employeeSearch: "",
+            employeeOnlyPlanned: false,
+          },
+        }
+      : planningAxis === "equipment"
+        ? {
+            axis: "equipment" as const,
+            buttonLabel: "Geräte filtern",
+            title: "Geräte-Ansicht",
+            description: "Suche, Filter und Sortierung für die Geräte-Zeitstrahlen.",
+            searchName: "equipmentSearch",
+            searchValue: equipmentSearch,
+            searchPlaceholder: "Objektnummer, Kennzeichen, Typ, Baustelle…",
+            sortName: "equipmentSort",
+            sortValue: equipmentSort,
+            onlyPlannedName: "equipmentOnlyPlanned",
+            onlyPlannedValue: equipmentOnlyPlanned,
+            onlyPlannedLabel: "Nur Geräte mit Planung anzeigen",
+            resetParams: {
+              equipmentSort: "name" as PlanningResourceSort,
+              equipmentSearch: "",
+              equipmentOnlyPlanned: false,
+            },
+          }
+        : planningAxis === "specialEquipment"
+          ? {
+              axis: "specialEquipment" as const,
+              buttonLabel: "Sondergeräte filtern",
+              title: "Sondergeräte-Ansicht",
+              description: "Suche, Filter und Sortierung für die Sondergeräte-Zeitstrahlen.",
+              searchName: "specialEquipmentSearch",
+              searchValue: specialEquipmentSearch,
+              searchPlaceholder: "Objektnummer, Kennzeichen, Typ, Baustelle…",
+              sortName: "specialEquipmentSort",
+              sortValue: specialEquipmentSort,
+              onlyPlannedName: "specialEquipmentOnlyPlanned",
+              onlyPlannedValue: specialEquipmentOnlyPlanned,
+              onlyPlannedLabel: "Nur Sondergeräte mit Planung anzeigen",
+              resetParams: {
+                specialEquipmentSort: "name" as PlanningResourceSort,
+                specialEquipmentSearch: "",
+                specialEquipmentOnlyPlanned: false,
+              },
+            }
+          : null;
+
   return (
     <AppShell
       title="Planung"
       description="Horizontale Zeitstrahlplanung für Projekte, Mitarbeiter, Teams, Geräte und Sondergeräte."
     >
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <SummaryCard label="Teams sichtbar" value={String(crews.length)} />
+        <SummaryCard label="Teams sichtbar" value={String(displayedCrews.length)} />
         <SummaryCard
           label="Einteilungen sichtbar"
           value={String(visibleAssignments.length + asphaltTimelineBars.length)}
@@ -4312,6 +4660,16 @@ export default async function CrewDispatchPage({
                   showSpecialVehicles,
                   showMaterial,
                   showNotes,
+                  compactView,
+                  employeeSort,
+                  employeeSearch,
+                  employeeOnlyPlanned,
+                  equipmentSort,
+                  equipmentSearch,
+                  equipmentOnlyPlanned,
+                  specialEquipmentSort,
+                  specialEquipmentSearch,
+                  specialEquipmentOnlyPlanned,
                   focusDate,
                   highlightCrewId: highlightedCrewId,
                 })}
@@ -4376,6 +4734,16 @@ export default async function CrewDispatchPage({
                         showSpecialVehicles,
                         showMaterial,
                         showNotes,
+                        compactView,
+                        employeeSort,
+                        employeeSearch,
+                        employeeOnlyPlanned,
+                        equipmentSort,
+                        equipmentSearch,
+                        equipmentOnlyPlanned,
+                        specialEquipmentSort,
+                        specialEquipmentSearch,
+                        specialEquipmentOnlyPlanned,
                         focusDate: targetStart,
                         highlightCrewId: highlightedCrewId,
                       })}
@@ -4436,6 +4804,16 @@ export default async function CrewDispatchPage({
                         showSpecialVehicles,
                         showMaterial,
                         showNotes,
+                        compactView,
+                        employeeSort,
+                        employeeSearch,
+                        employeeOnlyPlanned,
+                        equipmentSort,
+                        equipmentSearch,
+                        equipmentOnlyPlanned,
+                        specialEquipmentSort,
+                        specialEquipmentSearch,
+                        specialEquipmentOnlyPlanned,
                         focusDate: presetStart,
                         highlightCrewId: highlightedCrewId,
                       })}
@@ -4648,6 +5026,7 @@ export default async function CrewDispatchPage({
                       showSpecialVehicles={showSpecialVehicles}
                       showTrucks={showTrucks}
                       showWeekend={showWeekend}
+                      compactView={compactView}
                       view={view}
                     />
 
@@ -4661,26 +5040,26 @@ export default async function CrewDispatchPage({
                 </div>
               </DismissibleDetails>
 
-              {planningAxis === "employees" ? (
+              {resourceFilterUi ? (
                 <DismissibleDetails className="relative inline-block w-full sm:w-auto">
                   <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-900 shadow-sm hover:bg-gray-50">
-                    Mitarbeiter filtern
+                    {resourceFilterUi.buttonLabel}
                     <span className="text-gray-500">▾</span>
                   </summary>
 
                   <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                     <div className="text-sm font-bold text-gray-900">
-                      Mitarbeiter-Ansicht
+                      {resourceFilterUi.title}
                     </div>
                     <p className="mt-1 text-xs text-gray-600">
-                      Suche, Filter und Sortierung für die Mitarbeiter-Zeitstrahlen.
+                      {resourceFilterUi.description}
                     </p>
 
                     <form
                       action="/crew-dispatch"
                       className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
                     >
-                      <input type="hidden" name="axis" value="employees" />
+                      <input type="hidden" name="axis" value={resourceFilterUi.axis} />
                       <input type="hidden" name="from" value={formatDateInput(fromDate)} />
                       <input type="hidden" name="to" value={formatDateInput(toDate)} />
                       <input type="hidden" name="view" value={view} />
@@ -4710,13 +5089,14 @@ export default async function CrewDispatchPage({
                       ) : null}
                       {showMaterial ? <input type="hidden" name="showMaterial" value="1" /> : null}
                       {showNotes ? <input type="hidden" name="showNotes" value="1" /> : null}
+                      {compactView ? <input type="hidden" name="compactView" value="1" /> : null}
 
                       <label className="grid gap-1 text-xs font-semibold text-gray-800">
                         Suche
                         <input
-                          name="employeeSearch"
-                          defaultValue={employeeSearch}
-                          placeholder="Name, Baustelle, Abteilung, LKW…"
+                          name={resourceFilterUi.searchName}
+                          defaultValue={resourceFilterUi.searchValue}
+                          placeholder={resourceFilterUi.searchPlaceholder}
                           className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
                         />
                       </label>
@@ -4724,11 +5104,13 @@ export default async function CrewDispatchPage({
                       <label className="grid gap-1 text-xs font-semibold text-gray-800">
                         Sortierung
                         <select
-                          name="employeeSort"
-                          defaultValue={employeeSort}
+                          name={resourceFilterUi.sortName}
+                          defaultValue={resourceFilterUi.sortValue}
                           className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm font-semibold text-gray-900"
                         >
-                          <option value="name">Name A–Z</option>
+                          <option value="name">
+                            {planningAxis === "employees" ? "Name A–Z" : "Bezeichnung A–Z"}
+                          </option>
                           <option value="project">Baustelle / Projekt</option>
                           <option value="planningCount">Meiste Planungen zuerst</option>
                         </select>
@@ -4737,12 +5119,12 @@ export default async function CrewDispatchPage({
                       <label className="flex items-start gap-2 rounded-xl border border-gray-200 bg-white p-3 text-xs font-semibold text-gray-800">
                         <input
                           type="checkbox"
-                          name="employeeOnlyPlanned"
+                          name={resourceFilterUi.onlyPlannedName}
                           value="1"
-                          defaultChecked={employeeOnlyPlanned}
+                          defaultChecked={resourceFilterUi.onlyPlannedValue}
                           className="mt-0.5 h-4 w-4"
                         />
-                        Nur Mitarbeiter mit Planung anzeigen
+                        {resourceFilterUi.onlyPlannedLabel}
                       </label>
 
                       <div className="flex flex-wrap gap-2">
@@ -4757,9 +5139,7 @@ export default async function CrewDispatchPage({
                             ...hrefBase,
                             fromDate,
                             toDate,
-                            employeeSort: "name",
-                            employeeSearch: "",
-                            employeeOnlyPlanned: false,
+                            ...resourceFilterUi.resetParams,
                             focusDate,
                             highlightCrewId: highlightedCrewId,
                           })}
@@ -4993,13 +5373,14 @@ export default async function CrewDispatchPage({
           }}
         >
           <div className="border-r border-gray-200 bg-white">
-            {crews.length === 0 ? (
+            {displayedCrews.length === 0 ? (
               <div className="p-10 text-center text-sm font-medium text-gray-500">
-                Keine Kolonnen sichtbar. Asphalt-Dispo-Kolonnen können oben
-                eingeblendet werden.
+                {compactView
+                  ? "Keine Kolonnen mit Einträgen im aktuellen Zeitraum sichtbar."
+                  : "Keine Kolonnen sichtbar. Asphalt-Dispo-Kolonnen können oben eingeblendet werden."}
               </div>
             ) : (
-              crews.map((crew) => {
+              displayedCrews.map((crew) => {
                 const crewFocusDate = getBestCrewFocusDate({
                   crewId: crew.id,
                   crewName: crew.name,
@@ -5026,6 +5407,7 @@ export default async function CrewDispatchPage({
                   showSpecialVehicles,
                   showMaterial,
                   showNotes,
+                  compactView,
                   focusDate: crewFocusDate,
                   highlightCrewId: crew.id,
                 });
@@ -5193,12 +5575,12 @@ export default async function CrewDispatchPage({
                 minWidth: `${timelineMinWidth}px`,
               }}
             >
-              {crews.map((crew) => {
-                const crewAssignments = visibleAssignments.filter(
+              {displayedCrews.map((crew) => {
+                const crewAssignments = rowLayoutAssignments.filter(
                   ({ assignment }) => assignment.crewId === crew.id,
                 );
 
-                const crewAsphaltBars = asphaltTimelineBars.filter(
+                const crewAsphaltBars = rowLayoutAsphaltTimelineBars.filter(
                   (bar) =>
                     normalizeCrewName(bar.crewName) ===
                     normalizeCrewName(crew.name),
@@ -5280,7 +5662,8 @@ export default async function CrewDispatchPage({
 
                           const baseTopOffsetPx =
                             CREW_TIMELINE_BAR_TOP_PX +
-                            laneIndex * crewTimelineLaneHeight;
+                            (rowLayout?.assignmentOffsets.get(assignment.id) ??
+                              laneIndex * crewTimelineLaneHeight);
 
 
                           const equipmentStrips = showEquipment
@@ -5351,6 +5734,33 @@ export default async function CrewDispatchPage({
                             groups: specialVehicleDayGroups,
                             timelineUnits,
                           });
+                          const supplementLayerLayout =
+                            buildTimelineSupplementLayerLayout([
+                              ...equipmentStrips.map((strip) => ({
+                                gridColumn: strip.gridColumn,
+                                key: `equipment-${strip.id}`,
+                              })),
+                              ...truckStrips.map((strip) => ({
+                                gridColumn: strip.gridColumn,
+                                key: `truck-${strip.id}`,
+                              })),
+                              ...specialVehicleStrips.map((strip) => ({
+                                gridColumn: strip.gridColumn,
+                                key: `special-${strip.id}`,
+                              })),
+                              ...materialStrips.map((strip) => ({
+                                gridColumn: strip.gridColumn,
+                                key: `material-${strip.id}`,
+                              })),
+                              ...(noteStrip
+                                ? [
+                                    {
+                                      gridColumn: noteStrip.gridColumn,
+                                      key: `note-${noteStrip.id}`,
+                                    },
+                                  ]
+                                : []),
+                            ]);
 
                           return (
                             <Fragment key={assignment.id}>
@@ -5460,19 +5870,16 @@ export default async function CrewDispatchPage({
 
 
                               {showEquipment && equipmentStrips.length
-                                ? equipmentStrips.map((strip) => (
+                                ? equipmentStrips.map((strip, stripIndex) => (
                                     <TimelineSupplementStrip
                                       key={`${assignment.id}-equipment-${strip.id}`}
                                       gridColumn={strip.gridColumn}
                                       topOffsetPx={getSupplementTopOffsetPx({
                                         baseTopOffsetPx,
-                                        layerIndex: getLayerIndex({
-                                          showEquipment,
-                                          showTrucks,
-                                          showSpecialVehicles,
-                                          showMaterial,
-                                          layer: "equipment",
-                                        }),
+                                        layerIndex:
+                                          supplementLayerLayout.layerIndexes.get(
+                                            `equipment-${strip.id}`,
+                                          ) ?? stripIndex,
                                       })}
                                       tone="equipment"
                                       label="Geräte"
@@ -5484,19 +5891,16 @@ export default async function CrewDispatchPage({
                                 : null}
 
                               {showTrucks && truckStrips.length
-                                ? truckStrips.map((strip) => (
+                                ? truckStrips.map((strip, stripIndex) => (
                                     <TimelineSupplementStrip
                                       key={`${assignment.id}-truck-${strip.id}`}
                                       gridColumn={strip.gridColumn}
                                       topOffsetPx={getSupplementTopOffsetPx({
                                         baseTopOffsetPx,
-                                        layerIndex: getLayerIndex({
-                                          showEquipment,
-                                          showTrucks,
-                                          showSpecialVehicles,
-                                          showMaterial,
-                                          layer: "truck",
-                                        }),
+                                        layerIndex:
+                                          supplementLayerLayout.layerIndexes.get(
+                                            `truck-${strip.id}`,
+                                          ) ?? stripIndex,
                                       })}
                                       tone="truck"
                                       label="LKW"
@@ -5508,19 +5912,16 @@ export default async function CrewDispatchPage({
                                 : null}
 
                               {showSpecialVehicles && specialVehicleStrips.length
-                                ? specialVehicleStrips.map((strip) => (
+                                ? specialVehicleStrips.map((strip, stripIndex) => (
                                     <TimelineSupplementStrip
                                       key={`${assignment.id}-special-${strip.id}`}
                                       gridColumn={strip.gridColumn}
                                       topOffsetPx={getSupplementTopOffsetPx({
                                         baseTopOffsetPx,
-                                        layerIndex: getLayerIndex({
-                                          showEquipment,
-                                          showTrucks,
-                                          showSpecialVehicles,
-                                          showMaterial,
-                                          layer: "special",
-                                        }),
+                                        layerIndex:
+                                          supplementLayerLayout.layerIndexes.get(
+                                            `special-${strip.id}`,
+                                          ) ?? stripIndex,
                                       })}
                                       tone="special"
                                       label="Sonder"
@@ -5532,19 +5933,16 @@ export default async function CrewDispatchPage({
                                 : null}
 
                               {showMaterial && materialStrips.length
-                                ? materialStrips.map((strip) => (
+                                ? materialStrips.map((strip, stripIndex) => (
                                     <TimelineSupplementStrip
                                       key={`${assignment.id}-material-${strip.id}`}
                                       gridColumn={strip.gridColumn}
                                       topOffsetPx={getSupplementTopOffsetPx({
                                         baseTopOffsetPx,
-                                        layerIndex: getLayerIndex({
-                                          showEquipment,
-                                          showTrucks,
-                                          showSpecialVehicles,
-                                          showMaterial,
-                                          layer: "material",
-                                        }),
+                                        layerIndex:
+                                          supplementLayerLayout.layerIndexes.get(
+                                            `material-${strip.id}`,
+                                          ) ?? stripIndex,
                                       })}
                                       tone="material"
                                       label="Material"
@@ -5561,13 +5959,10 @@ export default async function CrewDispatchPage({
                                   gridColumn={noteStrip.gridColumn}
                                   topOffsetPx={getSupplementTopOffsetPx({
                                     baseTopOffsetPx,
-                                    layerIndex: getLayerIndex({
-                                      showEquipment,
-                                      showTrucks,
-                                      showSpecialVehicles,
-                                      showMaterial,
-                                      layer: "notes",
-                                    }),
+                                    layerIndex:
+                                      supplementLayerLayout.layerIndexes.get(
+                                        `note-${noteStrip.id}`,
+                                      ) ?? 0,
                                   })}
                                   tone="notes"
                                   label="Notiz"
@@ -5590,7 +5985,8 @@ export default async function CrewDispatchPage({
 
                         const baseTopOffsetPx =
                           CREW_TIMELINE_BAR_TOP_PX +
-                          laneIndex * crewTimelineLaneHeight;
+                          (rowLayout?.asphaltOffsets.get(bar.id) ??
+                            laneIndex * crewTimelineLaneHeight);
 
 
                         const equipmentStrips = showEquipment
@@ -5660,6 +6056,33 @@ export default async function CrewDispatchPage({
                               timelineUnits,
                             })
                           : null;
+                        const supplementLayerLayout =
+                          buildTimelineSupplementLayerLayout([
+                            ...equipmentStrips.map((strip) => ({
+                              gridColumn: strip.gridColumn,
+                              key: `equipment-${strip.id}`,
+                            })),
+                            ...truckStrips.map((strip) => ({
+                              gridColumn: strip.gridColumn,
+                              key: `truck-${strip.id}`,
+                            })),
+                            ...specialVehicleStrips.map((strip) => ({
+                              gridColumn: strip.gridColumn,
+                              key: `special-${strip.id}`,
+                            })),
+                            ...materialStrips.map((strip) => ({
+                              gridColumn: strip.gridColumn,
+                              key: `material-${strip.id}`,
+                            })),
+                            ...(noteStrip
+                              ? [
+                                  {
+                                    gridColumn: noteStrip.gridColumn,
+                                    key: `note-${noteStrip.id}`,
+                                  },
+                                ]
+                              : []),
+                          ]);
 
                         return (
                           <Fragment key={bar.id}>
@@ -5758,19 +6181,16 @@ export default async function CrewDispatchPage({
 
 
                             {showEquipment && equipmentStrips.length
-                              ? equipmentStrips.map((strip) => (
+                              ? equipmentStrips.map((strip, stripIndex) => (
                                   <TimelineSupplementStrip
                                     key={`${bar.id}-equipment-${strip.id}`}
                                     gridColumn={strip.gridColumn}
                                     topOffsetPx={getSupplementTopOffsetPx({
                                       baseTopOffsetPx,
-                                      layerIndex: getLayerIndex({
-                                        showEquipment,
-                                        showTrucks,
-                                        showSpecialVehicles,
-                                        showMaterial,
-                                        layer: "equipment",
-                                      }),
+                                      layerIndex:
+                                        supplementLayerLayout.layerIndexes.get(
+                                          `equipment-${strip.id}`,
+                                        ) ?? stripIndex,
                                     })}
                                     tone="equipment"
                                     label="Geräte"
@@ -5782,19 +6202,16 @@ export default async function CrewDispatchPage({
                               : null}
 
                             {showTrucks && truckStrips.length
-                              ? truckStrips.map((strip) => (
+                              ? truckStrips.map((strip, stripIndex) => (
                                   <TimelineSupplementStrip
                                     key={`${bar.id}-truck-${strip.id}`}
                                     gridColumn={strip.gridColumn}
                                     topOffsetPx={getSupplementTopOffsetPx({
                                       baseTopOffsetPx,
-                                      layerIndex: getLayerIndex({
-                                        showEquipment,
-                                        showTrucks,
-                                        showSpecialVehicles,
-                                        showMaterial,
-                                        layer: "truck",
-                                      }),
+                                      layerIndex:
+                                        supplementLayerLayout.layerIndexes.get(
+                                          `truck-${strip.id}`,
+                                        ) ?? stripIndex,
                                     })}
                                     tone="truck"
                                     label="LKW"
@@ -5806,19 +6223,16 @@ export default async function CrewDispatchPage({
                               : null}
 
                             {showSpecialVehicles && specialVehicleStrips.length
-                              ? specialVehicleStrips.map((strip) => (
+                              ? specialVehicleStrips.map((strip, stripIndex) => (
                                   <TimelineSupplementStrip
                                     key={`${bar.id}-special-${strip.id}`}
                                     gridColumn={strip.gridColumn}
                                     topOffsetPx={getSupplementTopOffsetPx({
                                       baseTopOffsetPx,
-                                      layerIndex: getLayerIndex({
-                                        showEquipment,
-                                        showTrucks,
-                                        showSpecialVehicles,
-                                        showMaterial,
-                                        layer: "special",
-                                      }),
+                                      layerIndex:
+                                        supplementLayerLayout.layerIndexes.get(
+                                          `special-${strip.id}`,
+                                        ) ?? stripIndex,
                                     })}
                                     tone="special"
                                     label="Sonder"
@@ -5830,19 +6244,16 @@ export default async function CrewDispatchPage({
                               : null}
 
                             {showMaterial && materialStrips.length
-                              ? materialStrips.map((strip) => (
+                              ? materialStrips.map((strip, stripIndex) => (
                                   <TimelineSupplementStrip
                                     key={`${bar.id}-material-${strip.id}`}
                                     gridColumn={strip.gridColumn}
                                     topOffsetPx={getSupplementTopOffsetPx({
                                       baseTopOffsetPx,
-                                      layerIndex: getLayerIndex({
-                                        showEquipment,
-                                        showTrucks,
-                                        showSpecialVehicles,
-                                        showMaterial,
-                                        layer: "material",
-                                      }),
+                                      layerIndex:
+                                        supplementLayerLayout.layerIndexes.get(
+                                          `material-${strip.id}`,
+                                        ) ?? stripIndex,
                                     })}
                                     tone="material"
                                     label="Material"
@@ -5859,13 +6270,10 @@ export default async function CrewDispatchPage({
                                 gridColumn={noteStrip.gridColumn}
                                 topOffsetPx={getSupplementTopOffsetPx({
                                   baseTopOffsetPx,
-                                  layerIndex: getLayerIndex({
-                                    showEquipment,
-                                    showTrucks,
-                                    showSpecialVehicles,
-                                    showMaterial,
-                                    layer: "notes",
-                                  }),
+                                  layerIndex:
+                                    supplementLayerLayout.layerIndexes.get(
+                                      `note-${noteStrip.id}`,
+                                    ) ?? 0,
                                 })}
                                 tone="notes"
                                 label="Notiz"
@@ -5923,7 +6331,6 @@ function TimelineInlineSupplementStrip({
       extraCount={extraCount}
       clickTitle={`${label} Details`}
       clickText={tooltip}
-      clickHint="Klick außerhalb oder × schließt das Fenster."
     >
       <span className="shrink-0 font-bold uppercase tracking-wide opacity-70">
         {label}:
@@ -5939,6 +6346,7 @@ function TimelineInlineSupplementStrip({
 }
 
 function PlanningDisplayOptions({
+  compactView,
   showAsphaltDispatchCrews,
   showEquipment,
   showMaterial,
@@ -5948,6 +6356,7 @@ function PlanningDisplayOptions({
   showWeekend,
   view,
 }: {
+  compactView: boolean;
   showAsphaltDispatchCrews: boolean;
   showEquipment: boolean;
   showMaterial: boolean;
@@ -5968,6 +6377,12 @@ function PlanningDisplayOptions({
           },
         ]
       : []),
+    {
+      name: "compactView",
+      label: "Kompaktansicht",
+      defaultChecked: compactView,
+      className: "border-gray-300 bg-white text-gray-800",
+    },
     {
       name: "showAsphaltDispatchCrews",
       label: "Asphalt-Dispo-Kolonnen anzeigen",
@@ -6076,7 +6491,6 @@ function TimelineSupplementStrip({
       extraCount={extraCount}
       clickTitle={`${label} Details`}
       clickText={tooltip}
-      clickHint="Klick außerhalb oder × schließt das Fenster."
     >
       <span className="shrink-0 font-bold uppercase tracking-wide opacity-70">
         {label}:

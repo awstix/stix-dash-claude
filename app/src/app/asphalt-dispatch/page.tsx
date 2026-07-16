@@ -928,6 +928,7 @@ export default async function AsphaltDispatchPage({
                   includeWeekend
                 );
                 const isTackCoatCrew = isTackCoatCrewName(crew);
+                const createOverlayId = `asphalt-create-overlay-${crew.replace(/[^a-zA-Z0-9_-]/g, "-")}-${formatDateInput(day.date)}`;
 
                 return (
                   <div
@@ -976,12 +977,15 @@ export default async function AsphaltDispatchPage({
                               )
                             : null;
 
+                        const overlayId = `asphalt-entry-overlay-${entry.id}`;
+
                         return (
-                          <details
+                          <div
                             key={entry.id}
                             className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
                           >
-                          <summary className="cursor-pointer list-none">
+                          <input id={overlayId} type="checkbox" className="peer sr-only" />
+                          <label htmlFor={overlayId} className="block cursor-pointer">
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="text-sm font-semibold text-gray-900">
@@ -1037,7 +1041,32 @@ export default async function AsphaltDispatchPage({
                                 bearbeiten
                               </span>
                             </div>
-                          </summary>
+                          </label>
+
+                          <label
+                            htmlFor={overlayId}
+                            aria-label="Asphalt-Eintrag schließen"
+                            className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+                          />
+
+                          <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+                            <div className="mb-4 flex items-start justify-between gap-4">
+                              <div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                  Asphalt-Eintrag bearbeiten
+                                </div>
+                                <h3 className="mt-1 text-xl font-bold text-gray-950">
+                                  {entry.projectNumber} · {entry.projectName}
+                                </h3>
+                              </div>
+                              <label
+                                htmlFor={overlayId}
+                                className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
+                                aria-label="Asphalt-Eintrag schließen"
+                              >
+                                ×
+                              </label>
+                            </div>
 
                           <form
                             action={updateAsphaltDispatchEntry}
@@ -1158,15 +1187,45 @@ export default async function AsphaltDispatchPage({
                               </button>
                             </form>
                           </div>
-                          </details>
+                          </div>
+                          </div>
                         );
                       })}
                     </div>
 
-                    <details className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
-                      <summary className="cursor-pointer text-sm font-semibold text-gray-700">
+                    <div className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
+                      <input id={createOverlayId} type="checkbox" className="peer sr-only" />
+                      <label
+                        htmlFor={createOverlayId}
+                        className="block cursor-pointer text-sm font-semibold text-gray-700"
+                      >
                         Maßnahme hinzufügen
-                      </summary>
+                      </label>
+
+                      <label
+                        htmlFor={createOverlayId}
+                        aria-label="Asphalt-Maßnahme schließen"
+                        className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+                      />
+
+                      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+                        <div className="mb-4 flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Asphalt-Maßnahme hinzufügen
+                            </div>
+                            <h3 className="mt-1 text-xl font-bold text-gray-950">
+                              {crew} · {formatGermanDate(day.date)}
+                            </h3>
+                          </div>
+                          <label
+                            htmlFor={createOverlayId}
+                            className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
+                            aria-label="Asphalt-Maßnahme schließen"
+                          >
+                            ×
+                          </label>
+                        </div>
 
                       <form
                         action={createAsphaltDispatchEntry}
@@ -1241,7 +1300,8 @@ export default async function AsphaltDispatchPage({
                           Eintrag speichern
                         </button>
                       </form>
-                    </details>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
