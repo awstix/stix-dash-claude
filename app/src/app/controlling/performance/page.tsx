@@ -11,9 +11,9 @@ import {
   importDetailEntriesFromExcel,
   importDispositionIntoPerformanceReport,
   importItwoInvoiceItems,
-  saveEmployeeGroupRates,
   updatePerformanceReport,
 } from "./actions";
+import { ControllingHourForm } from "./ControllingHourForm";
 
 const costTypes = ["Lohn", "Material", "Geräte", "Nachunternehmer", "Sonstiges"];
 const entryStatuses = ["geschätzt", "geprüft", "gebucht", "offen", "erledigt"];
@@ -25,6 +25,13 @@ const reportStatuses = [
   { label: "Kritisch", value: "kritisch" },
 ];
 const units = ["h", "Stk.", "m", "m²", "m³", "t", "pauschal", "€"];
+
+type HourSelectionOption = {
+  internalRate: string;
+  id: string;
+  label: string;
+  realRate: string;
+};
 
 type CostAnalysisRow = {
   actualCents: number;
@@ -118,28 +125,96 @@ export default async function ControllingPerformancePage({
     ],
     take: 20,
   });
-  const employeesForRateSuggestions = await prisma.employee.findMany({
-    where: {
-      statusValue: {
-        not: "ausgeschieden",
+  const [crewsForHours, employeesForHours] = await Promise.all([
+    prisma.crew.findMany({
+      where: {
+        isActive: true,
       },
-    },
-    include: {
-      positions: true,
-    },
-    orderBy: [
-      {
-        lastName: "asc",
+      orderBy: [
+        {
+          sortOrder: "asc",
+        },
+        {
+          name: "asc",
+        },
+      ],
+      select: {
+        members: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            employee: {
+              select: {
+                isLeadership: true,
+                positions: {
+                  select: {
+                    positionLabel: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        id: true,
+        name: true,
+        typeLabel: true,
       },
-      {
-        firstName: "asc",
+    }),
+    prisma.employee.findMany({
+      where: {
+        statusValue: {
+          not: "ausgeschieden",
+        },
       },
-    ],
-  });
-  const employeeGroupRateSuggestions = buildEmployeeGroupRateSuggestions(
-    employeesForRateSuggestions,
-    employeeGroupRates,
+      orderBy: [
+        {
+          lastName: "asc",
+        },
+        {
+          firstName: "asc",
+        },
+      ],
+      select: {
+        firstName: true,
+        id: true,
+        isLeadership: true,
+        lastName: true,
+        positions: {
+          select: {
+            positionLabel: true,
+          },
+        },
+      },
+    }),
+  ]);
+  const employeeRateByGroup = new Map(
+    employeeGroupRates.map((rate) => [rate.name, rate]),
   );
+  const crewHourOptions = crewsForHours.map((crew) => {
+    const memberRates = crew.members
+      .map((member) => getEmployeeHourRate(member.employee, employeeRateByGroup))
+      .filter((rate) => rate.realRateCents > 0 || rate.internalRateCents > 0);
+    const realRateCents = averageRate(memberRates.map((rate) => rate.realRateCents));
+    const internalRateCents = averageRate(memberRates.map((rate) => rate.internalRateCents));
+
+    return {
+      id: crew.id,
+      internalRate: formatRawMoney(internalRateCents),
+      label: crew.typeLabel ? `${crew.name} · ${crew.typeLabel}` : crew.name,
+      realRate: formatRawMoney(realRateCents),
+    };
+  });
+  const employeeHourOptions = employeesForHours.map((employee) => ({
+    id: employee.id,
+    internalRate: formatRawMoney(
+      getEmployeeHourRate(employee, employeeRateByGroup).internalRateCents,
+    ),
+    label: `${employee.lastName}, ${employee.firstName}`,
+    realRate: formatRawMoney(
+      getEmployeeHourRate(employee, employeeRateByGroup).realRateCents,
+    ),
+  }));
 
   const activeProjectId = report?.projectId ?? selectedProject?.id ?? null;
   const detailCostCents =
@@ -491,6 +566,8 @@ export default async function ControllingPerformancePage({
               />
               <HourSection
                 action={addControllingHourEntry}
+                crewOptions={crewHourOptions}
+                employeeOptions={employeeHourOptions}
                 projectId={report.projectId}
                 reportId={report.id}
               />
@@ -597,114 +674,6 @@ export default async function ControllingPerformancePage({
               </details>
             </>
           ) : null}
-
-          <details className="group rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-            <summary className="cursor-pointer list-none">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-amber-950">
-                    Verrechnungssätze Mitarbeitergruppen
-                  </h2>
-                  <p className="mt-1 max-w-4xl text-sm text-amber-900">
-                    Sensibler Bereich. Aktuell technisch vorbereitet; sobald Benutzer/Rechte aktiv sind,
-                    wird hier gesteuert, wer Mitarbeiter-, Gruppen- und Objekt-Verrechnungssätze sehen darf.
-                  </p>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300 bg-white text-amber-950 transition-transform group-open:rotate-180"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </span>
-              </div>
-            </summary>
-            <form action={saveEmployeeGroupRates} className="mt-4">
-              <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="bg-amber-100 text-xs uppercase tracking-wide text-amber-950">
-                    <tr>
-                      <th className="px-3 py-2">Gruppe</th>
-                      <th className="px-3 py-2">Beschreibung</th>
-                      <th className="px-3 py-2">Mitarbeiter</th>
-                      <th className="px-3 py-2">EK real €/h</th>
-                      <th className="px-3 py-2">Interner Satz €/h</th>
-                      <th className="px-3 py-2">Sichtbarkeit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employeeGroupRateSuggestions.map((rate) => (
-                      <tr className="border-t border-amber-100" key={rate.name}>
-                        <td className="px-3 py-2 align-top">
-                          <input name="rateName" type="hidden" value={rate.name} />
-                          <input
-                            name="rateDescription"
-                            type="hidden"
-                            value={rate.description}
-                          />
-                          <div className="font-semibold text-gray-950">{rate.name}</div>
-                          {rate.isSaved ? (
-                            <div className="mt-1 text-xs font-semibold text-green-700">
-                              gespeichert
-                            </div>
-                          ) : (
-                            <div className="mt-1 text-xs font-semibold text-amber-800">
-                              Vorschlag
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 align-top text-gray-600">
-                          {rate.description || "—"}
-                        </td>
-                        <td className="px-3 py-2 align-top text-gray-900">
-                          {rate.employeeCount.toLocaleString("de-DE")}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          <input
-                            className={inputClassName}
-                            defaultValue={
-                              rate.realRateCents ? formatRawMoney(rate.realRateCents) : ""
-                            }
-                            name="rateReal"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          <input
-                            className={inputClassName}
-                            defaultValue={
-                              rate.internalRateCents
-                                ? formatRawMoney(rate.internalRateCents)
-                                : ""
-                            }
-                            name="rateInternal"
-                            placeholder="0,00"
-                          />
-                        </td>
-                        <td className="px-3 py-2 align-top text-gray-600">
-                          Controlling / geschützt
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button className={primaryButtonClassName} type="submit">
-                  Verrechnungssätze speichern
-                </button>
-              </div>
-            </form>
-          </details>
 
           {report ? (
             <PerformanceAnalysisSection
@@ -824,54 +793,56 @@ function EntrySection({
 
 function HourSection({
   action,
+  crewOptions,
+  employeeOptions,
   projectId,
   reportId,
 }: {
   action: (formData: FormData) => Promise<void>;
+  crewOptions: HourSelectionOption[];
+  employeeOptions: HourSelectionOption[];
   projectId: string;
   reportId: string;
 }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-950">Stundenerfassung</h2>
-      <form action={action} className="mt-4 grid gap-3 md:grid-cols-2">
-        <input name="reportId" type="hidden" value={reportId} />
-        <input name="projectId" type="hidden" value={projectId} />
-        <Field label="Datum">
-          <input className={inputClassName} defaultValue={formatInputDate(new Date())} name="entryDate" type="date" />
-        </Field>
-        <Field label="Kolonne / Mitarbeiter">
-          <input className={inputClassName} name="label" />
-        </Field>
-        <Field label="Beginn">
-          <input className={inputClassName} name="startsAt" type="time" />
-        </Field>
-        <Field label="Ende">
-          <input className={inputClassName} name="endsAt" type="time" />
-        </Field>
-        <Field label="Pause h">
-          <input className={inputClassName} name="breakHours" placeholder="0" />
-        </Field>
-        <Field label="Anzahl MA">
-          <input className={inputClassName} defaultValue="1" name="employeeCount" />
-        </Field>
-        <Field label="Std je MA">
-          <input className={inputClassName} name="hoursPerEmployee" placeholder="0,00" />
-        </Field>
-        <Field label="EK real €/h">
-          <input className={inputClassName} name="realRate" placeholder="0,00" />
-        </Field>
-        <Field label="Interner Satz €/h">
-          <input className={inputClassName} name="internalRate" placeholder="0,00" />
-        </Field>
-        <Field label="Bemerkung">
-          <input className={inputClassName} name="notes" />
-        </Field>
-        <button className={primaryButtonClassName} type="submit">
-          Stunden hinzufügen
-        </button>
-      </form>
-    </section>
+    <details className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <summary className="cursor-pointer list-none">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-950">
+              Stundenerfassung
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Manuelle Stunden für Kolonnen, Mitarbeiter oder Nachträge ergänzen.
+            </p>
+          </div>
+          <span
+            aria-hidden="true"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-950 transition-transform group-open:rotate-180"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
+        </div>
+      </summary>
+      <ControllingHourForm
+        action={action}
+        crewOptions={crewOptions}
+        defaultDate={formatInputDate(new Date())}
+        employeeOptions={employeeOptions}
+        projectId={projectId}
+        reportId={reportId}
+      />
+    </details>
   );
 }
 
@@ -1288,105 +1259,51 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function buildEmployeeGroupRateSuggestions(
-  employees: Array<{
+function getEmployeeHourRate(
+  employee: {
     isLeadership: boolean;
     positions: Array<{
       positionLabel: string;
-      positionValue: string;
     }>;
-  }>,
-  savedRates: Array<{
-    description: string | null;
-    internalRateCents: number;
-    name: string;
-    realRateCents: number;
-  }>,
-) {
-  const suggestions = new Map<
+  },
+  ratesByGroup: Map<
     string,
     {
-      description: string;
-      employeeCount: number;
       internalRateCents: number;
-      isSaved: boolean;
-      name: string;
-      realRateCents: number;
-    }
-  >();
-
-  for (const employee of employees) {
-    if (employee.positions.length === 0) {
-      addSuggestion(suggestions, "Ohne Positionsgruppe", "Mitarbeiter ohne hinterlegte Position");
-    }
-
-    for (const position of employee.positions) {
-      addSuggestion(suggestions, position.positionLabel, "aus Mitarbeiterpositionen vorgeschlagen");
-    }
-
-    if (employee.isLeadership) {
-      addSuggestion(suggestions, "Führung / Bauleitung / Polier", "aus Kennzeichen Führungskraft");
-    }
-  }
-
-  for (const fallback of [
-    "Facharbeiter",
-    "Helfer",
-    "Vorarbeiter",
-    "Polier",
-    "Bauleiter",
-    "LKW-Fahrer",
-    "Maschinist",
-    "Werkstatt",
-    "Auszubildende",
-  ]) {
-    addSuggestion(suggestions, fallback, "Standardvorschlag", 0);
-  }
-
-  for (const savedRate of savedRates) {
-    const existing = suggestions.get(savedRate.name);
-    suggestions.set(savedRate.name, {
-      description: savedRate.description ?? existing?.description ?? "gespeicherter Satz",
-      employeeCount: existing?.employeeCount ?? 0,
-      internalRateCents: savedRate.internalRateCents,
-      isSaved: true,
-      name: savedRate.name,
-      realRateCents: savedRate.realRateCents,
-    });
-  }
-
-  return [...suggestions.values()].sort((a, b) => {
-    if (a.employeeCount !== b.employeeCount) return b.employeeCount - a.employeeCount;
-    return a.name.localeCompare(b.name, "de-DE");
-  });
-}
-
-function addSuggestion(
-  suggestions: Map<
-    string,
-    {
-      description: string;
-      employeeCount: number;
-      internalRateCents: number;
-      isSaved: boolean;
-      name: string;
       realRateCents: number;
     }
   >,
-  name: string,
-  description: string,
-  employeeCountIncrement = 1,
 ) {
-  const existing = suggestions.get(name);
+  for (const position of employee.positions) {
+    const rate = ratesByGroup.get(position.positionLabel);
+    if (rate) {
+      return rate;
+    }
+  }
 
-  suggestions.set(name, {
-    description: existing?.description ?? description,
-    employeeCount: (existing?.employeeCount ?? 0) + employeeCountIncrement,
-    internalRateCents: existing?.internalRateCents ?? 0,
-    isSaved: existing?.isSaved ?? false,
-    name,
-    realRateCents: existing?.realRateCents ?? 0,
-  });
+  if (employee.isLeadership) {
+    const leadershipRate = ratesByGroup.get("Führung / Bauleitung / Polier");
+    if (leadershipRate) {
+      return leadershipRate;
+    }
+  }
+
+  return {
+    internalRateCents: 0,
+    realRateCents: 0,
+  };
+}
+
+function averageRate(values: number[]) {
+  const filledValues = values.filter((value) => value > 0);
+
+  if (filledValues.length === 0) {
+    return 0;
+  }
+
+  return Math.round(
+    filledValues.reduce((sum, value) => sum + value, 0) / filledValues.length,
+  );
 }
 
 function formatMoney(cents: number) {

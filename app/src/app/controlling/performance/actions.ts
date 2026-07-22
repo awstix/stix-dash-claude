@@ -307,8 +307,21 @@ export async function addControllingDetailEntry(formData: FormData) {
 export async function addControllingHourEntry(formData: FormData) {
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
+  const labelType = text(formData.get("labelType")) || "CREW";
   const hoursPerEmployee = numberValue(formData.get("hoursPerEmployee"), "Std je MA");
   const employeeCount = numberValue(formData.get("employeeCount"), "Anzahl MA") || 1;
+  const selectedEmployeeLabels = formData
+    .getAll("employeeLabels")
+    .map((value) => text(value))
+    .filter(Boolean);
+  const label =
+    labelType === "CREW"
+      ? requiredText(formData.get("crewLabel"), "Kolonne")
+      : labelType === "EMPLOYEE"
+        ? selectedEmployeeLabels.length >= employeeCount
+          ? selectedEmployeeLabels.slice(0, employeeCount).join("; ")
+          : requiredText(null, `${employeeCount} Mitarbeiter`)
+        : requiredText(formData.get("label"), "Freitext");
   const totalHours = Math.round(hoursPerEmployee * employeeCount * 100) / 100;
   const realRateCents = moneyCents(formData.get("realRate"), "EK real");
   const internalRateCents = moneyCents(formData.get("internalRate"), "Interner Satz");
@@ -326,7 +339,7 @@ export async function addControllingHourEntry(formData: FormData) {
         },
       },
       entryDate: requiredDate(formData.get("entryDate"), "Datum"),
-      label: requiredText(formData.get("label"), "Kolonne/Mitarbeiter"),
+      label,
       startsAt: text(formData.get("startsAt")),
       endsAt: text(formData.get("endsAt")),
       breakHours: numberValue(formData.get("breakHours"), "Pause"),

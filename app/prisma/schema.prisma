@@ -1585,6 +1585,8 @@ model InventoryCategory {
   useInInventory                 Boolean             @default(true)
   dailyReportSection             String              @default("NONE")
   dailyReportMachineLabel        String?
+  billingRateCents               Int?
+  idleBillingRateCents           Int?
 
   items InventoryItem[]
 
@@ -2129,4 +2131,34 @@ model ControllingEmployeeRate {
   @@index([employeeId])
   @@index([isActive])
   @@index([visibilityLevel])
+}
+
+model ControllingRateChangeLog {
+  id String @id @default(cuid())
+
+  batchId    String?
+  batchLabel String?
+
+  targetType  String
+  targetId    String
+  targetLabel String
+  fieldName   String
+
+  previousValueCents Int?
+  newValueCents      Int?
+
+  changeType    String  @default("UPDATE")
+  changeReason  String?
+  changedByName String?
+  canRevert     Boolean @default(true)
+  revertedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([targetType])
+  @@index([targetId])
+  @@index([fieldName])
+  @@index([changeType])
+  @@index([batchId])
+  @@index([createdAt])
 }
