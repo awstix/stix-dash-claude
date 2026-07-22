@@ -42,6 +42,7 @@ export default async function InventoryCategoriesPage() {
           sortOrder: true,
           useInSpecialVehicleDisposition: true,
           useInTeamManagement: true,
+          useInEmployeeFile: true,
           useInTruckDispatchSelection: true,
         },
       },
@@ -265,12 +266,14 @@ function InventoryCategoryForm({
       sortOrder: number;
       useInSpecialVehicleDisposition: boolean;
       useInTeamManagement: boolean;
+      useInEmployeeFile: boolean;
       useInTruckDispatchSelection: boolean;
     }[];
     useInDailyReports: boolean;
     useInInventory: boolean;
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
+    useInEmployeeFile: boolean;
     useInTruckDispatchSelection: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
@@ -426,6 +429,7 @@ function InventoryCategoryForm({
           useInSpecialVehicleDisposition:
             childCategory.useInSpecialVehicleDisposition,
           useInTeamManagement: childCategory.useInTeamManagement,
+          useInEmployeeFile: childCategory.useInEmployeeFile,
           useInTruckDispatchSelection:
             childCategory.useInTruckDispatchSelection,
         }))}
@@ -477,6 +481,11 @@ function InventoryCategoryForm({
             defaultChecked={category?.useInTeamManagement ?? false}
             label="In Teams-Verwaltung wählbar"
             name="useInTeamManagement"
+          />
+          <Checkbox
+            defaultChecked={category?.useInEmployeeFile ?? false}
+            label="In Personalakte listen"
+            name="useInEmployeeFile"
           />
           <Checkbox
             defaultChecked={category?.useInTruckDispatchSelection ?? false}
@@ -588,6 +597,7 @@ function UsageBadges({
     useInInventory: boolean;
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
+    useInEmployeeFile: boolean;
     useInTruckDispatchSelection: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
@@ -614,6 +624,10 @@ function UsageBadges({
 
   if (category.useInTeamManagement) {
     badges.push({ label: "Teams", tone: "cyan" });
+  }
+
+  if (category.useInEmployeeFile) {
+    badges.push({ label: "Personalakte", tone: "emerald" });
   }
 
   if (category.useInTruckDispatchSelection) {
@@ -657,6 +671,7 @@ function getUsageBadgeClass(tone: string) {
   if (tone === "amber") return "bg-amber-50 text-amber-950";
   if (tone === "purple") return "bg-purple-50 text-purple-900";
   if (tone === "cyan") return "bg-cyan-50 text-cyan-900";
+  if (tone === "emerald") return "bg-emerald-50 text-emerald-900";
   if (tone === "sky") return "bg-sky-50 text-sky-900";
   if (tone === "orange") return "bg-orange-50 text-orange-900";
   if (tone === "slate") return "bg-slate-100 text-slate-900";

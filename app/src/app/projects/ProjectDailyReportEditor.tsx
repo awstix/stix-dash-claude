@@ -34,6 +34,7 @@ type ReportFormState = {
   subcontractorRows: DailyReportCountRow[];
   contractorSignatureDataUrl: string;
   clientSignatureDataUrl: string;
+  showSourceHints: boolean;
   showRealMachineNames: boolean;
   trafficSafetyFirstCheckTime: string;
   trafficSafetySecondCheckTime: string;
@@ -333,6 +334,16 @@ export function ProjectDailyReportEditor({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900">
+              <input
+                checked={form.showSourceHints}
+                onChange={(event) =>
+                  updateValue("showSourceHints", event.currentTarget.checked)
+                }
+                type="checkbox"
+              />
+              Herkunft anzeigen
+            </label>
             <button
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
               onClick={useSuggestions}
@@ -586,6 +597,7 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("laborRows", rows)}
         onToggle={toggleApproval}
         rows={form.laborRows}
+        showSourceHints={form.showSourceHints}
         title="Arbeitskräfte"
       />
 
@@ -597,6 +609,7 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("subcontractorRows", rows)}
         onToggle={toggleApproval}
         rows={form.subcontractorRows}
+        showSourceHints={form.showSourceHints}
         title="Nachunternehmer"
       />
 
@@ -619,6 +632,7 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("machineRows", rows)}
         onToggle={toggleApproval}
         rows={form.machineRows}
+        showSourceHints={form.showSourceHints}
         title="Maschinen und Geräte"
       />
 
@@ -629,6 +643,7 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("materialRows", rows)}
         onToggle={toggleApproval}
         rows={form.materialRows}
+        showSourceHints={form.showSourceHints}
         title="Material"
       />
 
@@ -639,6 +654,7 @@ export function ProjectDailyReportEditor({
         onRowsChange={(rows) => updateValue("otherRows", rows)}
         onToggle={toggleApproval}
         rows={form.otherRows}
+        showSourceHints={form.showSourceHints}
         title="Sonstiges"
       />
 
@@ -850,6 +866,7 @@ function createInitialState(context: DailyReportContext): ReportFormState {
     subcontractorRows: cloneRows(context.subcontractorRows),
     contractorSignatureDataUrl: context.contractorSignatureDataUrl,
     clientSignatureDataUrl: context.clientSignatureDataUrl,
+    showSourceHints: true,
     showRealMachineNames: context.showRealMachineNames,
     trafficSafetyFirstCheckTime: context.trafficSafetyFirstCheckTime,
     trafficSafetySecondCheckTime: context.trafficSafetySecondCheckTime,
@@ -1051,6 +1068,61 @@ function getSuggestionMachineRowsForDisplay(
 
 function cloneMaterialRows(rows: DailyReportMaterialRow[]) {
   return rows.map((row) => ({ ...row }));
+}
+
+function SourceHint({
+  label,
+  lines,
+}: {
+  label: string;
+  lines: DailyReportCompositionLine[];
+}) {
+  const sources = getSourceHintsForLabel(label, lines);
+
+  if (sources.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-1 text-[11px] font-semibold leading-4 text-gray-500">
+      Herkunft: {sources.join(" · ")}
+    </div>
+  );
+}
+
+function getSourceHintsForLabel(label: string, lines: DailyReportCompositionLine[]) {
+  const normalizedLabel = normalizeDailyReportLabel(label);
+
+  if (!normalizedLabel) return [];
+
+  const sources = new Set<string>();
+
+  for (const line of lines) {
+    const lineLabels = [
+      line.label,
+      line.detail,
+      `${line.label} ${line.detail}`,
+    ].map(normalizeDailyReportLabel);
+
+    if (!lineLabels.some((lineLabel) => lineLabel.includes(normalizedLabel))) {
+      continue;
+    }
+
+    const source = [line.source, line.quantity].filter(Boolean).join(" · ");
+
+    if (source) {
+      sources.add(source);
+    }
+  }
+
+  return Array.from(sources).slice(0, 3);
+}
+
+function normalizeDailyReportLabel(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function SignaturePad({
@@ -1375,6 +1447,7 @@ function MaterialRowsSection({
   onRowsChange,
   onToggle,
   rows,
+  showSourceHints,
   title,
 }: {
   approved: boolean;
@@ -1383,6 +1456,7 @@ function MaterialRowsSection({
   onRowsChange: (rows: DailyReportMaterialRow[]) => void;
   onToggle: (fieldId: string, checked: boolean) => void;
   rows: DailyReportMaterialRow[];
+  showSourceHints: boolean;
   title: string;
 }) {
   function updateRow(
@@ -1467,6 +1541,12 @@ function MaterialRowsSection({
                     }
                     value={row.label}
                   />
+                  {showSourceHints ? (
+                    <SourceHint
+                      label={row.label}
+                      lines={compositionLines ?? []}
+                    />
+                  ) : null}
                 </td>
                 <td className="w-28 px-3 py-2">
                   <input
@@ -1511,6 +1591,7 @@ function CountRowsSection({
   onRowsChange,
   onToggle,
   rows,
+  showSourceHints,
   title,
 }: {
   allowCustomRows?: boolean;
@@ -1521,6 +1602,7 @@ function CountRowsSection({
   onRowsChange: (rows: DailyReportCountRow[]) => void;
   onToggle: (fieldId: string, checked: boolean) => void;
   rows: DailyReportCountRow[];
+  showSourceHints: boolean;
   title: string;
 }) {
   function updateRow(
@@ -1607,6 +1689,12 @@ function CountRowsSection({
                     }
                     value={row.label}
                   />
+                  {showSourceHints ? (
+                    <SourceHint
+                      label={row.label}
+                      lines={compositionLines ?? []}
+                    />
+                  ) : null}
                 </td>
                 <td className="w-28 px-3 py-2">
                   <input

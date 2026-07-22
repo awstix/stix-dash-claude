@@ -15,6 +15,7 @@ type SubcategoryRow = {
   isActive: boolean;
   useInSpecialVehicleDisposition: boolean;
   useInTeamManagement: boolean;
+  useInEmployeeFile: boolean;
   useInTruckDispatchSelection: boolean;
 };
 
@@ -41,6 +42,7 @@ export function InventorySubcategoryRows({
         sortOrder: "",
         useInSpecialVehicleDisposition: false,
         useInTeamManagement: false,
+        useInEmployeeFile: false,
         useInTruckDispatchSelection: false,
       },
     ]);
@@ -131,6 +133,11 @@ export function InventorySubcategoryRows({
               name="subcategoryUseInTeamManagement"
               type="hidden"
               value={row.useInTeamManagement ? "1" : "0"}
+            />
+            <input
+              name="subcategoryUseInEmployeeFile"
+              type="hidden"
+              value={row.useInEmployeeFile ? "1" : "0"}
             />
             <input
               name="subcategoryUseInTruckDispatchSelection"
@@ -278,6 +285,19 @@ export function InventorySubcategoryRows({
                     type="checkbox"
                   />
                   Teams wählbar
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                  <input
+                    checked={row.useInEmployeeFile}
+                    className="h-4 w-4 rounded border-gray-300"
+                    onChange={(event) =>
+                      updateRow(row.id, {
+                        useInEmployeeFile: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  Personalakte
                 </label>
                 <label className="flex items-center gap-2 text-xs font-semibold text-sky-800">
                   <input

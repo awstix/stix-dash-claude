@@ -120,6 +120,7 @@ type SubcategoryPayload = ObjectNumberRange & {
   sortOrder: number | null;
   useInSpecialVehicleDisposition: boolean;
   useInTeamManagement: boolean;
+  useInEmployeeFile: boolean;
   useInTruckDispatchSelection: boolean;
 };
 
@@ -242,6 +243,9 @@ function getSubcategoryPayloads(formData: FormData) {
   const teamManagementValues = formData.getAll(
     "subcategoryUseInTeamManagement",
   );
+  const employeeFileValues = formData.getAll(
+    "subcategoryUseInEmployeeFile",
+  );
   const truckDispatchSelectionValues = formData.getAll(
     "subcategoryUseInTruckDispatchSelection",
   );
@@ -316,6 +320,8 @@ function getSubcategoryPayloads(formData: FormData) {
         String(specialVehicleValues[index] ?? "0") === "1",
       useInTeamManagement:
         String(teamManagementValues[index] ?? "0") === "1",
+      useInEmployeeFile:
+        String(employeeFileValues[index] ?? "0") === "1",
       useInTruckDispatchSelection:
         String(truckDispatchSelectionValues[index] ?? "0") === "1",
     } satisfies SubcategoryPayload;
@@ -566,6 +572,7 @@ async function syncInlineSubcategories({
     useInTruckDisposition: boolean;
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
+    useInEmployeeFile: boolean;
     asphaltDispositionUsage: string;
   };
   db: Prisma.TransactionClient;
@@ -621,6 +628,7 @@ async function syncInlineSubcategories({
       useInSpecialVehicleDisposition:
         subcategory.useInSpecialVehicleDisposition,
       useInTeamManagement: subcategory.useInTeamManagement,
+      useInEmployeeFile: subcategory.useInEmployeeFile,
       useInTruckDispatchSelection: subcategory.useInTruckDispatchSelection,
     };
 
@@ -689,6 +697,7 @@ async function createInventoryCategoryInternal(formData: FormData) {
     useInSpecialVehicleDisposition:
       formData.get("useInSpecialVehicleDisposition") === "on",
     useInTeamManagement: formData.get("useInTeamManagement") === "on",
+    useInEmployeeFile: formData.get("useInEmployeeFile") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,
@@ -776,6 +785,7 @@ async function updateInventoryCategoryInternal(formData: FormData) {
     useInSpecialVehicleDisposition:
       formData.get("useInSpecialVehicleDisposition") === "on",
     useInTeamManagement: formData.get("useInTeamManagement") === "on",
+    useInEmployeeFile: formData.get("useInEmployeeFile") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,

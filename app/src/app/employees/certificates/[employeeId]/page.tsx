@@ -70,6 +70,24 @@ function getInventoryStatusClass(status: string | null) {
   return "bg-green-50 text-green-800 ring-green-200";
 }
 
+function getInventoryMovementLabel(eventType: string | null) {
+  if (eventType === "ISSUE") return "Ausgabe";
+  if (eventType === "RETURN") return "Rücknahme";
+  if (eventType === "ADJUSTMENT") return "Korrektur";
+  if (eventType === "ASSIGNMENT") return "Zuordnung";
+  if (eventType === "RETURN_TO_BASE") return "Rückgabe";
+  return eventType || "Bewegung";
+}
+
+function getInventoryMovementClass(eventType: string | null) {
+  if (eventType === "ISSUE") return "bg-blue-50 text-blue-900 ring-blue-200";
+  if (eventType === "RETURN" || eventType === "RETURN_TO_BASE") {
+    return "bg-green-50 text-green-800 ring-green-200";
+  }
+  if (eventType === "ADJUSTMENT") return "bg-amber-50 text-amber-900 ring-amber-200";
+  return "bg-gray-100 text-gray-700 ring-gray-300";
+}
+
 type TrainingTypeOption = {
   id: string;
   isImportedFallback?: boolean;
@@ -134,6 +152,48 @@ export default async function EmployeeCertificateDetailPage({
             },
           },
           orderBy: [{ name: "asc" }],
+        },
+        inventoryUsageHistory: {
+          include: {
+            item: {
+              include: {
+                category: {
+                  include: {
+                    parentCategory: true,
+                  },
+                },
+                photos: {
+                  orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+                  take: 1,
+                },
+              },
+            },
+            project: {
+              select: {
+                name: true,
+                projectNumber: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: 80,
+          where: {
+            item: {
+              isStockManaged: true,
+              category: {
+                OR: [
+                  {
+                    useInEmployeeFile: true,
+                  },
+                  {
+                    parentCategory: {
+                      useInEmployeeFile: true,
+                    },
+                  },
+                ],
+              },
+            },
+          },
         },
       },
     }),
@@ -373,6 +433,118 @@ export default async function EmployeeCertificateDetailPage({
                         >
                           {getInventoryStatusLabel(item.status)}
                         </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Ausgegebene Lagerobjekte
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Lagerbewegungen aus Kategorien, die für die Personalakte freigegeben sind
+              – z. B. Arbeitskleidung, PSA oder Werkzeug.
+            </p>
+          </div>
+          <Link
+            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href="/inventory/storage"
+          >
+            Lagerverwaltung öffnen
+          </Link>
+        </div>
+
+        {employee.inventoryUsageHistory.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            Für diese Personalakte sind noch keine freigegebenen Lagerbewegungen vorhanden.
+          </p>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-[980px] w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="w-20 p-3">Foto</th>
+                  <th className="p-3">Lagerobjekt</th>
+                  <th className="p-3">Bewegung</th>
+                  <th className="p-3">Menge</th>
+                  <th className="p-3">Bestand</th>
+                  <th className="p-3">Projekt</th>
+                  <th className="p-3">Datum</th>
+                  <th className="p-3">Notiz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.inventoryUsageHistory.map((entry) => {
+                  const photo = entry.item.photos[0];
+
+                  return (
+                    <tr className="border-t border-gray-100" key={entry.id}>
+                      <td className="p-3">
+                        {photo ? (
+                          <img
+                            alt={photo.originalName ?? entry.item.name}
+                            className="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+                            src={photo.url}
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-xs font-bold text-gray-400">
+                            —
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          className="font-semibold text-gray-900 hover:underline"
+                          href={`/inventory/${entry.item.id}`}
+                        >
+                          {entry.item.name}
+                        </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {[
+                            entry.item.objectNumber,
+                            entry.item.inventoryNumber,
+                            entry.item.category?.parentCategory?.name ??
+                              entry.item.category?.name,
+                            entry.item.category?.parentCategory ? entry.item.category?.name : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "ohne Kategorie"}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${getInventoryMovementClass(
+                            entry.eventType,
+                          )}`}
+                        >
+                          {getInventoryMovementLabel(entry.eventType)}
+                        </span>
+                      </td>
+                      <td className="p-3 font-semibold text-gray-900">
+                        {formatStock(entry.quantity ?? null, entry.item.stockUnit)}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {formatStock(entry.stockBefore ?? null, entry.item.stockUnit)} →{" "}
+                        {formatStock(entry.stockAfter ?? null, entry.item.stockUnit)}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {entry.project
+                          ? `${entry.project.projectNumber} · ${entry.project.name}`
+                          : "—"}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {formatDate(entry.createdAt)}
+                      </td>
+                      <td className="p-3 text-gray-600">
+                        {entry.notes || "—"}
                       </td>
                     </tr>
                   );

@@ -47,6 +47,8 @@ export default async function ControllingPerformancePage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    notice?: string;
+    noticeType?: string;
     projectId?: string;
     reportId?: string;
   }>;
@@ -85,6 +87,16 @@ export default async function ControllingPerformancePage({
     projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null;
   const nextPeriodStart = getNextPeriodStart(selectedProject?.performanceReports ?? []);
   const nextPeriodEnd = getNextPeriodEnd(nextPeriodStart);
+  const rateSets = await prisma.controllingRateSet.findMany({
+    where: {
+      isActive: true,
+    },
+    orderBy: {
+      year: "desc",
+    },
+  });
+  const suggestedNewRateYear = nextPeriodEnd.getFullYear();
+  const suggestedNewRateSet = rateSets.find((rateSet) => rateSet.year === suggestedNewRateYear);
   const selectedReportId =
     requestedReport?.id ?? selectedProject?.performanceReports[0]?.id ?? null;
 
@@ -113,8 +125,25 @@ export default async function ControllingPerformancePage({
         },
       })
     : null;
+  const suggestedRateYear =
+    (report?.periodEnd ?? report?.reportDate ?? nextPeriodEnd).getFullYear();
+  const suggestedRateSet = rateSets.find((rateSet) => rateSet.year === suggestedRateYear);
+  const activeRateSet =
+    (report?.rateSetId
+      ? rateSets.find((rateSet) => rateSet.id === report.rateSetId)
+      : null) ??
+    suggestedRateSet ??
+    null;
+  const activeRateYear = activeRateSet?.year ?? suggestedRateYear;
 
   const employeeGroupRates = await prisma.controllingEmployeeGroupRate.findMany({
+    where: activeRateSet
+      ? {
+          rateSetId: activeRateSet.id,
+        }
+      : {
+          id: "__missing-rate-set__",
+        },
     orderBy: [
       {
         sortOrder: "asc",
@@ -296,7 +325,7 @@ export default async function ControllingPerformancePage({
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-950">Neue Leistungsmeldung</h2>
               <form action={createPerformanceReport} className="mt-4 space-y-3">
-                <input name="projectId" type="hidden" value={selectedProject.id} />
+                  <input name="projectId" type="hidden" value={selectedProject.id} />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Zeitraum von
@@ -317,6 +346,24 @@ export default async function ControllingPerformancePage({
                     />
                   </label>
                 </div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Verrechnungssatz-Satzstand
+                  <select
+                    className={inputClassName}
+                    defaultValue={suggestedNewRateSet?.id ?? ""}
+                    name="rateSetId"
+                  >
+                    <option value="">
+                      Vorschlag nach Zeitraum ({suggestedNewRateYear}) verwenden
+                    </option>
+                    {rateSets.map((rateSet) => (
+                      <option key={rateSet.id} value={rateSet.id}>
+                        {rateSet.name} ({rateSet.year})
+                        {rateSet.id === suggestedNewRateSet?.id ? " · vorgeschlagen" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="block text-sm font-semibold text-gray-700">
                   Titel / Thema
                   <input
@@ -372,6 +419,18 @@ export default async function ControllingPerformancePage({
         </aside>
 
         <div className="space-y-6">
+          {params.notice ? (
+            <section
+              className={`rounded-2xl border p-4 text-sm font-semibold shadow-sm ${
+                params.noticeType === "error"
+                  ? "border-red-200 bg-red-50 text-red-800"
+                  : "border-green-200 bg-green-50 text-green-800"
+              }`}
+            >
+              {params.notice}
+            </section>
+          ) : null}
+
           {!selectedProject ? (
             <EmptyState text="Noch kein Projekt vorhanden. Sobald Projekte angelegt sind, können hier Leistungsmeldungen erstellt werden." />
           ) : null}
@@ -456,11 +515,42 @@ export default async function ControllingPerformancePage({
                     detail="aus Rechnungsmengen, nicht als Istkosten gezählt"
                   />
                 </div>
+                <div
+                  className={`mt-5 rounded-2xl border p-4 text-sm ${
+                    activeRateSet
+                      ? "border-blue-100 bg-blue-50 text-blue-950"
+                      : "border-red-200 bg-red-50 text-red-800"
+                  }`}
+                >
+                  {activeRateSet ? (
+                    <>
+                      <span className="font-bold">Verwendeter Satzstand:</span>{" "}
+                      {activeRateSet.name} ({activeRateSet.year})
+                      {suggestedRateSet && suggestedRateSet.id !== activeRateSet.id
+                        ? ` · manuell gewählt, Vorschlag wäre ${suggestedRateSet.name} (${suggestedRateSet.year})`
+                        : " · Vorschlag nach Zeitraum"}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold">Satzstand fehlt:</span> Für{" "}
+                      {activeRateYear} ist noch kein Satzstand angelegt. Bitte unter{" "}
+                      <Link className="underline" href="/controlling/rates">
+                        Controlling &gt; Verrechnungssätze
+                      </Link>{" "}
+                      zuerst den passenden Satzstand erstellen.
+                    </>
+                  )}
+                </div>
                 <form action={importDispositionIntoPerformanceReport} className="mt-5">
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
                   <button
-                    className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+                    className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
+                      activeRateSet
+                        ? "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
+                        : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                    }`}
+                    disabled={!activeRateSet}
                     type="submit"
                   >
                     Stunden, Material und Geräte aus Planung/Disposition übernehmen
@@ -514,6 +604,23 @@ export default async function ControllingPerformancePage({
                       {reportStatuses.map((status) => (
                         <option key={status.value} value={status.value}>
                           {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field className="lg:col-span-2" label="Verrechnungssatz-Satzstand">
+                    <select
+                      className={inputClassName}
+                      defaultValue={activeRateSet?.id ?? ""}
+                      name="rateSetId"
+                    >
+                      <option value="">
+                        Vorschlag nach Zeitraum ({suggestedRateYear}) verwenden
+                      </option>
+                      {rateSets.map((rateSet) => (
+                        <option key={rateSet.id} value={rateSet.id}>
+                          {rateSet.name} ({rateSet.year})
+                          {rateSet.id === suggestedRateSet?.id ? " · vorgeschlagen" : ""}
                         </option>
                       ))}
                     </select>

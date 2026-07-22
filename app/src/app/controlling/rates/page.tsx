@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
+  createRateSetFromPreviousYear,
+  deleteRateSet,
   revertRateChange,
   revertRateChangeBatch,
   saveEmployeeGroupRate,
@@ -17,14 +19,30 @@ export default async function ControllingRatesPage({
     archive?: string;
     notice?: string;
     noticeType?: string;
+    year?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
   const showArchive = params.archive === "1";
   const notice = typeof params.notice === "string" ? params.notice : null;
   const noticeType = params.noticeType === "error" ? "error" : "success";
-  const [employeeGroupRates, categories, items, changes] = await Promise.all([
+  const rateSets = await prisma.controllingRateSet.findMany({
+    orderBy: {
+      year: "desc",
+    },
+  });
+  const selectedYear =
+    Number(params.year) ||
+    rateSets.find((rateSet) => rateSet.isDefault)?.year ||
+    rateSets[0]?.year ||
+    new Date().getFullYear();
+  const selectedRateSet =
+    rateSets.find((rateSet) => rateSet.year === selectedYear) ?? rateSets[0] ?? null;
+  const [employeeGroupRates, categories, items, categoryRates, itemRates, changes] = await Promise.all([
     prisma.controllingEmployeeGroupRate.findMany({
+      where: {
+        rateSetId: selectedRateSet?.id,
+      },
       orderBy: [
         {
           sortOrder: "asc",
@@ -73,6 +91,16 @@ export default async function ControllingRatesPage({
       },
       take: 500,
     }),
+    prisma.controllingInventoryCategoryRate.findMany({
+      where: {
+        rateSetId: selectedRateSet?.id,
+      },
+    }),
+    prisma.controllingInventoryItemRate.findMany({
+      where: {
+        rateSetId: selectedRateSet?.id,
+      },
+    }),
     prisma.controllingRateChangeLog.findMany({
       orderBy: {
         createdAt: "desc",
@@ -81,6 +109,26 @@ export default async function ControllingRatesPage({
     }),
   ]);
   const changeBatches = groupChangeBatches(changes);
+  const categoryRateById = new Map(categoryRates.map((rate) => [rate.categoryId, rate]));
+  const itemRateById = new Map(itemRates.map((rate) => [rate.itemId, rate]));
+  const categoriesWithRates = categories.map((category) => {
+    const rate = categoryRateById.get(category.id);
+
+    return {
+      ...category,
+      billingRateCents: rate?.billingRateCents ?? category.billingRateCents,
+      idleBillingRateCents: rate?.idleBillingRateCents ?? category.idleBillingRateCents,
+    };
+  });
+  const itemsWithRates = items.map((item) => {
+    const rate = itemRateById.get(item.id);
+
+    return {
+      ...item,
+      billingRateCents: rate?.billingRateCents ?? item.billingRateCents,
+      idleBillingRateCents: rate?.idleBillingRateCents ?? item.idleBillingRateCents,
+    };
+  });
 
   return (
     <AppShell
@@ -131,10 +179,91 @@ export default async function ControllingRatesPage({
         </section>
       ) : null}
 
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-950">
+              Satzstand / Jahr
+            </h2>
+            <p className="mt-1 text-sm text-gray-700">
+              Alle Verrechnungssätze werden im gewählten Jahr gepflegt. Neue
+              Jahre können aus dem aktuellen Satzstand kopiert und danach
+              gesammelt angepasst werden.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {rateSets.map((rateSet) => (
+                <Link
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold ${
+                    rateSet.year === selectedYear
+                      ? "border-gray-950 bg-gray-950 text-white"
+                      : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                  }`}
+                  href={`/controlling/rates?year=${rateSet.year}`}
+                  key={rateSet.id}
+                >
+                  {rateSet.year}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-3">
+            <form
+              action={createRateSetFromPreviousYear}
+              className="grid gap-2 sm:grid-cols-[120px_120px_auto]"
+            >
+              <input name="sourceYear" type="hidden" value={selectedYear} />
+              <label className="text-sm font-semibold text-gray-800">
+                Aus Jahr
+                <input
+                  className={inputClassName}
+                  defaultValue={selectedYear}
+                  disabled
+                />
+              </label>
+              <label className="text-sm font-semibold text-gray-800">
+                Neues Jahr
+                <input
+                  className={inputClassName}
+                  defaultValue={selectedYear + 1}
+                  name="targetYear"
+                />
+              </label>
+              <button className={`${smallButtonClassName} mt-7`} type="submit">
+                Neues Jahr erstellen
+              </button>
+            </form>
+            <details className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-red-950">
+                Satzstand {selectedYear} löschen
+              </summary>
+              <form action={deleteRateSet} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+                <label className="text-sm font-semibold text-red-950">
+                  Zur Bestätigung LÖSCHEN eingeben
+                  <input
+                    className="mt-2 w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm text-red-950 outline-none focus:border-red-900"
+                    name="confirmation"
+                    placeholder="LÖSCHEN"
+                  />
+                </label>
+                <button
+                  className="mt-7 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-900 hover:bg-red-100"
+                  type="submit"
+                >
+                  Satzstand löschen
+                </button>
+              </form>
+            </details>
+          </div>
+        </div>
+      </section>
+
       <RaiseRatesPanel
-        categories={categories}
+        categories={categoriesWithRates}
         employeeGroupRates={employeeGroupRates}
-        items={items}
+        items={itemsWithRates}
+        rateSetId={selectedRateSet?.id ?? ""}
+        year={selectedYear}
       />
 
       <div className="mt-6 space-y-5">
@@ -144,7 +273,10 @@ export default async function ControllingRatesPage({
           title="Mitarbeitergruppen"
         >
           <div className="space-y-3">
-            <EmployeeGroupRateForm />
+            <EmployeeGroupRateForm
+              rateSetId={selectedRateSet?.id ?? ""}
+              year={selectedYear}
+            />
             <div className="rounded-xl border border-gray-200 bg-white text-sm text-gray-900">
               <div className="hidden grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] gap-2 rounded-t-xl bg-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-950 lg:grid">
                 <span>Gruppe</span>
@@ -156,7 +288,12 @@ export default async function ControllingRatesPage({
               </div>
               <div className="divide-y divide-gray-100">
                 {employeeGroupRates.map((rate) => (
-                  <EmployeeGroupRateForm key={rate.id} rate={rate} />
+                  <EmployeeGroupRateForm
+                    key={rate.id}
+                    rate={rate}
+                    rateSetId={selectedRateSet?.id ?? ""}
+                    year={selectedYear}
+                  />
                 ))}
               </div>
             </div>
@@ -180,11 +317,13 @@ export default async function ControllingRatesPage({
                 </tr>
               </thead>
               <tbody>
-                {categories.map((category) => (
+                {categoriesWithRates.map((category) => (
                   <tr className="border-t border-gray-100" key={category.id}>
                     <form action={saveInventoryCategoryRate}>
                       <td className="px-3 py-2 font-semibold text-gray-950">
                         <input name="id" type="hidden" value={category.id} />
+                        <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+                        <input name="year" type="hidden" value={selectedYear} />
                         {category.name}
                       </td>
                       <td className="px-3 py-2 text-gray-800">
@@ -234,11 +373,13 @@ export default async function ControllingRatesPage({
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {itemsWithRates.map((item) => (
                   <tr className="border-t border-gray-100" key={item.id}>
                     <form action={saveInventoryItemRate}>
                       <td className="px-3 py-2 font-semibold text-gray-950">
                         <input name="id" type="hidden" value={item.id} />
+                        <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+                        <input name="year" type="hidden" value={selectedYear} />
                         {item.objectNumber ? `${item.objectNumber} · ` : ""}
                         {item.name}
                       </td>
@@ -500,6 +641,8 @@ function archiveGroupTitle(change: {
 
 function EmployeeGroupRateForm({
   rate,
+  rateSetId,
+  year,
 }: {
   rate?: {
     description: string | null;
@@ -509,6 +652,8 @@ function EmployeeGroupRateForm({
     realRateCents: number;
     validFrom: Date | null;
   };
+  rateSetId: string;
+  year: number;
 }) {
   return (
     <form
@@ -520,6 +665,7 @@ function EmployeeGroupRateForm({
       }
     >
       {rate ? <input name="id" type="hidden" value={rate.id} /> : null}
+      <input name="rateSetId" type="hidden" value={rateSetId} />
       <CompactInput
         defaultValue={rate?.name ?? ""}
         label="Gruppe"
@@ -528,7 +674,7 @@ function EmployeeGroupRateForm({
         readOnly={Boolean(rate)}
       />
       <CompactInput
-        defaultValue={rate?.validFrom ? String(rate.validFrom.getUTCFullYear()) : ""}
+        defaultValue={rate?.validFrom ? String(rate.validFrom.getUTCFullYear()) : String(year)}
         label="Jahr"
         name="year"
         placeholder="Jahr"
@@ -674,7 +820,9 @@ function targetTypeLabel(value: string) {
   const labels: Record<string, string> = {
     EMPLOYEE_GROUP: "Mitarbeitergruppe",
     INVENTORY_CATEGORY: "Inventarkategorie",
+    INVENTORY_CATEGORY_RATE: "Inventarkategorie",
     INVENTORY_ITEM: "Inventarobjekt",
+    INVENTORY_ITEM_RATE: "Inventarobjekt",
   };
   return labels[value] ?? value;
 }

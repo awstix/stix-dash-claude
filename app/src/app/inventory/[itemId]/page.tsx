@@ -259,11 +259,17 @@ export default async function InventoryDetailPage({
   searchParams,
 }: {
   params: Promise<{ itemId: string }>;
-  searchParams?: Promise<{ locationAlert?: string }>;
+  searchParams?: Promise<{
+    locationAlert?: string;
+    notice?: string;
+    noticeType?: string;
+  }>;
 }) {
   const { itemId } = await params;
-  const locationAlertWasCreated =
-    (await searchParams)?.locationAlert === "1";
+  const currentSearchParams = (await searchParams) ?? {};
+  const locationAlertWasCreated = currentSearchParams.locationAlert === "1";
+  const notice = currentSearchParams.notice?.trim() ?? "";
+  const noticeType = currentSearchParams.noticeType === "error" ? "error" : "success";
 
   const item = await prisma.inventoryItem.findUnique({
     where: {
@@ -537,6 +543,18 @@ export default async function InventoryDetailPage({
             </Link>{" "}
             final einer Baustelle zuweisen.
           </p>
+        </section>
+      ) : null}
+
+      {notice ? (
+        <section
+          className={`mb-6 rounded-2xl border p-5 text-sm font-semibold shadow-sm ${
+            noticeType === "error"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-green-200 bg-green-50 text-green-800"
+          }`}
+        >
+          {notice}
         </section>
       ) : null}
 

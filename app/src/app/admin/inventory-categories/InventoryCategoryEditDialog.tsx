@@ -24,6 +24,7 @@ type InventoryCategoryForDialog = {
   useInDailyReports: boolean;
   useInSpecialVehicleDisposition: boolean;
   useInTeamManagement: boolean;
+  useInEmployeeFile: boolean;
   useInTruckDispatchSelection: boolean;
   useInTruckDispatchMaterial: boolean;
   useInTruckDispatchObject: boolean;

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { syncDriverVehicleAssignmentForInventoryItem } from "@/lib/driver-vehicle-inventory-sync";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import {
@@ -1180,10 +1181,12 @@ export async function updateInventoryAssignment(formData: FormData) {
       category: {
         select: {
           name: true,
+          useInEmployeeFile: true,
           useInTeamManagement: true,
           parentCategory: {
             select: {
               name: true,
+              useInEmployeeFile: true,
               useInTeamManagement: true,
             },
           },
@@ -1195,8 +1198,10 @@ export async function updateInventoryAssignment(formData: FormData) {
   if (
     !inventoryCategoryAllowsAssignment(item?.category)
   ) {
-    throw new Error(
-      "Mitarbeiter- und Kolonnenzuordnungen sind für diese Kategorie nicht freigegeben.",
+    redirect(
+      `/inventory/${id}?noticeType=error&notice=${encodeURIComponent(
+        "Mitarbeiter- und Kolonnenzuordnungen sind für diese Kategorie nicht freigegeben. Aktiviere in der Inventarkategorie „In Teams-Verwaltung wählbar“ oder „In Personalakte listen“.",
+      )}`,
     );
   }
 

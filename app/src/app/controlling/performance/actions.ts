@@ -168,11 +168,22 @@ function formatIsoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function pathFor(reportId?: string | null, projectId?: string | null) {
+function pathFor(
+  reportId?: string | null,
+  projectId?: string | null,
+  notice?: {
+    message: string;
+    type: "error" | "success";
+  },
+) {
   const params = new URLSearchParams();
 
   if (projectId) params.set("projectId", projectId);
   if (reportId) params.set("reportId", reportId);
+  if (notice) {
+    params.set("notice", notice.message);
+    params.set("noticeType", notice.type);
+  }
 
   return `/controlling/performance${params.toString() ? `?${params}` : ""}`;
 }
@@ -181,10 +192,34 @@ function revalidateControlling() {
   revalidatePath("/controlling/performance");
 }
 
+async function rateSetForPerformancePeriod(periodEnd: Date | null, reportDate: Date) {
+  const rateYear = (periodEnd ?? reportDate).getFullYear();
+  const rateSet = await prisma.controllingRateSet.findUnique({
+    where: {
+      year: rateYear,
+    },
+  });
+
+  return rateSet;
+}
+
+async function resolvePerformanceRateSet(rateSetId: string | null, periodEnd: Date, reportDate: Date) {
+  if (rateSetId) {
+    return prisma.controllingRateSet.findUnique({
+      where: {
+        id: rateSetId,
+      },
+    });
+  }
+
+  return rateSetForPerformancePeriod(periodEnd, reportDate);
+}
+
 export async function createPerformanceReport(formData: FormData) {
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const periodStart = requiredDate(formData.get("periodStart"), "Zeitraum von");
   const periodEnd = requiredDate(formData.get("periodEnd"), "Zeitraum bis");
+  const rateSetId = text(formData.get("rateSetId"));
   const title = text(formData.get("title"));
 
   if (periodStart > periodEnd) {
@@ -213,6 +248,13 @@ export async function createPerformanceReport(formData: FormData) {
       progressPercent: project.progressPercent,
       paymentsNetCents: project.paymentsNet * 100,
       createdByName: "System",
+      rateSet: rateSetId
+        ? {
+            connect: {
+              id: rateSetId,
+            },
+          }
+        : undefined,
     },
   });
 
@@ -225,6 +267,7 @@ export async function updatePerformanceReport(formData: FormData) {
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const periodStart = requiredDate(formData.get("periodStart"), "Zeitraum von");
   const periodEnd = requiredDate(formData.get("periodEnd"), "Zeitraum bis");
+  const rateSetId = text(formData.get("rateSetId"));
   const status = requiredText(formData.get("status"), "Status");
   const progressPercent = numberValue(formData.get("progressPercent"), "Leistungsstand");
 
@@ -247,6 +290,15 @@ export async function updatePerformanceReport(formData: FormData) {
       changeOrdersNetCents: moneyCents(formData.get("changeOrdersNet"), "Nachträge"),
       progressPercent,
       paymentsNetCents: moneyCents(formData.get("paymentsNet"), "Zahlungen"),
+      rateSet: rateSetId
+        ? {
+            connect: {
+              id: rateSetId,
+            },
+          }
+        : {
+            disconnect: true,
+          },
     },
   });
 
@@ -642,6 +694,22 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   });
   const { start } = dayBounds(report.periodStart ?? report.reportDate);
   const { end } = dayBounds(report.periodEnd ?? report.reportDate);
+  const rateSet = await resolvePerformanceRateSet(
+    report.rateSetId,
+    report.periodEnd ?? report.reportDate,
+    report.reportDate,
+  );
+
+  if (!rateSet) {
+    const rateYear = (report.periodEnd ?? report.reportDate).getFullYear();
+
+    redirect(
+      pathFor(reportId, projectId, {
+        message: `Für ${rateYear} ist noch kein Satzstand angelegt. Bitte unter Controlling > Verrechnungssätze zuerst den Satzstand ${rateYear} erstellen.`,
+        type: "error",
+      }),
+    );
+  }
 
   const [
     crewAssignments,
@@ -797,6 +865,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
     prisma.controllingEmployeeGroupRate.findMany({
       where: {
         isActive: true,
+        rateSetId: rateSet.id,
       },
     }),
     prisma.employee.findMany({
@@ -1453,8 +1522,24 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
         },
       })
     : [];
+  const inventoryYearRates = inventoryRateItemIds.length
+    ? await prisma.controllingInventoryItemRate.findMany({
+        where: {
+          itemId: {
+            in: inventoryRateItemIds,
+          },
+          rateSetId: rateSet.id,
+        },
+      })
+    : [];
+  const inventoryYearRateByItemId = new Map(
+    inventoryYearRates.map((rate) => [rate.itemId, rate.billingRateCents ?? 0]),
+  );
   const inventoryRateById = new Map(
-    inventoryRateItems.map((item) => [item.id, item.billingRateCents ?? 0]),
+    inventoryRateItems.map((item) => [
+      item.id,
+      inventoryYearRateByItemId.get(item.id) ?? item.billingRateCents ?? 0,
+    ]),
   );
   const inventoryNameById = new Map(
     inventoryRateItems.map((item) => [item.id, item.name]),
@@ -1513,7 +1598,12 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(
+    pathFor(reportId, projectId, {
+      message: `Übernommen: ${hourEntries.length} Stundenzeilen und ${detailEntries.length} Positionszeilen aus Planung/Disposition. Verwendeter Satzstand: ${rateSet.name} (${rateSet.year}).`,
+      type: "success",
+    }),
+  );
 }
 
 export async function saveEmployeeGroupRates(formData: FormData) {
@@ -1522,37 +1612,45 @@ export async function saveEmployeeGroupRates(formData: FormData) {
   const realRates = formData.getAll("rateReal");
   const internalRates = formData.getAll("rateInternal");
 
-  await prisma.$transaction(
-    names.map((name, index) =>
-      prisma.controllingEmployeeGroupRate.upsert({
-        create: {
-          name,
-          description: text(descriptions[index] ?? null),
-          realRateCents: moneyCents(realRates[index] ?? null, `EK real ${name}`),
-          internalRateCents: moneyCents(
-            internalRates[index] ?? null,
-            `Interner Satz ${name}`,
-          ),
-          visibilityLevel: "CONTROLLING",
-          sortOrder: index,
-        },
-        update: {
-          description: text(descriptions[index] ?? null),
-          realRateCents: moneyCents(realRates[index] ?? null, `EK real ${name}`),
-          internalRateCents: moneyCents(
-            internalRates[index] ?? null,
-            `Interner Satz ${name}`,
-          ),
-          visibilityLevel: "CONTROLLING",
-          sortOrder: index,
-          isActive: true,
-        },
+  await prisma.$transaction(async (tx) => {
+    for (const [index, name] of names.entries()) {
+      const existing = await tx.controllingEmployeeGroupRate.findFirst({
         where: {
           name,
         },
-      }),
-    ),
-  );
+        orderBy: {
+          validFrom: "desc",
+        },
+      });
+      const data = {
+        description: text(descriptions[index] ?? null),
+        internalRateCents: moneyCents(
+          internalRates[index] ?? null,
+          `Interner Satz ${name}`,
+        ),
+        isActive: true,
+        realRateCents: moneyCents(realRates[index] ?? null, `EK real ${name}`),
+        sortOrder: index,
+        visibilityLevel: "CONTROLLING",
+      };
+
+      if (existing) {
+        await tx.controllingEmployeeGroupRate.update({
+          data,
+          where: {
+            id: existing.id,
+          },
+        });
+      } else {
+        await tx.controllingEmployeeGroupRate.create({
+          data: {
+            ...data,
+            name,
+          },
+        });
+      }
+    }
+  });
 
   revalidateControlling();
 }

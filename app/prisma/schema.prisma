@@ -1580,6 +1580,7 @@ model InventoryCategory {
   useInTruckDispatchSelection    Boolean             @default(false)
   useInSpecialVehicleDisposition Boolean             @default(false)
   useInTeamManagement            Boolean             @default(false)
+  useInEmployeeFile              Boolean             @default(false)
   asphaltDispositionUsage        String              @default("NONE")
   useInDailyReports              Boolean             @default(false)
   useInInventory                 Boolean             @default(true)
@@ -1588,7 +1589,8 @@ model InventoryCategory {
   billingRateCents               Int?
   idleBillingRateCents           Int?
 
-  items InventoryItem[]
+  items            InventoryItem[]
+  controllingRates ControllingInventoryCategoryRate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1598,6 +1600,7 @@ model InventoryCategory {
   @@index([parentCategoryId])
   @@index([useInSpecialVehicleDisposition])
   @@index([useInTeamManagement])
+  @@index([useInEmployeeFile])
   @@index([useInTruckDispatchSelection])
   @@index([asphaltDispositionUsage])
   @@index([dailyReportMachineLabel])
@@ -1701,6 +1704,7 @@ model InventoryItem {
   equipmentDispatchAssignments       EquipmentDispatchAssignment[]
   crewPlanningAssignmentVehicles     CrewPlanningAssignmentVehicle[]
   controllingDetailEntries           ControllingDetailEntry[]
+  controllingRates                   ControllingInventoryItemRate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1954,6 +1958,9 @@ model ControllingPerformanceReport {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  rateSetId String?
+  rateSet   ControllingRateSet? @relation(fields: [rateSetId], references: [id], onDelete: SetNull)
+
   reportDate  DateTime
   periodStart DateTime?
   periodEnd   DateTime?
@@ -1975,6 +1982,7 @@ model ControllingPerformanceReport {
   updatedAt     DateTime @updatedAt
 
   @@index([projectId])
+  @@index([rateSetId])
   @@index([reportDate])
   @@index([periodStart])
   @@index([periodEnd])
@@ -2094,7 +2102,10 @@ model ControllingInvoiceItem {
 model ControllingEmployeeGroupRate {
   id String @id @default(cuid())
 
-  name              String    @unique
+  rateSetId String?
+  rateSet   ControllingRateSet? @relation(fields: [rateSetId], references: [id], onDelete: Cascade)
+
+  name              String
   description       String?
   realRateCents     Int       @default(0)
   internalRateCents Int       @default(0)
@@ -2108,8 +2119,70 @@ model ControllingEmployeeGroupRate {
   updatedAt DateTime @updatedAt
 
   @@index([isActive])
+  @@index([rateSetId])
   @@index([sortOrder])
   @@index([visibilityLevel])
+  @@unique([rateSetId, name])
+}
+
+model ControllingRateSet {
+  id String @id @default(cuid())
+
+  year        Int
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+  isDefault   Boolean @default(false)
+
+  employeeGroupRates ControllingEmployeeGroupRate[]
+  categoryRates      ControllingInventoryCategoryRate[]
+  itemRates          ControllingInventoryItemRate[]
+  performanceReports ControllingPerformanceReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year])
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+model ControllingInventoryCategoryRate {
+  id String @id @default(cuid())
+
+  rateSetId String
+  rateSet   ControllingRateSet @relation(fields: [rateSetId], references: [id], onDelete: Cascade)
+
+  categoryId String
+  category   InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  billingRateCents     Int?
+  idleBillingRateCents Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rateSetId, categoryId])
+  @@index([categoryId])
+}
+
+model ControllingInventoryItemRate {
+  id String @id @default(cuid())
+
+  rateSetId String
+  rateSet   ControllingRateSet @relation(fields: [rateSetId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  billingRateCents     Int?
+  idleBillingRateCents Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rateSetId, itemId])
+  @@index([itemId])
 }
 
 model ControllingEmployeeRate {

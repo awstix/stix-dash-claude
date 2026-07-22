@@ -47,10 +47,14 @@ export function RaiseRatesPanel({
   categories,
   employeeGroupRates,
   items,
+  rateSetId,
+  year,
 }: {
   categories: InventoryCategoryRate[];
   employeeGroupRates: EmployeeGroupRate[];
   items: InventoryItemRate[];
+  rateSetId: string;
+  year: number;
 }) {
   const [targetType, setTargetType] = useState<RateTargetType>("EMPLOYEE_GROUP");
   const [fieldName, setFieldName] = useState<RateFieldName>("normal");
@@ -175,6 +179,8 @@ export function RaiseRatesPanel({
       </summary>
 
       <form action={raiseRates} className="mt-4 space-y-4">
+        <input name="rateSetId" type="hidden" value={rateSetId} />
+        <input name="year" type="hidden" value={year} />
         <input name="targetType" type="hidden" value={targetType} />
         <input name="fieldName" type="hidden" value={fieldName} />
         <input name="mode" type="hidden" value={mode} />

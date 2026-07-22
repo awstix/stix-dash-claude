@@ -73,10 +73,16 @@ function revalidateRates() {
   revalidatePath("/inventory");
 }
 
-function redirectWithNotice(message: string, anchor?: string): never {
+function redirectWithNotice(
+  message: string,
+  anchor?: string,
+  yearValue?: FormDataEntryValue | null,
+): never {
+  const year = text(yearValue ?? null);
   const params = new URLSearchParams({
     notice: message,
   });
+  if (year) params.set("year", year);
   if (anchor === "rate-archive") {
     params.set("archive", "1");
   }
@@ -84,11 +90,17 @@ function redirectWithNotice(message: string, anchor?: string): never {
   redirect(`/controlling/rates?${params.toString()}${anchor ? `#${anchor}` : ""}`);
 }
 
-function redirectWithError(message: string, anchor?: string): never {
+function redirectWithError(
+  message: string,
+  anchor?: string,
+  yearValue?: FormDataEntryValue | null,
+): never {
+  const year = text(yearValue ?? null);
   const params = new URLSearchParams({
     notice: message,
     noticeType: "error",
   });
+  if (year) params.set("year", year);
   if (anchor === "rate-archive") {
     params.set("archive", "1");
   }
@@ -121,8 +133,13 @@ function handleRateActionError(error: unknown, anchor?: string): never {
 
 export async function saveEmployeeGroupRate(formData: FormData) {
   try {
+  const rateSetId = text(formData.get("rateSetId"));
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
+
+  if (!rateSetId) {
+    throw new Error("Satzstand fehlt.");
+  }
 
   if (!name) {
     throw new Error("Gruppe fehlt.");
@@ -141,7 +158,10 @@ export async function saveEmployeeGroupRate(formData: FormData) {
       })
     : await prisma.controllingEmployeeGroupRate.findUnique({
         where: {
-          name,
+          rateSetId_name: {
+            name,
+            rateSetId,
+          },
         },
       });
 
@@ -151,6 +171,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
           description,
           internalRateCents,
           isActive: true,
+          rateSetId,
           realRateCents,
           validFrom: yearStart(year),
           validTo: yearEnd(year),
@@ -165,6 +186,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
           description,
           internalRateCents,
           name,
+          rateSetId,
           realRateCents,
           validFrom: yearStart(year),
           validTo: yearEnd(year),
@@ -182,7 +204,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
   });
 
   revalidateRates();
-  redirectWithNotice(`Mitarbeitergruppe „${saved.name}“ wurde gespeichert.`);
+  redirectWithNotice(`Mitarbeitergruppe „${saved.name}“ wurde gespeichert.`, undefined, formData.get("year"));
   } catch (error) {
     handleRateActionError(error);
   }
@@ -190,9 +212,15 @@ export async function saveEmployeeGroupRate(formData: FormData) {
 
 export async function saveInventoryCategoryRate(formData: FormData) {
   try {
+  const rateSetId = text(formData.get("rateSetId"));
   const id = String(formData.get("id") ?? "");
   const realRateCents = moneyCents(formData.get("realRate"), "Normaler Satz");
   const idleRateCents = moneyCents(formData.get("idleRate"), "Stillstandssatz");
+
+  if (!rateSetId) {
+    throw new Error("Satzstand fehlt.");
+  }
+  const effectiveRateSetId = rateSetId;
 
   const existing = await prisma.inventoryCategory.findUniqueOrThrow({
     where: {
@@ -200,13 +228,22 @@ export async function saveInventoryCategoryRate(formData: FormData) {
     },
   });
 
-  await prisma.inventoryCategory.update({
-    data: {
+  const rate = await prisma.controllingInventoryCategoryRate.upsert({
+    create: {
+      billingRateCents: realRateCents || null,
+      categoryId: id,
+      idleBillingRateCents: idleRateCents || null,
+      rateSetId,
+    },
+    update: {
       billingRateCents: realRateCents || null,
       idleBillingRateCents: idleRateCents || null,
     },
     where: {
-      id,
+      rateSetId_categoryId: {
+        categoryId: id,
+        rateSetId: effectiveRateSetId,
+      },
     },
   });
 
@@ -214,23 +251,23 @@ export async function saveInventoryCategoryRate(formData: FormData) {
     logRateChange({
       fieldName: "billingRateCents",
       newValueCents: realRateCents || null,
-      previousValueCents: existing.billingRateCents,
-      targetId: existing.id,
+      previousValueCents: rate.billingRateCents,
+      targetId: rate.id,
       targetLabel: existing.name,
-      targetType: "INVENTORY_CATEGORY",
+      targetType: "INVENTORY_CATEGORY_RATE",
     }),
     logRateChange({
       fieldName: "idleBillingRateCents",
       newValueCents: idleRateCents || null,
-      previousValueCents: existing.idleBillingRateCents,
-      targetId: existing.id,
+      previousValueCents: rate.idleBillingRateCents,
+      targetId: rate.id,
       targetLabel: existing.name,
-      targetType: "INVENTORY_CATEGORY",
+      targetType: "INVENTORY_CATEGORY_RATE",
     }),
   ]);
 
   revalidateRates();
-  redirectWithNotice(`Kategorie „${existing.name}“ wurde gespeichert.`);
+  redirectWithNotice(`Kategorie „${existing.name}“ wurde gespeichert.`, undefined, formData.get("year"));
   } catch (error) {
     handleRateActionError(error);
   }
@@ -238,9 +275,15 @@ export async function saveInventoryCategoryRate(formData: FormData) {
 
 export async function saveInventoryItemRate(formData: FormData) {
   try {
+  const rateSetId = text(formData.get("rateSetId"));
   const id = String(formData.get("id") ?? "");
   const realRateCents = moneyCents(formData.get("realRate"), "Normaler Satz");
   const idleRateCents = moneyCents(formData.get("idleRate"), "Stillstandssatz");
+
+  if (!rateSetId) {
+    throw new Error("Satzstand fehlt.");
+  }
+  const effectiveRateSetId = rateSetId;
 
   const existing = await prisma.inventoryItem.findUniqueOrThrow({
     where: {
@@ -248,13 +291,22 @@ export async function saveInventoryItemRate(formData: FormData) {
     },
   });
 
-  await prisma.inventoryItem.update({
-    data: {
+  const rate = await prisma.controllingInventoryItemRate.upsert({
+    create: {
+      billingRateCents: realRateCents || null,
+      idleBillingRateCents: idleRateCents || null,
+      itemId: id,
+      rateSetId,
+    },
+    update: {
       billingRateCents: realRateCents || null,
       idleBillingRateCents: idleRateCents || null,
     },
     where: {
-      id,
+      rateSetId_itemId: {
+        itemId: id,
+        rateSetId: effectiveRateSetId,
+      },
     },
   });
 
@@ -262,27 +314,27 @@ export async function saveInventoryItemRate(formData: FormData) {
     logRateChange({
       fieldName: "billingRateCents",
       newValueCents: realRateCents || null,
-      previousValueCents: existing.billingRateCents,
-      targetId: existing.id,
+      previousValueCents: rate.billingRateCents,
+      targetId: rate.id,
       targetLabel: existing.objectNumber
         ? `${existing.objectNumber} · ${existing.name}`
         : existing.name,
-      targetType: "INVENTORY_ITEM",
+      targetType: "INVENTORY_ITEM_RATE",
     }),
     logRateChange({
       fieldName: "idleBillingRateCents",
       newValueCents: idleRateCents || null,
-      previousValueCents: existing.idleBillingRateCents,
-      targetId: existing.id,
+      previousValueCents: rate.idleBillingRateCents,
+      targetId: rate.id,
       targetLabel: existing.objectNumber
         ? `${existing.objectNumber} · ${existing.name}`
         : existing.name,
-      targetType: "INVENTORY_ITEM",
+      targetType: "INVENTORY_ITEM_RATE",
     }),
   ]);
 
   revalidateRates();
-  redirectWithNotice(`Objekt „${existing.name}“ wurde gespeichert.`);
+  redirectWithNotice(`Objekt „${existing.name}“ wurde gespeichert.`, undefined, formData.get("year"));
   } catch (error) {
     handleRateActionError(error);
   }
@@ -290,6 +342,7 @@ export async function saveInventoryItemRate(formData: FormData) {
 
 export async function raiseRates(formData: FormData) {
   try {
+  const rateSetId = text(formData.get("rateSetId"));
   const targetType = String(formData.get("targetType") ?? "");
   const fieldName = String(formData.get("fieldName") ?? "");
   const mode = String(formData.get("mode") ?? "");
@@ -323,6 +376,11 @@ export async function raiseRates(formData: FormData) {
     throw new Error("Anhebung darf nicht 0 sein.");
   }
 
+  if (!rateSetId) {
+    throw new Error("Satzstand fehlt.");
+  }
+  const effectiveRateSetId = rateSetId;
+
   if (selectedTargetIds.length === 0) {
     throw new Error("Bitte mindestens einen Satz zum Anheben auswählen.");
   }
@@ -349,6 +407,7 @@ export async function raiseRates(formData: FormData) {
           in: selectedTargetIds,
         },
         isActive: true,
+        rateSetId: effectiveRateSetId,
       },
     });
 
@@ -410,10 +469,27 @@ export async function raiseRates(formData: FormData) {
     }
 
     for (const item of items) {
+      const existingRate = await prisma.controllingInventoryItemRate.findUnique({
+        where: {
+          rateSetId_itemId: {
+            itemId: item.id,
+            rateSetId: effectiveRateSetId,
+          },
+        },
+      }) ?? await prisma.controllingInventoryItemRate.create({
+        data: {
+          billingRateCents: item.billingRateCents,
+          idleBillingRateCents: item.idleBillingRateCents,
+          itemId: item.id,
+          rateSetId: effectiveRateSetId,
+        },
+      });
       const data: Record<string, number | null> = {};
       for (const field of fields) {
         const previousValue =
-          item[field as "billingRateCents" | "idleBillingRateCents"] ?? 0;
+          existingRate?.[field as "billingRateCents" | "idleBillingRateCents"] ??
+          item[field as "billingRateCents" | "idleBillingRateCents"] ??
+          0;
         const newValue = calculateRaisedValue(previousValue, amount, mode);
         data[field] = newValue || null;
         const changed = await logRateChange({
@@ -424,16 +500,31 @@ export async function raiseRates(formData: FormData) {
           fieldName: field,
           newValueCents: newValue || null,
           previousValueCents: previousValue || null,
-          targetId: item.id,
+          targetId: existingRate.id,
           targetLabel: item.objectNumber ? `${item.objectNumber} · ${item.name}` : item.name,
-          targetType: "INVENTORY_ITEM",
+          targetType: "INVENTORY_ITEM_RATE",
         });
         if (changed) changedCount += 1;
       }
-      await prisma.inventoryItem.update({
-        data,
+      await prisma.controllingInventoryItemRate.upsert({
+        create: {
+          billingRateCents:
+            "billingRateCents" in data
+              ? data.billingRateCents ?? null
+              : existingRate.billingRateCents,
+          idleBillingRateCents:
+            "idleBillingRateCents" in data
+              ? data.idleBillingRateCents ?? null
+              : existingRate.idleBillingRateCents,
+          itemId: item.id,
+          rateSetId: effectiveRateSetId,
+        },
+        update: data,
         where: {
-          id: item.id,
+          rateSetId_itemId: {
+            itemId: item.id,
+            rateSetId: effectiveRateSetId,
+          },
         },
       });
     }
@@ -452,10 +543,27 @@ export async function raiseRates(formData: FormData) {
     });
 
     for (const item of items) {
+      const existingRate = await prisma.controllingInventoryItemRate.findUnique({
+        where: {
+          rateSetId_itemId: {
+            itemId: item.id,
+            rateSetId: effectiveRateSetId,
+          },
+        },
+      }) ?? await prisma.controllingInventoryItemRate.create({
+        data: {
+          billingRateCents: item.billingRateCents,
+          idleBillingRateCents: item.idleBillingRateCents,
+          itemId: item.id,
+          rateSetId: effectiveRateSetId,
+        },
+      });
       const data: Record<string, number | null> = {};
       for (const field of fields) {
         const previousValue =
-          item[field as "billingRateCents" | "idleBillingRateCents"] ?? 0;
+          existingRate?.[field as "billingRateCents" | "idleBillingRateCents"] ??
+          item[field as "billingRateCents" | "idleBillingRateCents"] ??
+          0;
         const newValue = calculateRaisedValue(previousValue, amount, mode);
         data[field] = newValue || null;
         const changed = await logRateChange({
@@ -466,16 +574,31 @@ export async function raiseRates(formData: FormData) {
           fieldName: field,
           newValueCents: newValue || null,
           previousValueCents: previousValue || null,
-          targetId: item.id,
+          targetId: existingRate.id,
           targetLabel: item.objectNumber ? `${item.objectNumber} · ${item.name}` : item.name,
-          targetType,
+          targetType: "INVENTORY_ITEM_RATE",
         });
         if (changed) changedCount += 1;
       }
-      await prisma.inventoryItem.update({
-        data,
+      await prisma.controllingInventoryItemRate.upsert({
+        create: {
+          billingRateCents:
+            "billingRateCents" in data
+              ? data.billingRateCents ?? null
+              : existingRate.billingRateCents,
+          idleBillingRateCents:
+            "idleBillingRateCents" in data
+              ? data.idleBillingRateCents ?? null
+              : existingRate.idleBillingRateCents,
+          itemId: item.id,
+          rateSetId: effectiveRateSetId,
+        },
+        update: data,
         where: {
-          id: item.id,
+          rateSetId_itemId: {
+            itemId: item.id,
+            rateSetId: effectiveRateSetId,
+          },
         },
       });
     }
@@ -486,6 +609,8 @@ export async function raiseRates(formData: FormData) {
     changedCount > 0
       ? `${changedCount} Verrechnungssätze wurden geändert.`
       : "Keine Verrechnungssätze geändert, weil die neuen Werte identisch waren.",
+    undefined,
+    formData.get("year"),
   );
   } catch (error) {
     handleRateActionError(error);
@@ -525,6 +650,24 @@ export async function revertRateChange(formData: FormData) {
     });
   } else if (log.targetType === "INVENTORY_ITEM") {
     await prisma.inventoryItem.update({
+      data: {
+        [log.fieldName]: log.previousValueCents,
+      },
+      where: {
+        id: log.targetId,
+      },
+    });
+  } else if (log.targetType === "INVENTORY_CATEGORY_RATE") {
+    await prisma.controllingInventoryCategoryRate.update({
+      data: {
+        [log.fieldName]: log.previousValueCents,
+      },
+      where: {
+        id: log.targetId,
+      },
+    });
+  } else if (log.targetType === "INVENTORY_ITEM_RATE") {
+    await prisma.controllingInventoryItemRate.update({
       data: {
         [log.fieldName]: log.previousValueCents,
       },
@@ -614,6 +757,24 @@ export async function revertRateChangeBatch(formData: FormData) {
             id: log.targetId,
           },
         });
+      } else if (log.targetType === "INVENTORY_CATEGORY_RATE") {
+        await tx.controllingInventoryCategoryRate.update({
+          data: {
+            [log.fieldName]: log.previousValueCents,
+          },
+          where: {
+            id: log.targetId,
+          },
+        });
+      } else if (log.targetType === "INVENTORY_ITEM_RATE") {
+        await tx.controllingInventoryItemRate.update({
+          data: {
+            [log.fieldName]: log.previousValueCents,
+          },
+          where: {
+            id: log.targetId,
+          },
+        });
       }
     }
 
@@ -636,6 +797,148 @@ export async function revertRateChangeBatch(formData: FormData) {
   );
   } catch (error) {
     handleRateActionError(error, "rate-archive");
+  }
+}
+
+export async function createRateSetFromPreviousYear(formData: FormData) {
+  try {
+    const sourceYear = optionalYear(formData.get("sourceYear"));
+    const targetYear = optionalYear(formData.get("targetYear"));
+
+    if (!sourceYear || !targetYear) {
+      throw new Error("Quelljahr und neues Jahr müssen angegeben werden.");
+    }
+
+    if (sourceYear === targetYear) {
+      throw new Error("Quelljahr und neues Jahr dürfen nicht gleich sein.");
+    }
+
+    const source = await prisma.controllingRateSet.findUnique({
+      where: {
+        year: sourceYear,
+      },
+      include: {
+        categoryRates: true,
+        employeeGroupRates: true,
+        itemRates: true,
+      },
+    });
+
+    if (!source) {
+      throw new Error(`Satzstand ${sourceYear} wurde nicht gefunden.`);
+    }
+
+    const existing = await prisma.controllingRateSet.findUnique({
+      where: {
+        year: targetYear,
+      },
+    });
+
+    if (existing) {
+      throw new Error(`Satzstand ${targetYear} existiert bereits.`);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const target = await tx.controllingRateSet.create({
+        data: {
+          description: `Aus Satzstand ${sourceYear} kopiert.`,
+          isActive: true,
+          isDefault: false,
+          name: `Satzstand ${targetYear}`,
+          year: targetYear,
+        },
+      });
+
+      if (source.employeeGroupRates.length > 0) {
+        await tx.controllingEmployeeGroupRate.createMany({
+          data: source.employeeGroupRates.map((rate) => ({
+            description: rate.description,
+            internalRateCents: rate.internalRateCents,
+            isActive: rate.isActive,
+            name: rate.name,
+            rateSetId: target.id,
+            realRateCents: rate.realRateCents,
+            sortOrder: rate.sortOrder,
+            validFrom: yearStart(targetYear),
+            validTo: yearEnd(targetYear),
+            visibilityLevel: rate.visibilityLevel,
+          })),
+        });
+      }
+
+      if (source.categoryRates.length > 0) {
+        await tx.controllingInventoryCategoryRate.createMany({
+          data: source.categoryRates.map((rate) => ({
+            billingRateCents: rate.billingRateCents,
+            categoryId: rate.categoryId,
+            idleBillingRateCents: rate.idleBillingRateCents,
+            rateSetId: target.id,
+          })),
+        });
+      }
+
+      if (source.itemRates.length > 0) {
+        await tx.controllingInventoryItemRate.createMany({
+          data: source.itemRates.map((rate) => ({
+            billingRateCents: rate.billingRateCents,
+            idleBillingRateCents: rate.idleBillingRateCents,
+            itemId: rate.itemId,
+            rateSetId: target.id,
+          })),
+        });
+      }
+    });
+
+    revalidateRates();
+    redirectWithNotice(
+      `Satzstand ${targetYear} wurde aus ${sourceYear} erstellt.`,
+      undefined,
+      String(targetYear),
+    );
+  } catch (error) {
+    handleRateActionError(error);
+  }
+}
+
+export async function deleteRateSet(formData: FormData) {
+  try {
+    const rateSetId = text(formData.get("rateSetId"));
+    const confirmation = text(formData.get("confirmation"));
+
+    if (!rateSetId) {
+      throw new Error("Satzstand fehlt.");
+    }
+
+    if (confirmation !== "LÖSCHEN") {
+      throw new Error("Bitte zur Bestätigung LÖSCHEN eingeben.");
+    }
+
+    const count = await prisma.controllingRateSet.count({
+      where: {
+        isActive: true,
+      },
+    });
+
+    if (count <= 1) {
+      throw new Error("Der letzte Satzstand kann nicht gelöscht werden.");
+    }
+
+    const rateSet = await prisma.controllingRateSet.findUniqueOrThrow({
+      where: {
+        id: rateSetId,
+      },
+    });
+
+    await prisma.controllingRateSet.delete({
+      where: {
+        id: rateSet.id,
+      },
+    });
+
+    revalidateRates();
+    redirectWithNotice(`Satzstand ${rateSet.year} wurde gelöscht.`);
+  } catch (error) {
+    handleRateActionError(error);
   }
 }
 
