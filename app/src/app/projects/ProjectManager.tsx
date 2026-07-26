@@ -11,6 +11,7 @@ import {
   ProjectFormInput,
   updateProject,
 } from "./actions";
+import type { ConstructionManagerOption } from "./ProjectCreateDialog";
 
 type ProjectStatus =
   | "NOT_STARTED"
@@ -64,7 +65,13 @@ const emptyProject: ProjectFormInput = {
   notes: "",
 };
 
-export function ProjectManager({ projects }: { projects: Project[] }) {
+export function ProjectManager({
+  constructionManagerOptions = [],
+  projects,
+}: {
+  constructionManagerOptions?: ConstructionManagerOption[];
+  projects: Project[];
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -398,10 +405,10 @@ export function ProjectManager({ projects }: { projects: Project[] }) {
               value={form.name}
               onChange={(value) => updateForm("name", value)}
             />
-            <TextField
-              label="Bauleiter"
-              value={form.constructionManager}
+            <ConstructionManagerField
               onChange={(value) => updateForm("constructionManager", value)}
+              options={constructionManagerOptions}
+              value={form.constructionManager}
             />
 
             <TextField
@@ -870,6 +877,46 @@ function TextField({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+      />
+    </div>
+  );
+}
+
+function ConstructionManagerField({
+  onChange,
+  options,
+  value,
+}: {
+  onChange: (value: string) => void;
+  options: ConstructionManagerOption[];
+  value: string;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-gray-700">Bauleiter</label>
+      <select
+        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        onChange={(event) => {
+          if (event.target.value) {
+            onChange(event.target.value);
+          }
+        }}
+        value={options.some((option) => option.value === value) ? value : ""}
+      >
+        <option value="">Bauleiter aus Personalakte wählen</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+            {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Oder frei eintragen"
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
       />
     </div>

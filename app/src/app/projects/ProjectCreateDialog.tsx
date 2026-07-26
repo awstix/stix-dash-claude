@@ -1,0 +1,420 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+import { createProject, type ProjectFormInput } from "./actions";
+
+type ProjectStatus =
+  | "NOT_STARTED"
+  | "ACTIVE"
+  | "PAUSED"
+  | "FINISHED"
+  | "CANCELLED";
+
+const statusOptions: { value: ProjectStatus; label: string }[] = [
+  { value: "NOT_STARTED", label: "noch nicht begonnen" },
+  { value: "ACTIVE", label: "aktiv" },
+  { value: "PAUSED", label: "ruht" },
+  { value: "FINISHED", label: "beendet" },
+  { value: "CANCELLED", label: "storniert" },
+];
+
+const emptyProject: ProjectFormInput = {
+  actualEnd: "",
+  actualStart: "",
+  changeOrdersNet: 0,
+  constructionManager: "",
+  contractValueNet: 0,
+  name: "",
+  notes: "",
+  paymentsNet: 0,
+  plannedEnd: "",
+  plannedStart: "",
+  progressPercent: 0,
+  projectNumber: "",
+  status: "NOT_STARTED",
+};
+
+export type ConstructionManagerOption = {
+  label: string;
+  positionsLabel: string;
+  value: string;
+};
+
+export function ProjectCreateDialog({
+  constructionManagerOptions = [],
+}: {
+  constructionManagerOptions?: ConstructionManagerOption[];
+}) {
+  const router = useRouter();
+  const [form, setForm] = useState<ProjectFormInput>(emptyProject);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function close() {
+    if (isPending) return;
+    setIsOpen(false);
+    setForm(emptyProject);
+  }
+
+  function updateForm<K extends keyof ProjectFormInput>(
+    key: K,
+    value: ProjectFormInput[K],
+  ) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function saveProject() {
+    startTransition(async () => {
+      try {
+        await createProject(form);
+        setForm(emptyProject);
+        setIsOpen(false);
+        router.refresh();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Fehler beim Speichern.");
+      }
+    });
+  }
+
+  const formTotalContract = form.contractValueNet + form.changeOrdersNet;
+  const formPerformanceValue =
+    formTotalContract * (form.progressPercent / 100);
+  const formBillingPercent =
+    formTotalContract > 0 ? (form.paymentsNet / formTotalContract) * 100 : 0;
+  const formDifference = form.paymentsNet - formPerformanceValue;
+  const formCoveragePercent =
+    formPerformanceValue > 0
+      ? (formDifference / formPerformanceValue) * 100
+      : 0;
+
+  return (
+    <>
+      <button
+        className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+        onClick={() => setIsOpen(true)}
+        type="button"
+      >
+        Projekt anlegen
+      </button>
+
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              close();
+            }
+          }}
+        >
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-gray-950">
+                  Neues Projekt anlegen
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Gleiche Felder wie unter Projekte Leistung, damit die
+                  Projektanlage überall identisch bleibt.
+                </p>
+              </div>
+              <button
+                aria-label="Schließen"
+                className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50"
+                disabled={isPending}
+                onClick={close}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <TextField
+                label="Projektnummer"
+                onChange={(value) => updateForm("projectNumber", value)}
+                value={form.projectNumber}
+              />
+              <TextField
+                label="Projektname"
+                onChange={(value) => updateForm("name", value)}
+                value={form.name}
+              />
+              <ConstructionManagerField
+                onChange={(value) => updateForm("constructionManager", value)}
+                options={constructionManagerOptions}
+                value={form.constructionManager}
+              />
+              <TextField
+                label="Baubeginn geplant"
+                onChange={(value) => updateForm("plannedStart", value)}
+                type="date"
+                value={form.plannedStart}
+              />
+              <TextField
+                label="Bauende geplant"
+                onChange={(value) => updateForm("plannedEnd", value)}
+                type="date"
+                value={form.plannedEnd}
+              />
+              <TextField
+                label="Baubeginn tatsächlich"
+                onChange={(value) => updateForm("actualStart", value)}
+                type="date"
+                value={form.actualStart}
+              />
+              <TextField
+                label="Bauende tatsächlich"
+                onChange={(value) => updateForm("actualEnd", value)}
+                type="date"
+                value={form.actualEnd}
+              />
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Status
+                </label>
+                <select
+                  className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                  onChange={(event) =>
+                    updateForm("status", event.target.value as ProjectStatus)
+                  }
+                  value={form.status}
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <NumberField
+                label="Schnellstand Auftrag netto"
+                onChange={(value) => updateForm("contractValueNet", value)}
+                value={form.contractValueNet}
+              />
+              <NumberField
+                label="Schnellstand Nachträge netto"
+                onChange={(value) => updateForm("changeOrdersNet", value)}
+                value={form.changeOrdersNet}
+              />
+              <NumberField
+                label="Schnellstand Leistung in %"
+                onChange={(value) => updateForm("progressPercent", value)}
+                value={form.progressPercent}
+              />
+              <NumberField
+                label="Schnellstand Abschläge netto"
+                onChange={(value) => updateForm("paymentsNet", value)}
+                value={form.paymentsNet}
+              />
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <FormMetricCard
+                label="Schnellstand Auftrag inkl. Nachträge"
+                value={formatEuro(formTotalContract)}
+              />
+              <FormMetricCard
+                detail={`${formatPercent(form.progressPercent)} Leistungsstand`}
+                label="Schnellstand Leistung in €"
+                value={formatEuro(formPerformanceValue)}
+              />
+              <FormMetricCard
+                detail={formatEuro(form.paymentsNet)}
+                label="Abrechnungsstand (IST in %)"
+                value={formatPercent(formBillingPercent)}
+              />
+              <FormMetricCard
+                detail={formatEuro(formDifference)}
+                label="Über-/Unterdeckung in %"
+                tone={formCoveragePercent >= 0 ? "positive" : "negative"}
+                value={formatPercent(formCoveragePercent)}
+              />
+            </div>
+
+            <div className="mt-4">
+              <label className="text-sm font-medium text-gray-700">
+                Bemerkungen / Notizen
+              </label>
+              <textarea
+                className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                onChange={(event) => updateForm("notes", event.target.value)}
+                rows={4}
+                value={form.notes}
+              />
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                disabled={isPending}
+                onClick={close}
+                type="button"
+              >
+                Abbrechen
+              </button>
+              <button
+                className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
+                disabled={isPending}
+                onClick={saveProject}
+                type="button"
+              >
+                {isPending ? "Speichert..." : "Projekt speichern"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ConstructionManagerField({
+  onChange,
+  options,
+  value,
+}: {
+  onChange: (value: string) => void;
+  options: ConstructionManagerOption[];
+  value: string;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-gray-700">Bauleiter</label>
+      <select
+        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        onChange={(event) => {
+          if (event.target.value) {
+            onChange(event.target.value);
+          }
+        }}
+        value={options.some((option) => option.value === value) ? value : ""}
+      >
+        <option value="">Bauleiter aus Personalakte wählen</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+            {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
+          </option>
+        ))}
+      </select>
+      <input
+        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Oder frei eintragen"
+        type="text"
+        value={value}
+      />
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  onChange,
+  type = "text",
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  type?: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <input
+        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        value={value}
+      />
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <input
+        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+        inputMode="decimal"
+        onChange={(event) => onChange(parseNumberInputValue(event.target.value))}
+        type="text"
+        value={value === 0 ? "" : formatNumberInputValue(value)}
+      />
+    </div>
+  );
+}
+
+function FormMetricCard({
+  detail,
+  label,
+  tone = "neutral",
+  value,
+}: {
+  detail?: string;
+  label: string;
+  tone?: "negative" | "neutral" | "positive";
+  value: string;
+}) {
+  const valueClass = getToneClass(tone);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className={`mt-2 text-lg font-bold ${valueClass}`}>{value}</p>
+      {detail ? <p className="mt-1 text-xs text-gray-500">{detail}</p> : null}
+    </div>
+  );
+}
+
+function getToneClass(tone: "negative" | "neutral" | "positive" = "neutral") {
+  if (tone === "positive") return "text-green-700";
+  if (tone === "negative") return "text-red-700";
+  return "text-gray-900";
+}
+
+function formatNumberInputValue(value: number) {
+  if (!Number.isFinite(value)) return "";
+  return String(value).replace(".", ",");
+}
+
+function parseNumberInputValue(value: string) {
+  const cleaned = value.trim();
+
+  if (!cleaned) {
+    return 0;
+  }
+
+  const parsed = Number(cleaned.replace(/\./g, "").replace(",", "."));
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatEuro(value: number) {
+  return new Intl.NumberFormat("de-DE", {
+    currency: "EUR",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(value);
+}
+
+function formatPercent(value: number) {
+  return `${value.toFixed(1)} %`;
+}

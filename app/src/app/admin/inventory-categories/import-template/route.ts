@@ -18,6 +18,7 @@ const headers = [
   "Im Bautagesbericht",
   "Sonderfahrzeug-Disposition",
   "Teams-Verwaltung",
+  "In Personalakte listen",
   "Fahrer-Fahrzeug-Zuordnung",
   "Asphalt-Verwendung",
   "BTB-Bereich",
@@ -66,7 +67,7 @@ function readZipEntries(bytes: Buffer): ZipEntry[] {
 
 function addBtbDropdown(workbookBuffer: Buffer) {
   const validation =
-    '<dataValidations count="3"><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="O2:O1000"><formula1>&quot;Keine,Asphaltsorte,Anspritzmittel&quot;</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="P2:P1000"><formula1>&quot;Nicht verwenden,Material,Maschinen und Geräte,Sonstiges&quot;</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="Q2:Q1000"><formula1>&quot;Mobilbagger,Kettenbagger,LKW 2-Achser,LKW 3-Achser,LKW 4-Achser,LKW Abrollkipper,LKW Sattelzug,Planierraupe,Grader,Erdbauwalze / Walzenzug,Radlader,Kompressor&quot;</formula1></dataValidation></dataValidations>';
+    '<dataValidations count="3"><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="P2:P1000"><formula1>&quot;Keine,Asphaltsorte,Anspritzmittel&quot;</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="Q2:Q1000"><formula1>&quot;Nicht verwenden,Material,Maschinen und Geräte,Sonstiges&quot;</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="R2:R1000"><formula1>&quot;Mobilbagger,Kettenbagger,LKW 2-Achser,LKW 3-Achser,LKW 4-Achser,LKW Abrollkipper,LKW Sattelzug,Planierraupe,Grader,Erdbauwalze / Walzenzug,Radlader,Kompressor&quot;</formula1></dataValidation></dataValidations>';
   const entries = readZipEntries(workbookBuffer).map((entry) => {
     if (entry.fileName !== "xl/worksheets/sheet1.xml") return entry;
 
@@ -112,6 +113,7 @@ export async function GET() {
       "Nein",
       "Ja",
       "Nein",
+      "Nein",
       "Keine",
       "Maschinen und Geräte",
       "",
@@ -132,6 +134,7 @@ export async function GET() {
       "Nein",
       "Ja",
       "Nein",
+      "Nein",
       "Keine",
       "Maschinen und Geräte",
       "Kettenbagger",
@@ -151,7 +154,7 @@ export async function GET() {
     ["Bereits vorhandene Kategorien werden nicht überschrieben und im Ergebnis gemeldet."],
   ]);
 
-  worksheet["!autofilter"] = { ref: `A1:R1000` };
+  worksheet["!autofilter"] = { ref: `A1:S1000` };
   worksheet["!cols"] = [
     { wch: 24 },
     { wch: 28 },
@@ -165,6 +168,7 @@ export async function GET() {
     { wch: 24 },
     { wch: 22 },
     { wch: 26 },
+    { wch: 22 },
     { wch: 22 },
     { wch: 18 },
     { wch: 18 },

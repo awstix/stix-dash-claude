@@ -76,6 +76,39 @@ export default async function InventoryImportsPage({
         </p>
       </section>
 
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Importbasis / vorbereitete Listen
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Die Grundstruktur steht: Kategorien zuerst pflegen, danach Objekte
+          importieren. Mitarbeiter und Schulungen bleiben auf ihren eigenen
+          Seiten, damit die Menüleiste nicht unnötig voll wird.
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ImportReadyCard
+            href="/admin/inventory-categories"
+            label="Kategorien"
+            text="Kategorien, Unterkategorien, Nummernkreise und Verwendungen."
+          />
+          <ImportReadyCard
+            href="/inventory/imports/template"
+            label="Inventarobjekte"
+            text="Material, Fahrzeuge, Maschinen, Lagerobjekte und Kontakte."
+          />
+          <ImportReadyCard
+            href="/employees/imports"
+            label="Mitarbeiter"
+            text="Personalstammdaten getrennt vom Inventar importieren."
+          />
+          <ImportReadyCard
+            href="/employees/certificates"
+            label="Schulungen"
+            text="Schulungsübersicht mit Fehlerbericht und Kreuztabelle."
+          />
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">
@@ -138,5 +171,25 @@ export default async function InventoryImportsPage({
         </section>
       </div>
     </AppShell>
+  );
+}
+
+function ImportReadyCard({
+  href,
+  label,
+  text,
+}: {
+  href: string;
+  label: string;
+  text: string;
+}) {
+  return (
+    <Link
+      className="rounded-2xl border border-gray-200 bg-gray-50 p-4 hover:border-gray-300 hover:bg-gray-100"
+      href={href}
+    >
+      <div className="text-sm font-bold text-gray-950">{label}</div>
+      <p className="mt-1 text-xs leading-5 text-gray-600">{text}</p>
+    </Link>
   );
 }

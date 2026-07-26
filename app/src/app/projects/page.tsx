@@ -3,6 +3,7 @@ import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
+import { ProjectCreateDialog } from "./ProjectCreateDialog";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
 
@@ -74,6 +75,40 @@ export default async function ProjectsPage({
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
+  const constructionManagerEmployees = await prisma.employee.findMany({
+    include: {
+      positions: {
+        orderBy: [{ sortOrder: "asc" }, { positionLabel: "asc" }],
+      },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    where: {
+      statusValue: "active",
+    },
+  });
+  const constructionManagerOptions = constructionManagerEmployees
+    .flatMap((employee) => {
+      const positionsLabel = employee.positions
+        .map((position) => position.positionLabel)
+        .join(", ");
+      const searchablePositionText = employee.positions
+        .map((position) => `${position.positionLabel} ${position.positionValue}`)
+        .join(" ")
+        .toLowerCase();
+      const isConstructionManager =
+        searchablePositionText.includes("bauleit");
+
+      if (!isConstructionManager) {
+        return [];
+      }
+
+      return [{
+        label: `${employee.firstName} ${employee.lastName}`,
+        positionsLabel,
+        value: `${employee.firstName} ${employee.lastName}`,
+      }];
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "de-DE"));
 
   const projectSummaries = projects.map((project) => {
     const people = new Map<string, string>();
@@ -216,6 +251,9 @@ export default async function ProjectsPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <ProjectCreateDialog
+              constructionManagerOptions={constructionManagerOptions}
+            />
             <DismissibleDetails className="relative inline-block">
               <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
                 🔎 Filter

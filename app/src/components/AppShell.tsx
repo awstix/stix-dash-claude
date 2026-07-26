@@ -47,6 +47,14 @@ const controllingNavigation = [
   { name: "Verrechnungssätze", href: "/controlling/rates" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
+const safetyNavigation = [
+  { name: "Beauftragungen", href: "/safety/commissions" },
+  { name: "Betriebsunterweisungen", href: "/safety/operating-instructions" },
+  { name: "Gefahrstoffe", href: "/safety/hazardous-substances" },
+  { name: "Gefährdungsbeurteilungen", href: "/safety/risk-assessments" },
+  { name: "Unfallmeldungen", href: "/safety/accidents" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+
 const employeeNavigation = [
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
   { name: "Mitarbeiterakte", href: "/employees/certificates" },
@@ -71,6 +79,7 @@ export function AppShell({
         inventoryNavigation={inventoryNavigation}
         primaryNavigation={primaryNavigation}
         projectNavigation={projectNavigation}
+        safetyNavigation={safetyNavigation}
         secondaryNavigation={secondaryNavigation}
       />
 

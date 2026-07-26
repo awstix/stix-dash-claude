@@ -5,29 +5,65 @@ import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectManager } from "../ProjectManager";
 
 export default async function ProjectPerformancePage() {
-  const projects = await prisma.project.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      performanceReports: {
-        orderBy: [
-          {
-            periodEnd: "desc",
+  const [projects, constructionManagerEmployees] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        performanceReports: {
+          orderBy: [
+            {
+              periodEnd: "desc",
+            },
+            {
+              reportDate: "desc",
+            },
+          ],
+          take: 1,
+          include: {
+            detailEntries: true,
+            hourEntries: true,
+            invoiceItems: true,
           },
-          {
-            reportDate: "desc",
-          },
-        ],
-        take: 1,
-        include: {
-          detailEntries: true,
-          hourEntries: true,
-          invoiceItems: true,
         },
       },
-    },
-  });
+    }),
+    prisma.employee.findMany({
+      include: {
+        positions: {
+          orderBy: [{ sortOrder: "asc" }, { positionLabel: "asc" }],
+        },
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      where: {
+        statusValue: "active",
+      },
+    }),
+  ]);
+  const constructionManagerOptions = constructionManagerEmployees
+    .flatMap((employee) => {
+      const positionsLabel = employee.positions
+        .map((position) => position.positionLabel)
+        .join(", ");
+      const searchablePositionText = employee.positions
+        .map((position) => `${position.positionLabel} ${position.positionValue}`)
+        .join(" ")
+        .toLowerCase();
+      const isConstructionManager =
+        searchablePositionText.includes("bauleit");
+
+      if (!isConstructionManager) {
+        return [];
+      }
+
+      return [{
+        label: `${employee.firstName} ${employee.lastName}`,
+        positionsLabel,
+        value: `${employee.firstName} ${employee.lastName}`,
+      }];
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "de-DE"));
 
   const mappedProjects = projects.map((project) => {
     const latestReport = project.performanceReports[0] ?? null;
@@ -112,7 +148,10 @@ export default async function ProjectPerformancePage() {
         </Link>
       </div>
 
-      <ProjectManager projects={mappedProjects} />
+      <ProjectManager
+        constructionManagerOptions={constructionManagerOptions}
+        projects={mappedProjects}
+      />
     </AppShell>
   );
 }

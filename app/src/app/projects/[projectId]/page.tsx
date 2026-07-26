@@ -37,6 +37,7 @@ const projectTabs = [
   { label: "Personal", href: "#personal" },
   { label: "Geräte", href: "#geraete" },
   { label: "LKW", href: "#lkw" },
+  { label: "Unfallmeldungen", href: "#unfallmeldungen" },
   { label: "Fotos", href: "#fotos" },
   { label: "Dokumente", href: "#dokumente" },
   { label: "Formulare", href: "#formulare" },
@@ -306,6 +307,22 @@ export default async function ProjectDetailPage({
       },
       projectNotes: {
         orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+      },
+      safetyAccidentReports: {
+        include: {
+          _count: {
+            select: {
+              photos: true,
+            },
+          },
+          employee: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: [{ accidentDate: "desc" }, { createdAt: "desc" }],
       },
     },
   });
@@ -1041,6 +1058,20 @@ export default async function ProjectDetailPage({
           }))}
           projectId={project.id}
         />
+        <ProjectAccidentReportsSection
+          reports={project.safetyAccidentReports.map((report) => ({
+            accidentDate: report.accidentDate,
+            accidentTime: report.accidentTime,
+            employeeName: report.employee
+              ? `${report.employee.lastName}, ${report.employee.firstName}`
+              : report.employeeSnapshot,
+            id: report.id,
+            location: report.location,
+            photoCount: report._count.photos,
+            status: report.status,
+          }))}
+          projectId={project.id}
+        />
         <ProjectDailyReportOverview
           defaultDate={defaultDailyReportDate}
           nextSheetNumber={nextDailyReportSheetNumber}
@@ -1050,6 +1081,128 @@ export default async function ProjectDetailPage({
       </div>
     </AppShell>
   );
+}
+
+function ProjectAccidentReportsSection({
+  projectId,
+  reports,
+}: {
+  projectId: string;
+  reports: {
+    accidentDate: Date;
+    accidentTime: string | null;
+    employeeName: string | null;
+    id: string;
+    location: string | null;
+    photoCount: number;
+    status: string;
+  }[];
+}) {
+  const visibleReports = reports.slice(0, 6);
+
+  return (
+    <section
+      id="unfallmeldungen"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Unfallmeldungen
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Projektbezogene Unfallsofortmeldungen mit PDF, Status und Fotos.
+          </p>
+        </div>
+        <Link
+          className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+          href={`/safety/accidents?projectId=${projectId}#unfallmeldung`}
+        >
+          Neue Unfallmeldung
+        </Link>
+      </div>
+
+      {visibleReports.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+          Für dieses Projekt sind noch keine Unfallmeldungen hinterlegt.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {visibleReports.map((report) => (
+            <article
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              key={report.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">
+                    {formatDate(report.accidentDate)}
+                    {report.accidentTime ? ` · ${report.accidentTime} Uhr` : ""}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700">
+                    {report.employeeName || "Ohne Mitarbeiter"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {report.location || "Ohne Unfallort"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-950">
+                    {getSafetyAccidentStatusLabel(report.status)}
+                  </span>
+                  <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                    {report.photoCount} Foto{report.photoCount === 1 ? "" : "s"}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/accidents/${report.id}`}
+                >
+                  Öffnen
+                </Link>
+                <a
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/accidents/${report.id}/pdf`}
+                  target="_blank"
+                >
+                  PDF
+                </a>
+                <Link
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/accidents?edit=${report.id}#unfallmeldung`}
+                >
+                  Bearbeiten
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {reports.length > visibleReports.length ? (
+        <Link
+          className="mt-4 inline-flex text-xs font-semibold text-gray-700 underline-offset-4 hover:underline"
+          href={`/safety/accidents?projectId=${projectId}`}
+        >
+          Alle {reports.length} Unfallmeldungen öffnen
+        </Link>
+      ) : null}
+    </section>
+  );
+}
+
+function getSafetyAccidentStatusLabel(status: string) {
+  switch (status) {
+    case "OPEN":
+      return "Offen";
+    case "DONE":
+    case "CLOSED":
+      return "Erledigt";
+    default:
+      return status || "Offen";
+  }
 }
 
 function getCompanyInfo(

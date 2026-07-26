@@ -9,6 +9,12 @@ type BarcodeDetectorConstructor = new (options?: {
   detect(source: HTMLVideoElement): Promise<Array<{ rawValue: string }>>;
 };
 
+type BarcodeDetectorWindow = typeof window & {
+  BarcodeDetector?: BarcodeDetectorConstructor & {
+    getSupportedFormats?: () => Promise<string[]>;
+  };
+};
+
 function getInventoryTarget(value: string) {
   const text = value.trim();
 
@@ -64,6 +70,10 @@ function getInventoryItemIdFromTarget(target: string) {
 export function InventoryScannerClient() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanTimeoutRef = useRef<number | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [detectorFormats, setDetectorFormats] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [manualValue, setManualValue] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -75,7 +85,7 @@ export function InventoryScannerClient() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setIsSupported("BarcodeDetector" in window && Boolean(navigator.mediaDevices));
+      void refreshScannerSupport();
     }, 0);
 
     return () => {
@@ -84,7 +94,30 @@ export function InventoryScannerClient() {
     };
   }, []);
 
+  async function refreshScannerSupport() {
+    const BarcodeDetector = (window as BarcodeDetectorWindow).BarcodeDetector;
+    const hasCameraApi = Boolean(navigator.mediaDevices?.getUserMedia);
+    const hasDetector = Boolean(BarcodeDetector);
+    setIsSupported(hasCameraApi && hasDetector);
+
+    if (BarcodeDetector?.getSupportedFormats) {
+      const formats = await BarcodeDetector.getSupportedFormats().catch(() => []);
+      setDetectorFormats(formats);
+    } else {
+      setDetectorFormats(hasDetector ? ["qr_code"] : []);
+    }
+
+    if (navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      setAvailableCameras(devices.filter((device) => device.kind === "videoinput"));
+    }
+  }
+
   function stopCamera() {
+    if (scanTimeoutRef.current) {
+      window.clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setIsScanning(false);
@@ -171,30 +204,34 @@ export function InventoryScannerClient() {
   async function startCamera() {
     setError(null);
 
-    const BarcodeDetector = (
-      window as typeof window & {
-        BarcodeDetector?: BarcodeDetectorConstructor;
-      }
-    ).BarcodeDetector;
+    const BarcodeDetector = (window as BarcodeDetectorWindow).BarcodeDetector;
 
     if (!BarcodeDetector || !navigator.mediaDevices) {
       setIsSupported(false);
       setError(
-        "Dieser Browser unterstützt den QR-Scanner nicht. Bitte manuelle Eingabe nutzen.",
+        "Dieser Browser unterstützt den Kamera-Scanner nicht sauber. Bitte Chrome/Android testen oder die Objekt-ID manuell eingeben.",
       );
       return;
     }
 
     try {
+      stopCamera();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: {
-          facingMode: {
-            ideal: "environment",
-          },
-        },
+        video: selectedCameraId
+          ? {
+              deviceId: {
+                exact: selectedCameraId,
+              },
+            }
+          : {
+              facingMode: {
+                ideal: "environment",
+              },
+            },
       });
       streamRef.current = stream;
+      await refreshScannerSupport();
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -202,8 +239,14 @@ export function InventoryScannerClient() {
       }
 
       setIsScanning(true);
+      const supportedFormats = BarcodeDetector.getSupportedFormats
+        ? await BarcodeDetector.getSupportedFormats().catch(() => [])
+        : detectorFormats;
+      const desiredFormats = ["data_matrix", "qr_code"].filter(
+        (format) => supportedFormats.length === 0 || supportedFormats.includes(format),
+      );
       const detector = new BarcodeDetector({
-        formats: ["data_matrix", "qr_code"],
+        formats: desiredFormats.length > 0 ? desiredFormats : ["qr_code"],
       });
 
       const scan = async () => {
@@ -218,16 +261,18 @@ export function InventoryScannerClient() {
             return;
           }
         } catch {
-          setError("QR-Code konnte gerade nicht gelesen werden.");
+          setError(
+            "Code konnte gerade nicht gelesen werden. Etikett näher ran, gerade halten oder manuelle Objekt-ID nutzen.",
+          );
         }
 
-        window.setTimeout(scan, 450);
+        scanTimeoutRef.current = window.setTimeout(scan, 450);
       };
 
-      window.setTimeout(scan, 650);
+      scanTimeoutRef.current = window.setTimeout(scan, 650);
     } catch {
       setError(
-        "Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen oder manuelle Eingabe nutzen.",
+        "Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen, andere Kamera wählen oder manuelle Eingabe nutzen.",
       );
       stopCamera();
     }
@@ -246,6 +291,8 @@ export function InventoryScannerClient() {
             <h2 className="text-xl font-semibold text-gray-900">QR-Code scannen</h2>
             <p className="mt-2 text-sm leading-6 text-gray-600">
               Kamera öffnen, Etikett scannen und direkt zum Inventarobjekt springen.
+              Wenn der Browser ECC200/DataMatrix nicht kann, bleiben QR-Code
+              oder Objekt-ID als stabiler Fallback.
             </p>
           </div>
           <span
@@ -255,8 +302,42 @@ export function InventoryScannerClient() {
                 : "bg-green-100 text-green-900"
             }`}
           >
-            {isSupported === false ? "Fallback" : "QR"}
+            {isSupported === false ? "Fallback" : "Scanner bereit"}
           </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm md:grid-cols-2">
+          <label className="font-semibold text-gray-800">
+            Kamera
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              disabled={isScanning}
+              onChange={(event) => setSelectedCameraId(event.currentTarget.value)}
+              value={selectedCameraId}
+            >
+              <option value="">Automatisch / Rückkamera bevorzugt</option>
+              {availableCameras.map((camera, index) => (
+                <option key={camera.deviceId || index} value={camera.deviceId}>
+                  {camera.label || `Kamera ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="font-semibold text-gray-800">
+            Unterstützte Codes
+            <div className="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+              {detectorFormats.length > 0
+                ? detectorFormats
+                    .filter((format) => ["data_matrix", "qr_code"].includes(format))
+                    .map((format) =>
+                      format === "data_matrix" ? "ECC200/DataMatrix" : "QR-Code",
+                    )
+                    .join(" · ") || "keine passenden Formate"
+                : isSupported === false
+                  ? "nicht verfügbar"
+                  : "wird nach Kamerastart geprüft"}
+            </div>
+          </div>
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-gray-950">
@@ -286,6 +367,13 @@ export function InventoryScannerClient() {
               Kamera starten
             </button>
           )}
+          <button
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            onClick={() => void refreshScannerSupport()}
+            type="button"
+          >
+            Kameras aktualisieren
+          </button>
         </div>
 
         {error ? (
@@ -305,7 +393,8 @@ export function InventoryScannerClient() {
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-900">Manuelle Eingabe</h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          Falls Kamera/Browser nicht mitspielt: QR-Link oder Objekt-ID einfügen.
+          Falls Kamera/Browser nicht mitspielt: QR-Link, Objekt-ID,
+          Inventarnummer, STIX-ID oder Seriennummer eingeben.
         </p>
 
         <form className="mt-5 space-y-3" onSubmit={submitManualCode}>
@@ -314,7 +403,7 @@ export function InventoryScannerClient() {
             <input
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
               onChange={(event) => setManualValue(event.target.value)}
-              placeholder="/inventory/..."
+              placeholder="z. B. 100007, INV29394, STIX-ID oder /inventory/..."
               value={manualValue}
             />
           </label>

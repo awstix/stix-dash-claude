@@ -104,6 +104,9 @@ function toFormData(row: ImportRow, parentCategoryId: string | null) {
   if (isYes(value(row, "Teams-Verwaltung", "In Teams-Verwaltung wählbar"))) {
     formData.set("useInTeamManagement", "on");
   }
+  if (isYes(value(row, "In Personalakte listen", "Personalakte"))) {
+    formData.set("useInEmployeeFile", "on");
+  }
   if (
     isYes(
       value(
