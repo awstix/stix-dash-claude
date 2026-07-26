@@ -8,6 +8,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import {
+  PROJECT_FORM_FIELD_TYPES,
+  type ProjectFormFieldDefinition,
+  type ProjectFormFieldType,
+} from "@/app/projects/projectFormTypes";
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -45,6 +50,75 @@ function optionalDateValue(value: FormDataEntryValue | null) {
 
 function checked(value: FormDataEntryValue | null) {
   return value === "on" || value === "true" || value === "1";
+}
+
+type SafetyFormTemplateInput = {
+  category: string;
+  description: string;
+  emailRecipients?: string[];
+  fields: Array<{
+    description?: string;
+    id?: string;
+    label: string;
+    options?: string[];
+    required?: boolean;
+    type: ProjectFormFieldType;
+    width?: number;
+  }>;
+  id?: string;
+  name: string;
+  paperOrientation: string;
+  paperSize: string;
+};
+
+function cleanSafetyFormText(value: unknown, max = 500) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, max);
+}
+
+function cleanSafetyFormEmailRecipients(values: string[] | undefined) {
+  return Array.from(
+    new Set(
+      (values ?? [])
+        .flatMap((value) => String(value ?? "").split(/[\n,;]/))
+        .map((value) => cleanSafetyFormText(value, 180).toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function cleanSafetyFormFields(
+  fields: SafetyFormTemplateInput["fields"],
+): ProjectFormFieldDefinition[] {
+  return fields
+    .map((field, index) => {
+      const label = cleanSafetyFormText(field.label, 120);
+      const type = PROJECT_FORM_FIELD_TYPES.includes(field.type)
+        ? field.type
+        : "text";
+
+      return {
+        description: cleanSafetyFormText(field.description, 500),
+        id:
+          cleanSafetyFormText(field.id, 100) ||
+          `safety-field-${Date.now().toString(36)}-${index + 1}`,
+        label,
+        options: (field.options ?? [])
+          .map((option) => cleanSafetyFormText(option, 100))
+          .filter(Boolean),
+        required: Boolean(field.required),
+        type,
+        width:
+          Number.isInteger(field.width) &&
+          Number(field.width) >= 1 &&
+          Number(field.width) <= 6
+            ? Number(field.width)
+            : 6,
+      } satisfies ProjectFormFieldDefinition;
+    })
+    .filter((field) => field.label);
 }
 
 function choiceValue(value: FormDataEntryValue | null) {
@@ -101,6 +175,71 @@ export async function replaceSafetyPdfTemplate(formData: FormData) {
   }
 
   revalidatePath("/safety/accidents");
+}
+
+export async function saveSafetyFormTemplate(input: SafetyFormTemplateInput) {
+  const name = cleanSafetyFormText(input.name, 120);
+  const fields = cleanSafetyFormFields(input.fields);
+
+  if (!name) {
+    throw new Error("Bitte einen Namen für die Formularvorlage eintragen.");
+  }
+
+  if (fields.length === 0) {
+    throw new Error("Bitte mindestens ein Feld anlegen.");
+  }
+
+  const data = {
+    category: cleanSafetyFormText(input.category, 80) || null,
+    description: cleanSafetyFormText(input.description, 500) || null,
+    emailRecipientsJson: JSON.stringify(
+      cleanSafetyFormEmailRecipients(input.emailRecipients),
+    ),
+    fieldsJson: JSON.stringify(fields),
+    name,
+    paperOrientation:
+      input.paperOrientation === "LANDSCAPE" ? "LANDSCAPE" : "PORTRAIT",
+    paperSize: input.paperSize === "A5" ? "A5" : "A4",
+  };
+
+  if (input.id) {
+    await prisma.safetyFormTemplate.update({
+      where: {
+        id: input.id,
+      },
+      data,
+    });
+  } else {
+    const max = await prisma.safetyFormTemplate.aggregate({
+      _max: {
+        sortOrder: true,
+      },
+    });
+
+    await prisma.safetyFormTemplate.create({
+      data: {
+        ...data,
+        sortOrder: (max._max.sortOrder ?? 0) + 10,
+      },
+    });
+  }
+
+  revalidatePath("/safety");
+  revalidatePath("/safety/forms");
+}
+
+export async function deleteSafetyFormTemplate(id: string) {
+  const templateId = cleanSafetyFormText(id, 100);
+  if (!templateId) return;
+
+  await prisma.safetyFormTemplate.delete({
+    where: {
+      id: templateId,
+    },
+  });
+
+  revalidatePath("/safety");
+  revalidatePath("/safety/forms");
 }
 
 async function saveAccidentPhotos(reportId: string, files: File[]) {

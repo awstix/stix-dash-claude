@@ -4,6 +4,7 @@ import { ProjectFormManager } from "../ProjectFormManager";
 import { ProjectNavigation } from "../ProjectNavigation";
 import {
   parseProjectFormFields,
+  parseFormEmailRecipients,
   parseProjectFormSnapshotFields,
   parseProjectFormSnapshotSettings,
   parseProjectFormValues,
@@ -91,6 +92,7 @@ export default async function ProjectFormsPage({
         templates={templates.map((template) => ({
           category: template.category,
           description: template.description,
+          emailRecipients: parseFormEmailRecipients(template.emailRecipientsJson),
           fields: parseProjectFormFields(template.fieldsJson),
           id: template.id,
           isActive: template.isActive,

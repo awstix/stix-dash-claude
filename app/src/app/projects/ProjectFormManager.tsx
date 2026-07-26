@@ -41,6 +41,7 @@ export type ProjectFormProjectOption = {
 export type ProjectFormTemplateItem = {
   category: string | null;
   description: string | null;
+  emailRecipients: string[];
   fields: ProjectFormFieldDefinition[];
   id: string;
   isActive: boolean;
@@ -176,6 +177,10 @@ export function ProjectFormManager({
         const input = {
           category: String(formData.get("category") ?? ""),
           description: String(formData.get("description") ?? ""),
+          emailRecipients: String(formData.get("emailRecipients") ?? "")
+            .split(/[\n,;]/)
+            .map((value) => value.trim())
+            .filter(Boolean),
           fields: templateFields,
           name: String(formData.get("name") ?? ""),
           paperOrientation: String(formData.get("paperOrientation") ?? ""),
@@ -464,6 +469,17 @@ export function ProjectFormManager({
                   className={textAreaClassName}
                   defaultValue={editingTemplate?.description ?? undefined}
                   name="description"
+                />
+              </label>
+              <label className="lg:col-span-2">
+                <span className="text-xs font-semibold text-gray-600">
+                  E-Mail-Verteiler
+                </span>
+                <textarea
+                  className={textAreaClassName}
+                  defaultValue={editingTemplate?.emailRecipients.join("\n")}
+                  name="emailRecipients"
+                  placeholder="Eine E-Mail pro Zeile. Beim Speichern/Ausfüllen kann daraus später automatisch versendet werden."
                 />
               </label>
               <label>

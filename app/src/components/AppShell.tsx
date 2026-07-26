@@ -50,6 +50,7 @@ const controllingNavigation = [
 const safetyNavigation = [
   { name: "Beauftragungen", href: "/safety/commissions" },
   { name: "Betriebsunterweisungen", href: "/safety/operating-instructions" },
+  { name: "Formularvorlagen", href: "/safety/forms" },
   { name: "Gefahrstoffe", href: "/safety/hazardous-substances" },
   { name: "Gefährdungsbeurteilungen", href: "/safety/risk-assessments" },
   { name: "Unfallmeldungen", href: "/safety/accidents" },

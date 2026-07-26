@@ -1,40 +1,38 @@
 import Link from "next/link";
+
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
   parseFormEmailRecipients,
   parseProjectFormFields,
 } from "@/app/projects/projectFormTypes";
-import { WorkshopTemplateBuilder } from "./WorkshopTemplateBuilder";
-import {
-  ensureWorkshopRepairOrderTemplate,
-  WORKSHOP_REPAIR_TEMPLATE_ID,
-} from "../repairOrderTemplate";
+import { SafetyTemplateBuilder } from "./SafetyTemplateBuilder";
 
-export default async function WorkshopFormsPage() {
-  await ensureWorkshopRepairOrderTemplate();
-  const templates = await prisma.workshopFormTemplate.findMany({
+export default async function SafetyFormsPage() {
+  const templates = await prisma.safetyFormTemplate.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
   return (
     <AppShell
-      title="Werkstatt · Formularvorlagen"
-      description="Eigene Werkstattformulare erstellen und die Felder per Ziehen anordnen."
+      title="Arbeitssicherheit · Formularvorlagen"
+      description="Formulare für Unfallmeldungen, Unterweisungen, Beauftragungen und Gefahrstoffe zentral erstellen."
     >
       <div className="mb-5">
-        <Link href="/workshop" className="text-sm font-semibold text-gray-700 hover:text-black">
-          ← Zurück zur Werkstatt
+        <Link
+          href="/safety"
+          className="text-sm font-semibold text-gray-700 hover:text-black"
+        >
+          ← Zurück zur Arbeitssicherheit
         </Link>
       </div>
-      <WorkshopTemplateBuilder
+      <SafetyTemplateBuilder
         templates={templates.map((template) => ({
           category: template.category,
           description: template.description,
           emailRecipients: parseFormEmailRecipients(template.emailRecipientsJson),
           fields: parseProjectFormFields(template.fieldsJson),
           id: template.id,
-          isRepairTemplate: template.id === WORKSHOP_REPAIR_TEMPLATE_ID,
           name: template.name,
           paperOrientation: template.paperOrientation,
           paperSize: template.paperSize,

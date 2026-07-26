@@ -38,6 +38,13 @@ const safetyCards = [
       "Gefahrstoffkataster pflegen und die passenden Sicherheitsdatenblätter direkt am Stoff hinterlegen.",
     meta: "Kataster · Sicherheitsdatenblätter",
   },
+  {
+    href: "/safety/forms",
+    title: "Formularvorlagen",
+    description:
+      "Arbeitssicherheits-Formulare mit denselben Feldtypen wie Projekte und Werkstatt erstellen und mit E-Mail-Verteiler vorbereiten.",
+    meta: "Builder · E-Mail · Vorlagen",
+  },
 ];
 
 export default function SafetyPage() {

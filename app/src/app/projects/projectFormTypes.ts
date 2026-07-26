@@ -121,6 +121,27 @@ export function parseProjectFormValues(value: string | null | undefined) {
   }
 }
 
+export function parseFormEmailRecipients(value: string | null | undefined) {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((entry) => String(entry ?? "").trim())
+      .filter(Boolean);
+  } catch {
+    return String(value)
+      .split(/[\n,;]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+}
+
 export function parseProjectFormSnapshotFields(
   snapshotJson: string | null | undefined,
   fallbackFields: ProjectFormFieldDefinition[],

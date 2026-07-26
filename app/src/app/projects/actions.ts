@@ -157,6 +157,7 @@ export type ProjectDocumentsMoveInput = {
 export type ProjectFormTemplateCreateInput = {
   category: string;
   description: string;
+  emailRecipients?: string[];
   fields: Array<{
     description?: string;
     label: string;
@@ -2148,6 +2149,7 @@ export async function createProjectFormTemplate(
   const name = cleanProjectFormText(input.name, 120);
   const category = cleanProjectFormText(input.category, 80);
   const description = cleanProjectFormText(input.description, 500);
+  const emailRecipients = cleanFormEmailRecipients(input.emailRecipients);
   const fields = cleanProjectFormTemplateFields(input.fields);
   const paperOrientation = cleanProjectFormPaperOrientation(input.paperOrientation);
   const paperSize = cleanProjectFormPaperSize(input.paperSize);
@@ -2170,6 +2172,7 @@ export async function createProjectFormTemplate(
     data: {
       category: category || null,
       description: description || null,
+      emailRecipientsJson: JSON.stringify(emailRecipients),
       fieldsJson: JSON.stringify(fields),
       name,
       paperOrientation,
@@ -2188,6 +2191,7 @@ export async function updateProjectFormTemplate(
   const name = cleanProjectFormText(input.name, 120);
   const category = cleanProjectFormText(input.category, 80);
   const description = cleanProjectFormText(input.description, 500);
+  const emailRecipients = cleanFormEmailRecipients(input.emailRecipients);
   const fields = cleanProjectFormTemplateFields(input.fields);
   const paperOrientation = cleanProjectFormPaperOrientation(input.paperOrientation);
   const paperSize = cleanProjectFormPaperSize(input.paperSize);
@@ -2211,6 +2215,7 @@ export async function updateProjectFormTemplate(
     data: {
       category: category || null,
       description: description || null,
+      emailRecipientsJson: JSON.stringify(emailRecipients),
       fieldsJson: JSON.stringify(fields),
       name,
       paperOrientation,
@@ -2312,6 +2317,7 @@ export async function saveProjectFormSubmission(
     templateSnapshotJson: JSON.stringify({
       category: template.category,
       description: template.description,
+      emailRecipients: parseStoredEmailRecipients(template.emailRecipientsJson),
       fields,
       name: template.name,
       paperOrientation: template.paperOrientation,
@@ -2671,6 +2677,29 @@ function cleanDocumentFileName(value: string) {
 function cleanProjectFormText(value: string, maxLength: number) {
   const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   return cleaned.length > maxLength ? cleaned.slice(0, maxLength) : cleaned;
+}
+
+function cleanFormEmailRecipients(values: string[] | undefined) {
+  return Array.from(
+    new Set(
+      (values ?? [])
+        .flatMap((value) => String(value ?? "").split(/[\n,;]/))
+        .map((value) => cleanProjectFormText(value, 180).toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function parseStoredEmailRecipients(value: string | null | undefined) {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function cleanProjectFormPaperSize(value: string) {

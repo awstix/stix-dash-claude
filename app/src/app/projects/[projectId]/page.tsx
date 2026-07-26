@@ -26,6 +26,7 @@ import { ProjectMapEditor } from "../ProjectMapEditor";
 import { ProjectWeatherPanel } from "../ProjectWeatherPanel";
 import {
   parseProjectFormFields,
+  parseFormEmailRecipients,
   parseProjectFormSnapshotFields,
   parseProjectFormSnapshotSettings,
   parseProjectFormValues,
@@ -1032,6 +1033,7 @@ export default async function ProjectDetailPage({
             templates={formTemplates.map((template) => ({
               category: template.category,
               description: template.description,
+              emailRecipients: parseFormEmailRecipients(template.emailRecipientsJson),
               fields: parseProjectFormFields(template.fieldsJson),
               id: template.id,
               isActive: template.isActive,

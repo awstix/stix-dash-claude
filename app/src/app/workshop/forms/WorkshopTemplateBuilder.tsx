@@ -21,6 +21,7 @@ import {
 type Template = {
   category: string | null;
   description: string | null;
+  emailRecipients: string[];
   fields: ProjectFormFieldDefinition[];
   id: string;
   isRepairTemplate: boolean;
@@ -45,6 +46,7 @@ export function WorkshopTemplateBuilder({ templates }: { templates: Template[] }
     setEditing(template ?? {
       category: "Werkstatt",
       description: "",
+      emailRecipients: [],
       fields: [],
       id: "",
       isRepairTemplate: false,
@@ -94,6 +96,10 @@ export function WorkshopTemplateBuilder({ templates }: { templates: Template[] }
         await saveWorkshopFormTemplate({
           category: String(data.get("category") ?? ""),
           description: String(data.get("description") ?? ""),
+          emailRecipients: String(data.get("emailRecipients") ?? "")
+            .split(/[\n,;]/)
+            .map((value) => value.trim())
+            .filter(Boolean),
           fields,
           id: editing?.id || undefined,
           name: String(data.get("name") ?? ""),
@@ -166,6 +172,16 @@ export function WorkshopTemplateBuilder({ templates }: { templates: Template[] }
                 <label className="text-sm font-medium">Name<input name="name" required defaultValue={editing.name} className={inputClass} /></label>
                 <label className="mt-3 block text-sm font-medium">Kategorie<input name="category" defaultValue={editing.category ?? ""} className={inputClass} /></label>
                 <label className="mt-3 block text-sm font-medium">Beschreibung<textarea name="description" defaultValue={editing.description ?? ""} rows={3} className={inputClass} /></label>
+                <label className="mt-3 block text-sm font-medium">
+                  E-Mail-Verteiler
+                  <textarea
+                    name="emailRecipients"
+                    defaultValue={editing.emailRecipients.join("\n")}
+                    rows={4}
+                    placeholder="Eine E-Mail pro Zeile. Beim ausgefüllten Formular kann später automatisch versendet werden."
+                    className={inputClass}
+                  />
+                </label>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <label className="text-sm font-medium">Format<select name="paperSize" defaultValue={editing.paperSize} className={inputClass}><option>A4</option><option>A5</option></select></label>
                   <label className="text-sm font-medium">Ausrichtung<select name="paperOrientation" defaultValue={editing.paperOrientation} className={inputClass}><option value="PORTRAIT">Hoch</option><option value="LANDSCAPE">Quer</option></select></label>

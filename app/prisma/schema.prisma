@@ -341,6 +341,7 @@ model ProjectFormTemplate {
   category         String?
   description      String?
   fieldsJson       String
+  emailRecipientsJson String?
   isActive         Boolean @default(true)
   sortOrder        Int     @default(0)
   paperSize        String  @default("A4")
@@ -487,6 +488,7 @@ model WorkshopFormTemplate {
   category         String?
   description      String?
   fieldsJson       String
+  emailRecipientsJson String?
   isActive         Boolean @default(true)
   sortOrder        Int     @default(0)
   paperSize        String  @default("A4")
@@ -2358,6 +2360,26 @@ model SafetyAccidentPhoto {
 
   @@index([accidentReportId])
   @@index([uploadedAt])
+}
+
+model SafetyFormTemplate {
+  id                  String  @id @default(cuid())
+  name                String
+  category            String?
+  description         String?
+  fieldsJson          String
+  emailRecipientsJson String?
+  isActive            Boolean @default(true)
+  sortOrder           Int     @default(0)
+  paperSize           String  @default("A4")
+  paperOrientation    String  @default("PORTRAIT")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+  @@index([sortOrder])
 }
 
 model SafetyInstructionTemplate {

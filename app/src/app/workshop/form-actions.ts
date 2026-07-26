@@ -16,6 +16,7 @@ import { WORKSHOP_REPAIR_TEMPLATE_ID } from "./repairOrderTemplate";
 type TemplateInput = {
   category: string;
   description: string;
+  emailRecipients?: string[];
   fields: Array<{
     description?: string;
     id?: string;
@@ -47,6 +48,17 @@ type SubmissionInput = {
 
 function cleanText(value: unknown, max = 500) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function cleanEmailRecipients(values: string[] | undefined) {
+  return Array.from(
+    new Set(
+      (values ?? [])
+        .flatMap((value) => String(value ?? "").split(/[\n,;]/))
+        .map((value) => cleanText(value, 180).toLowerCase())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function cleanDate(value: string) {
@@ -117,6 +129,7 @@ export async function saveWorkshopFormTemplate(input: TemplateInput) {
   const data = {
     category: cleanText(input.category, 80) || null,
     description: cleanText(input.description, 500) || null,
+    emailRecipientsJson: JSON.stringify(cleanEmailRecipients(input.emailRecipients)),
     fieldsJson: JSON.stringify(fields),
     name,
     paperOrientation: input.paperOrientation === "LANDSCAPE" ? "LANDSCAPE" : "PORTRAIT",
