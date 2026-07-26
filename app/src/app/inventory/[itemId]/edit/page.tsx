@@ -96,7 +96,7 @@ export default async function EditInventoryItemPage({
   return (
     <AppShell
       title={`Inventarobjekt bearbeiten: ${item.name}`}
-      description="Stammdaten, Zuordnung, Wartung, Fotos und Ansprechpartner bearbeiten."
+      description="Objektdaten, Zuordnung, Wartung, Fotos und Ansprechpartner bearbeiten."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         <Link

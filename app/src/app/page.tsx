@@ -28,7 +28,7 @@ const cards = [
   },
   {
     title: "Admin Backend",
-    description: "Fahrer, Fahrzeuge, Materiallisten und Sortenlisten pflegen.",
+    description: "Unternehmen, Fahrer, Kolonnen, Inventar und Auswahllisten pflegen.",
     href: "/admin",
   },
 ];

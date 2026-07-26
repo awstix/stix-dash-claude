@@ -763,7 +763,7 @@ export function TruckDemandCalculator({
                                 <div className="mt-1 min-h-[18px]">
                                   {isOverAvailable ? (
                                     <span className="text-[11px] font-semibold text-yellow-800">
-                                      mehr als Stammdaten
+                                      mehr als Inventarwert
                                     </span>
                                   ) : row.isPrimary && row.isCountManual ? (
                                     <button

@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import {
+  getVehicleInventoryItem,
+  vehicleInventoryLinkInclude,
+  type VehicleWithInventoryLink,
+} from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
@@ -47,7 +52,9 @@ export default async function ProjectsPage({
               },
               extraVehicles: {
                 include: {
-                  vehicle: true,
+                  vehicle: {
+                    include: vehicleInventoryLinkInclude,
+                  },
                 },
               },
             },
@@ -57,14 +64,20 @@ export default async function ProjectsPage({
       equipmentDispatchAssignments: {
         include: {
           crew: true,
-          vehicle: true,
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       shortHaulAssignments: true,
       specialVehicleDispatchAssignments: {
         include: {
-          transportVehicle: true,
-          vehicle: true,
+          transportVehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
+          vehicle: {
+            include: vehicleInventoryLinkInclude,
+          },
         },
       },
       truckLongHaulEntries: {
@@ -492,7 +505,13 @@ function getVehicleLabel(vehicle: {
   licensePlate: string | null;
   vehicleNumber: string | null;
   vehicleType: string | null;
-}) {
+} & VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (inventoryItem) {
+    return String(inventoryItem.name ?? "").trim() || "Fahrzeug / Gerät";
+  }
+
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]
     .filter(Boolean)
     .join(" · ");

@@ -27,7 +27,7 @@ export default async function EmployeeImportsPage({
   return (
     <AppShell
       title="Mitarbeiter importieren"
-      description="Mitarbeiter-Stammdaten per Excel einlesen. Schulungen und Führerscheine werden direkt in den jeweiligen Bereichen gepflegt."
+      description="Mitarbeiterdaten per Excel einlesen. Schulungen und Führerscheine werden direkt in den jeweiligen Bereichen gepflegt."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         <Link

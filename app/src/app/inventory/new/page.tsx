@@ -68,7 +68,7 @@ export default async function NewInventoryItemPage({
   return (
     <AppShell
       title="Inventarobjekt anlegen"
-      description="Stammdaten, Zuordnung, Lagerdaten, Fotos und Ansprechpartner in Ruhe erfassen."
+      description="Objektdaten, Zuordnung, Lagerdaten, Fotos und Ansprechpartner in Ruhe erfassen."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         <Link

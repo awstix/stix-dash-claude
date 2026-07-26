@@ -987,7 +987,7 @@ export function InitialTruckRows({
             ) : (
               <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
                 Keine freie STIX-Kombination mit Nutzlast und freiem Stammfahrer
-                gefunden. Bitte manuell einteilen oder Stammdaten prüfen.
+                gefunden. Bitte manuell einteilen oder Inventar/Zuordnung prüfen.
               </div>
             )
           ) : (

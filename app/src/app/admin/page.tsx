@@ -66,7 +66,7 @@ const adminSections: AdminSection[] = [
       {
         title: "Fahrer-Fahrzeug-Zuordnung",
         description:
-          "Stammfahrzeuge, freie Fahrzeuge und feste Fahrer-Fahrzeug-Kombinationen verwalten.",
+          "Feste Fahrzeuge, freie Fahrzeuge und Fahrer-Fahrzeug-Kombinationen verwalten.",
         href: "/admin/driver-vehicles",
       },
     ],
@@ -74,7 +74,7 @@ const adminSections: AdminSection[] = [
   {
     title: "Inventar",
     description:
-      "Zentrale Stammdaten für Material, Asphalt, Anspritzmittel, Fahrzeuge, Maschinen, Lagerobjekte und Etiketten.",
+      "Zentrale Inventargrundlage für Material, Asphalt, Anspritzmittel, Fahrzeuge, Maschinen, Lagerobjekte und Etiketten.",
     items: [
       {
         title: "Inventarkategorien",

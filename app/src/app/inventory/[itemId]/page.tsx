@@ -527,7 +527,7 @@ export default async function InventoryDetailPage({
   return (
     <AppShell
       title={item.name}
-      description="Inventarobjekt mit Stammdaten, Zuordnung, Fotos, Ansprechpartnern und Historie."
+      description="Inventarobjekt mit Objektdaten, Zuordnung, Fotos, Ansprechpartnern und Historie."
     >
       {locationAlertWasCreated ? (
         <section className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-5 text-sm text-orange-950 shadow-sm">

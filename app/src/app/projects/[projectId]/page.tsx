@@ -36,8 +36,8 @@ const projectTabs = [
   { label: "Übersicht", href: "#uebersicht" },
   { label: "Leistung", href: "#leistung" },
   { label: "Personal", href: "#personal" },
-  { label: "Geräte", href: "#geraete" },
-  { label: "LKW", href: "#lkw" },
+  { label: "Geräte/Fahrzeuge", href: "#geraete" },
+  { label: "Material", href: "#material" },
   { label: "Unfallmeldungen", href: "#unfallmeldungen" },
   { label: "Fotos", href: "#fotos" },
   { label: "Dokumente", href: "#dokumente" },
@@ -47,6 +47,7 @@ const projectTabs = [
 ];
 
 type ProjectActorListItem = {
+  detail?: string | null;
   label: string;
   photoAlt?: string | null;
   photoUrl?: string | null;
@@ -74,6 +75,36 @@ export default async function ProjectDetailPage({
             include: {
               crew: {
                 include: {
+                  defaultVehicles: {
+                    where: {
+                      isActive: true,
+                    },
+                    include: {
+                      vehicle: {
+                        include: {
+                          ...vehicleInventoryLinkInclude,
+                          driverAssignments: {
+                            where: {
+                              isActive: true,
+                            },
+                            include: {
+                              driver: {
+                                include: {
+                                  employee: true,
+                                },
+                              },
+                            },
+                            orderBy: [
+                              { isPrimary: "desc" },
+                              { createdAt: "desc" },
+                            ],
+                            take: 1,
+                          },
+                        },
+                      },
+                    },
+                    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                  },
                   members: {
                     where: {
                       isActive: true,
@@ -408,6 +439,7 @@ export default async function ProjectDetailPage({
   >();
   const equipment = new Map<string, ProjectActorListItem>();
   const trucks = new Map<string, ProjectActorListItem>();
+  const materials = new Map<string, ProjectActorListItem>();
   const crewRows: {
     crew: string;
     date: string;
@@ -454,8 +486,18 @@ export default async function ProjectDetailPage({
         assignmentPeople.add(name);
       }
 
+      for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
+        setActorListItem(equipment, defaultVehicle.vehicle.id, {
+          detail: getVehicleDetail(defaultVehicle.vehicle),
+          label: getVehicleLabel(defaultVehicle.vehicle),
+          photoUrl: getVehicleDriverPhotoUrl(defaultVehicle.vehicle),
+          photoAlt: getVehicleDriverName(defaultVehicle.vehicle),
+        });
+      }
+
       for (const extraVehicle of assignment.extraVehicles) {
         setActorListItem(equipment, extraVehicle.vehicle.id, {
+          detail: getVehicleDetail(extraVehicle.vehicle),
           label: getVehicleLabel(extraVehicle.vehicle),
           photoUrl: getVehicleDriverPhotoUrl(extraVehicle.vehicle),
           photoAlt: getVehicleDriverName(extraVehicle.vehicle),
@@ -476,6 +518,7 @@ export default async function ProjectDetailPage({
 
   for (const assignment of project.equipmentDispatchAssignments) {
     setActorListItem(equipment, assignment.vehicle.id, {
+      detail: getVehicleDetail(assignment.vehicle),
       label: getVehicleLabel(assignment.vehicle),
       photoUrl: getVehicleDriverPhotoUrl(assignment.vehicle),
       photoAlt: getVehicleDriverName(assignment.vehicle),
@@ -485,6 +528,7 @@ export default async function ProjectDetailPage({
   for (const assignment of project.specialVehicleDispatchAssignments) {
     if (assignment.vehicle) {
       setActorListItem(equipment, assignment.vehicle.id, {
+        detail: getVehicleDetail(assignment.vehicle),
         label: getVehicleLabel(assignment.vehicle),
         photoUrl:
           assignment.operatorDriver?.employee?.photoUrl ??
@@ -503,6 +547,7 @@ export default async function ProjectDetailPage({
 
     if (assignment.transportVehicle) {
       setActorListItem(equipment, assignment.transportVehicle.id, {
+        detail: getVehicleDetail(assignment.transportVehicle),
         label: getVehicleLabel(assignment.transportVehicle),
         photoUrl: getVehicleDriverPhotoUrl(assignment.transportVehicle),
         photoAlt: getVehicleDriverName(assignment.transportVehicle),
@@ -530,7 +575,15 @@ export default async function ProjectDetailPage({
       }),
       assignment.driver?.employee?.photoUrl ?? null,
       getDriverName(assignment.driver) ?? assignment.driverName,
+      "LKW / Transport · Kurzstrecke",
     );
+    addMaterialItem(materials, assignment.material, {
+      detail: compactLine([
+        "Kurzstrecke",
+        formatDate(assignment.workDate),
+        assignment.notes,
+      ]),
+    });
   }
 
   for (const tour of project.shortHaulTours) {
@@ -548,7 +601,15 @@ export default async function ProjectDetailPage({
       }),
       assignment.driver?.employee?.photoUrl ?? null,
       getDriverName(assignment.driver) ?? assignment.driverName,
+      "LKW / Transport · Kurzstrecke",
     );
+    addMaterialItem(materials, tour.itemName || tour.customPurpose || tour.material, {
+      detail: compactLine([
+        tour.purposeType === "FREE" ? "Freier Zweck" : "Kurzstrecke",
+        formatDate(assignment.workDate),
+        formatQuantity(tour.quantity, tour.quantityUnit),
+      ]),
+    });
   }
 
   for (const entry of project.truckLongHaulEntries) {
@@ -569,8 +630,21 @@ export default async function ProjectDetailPage({
         }),
         assignment.driver?.employee?.photoUrl ?? null,
         getDriverName(assignment.driver) ?? assignment.driverName,
+        compactLine([
+          assignment.ownerType === "SUBCONTRACTOR"
+            ? "Fremd-LKW / Transport"
+            : "LKW / Transport",
+          formatDate(entry.workDate),
+        ]),
       );
     }
+    addMaterialItem(materials, entry.materialName, {
+      detail: compactLine([
+        "Langstrecke",
+        formatDate(entry.workDate),
+        formatQuantity(entry.materialQuantity, entry.materialUnit),
+      ]),
+    });
   }
 
   for (const allocation of project.asphaltLoadAllocations) {
@@ -590,6 +664,18 @@ export default async function ProjectDetailPage({
       }),
       allocation.driver?.employee?.photoUrl ?? null,
       getDriverName(allocation.driver) ?? allocation.driverName,
+      compactLine(["LKW / Asphalt", formatDate(allocation.workDate)]),
+    );
+    addMaterialItem(
+      materials,
+      allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
+      {
+        detail: compactLine([
+          "Asphalt-Transport",
+          formatDate(allocation.workDate),
+          formatQuantity(allocation.totalTons, "t"),
+        ]),
+      },
     );
   }
 
@@ -607,7 +693,46 @@ export default async function ProjectDetailPage({
       }),
       allocation.driver?.employee?.photoUrl ?? null,
       getDriverName(allocation.driver) ?? allocation.driverName,
+      compactLine(["LKW / Anspritzmittel", formatDate(allocation.workDate)]),
     );
+    addMaterialItem(materials, allocation.materialName || "Anspritzmittel", {
+      detail: compactLine([
+        "Anspritzmittel-Transport",
+        formatDate(allocation.workDate),
+        formatQuantity(allocation.totalLiters, allocation.quantityUnit || "l"),
+      ]),
+    });
+  }
+
+  for (const assignment of project.specialVehicleDispatchAssignments) {
+    addMaterialItem(materials, assignment.materialName, {
+      detail: compactLine([
+        "Sonderfahrzeug",
+        formatDate(assignment.workDate),
+        formatQuantity(assignment.quantity, assignment.quantityUnit),
+      ]),
+    });
+  }
+
+  for (const entry of project.asphaltDispatchEntries) {
+    addMaterialItem(
+      materials,
+      entry.asphaltMixName || entry.asphaltMixNumber || "Asphalt",
+      {
+        detail: compactLine([
+          "Asphaltdispo",
+          formatDate(entry.workDate),
+          formatQuantity(entry.quantityTons, "t"),
+        ]),
+      },
+    );
+    addMaterialItem(materials, entry.tackCoatMaterialName, {
+      detail: compactLine([
+        "Asphaltdispo",
+        formatDate(entry.workDate),
+        formatQuantity(entry.tackCoatQuantity, entry.tackCoatUnit),
+      ]),
+    });
   }
 
   const peopleList = Array.from(people.values()).sort((a, b) =>
@@ -617,6 +742,12 @@ export default async function ProjectDetailPage({
     a.label.localeCompare(b.label, "de-DE"),
   );
   const truckList = Array.from(trucks.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, "de-DE"),
+  );
+  const vehicleList = [...equipmentList, ...truckList].sort((a, b) =>
+    a.label.localeCompare(b.label, "de-DE"),
+  );
+  const materialList = Array.from(materials.values()).sort((a, b) =>
     a.label.localeCompare(b.label, "de-DE"),
   );
   const weatherEntries = project.weatherLogs.map((entry) => ({
@@ -754,8 +885,11 @@ export default async function ProjectDetailPage({
 
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MiniMetric label="Personal" value={`${peopleList.length}`} />
-              <MiniMetric label="Geräte" value={`${equipmentList.length}`} />
-              <MiniMetric label="LKW" value={`${truckList.length}`} />
+              <MiniMetric
+                label="Geräte/Fahrzeuge"
+                value={`${vehicleList.length}`}
+              />
+              <MiniMetric label="Material" value={`${materialList.length}`} />
               <MiniMetric
                 label="Dispo-Einträge"
                 value={`${
@@ -866,27 +1000,29 @@ export default async function ProjectDetailPage({
           id="geraete"
           className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
         >
-          <h2 className="text-xl font-semibold text-gray-900">Geräte</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Geräte / Fahrzeuge
+          </h2>
           <p className="mt-1 text-sm text-gray-600">
-            Geräte und Sonderfahrzeuge aus Geräte- und Sonderfahrzeugdisposition.
+            Baumaschinen, LKW und Sonderfahrzeuge aus Planung und Disposition.
           </p>
           <ListBlock
-            emptyText="Noch keine Geräte über Disposition zugeordnet."
-            items={equipmentList}
+            emptyText="Noch keine Geräte oder Fahrzeuge über Disposition zugeordnet."
+            items={vehicleList}
           />
         </section>
 
         <section
-          id="lkw"
+          id="material"
           className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
         >
-          <h2 className="text-xl font-semibold text-gray-900">LKW</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Material</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Aus Kurzstrecke, Langstrecke, Asphalt- und Anspritzmittel-Transporten.
+            Aus Asphaltplanung, LKW-Disposition, Sonderfahrzeugen und BTB-Bezug.
           </p>
           <ListBlock
-            emptyText="Noch keine LKW über die LKW-Disposition zugeordnet."
-            items={truckList}
+            emptyText="Noch kein Material über Disposition oder Planung erfasst."
+            items={materialList}
           />
         </section>
       </div>
@@ -1374,14 +1510,21 @@ function EmployeeQualificationList({
 
 function ProjectActorBadge({ item }: { item: ProjectActorListItem }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-2 rounded-full bg-gray-100 py-1 pl-1 pr-3 text-xs font-semibold text-gray-800">
+    <span className="inline-flex max-w-full items-center gap-2 rounded-2xl bg-gray-100 py-1 pl-1 pr-3 text-xs font-semibold text-gray-800">
       <ProjectActorAvatar
         label={item.label}
         photoAlt={item.photoAlt ?? item.label}
         photoUrl={item.photoUrl ?? null}
         size="sm"
       />
-      <span className="truncate">{item.label}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{item.label}</span>
+        {item.detail ? (
+          <span className="block truncate text-[10px] font-medium text-gray-500">
+            {item.detail}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -1789,7 +1932,7 @@ type VehicleLabelInput = {
   licensePlate: string | null;
   vehicleNumber: string | null;
   vehicleType: string | null;
-};
+} & VehicleWithInventoryLink;
 
 type DailyReportPrefillProject = {
   asphaltDispatchEntries: {
@@ -1817,6 +1960,9 @@ type DailyReportPrefillProject = {
   crewPlanningRows: {
     assignments: {
       crew: {
+        defaultVehicles: {
+          vehicle: VehicleLabelInput;
+        }[];
         members: {
           employee: {
             firstName: string;
@@ -2005,6 +2151,10 @@ function buildDailyReportFormPrefillForDate({
 
       for (const extraEmployee of assignment.extraEmployees) {
         people.add(getEmployeeName(extraEmployee.employee));
+      }
+
+      for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
+        addNonEmpty(equipment, getVehicleLabel(defaultVehicle.vehicle));
       }
 
       for (const extraVehicle of assignment.extraVehicles) {
@@ -2273,6 +2423,31 @@ function addNonEmpty(target: Set<string> | string[], value: string | null | unde
   target.push(text);
 }
 
+function addMaterialItem(
+  materials: Map<string, ProjectActorListItem>,
+  label: string | null | undefined,
+  {
+    detail,
+  }: {
+    detail?: string | null;
+  } = {},
+) {
+  const text = String(label ?? "").trim();
+  if (!text) return;
+  const key = text.toLocaleLowerCase("de-DE");
+  const existing = materials.get(key);
+  const details = [existing?.detail, detail]
+    .flatMap((value) => String(value ?? "").split(" · "))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const uniqueDetails = Array.from(new Set(details)).slice(0, 6);
+
+  setActorListItem(materials, key, {
+    detail: uniqueDetails.join(" · ") || null,
+    label: text,
+  });
+}
+
 function compactLine(parts: Array<string | null | undefined>) {
   return parts
     .map((part) => String(part ?? "").trim())
@@ -2352,6 +2527,35 @@ function getVehicleLabel(vehicle: {
     .join(" · ");
 }
 
+function getVehicleDetail(vehicle: VehicleWithInventoryLink) {
+  const inventoryItem = getVehicleInventoryItem(vehicle);
+
+  if (!inventoryItem) {
+    return null;
+  }
+
+  const category = inventoryItem.category?.parentCategory
+    ? `${inventoryItem.category.parentCategory.name} / ${inventoryItem.category.name}`
+    : inventoryItem.category?.name;
+  const responsible = inventoryItem.responsibleCrew
+    ? `Kolonne: ${inventoryItem.responsibleCrew.name}`
+    : inventoryItem.responsibleEmployee
+      ? `Mitarbeiter: ${[
+          inventoryItem.responsibleEmployee.lastName,
+          inventoryItem.responsibleEmployee.firstName,
+        ]
+          .filter(Boolean)
+          .join(", ")}`
+      : null;
+  const location = inventoryItem.currentProject
+    ? `Baustelle: ${inventoryItem.currentProject.projectNumber}`
+    : inventoryItem.currentLocationLabel
+      ? `Standort: ${inventoryItem.currentLocationLabel}`
+      : null;
+
+  return [category, responsible, location].filter(Boolean).join(" · ");
+}
+
 function setActorListItem(
   items: Map<string, ProjectActorListItem>,
   key: string,
@@ -2361,6 +2565,7 @@ function setActorListItem(
   const existing = items.get(key);
 
   items.set(key, {
+    detail: item.detail ?? existing?.detail ?? null,
     label: item.label,
     photoAlt: item.photoAlt ?? existing?.photoAlt ?? null,
     photoUrl: item.photoUrl ?? existing?.photoUrl ?? null,
@@ -2373,9 +2578,11 @@ function addTruck(
   label: string,
   photoUrl: string | null = null,
   photoAlt: string | null = null,
+  detail: string | null = null,
 ) {
   if (!label) return;
   setActorListItem(trucks, key, {
+    detail,
     label,
     photoAlt,
     photoUrl,

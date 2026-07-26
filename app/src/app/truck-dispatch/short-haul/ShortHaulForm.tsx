@@ -879,7 +879,7 @@ export function ShortHaulForm({
 
           <p className="mt-1 text-sm text-red-800">{conflictText}</p>
           <p className="mt-2 text-xs font-semibold text-red-800">
-            Doppelte Stammdaten-Zuordnung ist erlaubt, aber in der LKW-Dispo
+            Doppelte feste Zuordnung ist erlaubt, aber in der LKW-Dispo
             darf derselbe Fahrer oder LKW am selben Tag nur einmal eingeteilt
             sein.
           </p>

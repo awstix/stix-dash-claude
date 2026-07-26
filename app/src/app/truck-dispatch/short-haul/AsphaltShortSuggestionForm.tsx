@@ -678,7 +678,7 @@ export function AsphaltShortSuggestionForm({
           <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
             Für die Restmenge wurde kein weiterer freier LKW mit Nutzlast und
             freiem Stammfahrer gefunden. Du kannst manuell eine weitere Zeile
-            ergänzen oder die Stammdaten prüfen.
+            ergänzen oder Inventar/Zuordnung prüfen.
           </div>
         ) : null}
 

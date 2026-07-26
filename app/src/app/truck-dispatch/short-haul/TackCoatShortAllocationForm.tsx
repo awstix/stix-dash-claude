@@ -434,7 +434,7 @@ export function TackCoatShortAllocationForm({
 
       {selectedVehicle ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
-          Arbeitsmitteltank laut Stammdaten:{" "}
+          Arbeitsmitteltank laut Inventar:{" "}
           <strong>
             {selectedVehicle.tackCoatTankLiters > 0
               ? `${formatLiters(selectedVehicle.tackCoatTankLiters)} l`

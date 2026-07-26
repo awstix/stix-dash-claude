@@ -1317,7 +1317,7 @@ function EntryAsphaltAllocationBox({
                               {assignment.ownerType === "OWN" ? (
                                 payloadTons > 0 ? (
                                   <span>
-                                    Stammdaten:{" "}
+                                    Inventar:{" "}
                                     <strong>{formatTons(payloadTons)} t</strong>
                                   </span>
                                 ) : (

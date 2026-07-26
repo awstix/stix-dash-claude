@@ -930,7 +930,7 @@ export default async function DriverVehiclesPage({
   return (
     <AppShell
       title="Fahrer-Fahrzeug-Zuordnung"
-      description="Feste Fahrzeuge, Stammfahrzeuge und freie Fahrzeuge für Langstrecke und Kurzstrecke verwalten. Mitarbeiter ohne Fahrer-Stammsatz werden beim Speichern automatisch angelegt."
+      description="Feste Fahrzeuge, freie Fahrzeuge und Fahrer-Fahrzeug-Zuordnungen für Langstrecke und Kurzstrecke verwalten. Mitarbeiter ohne Fahrerdatensatz werden beim Speichern automatisch angelegt."
     >
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         <SummaryCard
@@ -963,7 +963,7 @@ export default async function DriverVehiclesPage({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-base font-bold text-amber-950">
-                Stammdaten prüfen: mehrere Hauptfahrzeuge
+                Zuordnung prüfen: mehrere Hauptfahrzeuge
               </h2>
               <p className="mt-1 text-sm text-amber-900">
                 Pro Fahrer darf nur ein aktives Hauptfahrzeug gesetzt sein.

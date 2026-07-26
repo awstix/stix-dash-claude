@@ -130,7 +130,7 @@ export default async function DriversPage() {
   return (
     <AppShell
       title="Fahrer"
-      description="Fahrer-Stammdaten für Kurzstrecke, LKW-Einteilung und spätere Personaleinteilung."
+      description="Fahrerdaten für Kurzstrecke, LKW-Einteilung und spätere Personaleinteilung."
     >
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-900">Fahrer anlegen</h2>

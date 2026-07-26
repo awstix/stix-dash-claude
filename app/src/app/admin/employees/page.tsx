@@ -528,7 +528,7 @@ export async function EmployeesManagementPage({
                 Mitarbeiterverwaltung
               </h2>
               <p className="mt-1 text-sm text-gray-600">
-                Mitarbeiter einzeln pflegen oder Stammdaten per Excel
+                Mitarbeiter einzeln pflegen oder Mitarbeiterdaten per Excel
                 importieren.
               </p>
             </div>

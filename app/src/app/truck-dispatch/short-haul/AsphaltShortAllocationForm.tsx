@@ -446,7 +446,7 @@ export function AsphaltShortAllocationForm({
 
       {selectedVehicle ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
-          Nutzlast laut Stammdaten:{" "}
+          Nutzlast laut Inventar:{" "}
           <strong>
             {selectedVehicle.asphaltPayloadTons > 0
               ? `${formatTons(selectedVehicle.asphaltPayloadTons)} t`

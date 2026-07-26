@@ -206,7 +206,7 @@ export function InventoryItemForm({
         {layout === "stacked" ? (
           <SectionHeader
             description="Grunddaten, Nummern und technische Angaben."
-            title="Stammdaten"
+            title="Objektdaten"
           />
         ) : null}
         <div className={layout === "stacked" ? "mt-4 space-y-4" : gridClass}>
