@@ -25,7 +25,17 @@ type TemplateRow = {
   sortOrder: number;
 };
 
-export default async function UniversalFormBuilderPage() {
+export default async function UniversalFormBuilderPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ scope?: string; templateId?: string }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const initialScope =
+    params.scope === "WORKSHOP" || params.scope === "SAFETY"
+      ? params.scope
+      : "PROJECT";
+
   await ensureWorkshopRepairOrderTemplate();
 
   const [projectTemplates, workshopTemplates, safetyTemplates] =
@@ -67,7 +77,11 @@ export default async function UniversalFormBuilderPage() {
       title="Formularbuilder"
       description="Ein gemeinsamer Builder für Projektformulare, Werkstattformulare und Arbeitssicherheit."
     >
-      <UniversalFormTemplateBuilder templates={templates} />
+      <UniversalFormTemplateBuilder
+        initialTemplateId={params.templateId}
+        initialScope={initialScope}
+        templates={templates}
+      />
     </AppShell>
   );
 }

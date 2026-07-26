@@ -17,6 +17,7 @@ export function AppHeader({
   projectNavigation,
   safetyNavigation,
   secondaryNavigation,
+  workshopNavigation,
 }: {
   controllingNavigation: NavigationItem[];
   dispositionNavigation: NavigationItem[];
@@ -26,12 +27,14 @@ export function AppHeader({
   projectNavigation: NavigationItem[];
   safetyNavigation: NavigationItem[];
   secondaryNavigation: NavigationItem[];
+  workshopNavigation: NavigationItem[];
 }) {
   const [openMenu, setOpenMenu] = useState<
     | "projects"
     | "disposition"
     | "inventory"
     | "safety"
+    | "workshop"
     | "employees"
     | "controlling"
     | null
@@ -172,6 +175,18 @@ export function AppHeader({
             onToggle={() =>
               setOpenMenu((current) =>
                 current === "safety" ? null : "safety",
+              )
+            }
+          />
+
+          <NavigationMenu
+            isOpen={openMenu === "workshop"}
+            items={workshopNavigation}
+            label="Werkstatt"
+            onNavigate={() => setOpenMenu(null)}
+            onToggle={() =>
+              setOpenMenu((current) =>
+                current === "workshop" ? null : "workshop",
               )
             }
           />

@@ -718,18 +718,21 @@ function drawSocialMediaIcon(
   }
 
   if (type === "youtube") {
-    page.drawRectangle({
-      borderColor: rgb(1, 1, 1),
-      borderWidth: 1,
-      height: 7,
-      width: 10,
-      x: x + 3.5,
-      y: y + 5,
-    });
-    page.drawSvgPath("M 0 0 L 0 4 L 3.5 2 Z", {
-      color: rgb(1, 1, 1),
-      x: x + 7.2,
-      y: y + 6.4,
+    const centerX = x + 8.5;
+    const centerY = y + 8.5;
+
+    page.drawSvgPath(
+      "M -2.43 -2.87 L 2.43 -2.87 C 3.52 -2.87 4.41 -1.98 4.41 -0.89 L 4.41 0.89 C 4.41 1.98 3.52 2.87 2.43 2.87 L -2.43 2.87 C -3.52 2.87 -4.41 1.98 -4.41 0.89 L -4.41 -0.89 C -4.41 -1.98 -3.52 -2.87 -2.43 -2.87 Z",
+      {
+        color: rgb(1, 1, 1),
+        x: centerX,
+        y: centerY,
+      },
+    );
+    page.drawSvgPath("M -1.1 -1.99 L -1.1 1.99 L 2.21 0 Z", {
+      color: textColor,
+      x: centerX,
+      y: centerY,
     });
     return;
   }

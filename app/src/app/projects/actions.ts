@@ -2168,11 +2168,10 @@ export async function createProjectFormTemplate(
     },
   });
 
-  await prisma.projectFormTemplate.create({
+  const template = await prisma.projectFormTemplate.create({
     data: {
       category: category || null,
       description: description || null,
-      emailRecipientsJson: JSON.stringify(emailRecipients),
       fieldsJson: JSON.stringify(fields),
       name,
       paperOrientation,
@@ -2180,6 +2179,12 @@ export async function createProjectFormTemplate(
       sortOrder: (result._max.sortOrder ?? 0) + 10,
     },
   });
+
+  await prisma.$executeRaw`
+    UPDATE ProjectFormTemplate
+    SET emailRecipientsJson = ${emailRecipients.length > 0 ? JSON.stringify(emailRecipients) : null}
+    WHERE id = ${template.id}
+  `;
 
   revalidateProjectFormViews();
 }
@@ -2215,13 +2220,18 @@ export async function updateProjectFormTemplate(
     data: {
       category: category || null,
       description: description || null,
-      emailRecipientsJson: JSON.stringify(emailRecipients),
       fieldsJson: JSON.stringify(fields),
       name,
       paperOrientation,
       paperSize,
     },
   });
+
+  await prisma.$executeRaw`
+    UPDATE ProjectFormTemplate
+    SET emailRecipientsJson = ${emailRecipients.length > 0 ? JSON.stringify(emailRecipients) : null}
+    WHERE id = ${templateId}
+  `;
 
   revalidateProjectFormViews();
 }

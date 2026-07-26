@@ -316,19 +316,7 @@ export function ProjectFormManager({
   }
 
   function editTemplate(template: ProjectFormTemplateItem) {
-    setEditingTemplateId(template.id);
-    setTemplateFields(
-      template.fields.map((field) => ({
-        description: field.description,
-        label: field.label,
-        optionsText: field.options.join("\n"),
-        required: field.required,
-        type: field.type,
-        width: field.width,
-      })),
-    );
-    setEditingFieldIndex(null);
-    setShowTemplateForm(true);
+    router.push(`/form-builder?scope=PROJECT&templateId=${template.id}`);
   }
 
   function closeTemplateForm() {
@@ -417,24 +405,16 @@ export function ProjectFormManager({
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Formulare</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Vorlagen erstellen, projektbezogen ausfüllen und in der Projektakte speichern.
+              Formulare projektbezogen ausfüllen und in der Projektakte speichern.
+              Vorlagen werden zentral im Formularbuilder gepflegt.
             </p>
           </div>
           <button
             className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-            onClick={() => {
-              if (showTemplateForm) {
-                closeTemplateForm();
-              } else {
-                setEditingTemplateId(null);
-                setTemplateFields([]);
-                setEditingFieldIndex(null);
-                setShowTemplateForm(true);
-              }
-            }}
+            onClick={() => router.push("/form-builder?scope=PROJECT")}
             type="button"
           >
-            {showTemplateForm ? "Vorlage schließen" : "Vorlage anlegen"}
+            Formularvorlage anlegen
           </button>
         </div>
 
@@ -1694,9 +1674,10 @@ function SocialMediaIcon({
     return (
       <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
         <path
-          d="M21 7.2a2.5 2.5 0 0 0-1.8-1.8C17.6 5 12 5 12 5s-5.6 0-7.2.4A2.5 2.5 0 0 0 3 7.2 26 26 0 0 0 2.6 12 26 26 0 0 0 3 16.8a2.5 2.5 0 0 0 1.8 1.8C6.4 19 12 19 12 19s5.6 0 7.2-.4a2.5 2.5 0 0 0 1.8-1.8 26 26 0 0 0 .4-4.8 26 26 0 0 0-.4-4.8ZM10 15V9l5.2 3Z"
+          d="M7.6 7.4h8.8a2 2 0 0 1 2 2v5.2a2 2 0 0 1-2 2H7.6a2 2 0 0 1-2-2V9.4a2 2 0 0 1 2-2Z"
           fill="currentColor"
         />
+        <path d="M10.9 9.35v5.3L15.3 12Z" fill="#111827" />
       </svg>
     );
   }

@@ -3,12 +3,12 @@ import { GlobalFormFeedback } from "./GlobalFormFeedback";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
-  { name: "Formularbuilder", href: "/form-builder" },
 ];
 
 const projectNavigation = [
   { name: "Bautagesberichte", href: "/projects/bautagesberichte" },
   { name: "Dokumente", href: "/projects/dokumente" },
+  { name: "Formularbuilder", href: "/form-builder?scope=PROJECT" },
   { name: "Formulare", href: "/projects/formulare" },
   { name: "Fotos", href: "/projects/fotos" },
   { name: "Leistung", href: "/projects/performance" },
@@ -18,8 +18,13 @@ const projectNavigation = [
 
 const secondaryNavigation = [
   { name: "Bestellung", href: "/orders" },
-  { name: "Werkstatt", href: "/workshop" },
   { name: "Admin", href: "/admin" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+
+const workshopNavigation = [
+  { name: "Formularbuilder", href: "/form-builder?scope=WORKSHOP" },
+  { name: "Formularvorlagen", href: "/workshop/forms" },
+  { name: "Werkstattübersicht", href: "/workshop" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const dispositionNavigation = [
@@ -51,6 +56,7 @@ const controllingNavigation = [
 const safetyNavigation = [
   { name: "Beauftragungen", href: "/safety/commissions" },
   { name: "Betriebsunterweisungen", href: "/safety/operating-instructions" },
+  { name: "Formularbuilder", href: "/form-builder?scope=SAFETY" },
   { name: "Formularvorlagen", href: "/safety/forms" },
   { name: "Gefahrstoffe", href: "/safety/hazardous-substances" },
   { name: "Gefährdungsbeurteilungen", href: "/safety/risk-assessments" },
@@ -83,6 +89,7 @@ export function AppShell({
         projectNavigation={projectNavigation}
         safetyNavigation={safetyNavigation}
         secondaryNavigation={secondaryNavigation}
+        workshopNavigation={workshopNavigation}
       />
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">

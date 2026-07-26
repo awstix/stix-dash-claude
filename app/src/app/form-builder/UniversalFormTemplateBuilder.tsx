@@ -1,6 +1,14 @@
 "use client";
 
-import { DragEvent, FormEvent, useMemo, useState, useTransition } from "react";
+import {
+  DragEvent,
+  useEffect,
+  FormEvent,
+  MouseEvent,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -57,19 +65,23 @@ function emptyTemplate(scope: UniversalFormScope): UniversalFormTemplate {
 }
 
 export function UniversalFormTemplateBuilder({
+  initialTemplateId,
   initialScope = "PROJECT",
   templates,
 }: {
+  initialTemplateId?: string;
   initialScope?: UniversalFormScope;
   templates: UniversalFormTemplate[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [scopeFilter, setScopeFilter] = useState<UniversalFormScope | "ALL">(
-    "ALL",
-  );
+  const [scopeFilter, setScopeFilter] =
+    useState<UniversalFormScope | "ALL">(initialScope);
   const [newScope, setNewScope] = useState<UniversalFormScope>(initialScope);
   const [editing, setEditing] = useState<UniversalFormTemplate | null>(null);
+  const [openedInitialTemplateId, setOpenedInitialTemplateId] = useState<
+    string | null
+  >(null);
   const [fields, setFields] = useState<ProjectFormFieldDefinition[]>([]);
   const [dragged, setDragged] = useState<number | null>(null);
   const [dragTarget, setDragTarget] = useState<number | null>(null);
@@ -82,6 +94,21 @@ export function UniversalFormTemplateBuilder({
       ),
     [scopeFilter, templates],
   );
+
+  useEffect(() => {
+    if (!initialTemplateId) return;
+    if (openedInitialTemplateId === initialTemplateId) return;
+    const template = templates.find(
+      (item) => item.id === initialTemplateId && item.scope === initialScope,
+    );
+    if (!template) return;
+    setScopeFilter(template.scope);
+    setNewScope(template.scope);
+    setEditing(template);
+    setFields(template.fields);
+    setEditingFieldIndex(null);
+    setOpenedInitialTemplateId(initialTemplateId);
+  }, [initialScope, initialTemplateId, openedInitialTemplateId, templates]);
 
   function start(template?: UniversalFormTemplate) {
     const draft = template ?? emptyTemplate(newScope);
@@ -154,6 +181,61 @@ export function UniversalFormTemplateBuilder({
         );
       }
     });
+  }
+
+  async function openLivePdfPreview(event: MouseEvent<HTMLButtonElement>) {
+    if (!editing) return;
+
+    const previewWindow = window.open("", "_blank");
+    const form = event.currentTarget.form;
+    const data = form ? new FormData(form) : null;
+    const scope = String(data?.get("scope") ?? editing.scope);
+    const templateName =
+      String(data?.get("name") ?? "").trim() ||
+      editing.name ||
+      "Formularvorschau";
+    const paperOrientation = String(
+      data?.get("paperOrientation") ?? editing.paperOrientation,
+    );
+    const paperSize = String(data?.get("paperSize") ?? editing.paperSize);
+
+    try {
+      const response = await fetch("/form-builder/preview/pdf", {
+        body: JSON.stringify({
+          fields,
+          paperOrientation,
+          paperSize,
+          scope,
+          templateName,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (previewWindow) {
+        previewWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      previewWindow?.close();
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Live-Vorschau konnte nicht erzeugt werden.",
+      );
+    }
   }
 
   return (
@@ -486,6 +568,13 @@ export function UniversalFormTemplateBuilder({
                 Abbrechen
               </button>
               <button
+                type="button"
+                onClick={openLivePdfPreview}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Live-Vorschau
+              </button>
+              <button
                 type="submit"
                 disabled={isPending}
                 className="rounded-xl bg-yellow-400 px-5 py-2 text-sm font-bold text-gray-950 disabled:opacity-60"
@@ -496,6 +585,7 @@ export function UniversalFormTemplateBuilder({
           </form>
         </div>
       ) : null}
+
     </>
   );
 }
