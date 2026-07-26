@@ -3,6 +3,7 @@ import { GlobalFormFeedback } from "./GlobalFormFeedback";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
+  { name: "Formularbuilder", href: "/form-builder" },
 ];
 
 const projectNavigation = [
