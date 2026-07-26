@@ -299,7 +299,6 @@ function getInventoryPayload(formData: FormData) {
     status: inventoryStatus(formData.get("status")),
     stixId: optionalString(formData.get("stixId")),
     stockUnit: optionalString(formData.get("stockUnit")) ?? "Stk.",
-    vehicleId: optionalId(formData.get("vehicleId")),
     workMaterialTankLiters: optionalFloat(
       formData.get("workMaterialTankLiters"),
       "Arbeitsmitteltank",
@@ -337,7 +336,6 @@ function getInventoryCreateData(formData: FormData) {
     parentItemId,
     responsibleCrewId,
     responsibleEmployeeId,
-    vehicleId,
     ...payload
   } = getInventoryPayload(formData);
 
@@ -348,7 +346,6 @@ function getInventoryCreateData(formData: FormData) {
     parentItem: relationConnect(parentItemId),
     responsibleCrew: relationConnect(responsibleCrewId),
     responsibleEmployee: relationConnect(responsibleEmployeeId),
-    vehicle: relationConnect(vehicleId),
   };
 }
 
@@ -359,7 +356,6 @@ function getInventoryUpdateData(formData: FormData) {
     parentItemId,
     responsibleCrewId,
     responsibleEmployeeId,
-    vehicleId,
     ...payload
   } = getInventoryPayload(formData);
 
@@ -370,7 +366,6 @@ function getInventoryUpdateData(formData: FormData) {
     parentItem: relationUpdate(parentItemId),
     responsibleCrew: relationUpdate(responsibleCrewId),
     responsibleEmployee: relationUpdate(responsibleEmployeeId),
-    vehicle: relationUpdate(vehicleId),
   };
 }
 
@@ -535,7 +530,7 @@ async function getUniqueVehicleNumber(baseValue: string, existingVehicleId?: str
   }
 }
 
-async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
+async function syncVehicleLinkForInventoryItem(itemId: string) {
   const item = await prisma.inventoryItem.findUnique({
     where: {
       id: itemId,
@@ -546,10 +541,18 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
           name: true,
           parentCategory: {
             select: {
+              dailyReportSection: true,
+              useInDailyReports: true,
               useInSpecialVehicleDisposition: true,
+              useInTeamManagement: true,
+              useInTruckDispatchSelection: true,
             },
           },
+          dailyReportSection: true,
+          useInDailyReports: true,
           useInSpecialVehicleDisposition: true,
+          useInTeamManagement: true,
+          useInTruckDispatchSelection: true,
         },
       },
       id: true,
@@ -566,14 +569,39 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
     },
   });
 
-  const categoryMarksSpecialVehicle =
-    item?.category?.useInSpecialVehicleDisposition ||
-    item?.category?.parentCategory?.useInSpecialVehicleDisposition;
+  if (!item) {
+    return;
+  }
 
-  if (
-    !item ||
-    (!categoryMarksSpecialVehicle && !isSpecialVehicleInventoryItem(item))
-  ) {
+  const categoryMarksSpecialVehicle =
+    item.category?.useInSpecialVehicleDisposition ||
+    item.category?.parentCategory?.useInSpecialVehicleDisposition;
+  const categoryMarksVehicle =
+    categoryMarksSpecialVehicle ||
+    item.category?.useInTeamManagement ||
+    item.category?.parentCategory?.useInTeamManagement ||
+    item.category?.useInTruckDispatchSelection ||
+    item.category?.parentCategory?.useInTruckDispatchSelection ||
+    (item.category?.useInDailyReports &&
+      item.category.dailyReportSection === "MACHINES") ||
+    (item.category?.parentCategory?.useInDailyReports &&
+      item.category.parentCategory.dailyReportSection === "MACHINES");
+
+  if (!categoryMarksVehicle && !isSpecialVehicleInventoryItem(item)) {
+    if (item.vehicleId) {
+      await prisma.vehicle.update({
+        where: {
+          id: item.vehicleId,
+        },
+        data: {
+          isActive: false,
+          notes: [
+            "Automatisch deaktiviert: Inventarobjekt ist nicht mehr als Fahrzeug/Gerät markiert.",
+            item.name,
+          ].join("\n"),
+        },
+      });
+    }
     return;
   }
 
@@ -581,8 +609,8 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
     item.objectNumber ?? item.inventoryNumber ?? item.name,
     item.vehicleId,
   );
-  const category = item.category?.name ?? "Sondergerät";
-  const vehicleType = item.model ?? item.manufacturer ?? "Sondergerät";
+  const category = item.category?.name ?? "Inventarobjekt";
+  const vehicleType = item.model ?? item.manufacturer ?? item.name;
   const notes = [
     `Inventarobjekt: ${item.objectNumber ?? item.inventoryNumber ?? item.name}`,
     item.name !== vehicleNumber ? item.name : null,
@@ -598,7 +626,7 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
       data: {
         category,
         isActive: item.status !== "LOCKED",
-        isSpecialVehicle: true,
+        isSpecialVehicle: Boolean(categoryMarksSpecialVehicle),
         licensePlate: item.licensePlate,
         notes,
         tackCoatTankLiters: item.workMaterialTankLiters ?? 0,
@@ -613,7 +641,7 @@ async function syncSpecialVehicleLinkForInventoryItem(itemId: string) {
     data: {
       category,
       isActive: item.status !== "LOCKED",
-      isSpecialVehicle: true,
+      isSpecialVehicle: Boolean(categoryMarksSpecialVehicle),
       licensePlate: item.licensePlate,
       notes,
       tackCoatTankLiters: item.workMaterialTankLiters ?? 0,
@@ -880,7 +908,7 @@ export async function createInventoryItem(formData: FormData) {
     return createdItem;
   });
 
-  await syncSpecialVehicleLinkForInventoryItem(item.id);
+  await syncVehicleLinkForInventoryItem(item.id);
   await syncAsphaltMaterialLinkForInventoryItem(item.id);
   await syncDriverVehicleAssignmentForInventoryItemId(item.id);
   await storeInventoryPhotos(item.id, formData);
@@ -940,7 +968,7 @@ export async function updateInventoryItem(formData: FormData) {
     }
   });
 
-  await syncSpecialVehicleLinkForInventoryItem(id);
+  await syncVehicleLinkForInventoryItem(id);
   await syncAsphaltMaterialLinkForInventoryItem(id);
   await syncDriverVehicleAssignmentForInventoryItemId(id);
   await storeInventoryPhotos(id, formData);

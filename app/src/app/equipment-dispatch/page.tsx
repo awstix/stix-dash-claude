@@ -1703,6 +1703,7 @@ export default async function EquipmentDispatchPage({
       {
         ...item.vehicle,
         category: categoryLabel,
+        inventoryItemId: item.id,
         licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
         vehicleNumber: item.objectNumber ?? item.vehicle.vehicleNumber,
         inventoryItems: [item],
@@ -3218,6 +3219,7 @@ function EquipmentAssignmentForm({
   id?: string;
   vehicles: {
     id: string;
+    inventoryItemId: string;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -3241,6 +3243,9 @@ function EquipmentAssignmentForm({
   defaultEndDate: string;
   defaultNotes?: string;
 }) {
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
+  const selectedInventoryItemId = selectedVehicle?.inventoryItemId ?? "";
+
   return (
     <form
       action={action}
@@ -3260,16 +3265,16 @@ function EquipmentAssignmentForm({
         <label className="block text-sm font-medium text-gray-800">
           Gerät / Maschine
           <select
-            name="vehicleId"
+            name="inventoryItemId"
             required
-            defaultValue={defaultVehicleId}
+            defaultValue={selectedInventoryItemId}
             className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="" disabled>
-              Gerät wählen
+              Inventarobjekt wählen
             </option>
             {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
+              <option key={vehicle.id} value={vehicle.inventoryItemId}>
                 {getEquipmentVehicleSelectLabel(vehicle)}
               </option>
             ))}

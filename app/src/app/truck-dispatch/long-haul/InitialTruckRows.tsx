@@ -1090,7 +1090,7 @@ export function InitialTruckRows({
                           : "mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-xs text-gray-900"
                       }
                     >
-                      <option value="">Fahrzeug wählen</option>
+                      <option value="">Inventarobjekt wählen</option>
                       <VehicleOptions
                         vehicles={vehicles}
                         busyVehicles={busyVehicles}

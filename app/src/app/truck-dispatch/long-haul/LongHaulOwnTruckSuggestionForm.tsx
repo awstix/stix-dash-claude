@@ -352,7 +352,7 @@ export function LongHaulOwnTruckSuggestionForm({
             onChange={(event) => handleVehicleChange(event.target.value)}
             className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-2 py-2 text-xs text-gray-900"
           >
-            <option value="">Fahrzeug wählen</option>
+            <option value="">Inventarobjekt wählen</option>
             {vehicles.map((vehicle) => {
               const conflict = busyVehicles[vehicle.id] ?? shortVehicleConflicts[vehicle.id];
 

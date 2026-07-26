@@ -194,6 +194,17 @@ export default async function CrewsAdminPage() {
           },
           defaultVehicles: {
             include: {
+              inventoryItem: {
+                include: {
+                  category: {
+                    include: {
+                      parentCategory: true,
+                    },
+                  },
+                  responsibleCrew: true,
+                  vehicle: true,
+                },
+              },
               vehicle: {
                 include: {
                   inventoryItems: {
@@ -653,7 +664,7 @@ export default async function CrewsAdminPage() {
                   <div className="mt-4 space-y-2">
                     {crew.defaultVehicles.length === 0 ? (
                       <p className="text-sm text-gray-500">
-                        Noch keine Standardgeräte hinterlegt.
+                        Noch keine Standardgeräte oder Fahrzeuge hinterlegt.
                       </p>
                     ) : (
                       crew.defaultVehicles.map((item) => (
@@ -664,7 +675,9 @@ export default async function CrewsAdminPage() {
                           <div>
                             <div className="text-sm font-semibold text-gray-900">
                               {getInventoryVehicleLabel(
-                                item.vehicle.inventoryItems[0]
+                                item.inventoryItem
+                                  ? item.inventoryItem
+                                  : item.vehicle.inventoryItems[0]
                                   ? {
                                       ...item.vehicle.inventoryItems[0],
                                       vehicle: item.vehicle,
@@ -706,7 +719,7 @@ export default async function CrewsAdminPage() {
 
                   <details className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white p-3">
                     <summary className="cursor-pointer text-sm font-semibold text-gray-800">
-                      Gerät/Fahrzeug hinzufügen
+                      Inventarobjekt hinzufügen
                     </summary>
 
                     <form
@@ -716,15 +729,15 @@ export default async function CrewsAdminPage() {
                       <input type="hidden" name="crewId" value={crew.id} />
 
                       <label className="block text-xs font-medium text-gray-700">
-                        Gerät / Fahrzeug
+                        Inventarobjekt
                         <select
-                          name="vehicleId"
+                          name="inventoryItemId"
                           required
                           defaultValue=""
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
                         >
                           <option value="" disabled>
-                            Gerät/Fahrzeug wählen
+                            Inventarobjekt wählen
                           </option>
 
                           {inventoryVehicleItems.map((item) => {
@@ -752,7 +765,7 @@ export default async function CrewsAdminPage() {
                             return (
                               <option
                                 key={item.id}
-                                value={item.vehicleId}
+                                value={item.id}
                                 disabled={isAssignedToOtherCrew}
                               >
                                 {assignedLabel}
@@ -763,7 +776,7 @@ export default async function CrewsAdminPage() {
                       </label>
 
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                        ! = Gerät/Fahrzeug ist bereits in einer aktiven Kolonne
+                        ! = Inventarobjekt ist bereits in einer aktiven Kolonne
                         vergeben und kann nicht doppelt ausgewählt werden.
                         {" "}Sonderfahrzeug = als Sonderfahrzeug markiertes Inventarobjekt.
                       </div>

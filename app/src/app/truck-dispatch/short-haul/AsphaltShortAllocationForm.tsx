@@ -313,7 +313,7 @@ export function AsphaltShortAllocationForm({
             }
           >
             <option value="" disabled>
-              Fahrzeug wählen
+              Inventarobjekt wählen
             </option>
 
             {vehicles.map((vehicle) => {

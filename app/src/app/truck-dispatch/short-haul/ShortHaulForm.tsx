@@ -785,7 +785,7 @@ export function ShortHaulForm({
         </label>
 
         <label className="text-sm font-medium text-gray-800">
-          Fahrzeug / Kennzeichen
+          Inventarobjekt / Fahrzeug
           <select
             name="vehicleId"
             required
@@ -800,7 +800,7 @@ export function ShortHaulForm({
             }
           >
             <option value="" disabled>
-              Fahrzeug wählen
+              Inventarobjekt wählen
             </option>
 
             {vehicles.map((vehicle) => {

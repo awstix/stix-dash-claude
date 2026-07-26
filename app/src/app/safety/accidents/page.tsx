@@ -471,7 +471,7 @@ export default async function SafetyAccidentsPage({
                     defaultValue={fieldValue(editReport?.constructionManagerSalutation)}
                     name="constructionManagerSalutation"
                   >
-                    <option value="">Anrede wählen</option>
+                    <option value="">Anrede</option>
                     <option value="Herr">Herr</option>
                     <option value="Frau">Frau</option>
                     <option value="Divers">Divers / andere</option>

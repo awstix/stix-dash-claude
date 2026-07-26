@@ -86,7 +86,6 @@ export type InventoryItemFormData = {
   status: string;
   stixId: string | null;
   stockUnit: string;
-  vehicleId: string | null;
 };
 
 function formatDateInput(date: Date | null) {
@@ -203,11 +202,6 @@ export function InventoryItemForm({
           name="currentProjectId"
           type="hidden"
           value={item?.currentProjectId ?? "__none"}
-        />
-        <input
-          name="vehicleId"
-          type="hidden"
-          value={item?.vehicleId ?? "__none"}
         />
         {layout === "stacked" ? (
           <SectionHeader

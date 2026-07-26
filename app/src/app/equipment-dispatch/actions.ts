@@ -120,6 +120,40 @@ async function getVehicle(vehicleId: string) {
   return vehicle;
 }
 
+async function getVehicleByInventoryItemId(inventoryItemId: string) {
+  const inventoryItem = await prisma.inventoryItem.findUnique({
+    where: {
+      id: inventoryItemId,
+    },
+    select: {
+      vehicleId: true,
+    },
+  });
+
+  if (!inventoryItem?.vehicleId) {
+    throw new Error(
+      "Inventarobjekt wurde nicht gefunden oder ist nicht mit der Geräte-Disposition verknüpft.",
+    );
+  }
+
+  return getVehicle(inventoryItem.vehicleId);
+}
+
+async function getVehicleFromFormData(formData: FormData) {
+  const inventoryItemId = optionalString(formData.get("inventoryItemId"));
+  const vehicleId = optionalString(formData.get("vehicleId"));
+
+  if (inventoryItemId) {
+    return getVehicleByInventoryItemId(inventoryItemId);
+  }
+
+  if (vehicleId) {
+    return getVehicle(vehicleId);
+  }
+
+  throw new Error("Bitte ein Inventarobjekt wählen.");
+}
+
 function getVehicleInventoryItemId(vehicle: {
   inventoryItems?: { id: string }[];
 }) {
@@ -157,15 +191,10 @@ async function getCrewOrNull(crewId: string | null) {
 }
 
 export async function createEquipmentDispatchAssignment(formData: FormData) {
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
-
-  if (!vehicleId) {
-    throw new Error("Bitte ein Gerät/Fahrzeug wählen.");
-  }
 
   if (!projectId) {
     throw new Error("Bitte eine Baustelle wählen.");
@@ -176,11 +205,12 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
   }
 
   const [vehicle] = await Promise.all([
-    getVehicle(vehicleId),
+    getVehicleFromFormData(formData),
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
   const inventoryItemId = getVehicleInventoryItemId(vehicle);
+  const vehicleId = vehicle.id;
 
   await assertEquipmentIsFree({
     vehicleId,
@@ -230,7 +260,6 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
 
 export async function updateEquipmentDispatchAssignment(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -238,10 +267,6 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
 
   if (!id) {
     throw new Error("Gerätezuweisung-ID fehlt.");
-  }
-
-  if (!vehicleId) {
-    throw new Error("Bitte ein Gerät/Fahrzeug wählen.");
   }
 
   if (!projectId) {
@@ -253,11 +278,12 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
   }
 
   const [vehicle] = await Promise.all([
-    getVehicle(vehicleId),
+    getVehicleFromFormData(formData),
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
   const inventoryItemId = getVehicleInventoryItemId(vehicle);
+  const vehicleId = vehicle.id;
 
   await assertEquipmentIsFree({
     vehicleId,
@@ -313,15 +339,10 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
 export async function createEquipmentDispatchAssignmentFromDefaultDates(
   formData: FormData,
 ) {
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
-
-  if (!vehicleId) {
-    throw new Error("Gerät/Fahrzeug fehlt.");
-  }
 
   if (!projectId) {
     throw new Error("Baustelle fehlt. Diese Kolonnen-Grundinfo kann nicht automatisch übernommen werden.");
@@ -332,11 +353,12 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
   }
 
   const [vehicle] = await Promise.all([
-    getVehicle(vehicleId),
+    getVehicleFromFormData(formData),
     getProject(projectId),
     getCrewOrNull(crewId),
   ]);
   const inventoryItemId = getVehicleInventoryItemId(vehicle);
+  const vehicleId = vehicle.id;
 
   await assertEquipmentIsFree({
     vehicleId,

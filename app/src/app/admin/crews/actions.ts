@@ -247,22 +247,23 @@ export async function removeCrewMember(formData: FormData) {
 
 export async function addCrewDefaultVehicle(formData: FormData) {
   const crewId = String(formData.get("crewId") ?? "").trim();
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const inventoryItemId = String(formData.get("inventoryItemId") ?? "").trim();
 
   if (!crewId) {
     throw new Error("Kolonnen-ID fehlt.");
   }
 
-  if (!vehicleId) {
-    throw new Error("Gerät/Fahrzeug fehlt.");
+  if (!inventoryItemId) {
+    throw new Error("Inventarobjekt fehlt.");
   }
 
-  const inventoryItem = await prisma.inventoryItem.findFirst({
+  const inventoryItem = await prisma.inventoryItem.findUnique({
     where: {
-      vehicleId,
+      id: inventoryItemId,
     },
     select: {
       id: true,
+      vehicleId: true,
       category: {
         select: {
           name: true,
@@ -283,6 +284,14 @@ export async function addCrewDefaultVehicle(formData: FormData) {
       "Dieses Gerät/Fahrzeug ist für eine Teamzuordnung nicht freigegeben."
     );
   }
+
+  if (!inventoryItem.vehicleId) {
+    throw new Error(
+      "Für dieses Inventarobjekt fehlt die technische Dispo-Verknüpfung. Objekt bitte einmal speichern, danach erneut zuweisen.",
+    );
+  }
+
+  const vehicleId = inventoryItem.vehicleId;
 
   const [existingAssignment, existingInventoryAssignment] = await Promise.all([
     prisma.crewDefaultVehicle.findFirst({

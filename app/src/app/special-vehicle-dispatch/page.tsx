@@ -922,6 +922,7 @@ export default async function SpecialVehicleDispatchPage({
         category: categoryLabel,
         defaultOperatorDriverId: defaultOperatorDriver?.id ?? null,
         defaultOperatorDriverName: defaultOperatorDriver?.name ?? null,
+        inventoryItemId: item.id,
         licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
         tackCoatTankLiters:
           item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
@@ -952,6 +953,7 @@ export default async function SpecialVehicleDispatchPage({
         category: categoryLabel,
         defaultOperatorDriverId: defaultOperatorDriver?.id ?? null,
         defaultOperatorDriverName: defaultOperatorDriver?.name ?? null,
+        inventoryItemId: item.id,
         licensePlate: item.licensePlate ?? item.vehicle.licensePlate,
         tackCoatTankLiters:
           item.workMaterialTankLiters ?? item.vehicle.tackCoatTankLiters,
@@ -1738,6 +1740,7 @@ function SpecialVehicleAssignmentCard({
     defaultOperatorDriverId?: string | null;
     defaultOperatorDriverName?: string | null;
     id: string;
+    inventoryItemId: string;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -1747,6 +1750,7 @@ function SpecialVehicleAssignmentCard({
     defaultOperatorDriverId?: string | null;
     defaultOperatorDriverName?: string | null;
     id: string;
+    inventoryItemId: string;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -1897,6 +1901,7 @@ function SpecialVehicleAssignmentForm({
     defaultOperatorDriverId?: string | null;
     defaultOperatorDriverName?: string | null;
     id: string;
+    inventoryItemId: string;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -1906,6 +1911,7 @@ function SpecialVehicleAssignmentForm({
     defaultOperatorDriverId?: string | null;
     defaultOperatorDriverName?: string | null;
     id: string;
+    inventoryItemId: string;
     vehicleNumber: string;
     licensePlate: string | null;
     vehicleType: string;
@@ -1936,19 +1942,35 @@ function SpecialVehicleAssignmentForm({
   compact?: boolean;
 }) {
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
+  const selectedInventoryItemId = selectedVehicle?.inventoryItemId ?? "";
+  const selectedTransportVehicle = transportVehicles.find(
+    (vehicle) => vehicle.id === defaultTransportVehicleId,
+  );
+  const selectedTransportInventoryItemId =
+    selectedTransportVehicle?.inventoryItemId ?? "";
   const resolvedOperatorDriverId =
     defaultOperatorDriverId || selectedVehicle?.defaultOperatorDriverId || "";
 
   return (
     <form action={action} className={compact ? "space-y-3" : "mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"}>
       {id ? <input type="hidden" name="id" value={id} /> : null}
+      {!selectedInventoryItemId && defaultVehicleId ? (
+        <input type="hidden" name="vehicleId" value={defaultVehicleId} />
+      ) : null}
+      {!selectedTransportInventoryItemId && defaultTransportVehicleId ? (
+        <input
+          type="hidden"
+          name="transportVehicleId"
+          value={defaultTransportVehicleId}
+        />
+      ) : null}
 
       <label className="text-xs font-semibold text-gray-700">
         Sonderfahrzeug
-        <select name="vehicleId" required defaultValue={defaultVehicleId ?? ""} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-          <option value="" disabled>Fahrzeug wählen</option>
+        <select name="inventoryItemId" required defaultValue={selectedInventoryItemId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+          <option value="" disabled>Inventarobjekt wählen</option>
           {vehicles.map((vehicle) => (
-            <option key={vehicle.id} value={vehicle.id}>
+            <option key={vehicle.id} value={vehicle.inventoryItemId}>
               {getVehicleLabel(vehicle)}
             </option>
           ))}
@@ -1957,10 +1979,10 @@ function SpecialVehicleAssignmentForm({
 
       <label className="text-xs font-semibold text-gray-700">
         Transport-LKW optional
-        <select name="transportVehicleId" defaultValue={defaultTransportVehicleId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+        <select name="transportInventoryItemId" defaultValue={selectedTransportInventoryItemId} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
           <option value="">Kein Transport-LKW</option>
           {transportVehicles.map((vehicle) => (
-            <option key={vehicle.id} value={vehicle.id}>
+            <option key={vehicle.id} value={vehicle.inventoryItemId}>
               {getVehicleLabel(vehicle)}
             </option>
           ))}

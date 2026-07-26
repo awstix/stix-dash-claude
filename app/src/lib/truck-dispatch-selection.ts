@@ -39,11 +39,7 @@ export function vehicleIsSelectableInTruckDispatch(
 ) {
   const inventoryCategory = vehicle.inventoryItems?.[0]?.category;
 
-  if (inventoryCategory) {
-    return inventoryCategoryAllowsTruckDispatchSelection(inventoryCategory);
-  }
-
-  return isLegacyTruckOrSpecialVehicle(vehicle);
+  return inventoryCategoryAllowsTruckDispatchSelection(inventoryCategory);
 }
 
 export function driverIsSelectableInTruckDispatch(
@@ -75,25 +71,4 @@ function isTruckDriverPosition(position: {
   }`.toLowerCase();
 
   return text.includes("lkw") && text.includes("fahrer");
-}
-
-function isLegacyTruckOrSpecialVehicle(vehicle: {
-  category?: string | null;
-  isSpecialVehicle?: boolean | null;
-  vehicleType?: string | null;
-}) {
-  if (vehicle.isSpecialVehicle) {
-    return true;
-  }
-
-  const text = `${vehicle.category ?? ""} ${vehicle.vehicleType ?? ""}`
-    .trim()
-    .toLowerCase();
-
-  return (
-    text.includes("lkw") ||
-    text.includes("sattel") ||
-    text.includes("kipper") ||
-    text.includes("anspritz")
-  );
 }

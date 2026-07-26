@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 type VehicleOption = {
   id: string;
+  inventoryItemId: string;
   vehicleNumber: string;
   licensePlate: string | null;
   vehicleType: string;
@@ -279,6 +280,12 @@ export function SpecialVehicleTourFormClient({
 
   return (
     <form action={action} className="mt-4 space-y-4">
+      <input
+        type="hidden"
+        name="inventoryItemId"
+        value={selectedVehicle?.inventoryItemId ?? ""}
+      />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <label className="text-xs font-semibold text-gray-700">
           Sonderfahrzeug
@@ -296,7 +303,7 @@ export function SpecialVehicleTourFormClient({
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="" disabled>
-              Fahrzeug wählen
+              Inventarobjekt wählen
             </option>
             {vehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
@@ -323,13 +330,13 @@ export function SpecialVehicleTourFormClient({
         <label className="text-xs font-semibold text-gray-700">
           Transport-LKW optional
           <select
-            name="transportVehicleId"
+            name="transportInventoryItemId"
             defaultValue=""
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="">Kein Transport-LKW</option>
             {transportVehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
+              <option key={vehicle.id} value={vehicle.inventoryItemId}>
                 {getVehicleLabel(vehicle)}
               </option>
             ))}

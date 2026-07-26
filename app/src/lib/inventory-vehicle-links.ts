@@ -198,7 +198,11 @@ export function inventoryItemToVehicleWithInventoryLink(
 }
 
 export function getVehicleInventoryItem(vehicle: VehicleWithInventoryLink) {
-  return vehicle.inventoryItems?.[0] ?? null;
+  return (
+    vehicle.inventoryItems?.find(
+      (item) => item.status !== "DELETED" && item.status !== "INACTIVE",
+    ) ?? null
+  );
 }
 
 export function getVehicleInventoryLabel(vehicle: VehicleWithInventoryLink) {

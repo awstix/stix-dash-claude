@@ -2344,16 +2344,7 @@ function getVehicleLabel(vehicle: {
   const inventoryItem = getVehicleInventoryItem(vehicle);
 
   if (inventoryItem) {
-    return (
-      [
-        inventoryItem.objectNumber,
-        inventoryItem.inventoryNumber,
-        inventoryItem.name,
-        vehicle.licensePlate,
-      ]
-        .filter(Boolean)
-        .join(" · ") || "Fahrzeug / Gerät"
-    );
+    return String(inventoryItem.name ?? "").trim() || "Fahrzeug / Gerät";
   }
 
   return [vehicle.vehicleNumber, vehicle.licensePlate, vehicle.vehicleType]

@@ -307,7 +307,7 @@ export function TackCoatShortAllocationForm({
             }
           >
             <option value="" disabled>
-              Fahrzeug wählen
+              Inventarobjekt wählen
             </option>
 
             {vehicles.map((vehicle) => {

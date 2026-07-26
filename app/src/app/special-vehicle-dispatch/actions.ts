@@ -180,6 +180,44 @@ async function getVehicle(vehicleId: string) {
   return vehicle;
 }
 
+async function getVehicleByInventoryItemId(inventoryItemId: string) {
+  const inventoryItem = await prisma.inventoryItem.findUnique({
+    where: {
+      id: inventoryItemId,
+    },
+    select: {
+      vehicleId: true,
+    },
+  });
+
+  if (!inventoryItem?.vehicleId) {
+    throw new Error(
+      "Inventarobjekt wurde nicht gefunden oder ist nicht mit der Disposition verknüpft.",
+    );
+  }
+
+  return getVehicle(inventoryItem.vehicleId);
+}
+
+async function getTransportVehicleByInventoryItemId(inventoryItemId: string) {
+  const inventoryItem = await prisma.inventoryItem.findUnique({
+    where: {
+      id: inventoryItemId,
+    },
+    select: {
+      vehicleId: true,
+    },
+  });
+
+  if (!inventoryItem?.vehicleId) {
+    throw new Error(
+      "Transport-Inventarobjekt wurde nicht gefunden oder ist nicht mit der Disposition verknüpft.",
+    );
+  }
+
+  return getTransportVehicleOrNull(inventoryItem.vehicleId);
+}
+
 async function getProject(projectId: string) {
   const project = await prisma.project.findUnique({
     where: {
@@ -338,7 +376,11 @@ async function assertSpecialVehicleTimeIsFree({
 }
 
 function getAssignmentInput(formData: FormData) {
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const inventoryItemId = optionalString(formData.get("inventoryItemId"));
+  const vehicleId = optionalString(formData.get("vehicleId"));
+  const transportInventoryItemId = optionalString(
+    formData.get("transportInventoryItemId"),
+  );
   const transportVehicleId = optionalString(formData.get("transportVehicleId"));
   const operatorDriverId = optionalString(formData.get("operatorDriverId"));
   const projectId = String(formData.get("projectId") ?? "").trim();
@@ -347,7 +389,7 @@ function getAssignmentInput(formData: FormData) {
   const startTime = normalizeTime(formData.get("startTime"), "07:00");
   const endTime = normalizeTime(formData.get("endTime"), "17:00");
 
-  if (!vehicleId) {
+  if (!inventoryItemId && !vehicleId) {
     throw new Error("Bitte ein Sonderfahrzeug wählen.");
   }
 
@@ -358,7 +400,9 @@ function getAssignmentInput(formData: FormData) {
   assertValidTimeRange(startTime, endTime);
 
   return {
+    inventoryItemId,
     vehicleId,
+    transportInventoryItemId,
     transportVehicleId,
     operatorDriverId,
     projectId,
@@ -440,10 +484,14 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
   const input = getAssignmentInput(formData);
 
   const [vehicle, project, crew, transportVehicle, operatorDriver] = await Promise.all([
-    getVehicle(input.vehicleId),
+    input.inventoryItemId
+      ? getVehicleByInventoryItemId(input.inventoryItemId)
+      : getVehicle(input.vehicleId ?? ""),
     getProject(input.projectId),
     getCrewOrNull(input.crewId),
-    getTransportVehicleOrNull(input.transportVehicleId),
+    input.transportInventoryItemId
+      ? getTransportVehicleByInventoryItemId(input.transportInventoryItemId)
+      : getTransportVehicleOrNull(input.transportVehicleId),
     getDriverOrNull(input.operatorDriverId),
   ]);
   const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
@@ -542,20 +590,26 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
 }
 
 export async function createSpecialVehicleDispatchTourAssignments(formData: FormData) {
-  const vehicleId = String(formData.get("vehicleId") ?? "").trim();
+  const inventoryItemId = optionalString(formData.get("inventoryItemId"));
+  const vehicleId = optionalString(formData.get("vehicleId"));
+  const transportInventoryItemId = optionalString(
+    formData.get("transportInventoryItemId"),
+  );
   const transportVehicleId = optionalString(formData.get("transportVehicleId"));
   const operatorDriverId = optionalString(formData.get("operatorDriverId"));
   const crewId = optionalString(formData.get("crewId"));
   const fallbackWorkDate = parseDate(formData.get("workDate"), "Datum");
 
-  if (!vehicleId) {
+  if (!inventoryItemId && !vehicleId) {
     throw new Error("Bitte ein Sonderfahrzeug wählen.");
   }
 
   const [vehicle, crew, transportVehicle, operatorDriver] = await Promise.all([
-    getVehicle(vehicleId),
+    inventoryItemId ? getVehicleByInventoryItemId(inventoryItemId) : getVehicle(vehicleId ?? ""),
     getCrewOrNull(crewId),
-    getTransportVehicleOrNull(transportVehicleId),
+    transportInventoryItemId
+      ? getTransportVehicleByInventoryItemId(transportInventoryItemId)
+      : getTransportVehicleOrNull(transportVehicleId),
     getDriverOrNull(operatorDriverId),
   ]);
   const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
@@ -733,10 +787,14 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
   const input = getAssignmentInput(formData);
 
   const [vehicle, project, crew, transportVehicle, operatorDriver] = await Promise.all([
-    getVehicle(input.vehicleId),
+    input.inventoryItemId
+      ? getVehicleByInventoryItemId(input.inventoryItemId)
+      : getVehicle(input.vehicleId ?? ""),
     getProject(input.projectId),
     getCrewOrNull(input.crewId),
-    getTransportVehicleOrNull(input.transportVehicleId),
+    input.transportInventoryItemId
+      ? getTransportVehicleByInventoryItemId(input.transportInventoryItemId)
+      : getTransportVehicleOrNull(input.transportVehicleId),
     getDriverOrNull(input.operatorDriverId),
   ]);
   const vehicleInventoryItemId = getVehicleInventoryItemId(vehicle);
