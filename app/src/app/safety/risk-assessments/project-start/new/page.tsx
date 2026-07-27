@@ -2,7 +2,12 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectStartChecklistForm } from "../ProjectStartChecklistForm";
 
-export default async function NewProjectStartChecklistPage() {
+export default async function NewProjectStartChecklistPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projectId?: string }>;
+}) {
+  const { projectId = "" } = await searchParams;
   const [projects, employees] = await Promise.all([
     prisma.project.findMany({ orderBy: { projectNumber: "asc" } }),
     prisma.employee.findMany({
@@ -12,10 +17,11 @@ export default async function NewProjectStartChecklistPage() {
     }),
   ]);
   const today = new Date().toISOString().slice(0, 10);
+  const selectedProject = projects.find((project) => project.id === projectId);
   return <AppShell title="Projektstart Tiefbau ausfüllen" description="A-30-30-001 · Rev. 00">
     <ProjectStartChecklistForm
       employees={employees.map((e) => ({ companyDepartment: [e.companyLabel, e.departmentLabel].filter(Boolean).join(" / "), id: e.id, label: `${e.lastName}, ${e.firstName}` }))}
-      initial={{ activities: [], assessments: {}, checklistDate: today, endDate: "", instructionTopics: "", otherActivities: "", participantDates: {}, participantIds: [], participantSignatures: {}, presenterName: "", presenterSignatureDataUrl: "", projectId: "", responsibleManager: "", responsibleMobile: "", responsiblePhone: "", sitePostalCity: "", siteStreet: "", startDate: today }}
+      initial={{ activities: [], assessments: {}, checklistDate: today, endDate: "", instructionTopics: "", otherActivities: "", participantDates: {}, participantIds: [], participantSignatures: {}, presenterName: selectedProject?.constructionManager ?? "", presenterSignatureDataUrl: "", projectId: selectedProject?.id ?? "", responsibleManager: selectedProject?.constructionManager ?? "", responsibleMobile: "", responsiblePhone: "", sitePostalCity: "", siteStreet: "", startDate: today }}
       managerOptions={employees
         .filter((employee) =>
           employee.positions.some((position) =>

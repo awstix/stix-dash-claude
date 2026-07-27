@@ -129,6 +129,50 @@ export default async function EmployeeCertificateDetailPage({
           },
           orderBy: [{ validUntil: "asc" }, { trainingDate: "desc" }],
         },
+        projectStartChecklistParticipants: {
+          include: {
+            checklist: {
+              include: {
+                project: {
+                  select: {
+                    id: true,
+                    name: true,
+                    projectNumber: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
+        },
+        assessedGeneralRiskAssessments: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                projectNumber: true,
+              },
+            },
+          },
+          orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }],
+        },
+        generalRiskAssessmentParticipants: {
+          include: {
+            assessment: {
+              include: {
+                project: {
+                  select: {
+                    id: true,
+                    name: true,
+                    projectNumber: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
+        },
         inventoryAssignments: {
           include: {
             category: true,
@@ -215,6 +259,61 @@ export default async function EmployeeCertificateDetailPage({
   if (!employee) {
     notFound();
   }
+  const generalSafetyEntries = Array.from(
+    [
+      ...employee.assessedGeneralRiskAssessments.map((assessment) => ({
+        assessmentDate: assessment.assessmentDate,
+        id: assessment.id,
+        instructionDate: assessment.assessmentDate,
+        project: assessment.project,
+        signed: false,
+        status: assessment.status,
+        templateCode: assessment.templateCode,
+        templateRevision: assessment.templateRevision,
+        templateTitle: assessment.templateTitle,
+        typeLabel: "Personenbezogene GBU",
+      })),
+      ...employee.generalRiskAssessmentParticipants.map((participant) => ({
+        assessmentDate: participant.assessment.assessmentDate,
+        id: participant.assessment.id,
+        instructionDate:
+          participant.instructionDate ??
+          participant.assessment.assessmentDate,
+        project: participant.assessment.project,
+        signed: Boolean(participant.signatureDataUrl),
+        status: participant.assessment.status,
+        templateCode: participant.assessment.templateCode,
+        templateRevision: participant.assessment.templateRevision,
+        templateTitle: participant.assessment.templateTitle,
+        typeLabel: "Unterweisung",
+      })),
+    ]
+      .reduce(
+        (entries, entry) => entries.set(entry.id, entry),
+        new Map<
+          string,
+          {
+            assessmentDate: Date;
+            id: string;
+            instructionDate: Date;
+            project: {
+              id: string;
+              name: string;
+              projectNumber: string;
+            } | null;
+            signed: boolean;
+            status: string;
+            templateCode: string;
+            templateRevision: string;
+            templateTitle: string;
+            typeLabel: string;
+          }
+        >(),
+      )
+      .values(),
+  ).sort(
+    (a, b) => b.instructionDate.getTime() - a.instructionDate.getTime(),
+  );
   const trainingTypeTopics = new Set(
     trainingTypes.map((type) => type.topic.trim().toLowerCase()),
   );
@@ -331,6 +430,201 @@ export default async function EmployeeCertificateDetailPage({
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Arbeitssicherheit / Unterweisungen
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Projektbezogene Unterweisungen aus Gefährdungsbeurteilungen mit
+              Datum und Unterschriftsnachweis.
+            </p>
+          </div>
+          <Link
+            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href={`/safety/risk-assessments/general?employeeId=${employee.id}`}
+          >
+            Gefährdungsbeurteilung anlegen
+          </Link>
+        </div>
+
+        {employee.projectStartChecklistParticipants.length === 0 &&
+        generalSafetyEntries.length === 0 ? (
+          <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+            Für diesen Mitarbeiter sind noch keine projektbezogenen
+            Unterweisungen hinterlegt.
+          </p>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="p-3">Unterweisung</th>
+                  <th className="p-3">Projekt</th>
+                  <th className="p-3">Unterwiesen am</th>
+                  <th className="p-3">Unterschrift</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {generalSafetyEntries.map((entry) => (
+                  <tr className="border-t border-gray-100" key={entry.id}>
+                    <td className="p-3">
+                      <p className="font-semibold text-gray-900">
+                        {entry.templateTitle}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {entry.templateCode} · Rev. {entry.templateRevision} ·{" "}
+                        {entry.typeLabel}
+                      </p>
+                    </td>
+                    <td className="p-3">
+                      {entry.project ? (
+                        <Link
+                          className="font-semibold text-gray-900 hover:underline"
+                          href={`/projects/${entry.project.id}#arbeitssicherheit`}
+                        >
+                          {entry.project.projectNumber} · {entry.project.name}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-500">
+                          Personenbezogene Beurteilung
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {formatDate(entry.instructionDate)}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                          entry.signed
+                            ? "bg-green-50 text-green-800 ring-green-200"
+                            : entry.typeLabel === "Personenbezogene GBU"
+                              ? "bg-gray-100 text-gray-700 ring-gray-300"
+                              : "bg-amber-50 text-amber-900 ring-amber-200"
+                        }`}
+                      >
+                        {entry.signed
+                          ? "Unterschrieben"
+                          : entry.typeLabel === "Personenbezogene GBU"
+                            ? "Bewertete Person"
+                            : "Offen"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                          entry.status === "COMPLETED"
+                            ? "bg-green-50 text-green-800 ring-green-200"
+                            : "bg-amber-50 text-amber-900 ring-amber-200"
+                        }`}
+                      >
+                        {entry.status === "COMPLETED"
+                          ? "Abgeschlossen"
+                          : "Entwurf"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                          href={`/safety/risk-assessments/general/${entry.id}`}
+                        >
+                          Öffnen
+                        </Link>
+                        <a
+                          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                          href={`/safety/risk-assessments/general/${entry.id}/pdf`}
+                          target="_blank"
+                        >
+                          PDF
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {employee.projectStartChecklistParticipants.map(
+                  (participant) => (
+                    <tr
+                      className="border-t border-gray-100"
+                      key={participant.id}
+                    >
+                      <td className="p-3">
+                        <p className="font-semibold text-gray-900">
+                          Projektstart Tiefbau / Asphaltbau
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {participant.checklist.templateCode} · Rev.{" "}
+                          {participant.checklist.templateRevision}
+                        </p>
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          className="font-semibold text-gray-900 hover:underline"
+                          href={`/projects/${participant.checklist.project.id}#arbeitssicherheit`}
+                        >
+                          {participant.checklist.project.projectNumber} ·{" "}
+                          {participant.checklist.project.name}
+                        </Link>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {formatDate(participant.instructionDate)}
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                            participant.signatureDataUrl
+                              ? "bg-green-50 text-green-800 ring-green-200"
+                              : "bg-amber-50 text-amber-900 ring-amber-200"
+                          }`}
+                        >
+                          {participant.signatureDataUrl
+                            ? "Unterschrieben"
+                            : "Offen"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                            participant.checklist.status === "COMPLETED"
+                              ? "bg-green-50 text-green-800 ring-green-200"
+                              : "bg-amber-50 text-amber-900 ring-amber-200"
+                          }`}
+                        >
+                          {participant.checklist.status === "COMPLETED"
+                            ? "Abgeschlossen"
+                            : "Entwurf"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                            href={`/safety/risk-assessments/project-start/${participant.checklist.id}`}
+                          >
+                            Öffnen
+                          </Link>
+                          <a
+                            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                            href={`/safety/risk-assessments/project-start/${participant.checklist.id}/pdf`}
+                            target="_blank"
+                          >
+                            PDF
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

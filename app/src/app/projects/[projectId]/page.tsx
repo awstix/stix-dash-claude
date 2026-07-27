@@ -38,6 +38,7 @@ const projectTabs = [
   { label: "Personal", href: "#personal" },
   { label: "Geräte/Fahrzeuge", href: "#geraete" },
   { label: "Material", href: "#material" },
+  { label: "Arbeitssicherheit", href: "#arbeitssicherheit" },
   { label: "Unfallmeldungen", href: "#unfallmeldungen" },
   { label: "Fotos", href: "#fotos" },
   { label: "Dokumente", href: "#dokumente" },
@@ -339,6 +340,26 @@ export default async function ProjectDetailPage({
       },
       projectNotes: {
         orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+      },
+      projectStartChecklists: {
+        include: {
+          participants: {
+            select: {
+              signatureDataUrl: true,
+            },
+          },
+        },
+        orderBy: [{ checklistDate: "desc" }, { createdAt: "desc" }],
+      },
+      generalRiskAssessments: {
+        include: {
+          participants: {
+            select: {
+              signatureDataUrl: true,
+            },
+          },
+        },
+        orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }],
       },
       safetyAccidentReports: {
         include: {
@@ -1196,6 +1217,32 @@ export default async function ProjectDetailPage({
           }))}
           projectId={project.id}
         />
+        <ProjectSafetySection
+          assessments={project.generalRiskAssessments.map((assessment) => ({
+            assessmentDate: assessment.assessmentDate,
+            id: assessment.id,
+            participantCount: assessment.participants.length,
+            signedParticipantCount: assessment.participants.filter(
+              (participant) => Boolean(participant.signatureDataUrl),
+            ).length,
+            status: assessment.status,
+            templateCode: assessment.templateCode,
+            templateRevision: assessment.templateRevision,
+            templateTitle: assessment.templateTitle,
+          }))}
+          checklists={project.projectStartChecklists.map((checklist) => ({
+            checklistDate: checklist.checklistDate,
+            id: checklist.id,
+            participantCount: checklist.participants.length,
+            signedParticipantCount: checklist.participants.filter(
+              (participant) => Boolean(participant.signatureDataUrl),
+            ).length,
+            status: checklist.status,
+            templateCode: checklist.templateCode,
+            templateRevision: checklist.templateRevision,
+          }))}
+          projectId={project.id}
+        />
         <ProjectAccidentReportsSection
           reports={project.safetyAccidentReports.map((report) => ({
             accidentDate: report.accidentDate,
@@ -1218,6 +1265,177 @@ export default async function ProjectDetailPage({
         />
       </div>
     </AppShell>
+  );
+}
+
+function ProjectSafetySection({
+  assessments,
+  checklists,
+  projectId,
+}: {
+  assessments: {
+    assessmentDate: Date;
+    id: string;
+    participantCount: number;
+    signedParticipantCount: number;
+    status: string;
+    templateCode: string;
+    templateRevision: string;
+    templateTitle: string;
+  }[];
+  checklists: {
+    checklistDate: Date;
+    id: string;
+    participantCount: number;
+    signedParticipantCount: number;
+    status: string;
+    templateCode: string;
+    templateRevision: string;
+  }[];
+  projectId: string;
+}) {
+  return (
+    <section
+      id="arbeitssicherheit"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Arbeitssicherheit
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Projektbezogene Gefährdungsbeurteilungen, Unterweisungen und
+            Unterschriften.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-900 hover:bg-gray-50"
+            href={`/safety/risk-assessments/project-start/new?projectId=${projectId}`}
+          >
+            Projektstart anlegen
+          </Link>
+          <Link
+            className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+            href={`/safety/risk-assessments/general?projectId=${projectId}`}
+          >
+            Weitere GBU
+          </Link>
+        </div>
+      </div>
+
+      {checklists.length === 0 && assessments.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+          Für dieses Projekt ist noch keine Projektstart-Checkliste hinterlegt.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {assessments.map((assessment) => (
+            <article
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              key={assessment.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">
+                    {assessment.templateTitle}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {assessment.templateCode} · Rev.{" "}
+                    {assessment.templateRevision} ·{" "}
+                    {formatDate(assessment.assessmentDate)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      assessment.status === "COMPLETED"
+                        ? "bg-green-100 text-green-900"
+                        : "bg-amber-100 text-amber-950"
+                    }`}
+                  >
+                    {assessment.status === "COMPLETED"
+                      ? "Abgeschlossen"
+                      : "Entwurf"}
+                  </span>
+                  <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                    {assessment.signedParticipantCount}/
+                    {assessment.participantCount} Unterschriften
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/risk-assessments/general/${assessment.id}`}
+                >
+                  Öffnen / Teilnehmer nachtragen
+                </Link>
+                <a
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/risk-assessments/general/${assessment.id}/pdf`}
+                  target="_blank"
+                >
+                  PDF
+                </a>
+              </div>
+            </article>
+          ))}
+          {checklists.map((checklist) => (
+            <article
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              key={checklist.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">
+                    Projektstart Tiefbau / Asphaltbau
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {checklist.templateCode} · Rev.{" "}
+                    {checklist.templateRevision} ·{" "}
+                    {formatDate(checklist.checklistDate)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      checklist.status === "COMPLETED"
+                        ? "bg-green-100 text-green-900"
+                        : "bg-amber-100 text-amber-950"
+                    }`}
+                  >
+                    {checklist.status === "COMPLETED"
+                      ? "Abgeschlossen"
+                      : "Entwurf"}
+                  </span>
+                  <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                    {checklist.signedParticipantCount}/
+                    {checklist.participantCount} Unterschriften
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/risk-assessments/project-start/${checklist.id}`}
+                >
+                  Öffnen / Teilnehmer nachtragen
+                </Link>
+                <a
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
+                  href={`/safety/risk-assessments/project-start/${checklist.id}/pdf`}
+                  target="_blank"
+                >
+                  PDF
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

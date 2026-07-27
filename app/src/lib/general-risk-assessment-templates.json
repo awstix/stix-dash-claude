@@ -1,0 +1,3169 @@
+[
+  {
+    "key": "muschg",
+    "code": "A-20-00",
+    "title": "Mutterschutzgesetz §10",
+    "revision": "00",
+    "issuedAt": "2024-07-10",
+    "sourceFile": "A-20-00 - GBU_MuSchG - 2024-07-10 Rev00.docx",
+    "pageCount": 11,
+    "items": [
+      {
+        "id": "muschg-2-1",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "a) Heben, tragen oder bewegen von Lasten, ohne mechanische Hilfsmittel",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-2",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- regelmäßig mehr als 5 kg",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-4",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- gelegentlich mehr als 10 kg",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-6",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "(Werden mechanische Hilfsmittel eingesetzt, so gilt die körperliche Beanspruchung entsprechende.)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-8",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "b) Hitze",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-10",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "c) Kälte",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-12",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "d) Nässe",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-14",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "e) Lärm mit einem Beurteilungspegel (Leq) > 80 dB (A)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-15",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "(ggf. Messung veranlassen) oder impulshaltige Geräusche",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-17",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "f) Stöße und Erschütterungen auf oder in der Nähe von Maschinen",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-19",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "g) Ionisierende Strahlung",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-21",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- Tätigkeit im Kontrollbereich",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-23",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- Sonstige Tätigkeiten",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-25",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "h) Genehmigungspflichtiger Umgang mit offenen radioaktiven Stoffen",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-27",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "i) Nicht ionisierende Strahlung",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-29",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- Kernspintomographie",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-31",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- sonstige extreme elektromagnetische Felder",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-33",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "j) ständiges Stehen",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-35",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- Sitzgelegenheit nicht vorhanden",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-37",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "- länger als 4 Stunden täglich",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-39",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "k) häufig erhebliches Strecken oder Beugen oder dauerhaftes Hocken",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-40",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "oder sich Gebückt halten",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-2-42",
+        "activity": "A Physikalische Gefährdungen",
+        "hazard": "l) Beschäftigung auf Fahrzeugen (Fahrzeit mehr als 4 Stunden/ täglich)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 5
+      },
+      {
+        "id": "muschg-3-1",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "Sofern ja, welche Gefahrstoffe? (Siehe Gefahrstoffkataster, Sicherheitsdatenblätter, Stoffkennzeichnung)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-2",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "1. Krebserzeugende, erbgutverändernde oder fruchtschädigende Gefahrstoffe",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-3",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "a) Befinden sich im Arbeitsumfeld der werdenden Mutter Stoffe mit der",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-4",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "Einstufung als krebserzeugend nach Kategorie 1 oder 2 des Anhangs I der Richtlinie 67/548/EWG oder nach der TRGS 905 mit der Kennzeichnung:\n - R 45 kann Krebs erzeugen (z. B. Benzol)\n - R 46 kann vererbbare Schäden verursachen (z. B. Ethylenoxid)\n - R 49 kann Krebs erzeugen beim Einatmen (z. B. Cadmiumsulfat)\n - R 61 kann das Kind im Mutterleib schädigen (z. B. Bleichromat)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-6",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "b) Befinden sich im Arbeitsumfeld der werdenden Mutter Stoffe mit der",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-7",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "Einstufung als krebserzeugend nach Kategorie 3 des Anhangs I der Richtlinie 67/548/EWG (Verdachtsstoff) oder der TRGS 905 mit der Kennzeichnung:\n - R 40 Verdacht auf krebserzeugende Wirkung (z. B. Formaldehyd/p-Toluidin)\n - R 68 Irreversibler Schaden möglich (z. B. Dihydroxybenzol)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-9",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "c) Arbeitet die werdende Mutter selbst mit diesen krebserzeugenden,",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-10",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "erbgutverändernden oder fruchtschädigenden Gefahrstoffen",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-12",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "d) Ist die werdende Mutter diesen Gefahrstoffen ausgesetzt z. B. dadurch, dass",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-13",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "andere Mitarbeiter im gleichen Arbeitsraum mit krebserzeugenden, erbgutverändernden oder fruchtschädigenden Gefahrstoffen arbeiten?",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-15",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "2. Sehr giftige, giftige, gesundheitsschädliche oder in sonstiger Weise den Menschen chronisch schädigende Stoffe",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-16",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "a) Hat die werdende Mutter Kontakt mit entsprechend eingestuften",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-17",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "Gefahrstoffen?",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-19",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "b) Werden die Grenzwerte überschritten (ggf. Messung veranlassen)?",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-20",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "(Anmerkung: bei Grenzwertüberschreitung besteht ein Beschäftigungsverbot)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-3-22",
+        "activity": "B Gefährdungen durch chemische Arbeitsstoffe",
+        "hazard": "c) Besteht unmittelbarer Hautkontakt mit hautresorptiven Gefahrstoffen?",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 6
+      },
+      {
+        "id": "muschg-4-1",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "1. Umgang mit Stoffen, Zubereitungen oder Erzeugnissen, die ihrer Art",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-2",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "nach erfahrungsgemäß Krankheitserreger übertragen können\n(z.B. Gewebe, Blut, Körperflüssigkeiten und –ausscheidungen) \nAnmerkung: Persönliche Schutzausrüstung verhindert nicht Verletzungen durch stechende/schneidende Instrumente",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-4",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "2. Exposition gegenüber sonstigen Erregern (Viren, Bakterien, Pilze),",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-5",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "die gefährlich i. S. von Anlage 1 der Verordnung zum Schutze der Mütter am Arbeitsplatz sind (Risikogruppe 2 - 4, Erkrankung und/oder Therapie gefährlich für die werdende Mutter und/ oder die Leibesfrucht, \nz. B. Borrelia burgdorferi, Coxiella burnetii, CoxsackieVirus, Cytomegalie-Virus, Hepatitis B, C-Virus, HIV -Virus , Listeria monocytogenes, Masern-Virus, Mumps-Virus, Parvovirus B 19 [Ringelröteln], Röteln-Virus, Toxoplasma gondii, Varicella-ZosterVirus [Windpocken])",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-7",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "3. Arbeiten mit der besonderen Gefahr des Entstehens einer",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-8",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "Berufskrankheit",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-9",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "aufgrund der Schwangerschaft oder Arbeiten, bei denen durch das Risiko der Entstehung einer Berufskrankheit eine erhöhte Gefährdung für die werdende Mutter oder eine Gefahr für das ungeborene Kind besteht (z. B. Hepatitis, Mumps)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-11",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "D Gefährdungen durch Arbeitsbedingungen und Arbeitsverfahren",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-12",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "1. Arbeiten bei Überdruck (z. B. in Druckkammern, beim Tauchen)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-14",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "2. Arbeiten mit erhöhten Unfallgefahren, insbesondere Ausgleiten, Abstürzen,",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-15",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "Fallen; Umgang mit Personen, die durch potenziell aggressives Verhalten eine Gefahr sein können (z. B. psychiatrisches Patientenklientel)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-17",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "3. Akkordarbeit, Fließarbeit mit vorgeschriebenem Arbeitstempo u. ä.",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-19",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "E Arbeitszeit",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-20",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "1. Nachtarbeit (§ 8 Abs. 1 u. 3 MuSchG)",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-22",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "2. Mehrarbeit, d. h. mehr als 8,5 Stunden täglich oder 90 Stunden in der",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      },
+      {
+        "id": "muschg-4-23",
+        "activity": "C Gefährdungen durch Biologische Arbeitsstoffe",
+        "hazard": "Doppelwoche (Frauen unter 18 Jahre: 8 Stunden täglich oder 80 Stunden in der Doppelwoche) (Anmerkung: bei 1. und 2. sind Ausnahmen möglich, s. § 8 MuSchG )",
+        "measure": "",
+        "reference": "MuSchG",
+        "sourcePage": 7
+      }
+    ]
+  },
+  {
+    "key": "buero",
+    "code": "A-20-10-001",
+    "title": "Bürotätigkeiten",
+    "revision": "00",
+    "issuedAt": "2024-07-03",
+    "sourceFile": "A-20-10-001 - GBU_Bürotätigkeiten - 240703.1 Rev00.pdf",
+    "pageCount": 12,
+    "items": [
+      {
+        "id": "buero-4-1-5",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das Gefahrenpotential\nam Arbeitsplatz unterwiesen werden. Bei Benutzung von\nMaschinen muss die Betriebsanleitung (bestimmungsgemäßer\nGebrauch) bekannt sein.\nDie nebenstehenden Infos geben hierfür Hilfen\nDie Informationen rechts müssen beachtet werden.",
+        "reference": "",
+        "sourcePage": 4
+      },
+      {
+        "id": "buero-4-1-6",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichend bekannte Schutzmaßnahmen\nbei der Verwendung von Arbeitsmitteln",
+        "measure": "Grundlegende Schutzmaßnahmen bei der Verwendung von\nArbeitsmitteln:\nDer Arbeitgeber hat dafür zu sorgen, dass die Arbeitsmittel sicher\nverwendet und dabei die Grundsätze der Ergonomie beachtet\nwerden. Dabei ist Anhang 1 zu beachten. Die Verwendung der\nArbeitsmittel ist so zu gestalten und zu organisieren, dass\nBelastungen und Fehlbeanspruchungen, die die Gesundheit und\ndie Sicherheit der Beschäftigten gefährden können, vermieden\noder, wenn dies nicht möglich ist, auf ein Mindestmaß reduziert\nwerden. Der Arbeitgeber hat darauf zu achten, dass die\nBeschäftigten in der Lage sind, die Arbeitsmittel zu verwenden,\nohne sich oder andere Personen zu gefährden. Insbesondere sind\nfolgende Grundsätze einer menschengerechten Gestaltung der\nArbeit zu berücksichtigen.",
+        "reference": "§6 BetrSichV",
+        "sourcePage": 4
+      },
+      {
+        "id": "buero-4-1-7",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichend bekannte Schutzmaßnahmen\nbei der Verwendung von Arbeitsmitteln",
+        "measure": "Bevor Beschäftigte Arbeitsmittel erstmalig verwenden, hat der\nArbeitgeber ihnen eine schriftliche Betriebsanweisung für die",
+        "reference": "",
+        "sourcePage": 4
+      },
+      {
+        "id": "buero-5-0-10",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "",
+        "measure": "Verwendung des Arbeitsmittels in einer für die Beschäftigten\nverständlichen Form und Sprache an geeigneter Stelle zur\nVerfügung zu stellen.\nSatz 1 gilt nicht für Arbeitsmittel, für die keine Gebrauchsanleitung\nnach § 3 Absatz 4 des Produktsicherheitsgesetzes mitgeliefert\nwerden muss.\nAuszug - §3 abs.4 ProdSG:\n(4) Sind bei der Verwendung, Ergänzung oder Instandhaltung\neines Produkts bestimmte Regeln zu beachten, um den Schutz\nder Sicherheit und Gesundheit von Personen zu gewährleisten, so\nist bei der Bereitstellung auf dem Markt eine Gebrauchs- und\nBedienungsanleitung für das Produkt in deutscher Sprache\nmitzuliefern, sofern in den Rechtsverordnungen nach § 8 keine\nanderen Regelungen vorgesehen sind.",
+        "reference": "",
+        "sourcePage": 5
+      },
+      {
+        "id": "buero-5-0-11",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichender Informationsfluss durch\nMissachtung der herstellerbezogenen\nBetriebsanleitungen.",
+        "measure": "Anstelle einer Betriebsanweisung kann der Arbeitgeber auch eine\nbei der Bereitstellung des Arbeitsmittels auf dem Markt\nmitgelieferte Gebrauchsanleitung oder Betriebsanleitung zur\nVerfügung stellen, wenn diese Informationen enthalten, die einer\nBetriebsanweisung entsprechen.\nGenerell gilt:\n− Alle Beschäftigten sollten vor Gebrauch von\nArbeitsmitteln/Geräten/ Maschinen die jeweilige\nGebrauchsanweisung/ Bedienungsanleitung des Herstellers\nbeachten bzw. lesen.\n− Bei gebrauchsüblichen Arbeitsmitteln in der Verwaltung wird\nin aufgrund der geringen Risikobewertung keine\nBetriebsanweisung benötigt.",
+        "reference": "§12 BetrSichV",
+        "sourcePage": 5
+      },
+      {
+        "id": "buero-5-0-12",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichende Unterweisung",
+        "measure": "Unterweisung und besondere Beauftragung von\nBeschäftigten\nDer Arbeitgeber hat die Beschäftigten vor Aufnahme der\nVerwendung von Arbeitsmitteln tätigkeitsbezogen anhand der\nInformationen nach Satz 1 zu unterweisen.",
+        "reference": "§12 BetrSichV",
+        "sourcePage": 5
+      },
+      {
+        "id": "buero-6-0-10",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "",
+        "measure": "Danach hat er in regelmäßigen Abständen, mindestens jedoch\neinmal jährlich, weitere Unterweisungen durchzuführen.\nDas Datum einer jeden Unterweisung und die Namen der\nUnterwiesenen hat er schriftlich festzuhalten.",
+        "reference": "Unterweisungs\nnachweis -\nAnhang",
+        "sourcePage": 6
+      },
+      {
+        "id": "buero-6-0-11",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Durch Feuer und Rauch",
+        "measure": "▪ Kein offenes Feuer in Bürobereichen\n▪ Rauchen nur in den zugelassenen Räumen\n▪ Keine Asche und Zigaretten in Papierkörbe entleeren\n▪ Alle elektrischen Geräte, insbesondere Steckdosenleisten u.\nLadegeräte, auf nicht brennbare Unterlage stellen.\n▪ Steckdosenleisten nicht verlängern bzw. überlasten.\n▪ Geräte regelmäßig nach BGV A3 prüfen.\n▪ Feuerlöscher und Meldeanlagen frei zugänglich halten\n▪ Brandschutztüren nicht blockieren\n▪ Fluchtwege Kennzeichnen\n▪ Sammelplatz festlegen",
+        "reference": "DGUV-V3\nDGUV-I 205-001\n,,betr.\nBrandschutz‘‘",
+        "sourcePage": 6
+      },
+      {
+        "id": "buero-6-0-12",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichende Fluchtwege und\nNotausgänge",
+        "measure": "▪ Anforderungen an Fluchtwege beachten.\n▪ Fluchtwege, Notausgänge und Notausstiege müssen ständig\nfreigehalten werden.\n▪ Notausgänge sind deutlich erkennbar und dauerhaft zu\nkennzeichnen.\n▪ Kennzeichnung muss die Fluchtrichtung anzeigen.\n▪ Fluchtwege, die von außen verstellt werden können, sind zu\nkennzeichnen und mit Anfahrschutz zu sichern.",
+        "reference": "ASR A2.3",
+        "sourcePage": 6
+      },
+      {
+        "id": "buero-6-0-13",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Verletzungen durch Stolper- und\nSturzunfälle",
+        "measure": "▪ Kabel in Kabelkanäle verlegen oder abdecken.\n▪ Fußboden eben und rutschhemmend ausführen.\n▪ Schwer Erkennbare Schwellen kennzeichnen.\n▪ Im Fußboden liegende Anschlussdosen für Elektro- und\nTelefoninstallationen in nicht benutzten Zustand Fußboden bündig\nabdecken.\n▪ In Eingangsbereichen rutschsichere Schmutz- und\nFeuchtigkeitsaufnehmer verlegen.\n▪ Keine Gegenstände oder Materialien in Laufwegen oder\nDurchgängen abstellen.\n▪ Rutschgefahren sofort beseitigen.",
+        "reference": "DGUV-I 215-410\n– Büroarb.plätze",
+        "sourcePage": 6
+      },
+      {
+        "id": "buero-7-0-10",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "",
+        "measure": "▪ Bei Reinigungsarbeiten auf Rutschgefahren Hinweisen, evtl.\nBereich sperren.\n▪ Schubladen nicht offen stehen lassen.",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "buero-7-0-11",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Durch Schneidkanten",
+        "measure": "▪ Keine Schneidgeräte benutzen, deren Führungen,\nSchutzeinrichtungen beschädigt oder abgenutzt sind.\n▪ Nicht unter die Scherkante greifen.",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "buero-7-0-12",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Begehen von Treppen",
+        "measure": "▪ Beim Begehen von Treppen Handlauf benutzen.\n▪ Nicht rennen oder springen.\n▪ Die Sicht auf die Treppe sollte jederzeit frei sein.\n▪ Keine Mobiltelefone im Laufen verwenden.\n▪ Möglichst rechts laufen",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "buero-7-0-14",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Erkrankungen oder Beschwerden des\nMuskel- und Skelettsystems",
+        "measure": "▪ Bürostuhl nach DIN, mit fünf gebremsten Rollen, Sitzfläche\noberschenkellang, höhenverstellbar, Lehne bis Mitte Schulterblatt,\nLendenunterstützung.\n▪ Tischhöhe ca. 72 – 75 cm, wenn höhenverstellbar, dann 68 – 76\ncm.",
+        "reference": "DGUV-I 215-410\n– Büroarb.plätze",
+        "sourcePage": 7
+      },
+      {
+        "id": "buero-8-0-11",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Verletzungen durch heraus- bzw.\nherabfallende Gegenstände",
+        "measure": "▪ Regale oder Fachböden nicht überlasten.\n▪ Schränke und Regale senkrecht ausrichten.\n▪ Nicht mehrere Schubladen gleichzeitig herausziehen/öffnen\n(Kippgefahr von Schränken und Containern).\n▪ Kleinteile nicht einzeln ablagern sondern in geeigneten Behältern.\n▪ Rollfähige Teile festsetzen oder in Behältern lagern.\n▪ Kippen von Teilen durch festsetzen verhindern.",
+        "reference": "DGUV-I 215-410\n– Büroarb.plätze",
+        "sourcePage": 8
+      },
+      {
+        "id": "buero-8-0-12",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Unzureichende Arbeitsumgebung\n▪ Stress",
+        "measure": "▪ Für ausreichend Lüftung sorgen, jedoch Zug vermeiden.\n▪ Bewegungsfläche am Arbeitsplatz mind. 1,5 m2.\n▪ Raumgröße mind. 10 m2 (ohne Bildschirm 8 m2).\n▪ Störende Geräuschquellen beseitigen.\n▪ Blendung vermeiden.\n▪ Abtrennung des Arbeitsplatzes zu Lauf- und Verkehrswegen\n▪ Drucker die von mehreren Mitarbeitern genutzt werden oder\nabteilungsweit genutzte Drucker sollten in separaten Räumen\naufgestellt werden\nMitgeltend – GBU Psychische Belastung",
+        "reference": "",
+        "sourcePage": 8
+      },
+      {
+        "id": "buero-9-0-10",
+        "activity": "Allgemeine\nBüroarbeiten",
+        "hazard": "▪ Durch Klimaanlagen",
+        "measure": "▪ Nicht zu kalte Zuluft einströmen lassen.\n▪ Auf verträgliches Raumklima achten.\n▪ Die Geschwindigkeit der Zuluft nicht zu hoch einstellen.\n▪ Pflanzen für ausreichende Luftfeuchtigkeit.",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "buero-9-1-5",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "▪ Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das Gefahrenpotential am\nArbeitsplatz unterwiesen werden. Bei Benutzung von Leitern muss die\nBetriebsanleitung (bestimmungsgemäßer Gebrauch) bekannt sein.\nDie nebenstehenden Infos geben hierfür Hilfen\nDie Informationen rechts müssen beachtet werden.",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "buero-9-1-6",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "▪ Absturz von Leitern",
+        "measure": "▪ Benutzen von zugelassenen Aufstiegen oder Tritten bei hohen\nSchränken oder Regalen, Keine Stühle oder Tische verwenden\nbzw. besteigen.\n▪ Generell muss beim Begehen von Leitern folgende\nSchutzausrüstung getragen werden:\n− Festes Schuhwerk evtl. Sicherheitsschuhe",
+        "reference": "TRBS 2121",
+        "sourcePage": 9
+      },
+      {
+        "id": "buero-9-1-7",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "▪ Absturz von Leitern",
+        "measure": "▪ Nur geprüfte Leitern benutzen. Sichtprüfung vor Aufstieg.\n▪ Leiter muss immer sicher stehen.\n▪ Leitern auf sicheren Stand prüfen.\n▪ Keine sperrigen Gegenstände transportieren (Lasten bis max.\n10kg, Gegenstände bis max. 1m2.\n▪ Nur unbeschädigte Leitern benutzen.\n▪ Stehleitern müssen eine funktionierende Spreizsicherung haben.",
+        "reference": "DGUV-I 208–016\nLeitern",
+        "sourcePage": 9
+      },
+      {
+        "id": "buero-10-0-10",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "",
+        "measure": "▪ Oberste Stufen nicht betreten. Herstellerangaben beachten.\n▪ Kein Übersteigen auf erhöhte Flächen\n▪ In Verkehrswegen Standort der Leiter sichern.\n▪ Geländer bei Podestleitern nicht besteigen.\n▪ Bremsen vor dem Besteigen feststellen.\n▪ Einsinken verhindern.\n▪ Leitern nicht verändern.",
+        "reference": "",
+        "sourcePage": 10
+      },
+      {
+        "id": "buero-10-1-5",
+        "activity": "Heben und Tragen von\nHand",
+        "hazard": "▪ Allgemein\n▪ Überlastung des Geh- und Halteapparates",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das Gefahrenpotential am\nArbeitsplatz unterwiesen werden. Beim Heben und Tragen muss die\nKörperliche Verfassung der Beschäftigten berücksichtigt werden.\nKörperliche Überlastung muss vermieden werden.\nWann immer möglich sollten Hilfsmittel wie Sackkarren,\nTransportwagen, etc. eingesetzt werden.\nTragestrecken vom Hilfsmittel zum Absetzort so kurz wie möglich\nwählen\nAls Anhalt für das Lastgewicht, das ohne Hilfsmittel bewegt wird,\nkann folgendes pro Träger angenommen werden:\nMänner max. 25kg\nFrauen ca. 50% (12,5kg)\nSchwangere Frauen regelmäßige Lasten bis max. 5kg und im\nEinzelfall max. 10kg\nDie nebenstehenden Infos geben hierfür Hilfen",
+        "reference": "DGUV-I 208-020",
+        "sourcePage": 10
+      },
+      {
+        "id": "buero-11-0-10",
+        "activity": "Heben und Tragen von\nHand",
+        "hazard": "",
+        "measure": "Die Informationen rechts müssen beachtet werden",
+        "reference": "",
+        "sourcePage": 11
+      },
+      {
+        "id": "buero-11-0-11",
+        "activity": "Heben und Tragen von\nHand",
+        "hazard": "▪ Überlastung des Geh- und Halteapparates",
+        "measure": "▪ Ausführung Heben:\n− Ausgangsstellung beim Heben vom Boden: mit gespreizten\nBeinen und gestrecktem, geraden Rücken in der Hocke die\nLast aufnehmen.\n− Last nicht ruckartig aufnehmen oder auffangen.\n− Verdrehen des Oberkörpers beim Umsetzen und Bewegen\nder Last vermeiden.\n− Unhandliche oder größere Lasten mit Hilfe weiterer Personen\naufnehmen.\n− Last gleichmäßig, wie beim Aufnehmen, mit gestreckten\nRücken in der Hocke absetzen.",
+        "reference": "",
+        "sourcePage": 11
+      },
+      {
+        "id": "buero-11-0-12",
+        "activity": "Heben und Tragen von\nHand",
+        "hazard": "▪ Überlastung des Geh- und Halteapparates",
+        "measure": "▪ Ausführung Tragen\n− Aufrechte Haltung beim Tragen.\n− Symetrische Körperbelastung anstreben.\n− Abstützen der Last am Körper.\n− Freie Sicht auf den Transportweg muss gesichert sein.\n− Mehrere Träger an einer Last sollten im Gleichschritt laufen.\n− Muss ein Träger rückwärts laufen, muss ein\nSicherungsposten eingesetzt werden, der voraus läuft und auf\nStolperstellen, Stufen, etc. aufmerksam macht und der in\nschwierigen Phasen (z.B. Treppenabgang) den\nrückwärtslaufenden Träger am Rücken stabilisiert.",
+        "reference": "",
+        "sourcePage": 11
+      }
+    ]
+  },
+  {
+    "key": "strassenwalze",
+    "code": "A-20-20",
+    "title": "Straßenwalze",
+    "revision": "00",
+    "issuedAt": "2024-10-09",
+    "sourceFile": "A-20-20 - Straßenwalze - 2024-10-09 Rev00.pdf",
+    "pageCount": 5,
+    "items": [
+      {
+        "id": "strassenwalze-1-1-5",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Straßenwalzen:\n− schriftlich zu beauftragen, (Empfehlung)\n− ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Straßenwalzen zu unterweisen, die Unterweisung ist\nzu dokumentieren,\n− die für den Einsatz von Straßenwalzen erforderlichen Vorschriften,\nRegeln und Informationen (Betriebsanweisung, Betriebsanleitung\ndes Herstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.\nDer Maschinenführer muss:\n− mindestens 18 Jahre alt sein,\n− zuverlässig sowie geeignet sein,\n− die Betriebsanleitung kennen und diese am Fahrerplatz oder\nan der Verwendungsstelle leicht zugänglich aufbewahren,\n− die Straßenwalze bestimmungsgemäß benutzen und\n− festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 1
+      },
+      {
+        "id": "strassenwalze-1-1-6",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ durch unbeabsichtigtes Ingangsetzen\n▪ durch Wegrollen",
+        "measure": "▪ Beim Motorstart Fahrhebel in Nullstellung setzen, damit ein\nunbeabsichtigtes Ingangsetzen ausgeschlossen ist.\n▪ Bei laufendem Motor unbeabsichtigte Fahrbewegungen durch\nfestgelegten Fahrhebel ausschließen.\n▪ Während der Fahrt im Gefälle mit Walzen ohne lastschalt bare\nGetriebe Gangschaltung nicht betätigen.\n▪ Vor dem Befahren von Gefällestrecken ist der dem Ge fälle\nentsprechende Fahrgang einzulegen.\n▪ Bergab nicht mit ausgekuppeltem Motor fahren.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 1
+      },
+      {
+        "id": "strassenwalze-1-1-7",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ Unbefugtes Benutzen",
+        "measure": "▪ Elektrische Starteinrichtungen müssen gegen unbefugtes\nIngangsetzen gesichert werden, z.B. durch eine verschließbare\nKabine, ein Sicherheitszündschloss oder eine verschließbare\nAbdeckung.",
+        "reference": "",
+        "sourcePage": 1
+      },
+      {
+        "id": "strassenwalze-2-1-5",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ angefahren/ überfahren werden",
+        "measure": "▪ Im Fahrbereich bzw. direkten Gefahrenbereich von Walzen dürfen\nsich keine Beschäftigten oder andere Personen aufhalten.\n(eingeschränktes Sichtfeld bzw. tote Winkel für\nMaschinenbediener*in)\n▪ Beim Einsatz im öffentlichen Verkehrsraum Baustelle gemäß RSA\nsichern und Sicherheitsabstände zwischen Arbeits- und\nVerkehrsbereich gemäß ASR A5.2 einhalten.\n▪ Warnkleidung mind. Klasse 2 als persönliche Schutzausrüstung\nzur Verfügung stellen. Die Beschäftigten sind angehalten die\nWarnkleidung zu tragen.\n▪ vor Betreten des Gefahrenbereiches Blickkontakt zum\nMaschinenführer aufnehmen.\n▪ Der Maschinenführer hat bei Gefahr für Personen die Gefahr\nbringende Bewegung zu stoppen und Warnzeichen zu geben.\n▪ Für Personen im Umfeld des Baggers gilt:\n− festgelegte Maßnahmen beachten\n− vor Betreten des Gefahrbereiches Kontakt / Blickkontakt mit\nMaschinenführer aufnehmen.\n▪ Arbeitsweisen / -schritte miteinander abstimmen.",
+        "reference": "BG-Baustein\nB185\nASR A5.2",
+        "sourcePage": 2
+      },
+      {
+        "id": "strassenwalze-2-1-6",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ Sichtfeldeinschränkungen bei Fahr- und\nArbeitsbewegungen",
+        "measure": "▪ Einsatz von Drehsitzen bei Walzen. Dies ermöglicht auch bei\nRückwärtsfahrt den Blick in Fahrtrichtung.\n▪ nur vom Fahrerplatz aus betreiben. Bei eingeschränkten\nSichtverhältnissen - einen Einweiser einsetzen.\n▪ Einsatz von Spiegelsystemen, um Sichtfeldeinschränkungen\nauszugleichen\n▪ Sichtfeldüberprüfung von Erdbaumaschinen veranlassen\n(Überprüfung, ob Maschinenführer im Abstand von 1,0 m vor\nbzw. hinter der Maschine eine leicht gebückt arbeitende Person\n(ca. 1,50 m) sehen kann. Die Sichtfeldüberprüfung erfolgt bei\nabgestelltem Motor und abgesenkter Arbeitseinrichtung)",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 2
+      },
+      {
+        "id": "strassenwalze-2-1-7",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ durch Kippen und Umstürzen",
+        "measure": "▪ Zum Verladen nur tragfähige Verladerampen benutzen.\n▪ Nicht schräg zum Hang, sondern in der Falllinie fahren.\n▪ Walzen mit Überrollschutz - konstruktion (ROPS) und Sicher -\nheitsgurt am Fahrersitz einsetzen und beim Betrieb Sicherheits -\ngurt anlegen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 2
+      },
+      {
+        "id": "strassenwalze-3-1-6",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ Allgemein\n▪ Stolpern / Rutschen / Stürzen",
+        "measure": "▪ Fahrerplätze müssen über sicher begehbare Zugänge erreicht\nund verlassen werden können.\n- beidseitig vom Aufstieg an - gebrachte Haltestangen bzw.\nHaltegriffe\n- trittsichere Aufstiege (Tränen oder Warzenbleche, Roste)\n-\n▪ Unterweisung:\n− Tritte sauber halten\n− Schuhsohlen reinigen\n− Schutzgeländer nicht entfernen.\n− Standflächen frei von Material und sonstigen Gegenständen\nhalten.\n− Anweisung: Sicherheitsgurt immer anlegen oder Kabinentür\ngeschlossen halten.",
+        "reference": "DGUV-R 101-003\nBG-Baustein\nB185",
+        "sourcePage": 3
+      },
+      {
+        "id": "strassenwalze-3-1-7",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "▪ Absturz aus Kabine",
+        "measure": "▪ Maschinenführerplätze, die mehr als 1,00 m über Gelände liegen,\nmüssen Absturzsicherungen, z.B. Armlehnen oder geschlossene\nKabinen, haben. Beim Betrieb Kabinentüren schließen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 3
+      },
+      {
+        "id": "strassenwalze-3-1-8",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "▪ Rückschlag durch Kurbelstart",
+        "measure": "▪ Kleindieselmotoren müssen wegen der Rückschlaggefahr beim\nKurbelstart mit einer Sicherheitsandrehkurbel besser noch mit\nBatteriestarteinrichtungen ausgerüstet sein.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 3
+      },
+      {
+        "id": "strassenwalze-3-1-9",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "▪ Quetschgefahr\n▪ Stoßgefahr",
+        "measure": "▪ Besonders bei Rückwärtsfahrt wegen Quetschgefahr neben dem\nDeichselende gehen.\n▪ Bei Fahrt im Gefälle immer bergseitig gehen.\n▪ Geschwindigkeit bei Fahrten über Unebenheiten, Rampen und\nAbsätze vermindern, damit ein Hochschlagen der Deichsel\nvermieden wird.\n▪",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 3
+      },
+      {
+        "id": "strassenwalze-4-1-5",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "▪ Durch Funkbetrieb",
+        "measure": "▪ Bei Infrarot-Fernsteuerung vor Inbetriebnahme die Sende- und\nEmpfangselemente säubern.\n▪ Sicherstellen, dass fremde Signale (z.B. andere\nFernsteuereinrichtungen) nicht zu gefahrbringenden\nBewegungen führen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 4
+      },
+      {
+        "id": "strassenwalze-4-1-6",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "▪ Technische Mängel",
+        "measure": "▪ Anweisung: Bei erheblichen Funktionsstörungen Betrieb der\nMaschine sofort einstellen.\n▪ Arbeitstägliche Sicht- und Funktionskontrolle durch den\nMaschinenführer*in veranlassen.\n▪ Laufende Instandhaltung: Wartung, Inspektion und\nInstandsetzung (Reparatur).\n▪ Regelmäßige Prüfungen durch Sachkundige.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 4
+      },
+      {
+        "id": "strassenwalze-4-1-7",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "▪ Verbrennungen an heißen Oberflächen.",
+        "measure": "▪ Intakter Verbrennungsschutz am Auspufftopf.",
+        "reference": "",
+        "sourcePage": 4
+      },
+      {
+        "id": "strassenwalze-4-1-9",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "▪ Lärm",
+        "measure": "▪ Lärm durch technische Maßnahmen so weit wie\nmöglich reduzieren.\n▪ Ab 80 dB(A) geeigneten Gehörschutz zur Verfügung stellen.\n▪ Ab 85 dB(A) geeigneten Gehörschutz zur Verfügung stellen und\ndie Benutzung veranlassen.\n▪ Gehörvorsorgeuntersuchung G 20 veranlassen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 4
+      },
+      {
+        "id": "strassenwalze-4-1-10",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "▪ Transport",
+        "measure": "▪ Angehängte Mitgängermaschinen (Rüttelplatten, Stampfer etc.)\nsicher anschlagen.\n▪ Anschlagpunkte nach Herstellerangaben auswählen.\n▪ Geprüfte und unbeschädigte Anschlagmittel verwenden.\n▪ Nicht im Fahrweg der Transportmaschine (Bagger, Radlader)\nlaufen. Blickkontakt zum Geräteführer – ansonsten keine\nFahrbewegung.",
+        "reference": "",
+        "sourcePage": 4
+      },
+      {
+        "id": "strassenwalze-4-1-11",
+        "activity": "Wartung / Reparatur",
+        "hazard": "▪ angefahren/ überfahren werden",
+        "measure": "▪ Ein- und Nachfüllen von Wasser, nur bei stehender und gegen\nAbrollen gesicherter Walze durch führen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 4
+      }
+    ]
+  },
+  {
+    "key": "tiefbau",
+    "code": "A-20-40",
+    "title": "Tiefbau allgemein",
+    "revision": "01",
+    "issuedAt": "2026-01-19",
+    "sourceFile": "A-20-40-GBU-Tiefbau allg._Rev01 - 2026-01-19.pdf",
+    "pageCount": 65,
+    "items": [
+      {
+        "id": "tiefbau-5-1-3",
+        "activity": "Betreiben von\nArbeitsstätten",
+        "hazard": "• Unzureichender Platzbedarf",
+        "measure": "• Arbeitsfläche Mindestmaße: 1600mm x 800mm\n• (Breite x Tiefe)\n• Bewegungsfläche Mindestmaße: 1,5m², jedoch nie weniger als\n1m tief bzw. breit.\nDie Bürotätigkeiten im Baucontainer werden als Mobile Arbeit\ngewertet. Die ASR kann nicht immer voll umgesetzt werden.",
+        "reference": "DGUV-I 215-410",
+        "sourcePage": 5
+      },
+      {
+        "id": "tiefbau-5-1-4",
+        "activity": "Betreiben von\nArbeitsstätten",
+        "hazard": "• Defekte Sicherheitseinrichtungen\n• Verunreinigungen und Ablagerungen\n• Unzureichende Erste-Hilfe Einrichtungen",
+        "measure": "• Sicherheitseinrichtungen regelmäßig warten und auf ihre\nFunktionsfähigkeit prüfen lassen.\n• (Feuerlöscher)\n• Verunreinigungen und Ablagerungen, die zu Gefährdungen\nführen können, sind zu beseitigen.\n• Mittel und Einrichtungen zur Ersten-Hilfe jährlich auf ihre\nVollständigkeit und Verwendungsfähigkeit prüfen.",
+        "reference": "ArbStättV § 4",
+        "sourcePage": 5
+      },
+      {
+        "id": "tiefbau-5-1-5",
+        "activity": "Betreiben von\nArbeitsstätten",
+        "hazard": "• Unzureichende Bereitstellung von\nSanitärräumen",
+        "measure": "• Toilettenräume bereitstellen.\n• Umkleide- und Waschräume sind für Männer und Frauen\ngetrennt einzurichten.\n• Weglänge sollte nicht länger als 50m sein und 100m nicht\nüberschreiten.\n• Toiletten sollten mindestens zweimal wöchentlich gereinigt\nwerden. Die Toiletten in den Toilettenräumen wie auch mobile,\nanschlussfreie Toilettenkabinen sollen bei täglicher Nutzung\ntäglich gereinigt werden.",
+        "reference": "ASR A4.1",
+        "sourcePage": 5
+      },
+      {
+        "id": "tiefbau-6-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-6-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-6-0-7",
+        "activity": "A-20-40",
+        "hazard": "• Unzureichende Anzahl von\nSanitäreinrichtungen",
+        "measure": "",
+        "reference": "Mindestanzahl gemäß ASR A4.1 – Tabelle 2:",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-6-0-8",
+        "activity": "A-20-40",
+        "hazard": "• Unzureichende Bereitstellung von\nPausenräumen",
+        "measure": "",
+        "reference": "• Pausenräume für die Mitarbeiter bereitstellen.\n• Beheizte Pausenräume und Inventar zur Verfügung stellen.",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-6-0-9",
+        "activity": "A-20-40",
+        "hazard": "• Verkehrs- und Fluchtwege",
+        "measure": "",
+        "reference": "• Verbindungsgänge zu persönlichen Arbeitsplätzen können bis\nauf eine Breite von 0,60m verringert werden.\n• Bis 5 Benutzer = Lichte Breite 875mm\n• Bis 20 Benutzer = Lichte Breite 1000mm",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-6-0-10",
+        "activity": "A-20-40",
+        "hazard": "• Verkehrs- und Fluchtwege - Beleuchtung",
+        "measure": "",
+        "reference": "Verkehrswege sind gemäß den Angaben der Arbeitsstättenrichtlinie zu\nbeleuchten.\n• Toranlagen = 50 lux\n• Fußwege = 5 lux\n• Parkplätze = 10 lux",
+        "sourcePage": 6
+      },
+      {
+        "id": "tiefbau-7-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "tiefbau-7-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "tiefbau-7-0-7",
+        "activity": "A-20-40",
+        "hazard": "• Unzureichende Löschmittel\n• Schlechte Sichtbarkeit und Erreichbarkeit\nvon Löschmitteln\n• Unzureichende Wartung und Instandhaltung",
+        "measure": "",
+        "reference": "• Erforderliche Anzahl an Feuerlöschern der Brandklasse A+B\nbereithalten.\n• Benötigte Löscheinheiten:\n- Grundfläche bis 50m² = 6 LE (Löscheinheiten)\n- Grundfläche bis 100m² = 9 LE\n- Grundfläche bis 200m² = 12 LE\n• Feuerlöscher gut sichtbar und leicht erreichbar anbringen.\nFeuerlöscher kennzeichnen.\n• Regelmäßige Wartung und Instandhaltung veranlassen.\n• Prüfung der Löschmittel alle 2.Jahre.",
+        "sourcePage": 7
+      },
+      {
+        "id": "tiefbau-8-1-3",
+        "activity": "Verkehrswege im\nBaufeld",
+        "hazard": "• Stolpern / Rutschen / Stürzen",
+        "measure": "• Beräumung der Verkehrswege\n• Höhenunterschiede nicht durch Springen überwinden.\n• Verkehrswege so herrichten, dass sich die Beschäftigten bei\njeder Witterung sicher bewegen können.\n• Verkehrswege beleuchten, wenn das Tageslicht nicht ausreicht.",
+        "reference": "DGUV-V38\nBG-Baustein\nA026",
+        "sourcePage": 8
+      },
+      {
+        "id": "tiefbau-8-1-4",
+        "activity": "Verkehrswege im\nBaufeld",
+        "hazard": "• Unzureichende Sicherheitsabstände von\nFahrzeugen",
+        "measure": "• Bei der Planung und Herstellung von Baustraßen\nSicherheitsabstände zu Baugruben und Grabenkanten einhalten.",
+        "reference": "BG-Baustein\nA026",
+        "sourcePage": 8
+      },
+      {
+        "id": "tiefbau-8-1-5",
+        "activity": "Verkehrswege zu hoch\noder tiefer gelegenen\nArbeitsplätzen",
+        "hazard": "• Stolpern / Rutschen / Stürzen",
+        "measure": "• Als Zugang sind Aufzüge, Transportbühnen, Treppen oder\nTreppentürme geeignet.\n• Anlegeleitern dürfen als Verkehrswege kurzfristig einsetzt\nwerden, Diese müssen gegen Umsturz und Wegrutschen\ngesichert sein.",
+        "reference": "DGUV-V38\nBG-Baustein\nA026",
+        "sourcePage": 8
+      },
+      {
+        "id": "tiefbau-8-1-7",
+        "activity": "Verkehrswege zu hoch\noder tiefer gelegenen\nArbeitsplätzen",
+        "hazard": "• Durch Transport von Kleinteilen und\nWerkzeugen",
+        "measure": "• Die sichere Verwendung, insbesondere der sichere Kontakt zur\nLeiter und deren Standsicherheit, darf durch den Transport von\nLasten auf der Leiter nicht eingeschränkt werden.\n• Der sichere Kontakt zur Leiter ist z. B. gegeben, wenn sich der\nBeschäftigte beim Aufstieg mit einer Hand an der Leiter\nfesthalten kann. Zum Transport eignen sich z. B.",
+        "reference": "TRBS 2121-1",
+        "sourcePage": 8
+      },
+      {
+        "id": "tiefbau-9-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "tiefbau-9-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "tiefbau-9-1-3",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "• Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das Gefahrenpotential am\nArbeitsplatz unterwiesen werden. Bei Benutzung von Leitern muss die\nBetriebsanleitung (bestimmungsgemäßer Gebrauch) bekannt sein.\n Die Aufbauanweisung von Leitern und Tritten muss beachtet\nwerden.\n Leitern und Tritte sind bestimmungsgemäß zu benutzen.\n Leitern und Tritte müssen regelmäßig geprüft werden, dies\nist zu dokumentieren.\n Es dürfen nur geprüfte Leitern verwendet werden.\n Schadhafte Leitern der weiteren Benutzung entziehen.\n Beim Aufsteigen auf höhergelegene Ebenen oder\nArbeitsplätze, muss die Leiter 1m über die Absturzkante\nüberstehen.\nAuf einen sicheren Stand achten.",
+        "reference": "DGUV-V1\nDGUV-V38\nTRBS 2121-2",
+        "sourcePage": 9
+      },
+      {
+        "id": "tiefbau-9-1-4",
+        "activity": "Benutzung von Steh-\nund Anlegeleitern",
+        "hazard": "• Allgemeine Schädigungen",
+        "measure": "• Generell muss beim Begehen von Leitern folgende\nSchutzausrüstung getragen werden:\n- Festes Schuhwerk evtl. Sicherheitsschuhe\n- Schuhwerk mit rutschhemmender Profilsohle",
+        "reference": "BGI 521\nLeitern",
+        "sourcePage": 9
+      },
+      {
+        "id": "tiefbau-9-1-5",
+        "activity": "Montage auf Steh- und\nAnlegeleitern",
+        "hazard": "• Absturzunfälle von Leitern",
+        "measure": "• Bei einem Standplatz unter 2m ist die Leiternutzung zeitlich\nunbeschränkt möglich.",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "tiefbau-10-1-3",
+        "activity": "(Baustelle)",
+        "hazard": "",
+        "measure": "• bei einem Standplatz von mehr als 2,00m bis 5,00m - sind nur\nArbeiten geringen Umfangs nicht mehr als 2 Stunden zulässig.\n• Standhöhen von mehr als 5m sind nicht zulässig.",
+        "reference": "",
+        "sourcePage": 10
+      },
+      {
+        "id": "tiefbau-10-1-4",
+        "activity": "(Baustelle)",
+        "hazard": "• Absturzunfälle von Leitern\n• Durch kurzzeitige Montagetätigkeiten\n• Wartungs- / Instandsetzungsarbeiten",
+        "measure": "Für kurzzeitige Montagetätigkeiten auf der Leiter können je nach\nSituationsbewertung Sprossenleitern eingesetzt werden.\nEine nachteilige Beeinträchtigung der Standsicherheit, durch erhöhten\nKraftaufwand muss vermieden werden.\n• Vor Leitereinsatz – Situation bewerten.\n• Standsicherheit prüfen. Ab mind. 3m Standhöhe - breite\nLeiterfüße einsetzen.\n• Bei Arbeiten an schwer erreichbaren Stellen bzw. mit erhöhter\nAbsturzgefährdung sollte die PSAgegenAbsturz verwendet\nwerden um Beschäftigte zu sichern.\n• Bei erhöhter ergonomischer Belastung sollten immer Stufen-\nbzw. Podestleitern eingesetzt werden oder auf andere\nArbeitsmittel zurückgegriffen werden.",
+        "reference": "BetrSichV\nTRBS 2121-2\nDGUV-V1\nDGUV-V38",
+        "sourcePage": 10
+      },
+      {
+        "id": "tiefbau-10-1-5",
+        "activity": "(Baustelle)",
+        "hazard": "• Absturzunfälle von Leitern\n• Durch Arbeiten auf Leitern bzw. erhöhte\nKraftaufwendungen\n(z.B. Geräteeinsatz, Handmaschine etc.)",
+        "measure": "Für das Arbeiten auf der Leiter sollten in Bezug auf die bessere\nStandsicherheit bzw. Ergonomie bevorzugt Stufenleitern und/oder\nPodestleitern eingesetzt werden.\n• Vor Leitereinsatz – Situation bewerten.\n• Standsicherheit prüfen. Ab mind. 3m Standhöhe - breite\nLeiterfüße einsetzen.\n• Bei erhöhter ergonomischer Belastung sollten immer Stufen-\nbzw. Podestleitern eingesetzt werden oder auf andere\nArbeitsmittel zurückgegriffen werden.",
+        "reference": "BetrSichV\nTRBS 2121-2\nDGUV-V1\nDGUV-V38",
+        "sourcePage": 10
+      },
+      {
+        "id": "tiefbau-10-1-6",
+        "activity": "Montage auf Steh- und\nAnlegeleitern\n(Baustelle)",
+        "hazard": "• Absturzunfälle von Leitern",
+        "measure": "• Nur unbeschädigte Leitern verwenden\n• Leitern regelmäßig auf Mängel prüfen\n• Standsicherheit der Leiter (z. B. durch Fußverbreiterung,\nAnbinden des Leiterkopfes) gewährleisten\n• Leitern im Verkehrsbereich durch Absperrung sichern",
+        "reference": "BetrSichV\nTRBS 2121-2\nDGUV-V1\nDGUV-V38",
+        "sourcePage": 10
+      },
+      {
+        "id": "tiefbau-11-1-3",
+        "activity": "Montage auf Steh- und\nAnlegeleitern\n(Baustelle)",
+        "hazard": "",
+        "measure": "• Anlegeleitern nur für Arbeiten geringen Umfangs (max. zwei\nStunden) benutzen.\n• Anlegeleitern nur an sichere Stützpunkte anlegen\n• Anlegeleitern mind. ein Meter über Austrittsstelle hinausragen\nlassen.\n• Stehleitern nicht wie Anlegeleitern benutzen\n• Bei Stehleitern auf wirksame Spreizsicherung achten.\n• Stehleitern standsicher aufstellen, gegen Einsinken sichern\n• Unterweisen der Mitarbeiter",
+        "reference": "",
+        "sourcePage": 11
+      },
+      {
+        "id": "tiefbau-11-1-4",
+        "activity": "Montage auf Steh- und\nAnlegeleitern\n(Baustelle)",
+        "hazard": "• Elektrische Durchströmung",
+        "measure": "• Bei Elektromontagen Holz- oder Kunststoffleitern benutzen, wenn\nKörperdurchströmung nicht auszuschließen ist.",
+        "reference": "BGI 519",
+        "sourcePage": 11
+      },
+      {
+        "id": "tiefbau-11-1-5",
+        "activity": "Benutzung von\nAnlegeleitern als\nVerkehrsweg",
+        "hazard": "• Absturz",
+        "measure": "• Nur geprüfte Leitern benutzen\n• Leiter muss einen sicheren Stand haben.\n• Keine sperrigen Gegenstände transportieren (Lasten bis max.\n10kg, Gegenstände bis max. 1m²\n• Nur unbeschädigte Leitern benutzen\n• Leitern auf sicheren Stand prüfen\n• In Verkehrswegen Standort der Leiter sichern\n• Aufstieg zu erhöhten Flächen bis max. 5m\n• Leiterüberstand über die Kante mind. 1m\n• Einsinken verhindern\n• Leitern nicht verändern",
+        "reference": "BetrSichV\nTRBS 2121-2\nDGUV-V1\nDGUV-V38",
+        "sourcePage": 11
+      },
+      {
+        "id": "tiefbau-12-1-3",
+        "activity": "Baustromverteiler",
+        "hazard": "• Stromübertritt / Stromschlag",
+        "measure": "• Baustromverteiler mit RCD-Schutzschaltung bereitstellen.\n• Leitungen geschützt und sicher verlegen.\n• Kabelverknotungen und unsachgemäße Verlegung vermeiden.\n• Errichten, Prüfen, Instandsetzen der elektrischen Einrichtungen\ndurch Elektrofachkräfte.",
+        "reference": "DGUV-I 203-006\nDGUV-V3",
+        "sourcePage": 12
+      },
+      {
+        "id": "tiefbau-12-1-4",
+        "activity": "Baustromverteiler",
+        "hazard": "• Elektrische Leitungen",
+        "measure": "• Als bewegliche Leitungen sind Gummischlauchleitungen H07RN-\nF oder gleichwertige Bauarten (H07BQ-F) zu verwenden.\n• Anschlussleitungen bis 4 m Länge von handgeführten\nElektrowerkzeugen sind auch in der Bauart H05RN-F zulässig.\n• Leitungen, die mechanisch besonders beansprucht werden, sind\ngeschützt zu verlegen, z. B. unter festen Abdeckungen.\n• Leitungsroller sollen aus Isolierstoff bestehen. Sie müssen eine\nÜberhitzungs-Schutzeinrichtung haben. Die Steckdosen müssen\nspritzwassergeschützt ausgeführt sein.",
+        "reference": "BG-Baustein\nB171",
+        "sourcePage": 12
+      },
+      {
+        "id": "tiefbau-12-1-5",
+        "activity": "Baustromverteiler",
+        "hazard": "• Durch unzureichende Anschlusspunkte",
+        "measure": "• Elektrische Betriebsmittel müssen von besonderen\nAnschlusspunkten aus mit Strom versorgt werden. Als besondere\nAnschlusspunkte gelten z.B.:\n Baustromverteiler,\n der Baustelle zugeordnete Abzweige ortsfester elektrischer\nAnlagen,\n Transformatoren mit getrennten Wicklungen,\n mobile Stromerzeuger der Bauart A und B.\n Hausinstallationen dürfen nicht verwendet werden.",
+        "reference": "BG-Baustein\nB171",
+        "sourcePage": 12
+      },
+      {
+        "id": "tiefbau-12-1-6",
+        "activity": "Baustromverteiler",
+        "hazard": "• Durch unzureichende Anschlusspunkte für\nkleiner Baustellen",
+        "measure": "• Werden elektrische Betriebsmittel nur einzeln benutzt bzw. sind\ndie Bauarbeiten geringen Umfangs, dürfen als Anschlusspunkte\nauch\n Schutzverteiler,\n ortsveränderliche Schutzverteiler oder Schutzeinrichtungen",
+        "reference": "BG-Baustein\nB171",
+        "sourcePage": 12
+      },
+      {
+        "id": "tiefbau-13-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 13
+      },
+      {
+        "id": "tiefbau-13-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 13
+      },
+      {
+        "id": "tiefbau-13-0-8",
+        "activity": "Prüfungen",
+        "hazard": "• Mängel an el. Anlagen und Betriebsmitteln",
+        "measure": "",
+        "reference": "• Elektrische Anlagen und Betriebsmittel sind zu prüfen\n nach Errichtung, Veränderung und Instandsetzung,\n regelmäßig entsprechend den Prüffristen.",
+        "sourcePage": 13
+      },
+      {
+        "id": "tiefbau-13-0-9",
+        "activity": "Baustellenbeleuchtung",
+        "hazard": "• Unzureichende Beleuchtung\n• Stolpern / Rutschen / Stürzen\n• Fehlbelastungen der Augen",
+        "measure": "",
+        "reference": "• Arbeitsplätze und Verkehrswege auf Baustellen bei nicht\nausreichendem Tageslicht künstlich beleuchten.\n• Die Beleuchtung den besonderen Bedingungen und den\nunterschiedlichen Arbeitsabläufen anpassen.\n• Sind bei Ausfall der Allgemeinbeleuchtung besondere\nUnfallgefahren zu erwarten, muss eine Sicherheitsbeleuchtung\n(mind. 1 Lux) vorhanden sein.\n• Für die Allgemeinbeleuchtung die Beleuchtungsanlagen so\nplanen und errichten, dass u.g. Beleuchtungsstärken auf\nArbeitsplatz- und Verkehrsniveau erreicht werden. (Mittlere\nBeleuchtungsstärke)\n Hochbau = 20 Lux\n Tiefbau = 20 Lux\n Stahl- und Metallbau = 20 Lux\n Sanitär- und Sozialräume = 200 Lux\n• Büroräume = 500 Lux",
+        "sourcePage": 13
+      },
+      {
+        "id": "tiefbau-14-1-3",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Unfälle durch verrutschende Lasten\n• Unfälle im Straßenverkehr",
+        "measure": "• Geeignete Einrichtungen zur Lastsicherung (Kanthölzer,\nVerzurrgurte) verwenden\n• Unterweisen der Mitarbeiter über umsichtiges Fahren und\nverkehrsgerechtes Verhalten\n• Kein Alkohol vor und während der Fahrt\n• Teilnahme am Fahrsicherheitstraining\n• Übermüdung und Unkonzentriertheit durch regelmäßige Pausen\nvermeiden\n• Bei Reparaturarbeiten während der Fahrt Warnweste benutzen\n• Unfallstelle ordnungsgemäß absichern und Polizei verständigen.",
+        "reference": "BGI 527\nBGV D29",
+        "sourcePage": 14
+      },
+      {
+        "id": "tiefbau-14-1-4",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Defekte/ unzureichende Zurrmittel",
+        "measure": "• Eingesetzte Zurrmittel müssen ausreichend vorhanden, richtig\ndimensioniert und unbeschädigt sein.\n• Die Berechnung zum Niederzurren und Direkt- bzw.\nDiagonalzurren sind zu beachten.\n• Reibwerte sind individuell, je nach Witterung und\nOberflächenbeschaffenheit der eingesetzten Transportmittel,\nMaschinen und Ladungen, zu bewerten.",
+        "reference": "DGUV-I 214-003",
+        "sourcePage": 14
+      },
+      {
+        "id": "tiefbau-14-1-5",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Gefährdung durch öffentlichen Verkehr",
+        "measure": "• Mitarbeiter müssen bei Gefährdung durch öffentlichen Verkehr\nWarnkleidung tragen.\n• Verkehrsrechtliche Anordnung auf der Baustelle vorbehalten.\n• Verkehrssicherung gemäß behördlicher Anordnung aufgestellt.\n• Verkehrszeichenplan erstellen und Genehmigung durch\nzuständige Behörde einholen.\n• Wartung von Absperrmaterial und Verkehrszeichen veranlassen.",
+        "reference": "§45 StVO",
+        "sourcePage": 14
+      },
+      {
+        "id": "tiefbau-14-1-6",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Getroffen werden von Maschinen / Material",
+        "measure": "• Funktionsfähige, stabile Auffahrrampen einsetzen.\n• Geeignete Transportmittel (z.B. Tieflader).\n• Ladungssicherung (z. B. Zurrmittel, Keile).\n• Öffentliche Transportwege festlegen (Lichtraumprofil /",
+        "reference": "",
+        "sourcePage": 14
+      },
+      {
+        "id": "tiefbau-15-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 15
+      },
+      {
+        "id": "tiefbau-15-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 15
+      },
+      {
+        "id": "tiefbau-15-0-8",
+        "activity": "Auswahl der\nMitarbeiter",
+        "hazard": "• Fahrerlaubnis",
+        "measure": "",
+        "reference": "• Die zum Transport beauftragten Mitarbeiter müssen über eine\ngültige Fahrerlaubnis verfügen.\n• Die Mitarbeiter dürfen nicht unter Einfluss von Drogen stehen.\n• Die Baustellenordnung muss eingehalten werden.",
+        "sourcePage": 15
+      },
+      {
+        "id": "tiefbau-15-1-3",
+        "activity": "Transport auf\nBaustellen",
+        "hazard": "• Angefahren / Überfahren werden",
+        "measure": "• Gefahrenbereiche absperren lassen.\n• Maschinenführer anweisen, niemanden im Gefahrenbereich zu\ndulden.\n• Sicherungsposten (Einweiser) aufstellen.\n• Sicherungsposten bei Sichtbehinderung immer einsetzen.\n• Unterweisung:\n Im Gefahrenbereich von Arbeitsbewegungen niemanden mit\nArbeiten beauftragen.\n Nicht in den Gefahrenbereich von Baumaschinen treten.\n Blickkontakt bei Fahrbewegungen.\n Verkehrswege von Fahrzeugen nicht benutzen.",
+        "reference": "BGI 527\nBGV D29",
+        "sourcePage": 15
+      },
+      {
+        "id": "tiefbau-16-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-0-8",
+        "activity": "A-20-40",
+        "hazard": "• Einsinken / Umkippen von Baumaschinen",
+        "measure": "",
+        "reference": "• Nur zugewiesene Bereiche befahren.\n• Abstände zu Baugruben und Gräben immer einhalten.\n• Nur feste Untergründe befahren.\n• Vor dem Befahren den Untergrund auf Standsicherheit prüfen.",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-1-3",
+        "activity": "Materiallager",
+        "hazard": "• Verletzungsgefahr durch umstürzende oder\nabrollende Materialien.",
+        "measure": "• Mitarbeiter auf die Besonderheiten des stabilen Lagerns\nhinweisen\n• Hilfsmittel zum standsicheren Lagern (z.B. Keile,\nZwischenhölzer) bereitstellen.\n• Für Materiallager einen tragfähigen Untergrund auswählen.\n• Unterweisung durchführen",
+        "reference": "DGUV-V1\nBGI 869",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-1-4",
+        "activity": "Materiallager",
+        "hazard": "• Herabfallende Pflastersteine, Bordsteine\netc.",
+        "measure": "• Pflasterpaletten sicher übereinander stapeln.\n• Bordsteine und Pflasterzubehör und Materialien kippsicher\nablagern.",
+        "reference": "BGI 869",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-1-5",
+        "activity": "Materiallager",
+        "hazard": "• Herabfallende Materialien Anbaugeräte von\nMagazincontainern",
+        "measure": "• Materialien und Anbaugeräte dürfen nur gesichert auf\nMagazincontainern abgelagert werden. Die Kippsicherheit ist\nimmer zu prüfen.",
+        "reference": "",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-16-1-6",
+        "activity": "Materiallager",
+        "hazard": "• Durch verstellte Flucht- und Rettungswege",
+        "measure": "• Materiallager bzw. Zwischenlager sollten Fluchtwege nicht\nverstellen. Stolperstellen in Laufwegen sind zu vermeiden.",
+        "reference": "",
+        "sourcePage": 16
+      },
+      {
+        "id": "tiefbau-17-1-3",
+        "activity": "Benutzung von\nHandwerkzeugen",
+        "hazard": "• Allgemein",
+        "measure": "• Nur Qualitätswerkzeuge beschaffen, die die festgelegten\nMindestanforderungen hinsichtlich Prüfdrehmoment, Härte und\nToleranzen erfüllen.\n• Beschaffung von ergonomischen Werkzeugen. Dabei\ninsbesondere auf Formgebung, Händigkeit und\nOberflächenbeschaffenheit von Griffen achten.\n• Beschaffung von Werkzeugen z. B. mit gekanteten Flächen an\nden Griffen, um Wegrollen zu verhindern.\n• Spitze und scharfkantige Werkzeuge nicht in den Taschen der\nArbeitskleidung tragen.\n• Vor jeder Benutzung das jeweilige Handwerkszeug auf\naugenfällige Mängel prüfen.\n• Auf richtige Arbeitshöhe, gute Standsicherheit und ausreichende\nBewegungsfreiheit achten.",
+        "reference": "DGUV-I 209-001",
+        "sourcePage": 17
+      },
+      {
+        "id": "tiefbau-17-1-4",
+        "activity": "Benutzung von\nHandwerkzeugen",
+        "hazard": "• Durch Unsachgemäße Verwendung",
+        "measure": "Es ist wichtig, das richtige Werkzeug für den jeweiligen Einsatzfall\nauszuwählen. Jedes Handwerkszeug hat auch seinen\nVerwendungszweck.\n• Schraubenschlüssel sind keine Schlagwerkzeuge,\n• Schraubendreher sind keine Stemmwerkzeuge,\n• Hämmer sind keine Biegewerkzeuge und\n• Zangen sind keine Schraubwerkzeuge.\nFalscher Einsatz beschädigt das Handwerkszeug und kann die\nUrsache für den nächsten Unfall sein.",
+        "reference": "DGUV-I 209-001",
+        "sourcePage": 17
+      },
+      {
+        "id": "tiefbau-17-1-5",
+        "activity": "Hammer, Meißel\nSchraubendreher",
+        "hazard": "• Umherfliegende Bauteile, Bruch- und\nSplitterteile",
+        "measure": "• Hammerstiele ordnungsgemäß sichern.\n• Beschädigte Stiele nicht verwenden.\n• Beim Zusammenschlagen gehärteter Oberflächen\n(Hammer/Meißel) besteht Splittergefahr – Schutzbrille tragen.\n• Werkzeuge sauber und ölfrei halten.",
+        "reference": "DGUV-I 209-001",
+        "sourcePage": 17
+      },
+      {
+        "id": "tiefbau-18-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 18
+      },
+      {
+        "id": "tiefbau-18-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 18
+      },
+      {
+        "id": "tiefbau-18-0-8",
+        "activity": "A-20-40",
+        "hazard": "• Durch Abrutschen und unkontrollierte\nKraftübertragung",
+        "measure": "",
+        "reference": "• Schraubendreher sind nicht als Stemm- und Brechwerkzeug\ngeeignet.\n• Kraftübertragung nur von Hand. Die Krafterhöhung eines\nSchraubendrehers durch Zangen und Ratschen ist verboten.\n• Kontrollierte Kraftbewegung und sicheren Stand beachten.\n• Auf sicheren Formschluss achten. (Größe und Form)\n• Kraftbewegungen möglichst vom eigenen Körper und von\numstehenden/ beteiligten Personen weggerichtet ausführen.\n• Werkstücke nicht in der Hand bearbeiten. Werkstücke sicher\neinspannen.",
+        "sourcePage": 18
+      },
+      {
+        "id": "tiefbau-18-0-9",
+        "activity": "A-20-40",
+        "hazard": "• Abrutschen von Schraubenschlüsseln\n• Materialbruch von Stecknüssen",
+        "measure": "",
+        "reference": "• Den sicheren Verwendungszweck von Maul-, Ring-, und\nSteckschlüsseln beachten.\n• Griffposition sicher wählen und Schrägansatz vermeiden.",
+        "sourcePage": 18
+      },
+      {
+        "id": "tiefbau-18-0-10",
+        "activity": "A-20-40",
+        "hazard": "• Anschlagen von Körperteilen an\nMaschinenteilen",
+        "measure": "",
+        "reference": "• Prüfdrehmomente und Materialhärte beachten.\n• Abrutschen von Schraubenköpfen kann durch Ringschlüssel\nverhindert bzw. reduziert werden.\n• Stecknüsse ausreichender Güte und Materialhärte verwenden.",
+        "sourcePage": 18
+      },
+      {
+        "id": "tiefbau-19-1-3",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Allgemein\n• Allgemein\n• Elektrische Gefährdungen\n• Mechanische Gefährdungen\n• Thermische Gefährdungen",
+        "measure": "• Nur geprüfte und ordnungsgemäße Handmaschinen verwenden.\n(Prüfplakette DGUV-V3 beachten)\n• Vor der Verwendung den sicheren Zustand und die Verwendung\ngeeigneter Anbauteile, Schutzvorrichtungen und Schleifkörpern\nprüfen.\n• Gefährdungen in der Umgebung beseitigen. (z.B. Brandlasten\netc.)\n• Thermische Gefahren für die Haut durch langärmlige Kleidung\nund geeignete Schutzhandschuhe reduzieren. Dabei sollten\njedoch Einzugsgefährdungen der Kleidung beachtet werden. Bei\nmöglicher Einzugsgefährdung sollten Ärmel umgeschlagen\nwerden.\n• Bei der Verwendung von Handmaschinen immer enganliegende\nKleidung tragen.",
+        "reference": "DGUV-V3\nDGUV-I 209-002\nDGUV-I 209-022",
+        "sourcePage": 19
+      },
+      {
+        "id": "tiefbau-19-1-4",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Lärm",
+        "measure": "• Gehörschutz zur Verfügung stellen und das Verwenden\nveranlassen.\n• Tragepflicht ab 85 dB (Selbstfürsorge beachten)",
+        "reference": "",
+        "sourcePage": 19
+      },
+      {
+        "id": "tiefbau-19-1-5",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Unkontrolliert bewegte Teile",
+        "measure": "• Handmaschinen nicht auf Leitern verwenden.\n• Insbesondere bei Arbeiten über Kopf Gesichts- oder\nAugenschutz verwenden.\n• Kleinere Werkstücke bei der Bearbeitung möglichst fixieren, z. B.\nmit Schnellspannzwingen",
+        "reference": "",
+        "sourcePage": 19
+      },
+      {
+        "id": "tiefbau-19-1-6",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Kontrolliert bewegte ungeschützte Teile",
+        "measure": "• Bei Gefahr des Festhakens Maschinen mit Rutschkupplung\neinsetzen.\n• Handmaschine mit beiden Händen führen, Auflagefläche nicht\nuntergreifen\n• Maschinen sicher ablegen.\n• Zum Werkzeugwechsel, vor dem Beseitigen von Störungen und",
+        "reference": "",
+        "sourcePage": 19
+      },
+      {
+        "id": "tiefbau-20-1-3",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "",
+        "measure": "vor Reinigungsarbeiten die jeweilige Maschine von der\nEnergiezufuhr trennen.",
+        "reference": "",
+        "sourcePage": 20
+      },
+      {
+        "id": "tiefbau-20-1-4",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Unzureichende Organisation/ Qualifikation",
+        "measure": "• Bedienung nur durch geeignete und unterwiesene Beschäftigte,\ndie mindestens 18 Jahre alt sind. Ausnahme: Im Rahmen der\nAusbildung zur Erreichung des Ausbildungsziels erforderlich\n(siehe Ausbildungsrahmenplan) und unter Aufsicht.\n• Beschäftigte regelmäßig unterweisen, mindestens einmal\njährlich, Unterweisung dokumentieren.\n• Betriebsanweisung mit Hilfe der Betriebsanleitung des Herstellers\nerstellen.\n• Sichtprüfung vor Arbeitsbeginn durch befähigte Bedienperson der\nMaschine durchführen, offensichtliche Mängel an der Maschine\nund den Werkzeugen erkennen und zur Abstellung melden.",
+        "reference": "",
+        "sourcePage": 20
+      },
+      {
+        "id": "tiefbau-20-1-5",
+        "activity": "Handmaschinen\n-allgemein",
+        "hazard": "• Wartung- und Instandsetzung",
+        "measure": "• Bedienungsanleitungen und Benutzerhinweise des Herstellers\nbeachten.\n• Handmaschinen vor den Wechsel der Schleifkörper stromlos\nschalten (Netzstecker ziehen).\n• Wartung- und Reparaturarbeiten nur durch Sachkundige\nPersonen durchführen lassen.",
+        "reference": "DGUV-I 209-002",
+        "sourcePage": 20
+      },
+      {
+        "id": "tiefbau-20-1-6",
+        "activity": "Benutzung von\nWinkelschleifern",
+        "hazard": "• Durch defekte Schleifkörper\n• Bersten von Schleifkörpern",
+        "measure": "• Arbeitshöchstgeschwindigkeit und Ablaufdatum der Schleifkörper\nbeachten.\n• Defekte Maschinen oder Maschinen mit demontierter\nSchutzhaube oder Handgriff dürfen nicht verwendet werden.\n• Probelauf in gesicherten Bereich durchführen (ca. 20-30Sek.)",
+        "reference": "DGUV-I 209-002",
+        "sourcePage": 20
+      },
+      {
+        "id": "tiefbau-20-1-7",
+        "activity": "Benutzung von\nWinkelschleifern",
+        "hazard": "• Funkenflug, Lärm, Brandgefahr",
+        "measure": "• Geeigneten Gehörschutz verwenden.\n• Geeigneten Augenschutz verwenden.\n• Die Schutzhaube des Winkelschleifers muss so eingestellt\nwerden, dass der Verwender optimal geschützt ist.\n• Ggf. bewegliche Trennwände aufstellen.\n• Geeignete brandhemmende Arbeitskleidung verwenden.\n• Nach feuergefährlichen Arbeiten in der Nähe von Brandlasten –\nBrandwache halten.",
+        "reference": "DGUV-I 209-002",
+        "sourcePage": 20
+      },
+      {
+        "id": "tiefbau-21-1-4",
+        "activity": "Benutzung von\nWinkelschleifern",
+        "hazard": "• Rückschlag der Maschine",
+        "measure": "• Rückschlag der Maschine möglichst vermeiden:\n Trennscheibe nicht als Schleifscheibe verwenden.\n Verkanten vermeiden.\n Führung mit beiden Händen\n Sicheren Stand einnehmen.\n• Werkstück sicher einspannen bzw. gegen Verrutschen sichern.",
+        "reference": "DGUV-I 209-002",
+        "sourcePage": 21
+      },
+      {
+        "id": "tiefbau-21-1-5",
+        "activity": "Benutzung von\nWinkelschleifern",
+        "hazard": "• Stäube und gesundheitsschädlichen Stoffen\n• Brand- und Explosionsgefahren",
+        "measure": "• Absaugung bei länger anhaltenden Arbeiten in Räumen oder bei\nder Bearbeitung von gesundheitsschädlichen Stoffen (z.B.:\nBeschichtungen).\n• Brand- und Explosionsgefahren im Arbeitsumfeld ermitteln und\nggf. beseitigen.\n• Besondere Sicherheitsvorkehrungen sind bei Schleif- oder\nTrennarbeiten an oder in der Nähe von Tanks-, Fässern und\nRohrleitungen erforderlich, die brennbare oder explosionsfähige\nStoffe enthalten oder enthalten haben.\n• Die Bearbeitung von Tanks-, Fässern-, oder Rohrleitungen ist nur\nnach ordnungsgemäßem Freispülen und besondere Anweisung\nerlaubt.\n• Im Allgemeinen sind funkenbildende Arbeiten in Ex-Bereichen\nnicht erlaubt.\n• Geeigneten Feuerlöscher im Umfeld bereithalten.",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "tiefbau-21-1-6",
+        "activity": "Elektrische Handsägen",
+        "hazard": "• Allgemein",
+        "measure": "• Bedienungsanleitung der Herstellerfirma beachten.\n• Sägeblatt auf Material und Arbeitsgang abstimmen.\n• Nur unbeschädigte und scharf Sägeblätter verwenden.\n• Gehörschutz und Augenschutz verwenden.",
+        "reference": "BGHM - 028",
+        "sourcePage": 21
+      },
+      {
+        "id": "tiefbau-21-1-7",
+        "activity": "Elektrische Handsägen",
+        "hazard": "• Mechanische Gefährdungen\n• Schnittverletzungen\n• Defekte Schutzeinrichtungen",
+        "measure": "• Auf leichte Beweglichkeit bzw. Funktion der Schutzhaube achten.\n• Maschine nur mit geschlossener Schutzhaube ablegen. (gilt für\nHandkreissäge)\n• Sichere Werkstückauflage in ergonomischer Höhe herstellen.\nMöglichst Führungsschiene verwenden.\n• Nicht unter die Schnittebene greifen.",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "tiefbau-22-1-4",
+        "activity": "Elektrische Handsägen",
+        "hazard": "• Gefahren durch Stäube",
+        "measure": "• Bei dauerhaften Säge- oder Schleifarbeiten - Absaugung über\ngeeigneten Industriestaubsauger (Holzstäube – Filterklasse M)\n•",
+        "reference": "",
+        "sourcePage": 22
+      },
+      {
+        "id": "tiefbau-22-1-5",
+        "activity": "Bohrhammer /\nStemmgerät",
+        "hazard": "• Elektrische Gefährdungen\n• Unkontrolliert bewegte Teile\n• Hand- Armvibrationen",
+        "measure": "• Defekte Geräte der Verwendung entziehen\n• Regelmäßige Prüfung des Arbeitsmittels durch eine zur Prüfung\nbefähigte Person durchführen; Prüfintervalle, Prüfumfänge,\nQualifikation des Prüfpersonals festlegen; Prüfungen\ndokumentieren\n• Sichtkontrolle auf erkennbare Mängel vor der Verwendung\n• Maschine sicher ablegen.\n• Ggf. Trennwände aufstellen.\n• Schutzbrille und Gehörschutz verwenden.",
+        "reference": "BGHM - GBU",
+        "sourcePage": 22
+      },
+      {
+        "id": "tiefbau-23-1-3",
+        "activity": "Kettensäge /\nTrennjäger",
+        "hazard": "• Allgemein\n• Mechanische Gefährdungen",
+        "measure": "• Nur körperlich und geistig zuverlässige Personen mit Arbeiten\nan/mit Kettensägen beauftragen.\n• Jugendliche unter 15 Jahren dürfen nicht mit Handkettensägen/\nTrennjägern arbeiten.\n• Jugendliche über 15 Jahren dürfen nur unter Aufsicht eines\nFachkundigen und wenn es die Berufsausbildung erfordert, an\nHandkettensägen/ Trennjägern arbeiten.",
+        "reference": "DGUV-I 214-059\nBG-Baustein\nB259",
+        "sourcePage": 23
+      },
+      {
+        "id": "tiefbau-23-1-4",
+        "activity": "Kettensäge",
+        "hazard": "• Materiallagerung\n• Rückschlaggefahr ,,Kickback‘‘",
+        "measure": "• Nicht mit Schienenspitze sägen. Rückschlaggefahr!\n• Bei Stechschnitten rückschlagarme Sägeketten verwenden.\n• Material bzw. Leitungen so lagern, dass ein Verkanten des\nSchwertes verhindert wird und durch eine sichere Lastverteilung,\nein unkontrolliertes Umstürzen bzw. Herabfallen vermieden wird.",
+        "reference": "BG-Baustein\nB259",
+        "sourcePage": 23
+      },
+      {
+        "id": "tiefbau-23-1-5",
+        "activity": "Kettensäge",
+        "hazard": "• Maschineneinstellung\n• Arbeitsumgebung",
+        "measure": "• Vor Arbeitsbeginn Wirksamkeit der Kettenbremse prüfen.\n• Leerlaufdrehzahl so einstellen, dass die Kette/Schneidscheibe\nbeim Starten bzw. im warmen Zustand nicht mitläuft.\n• Nur scharfe Ketten verwenden und so spannen, dass sie rundum\nam Schwert anliegen.\n• Möglichst rückschlagarme Sägeketten verwenden.\n• Krallenanschlag verwenden.\n• Stolperstellen vermeiden. Sägeplatz ordnen.\n• Stets für einen festen und sicheren Stand sorgen.\n• Kettensäge immer beidhändig führen.\n• Nicht über Schulterhöhe sägen.",
+        "reference": "BG-Baustein\nB259",
+        "sourcePage": 23
+      },
+      {
+        "id": "tiefbau-23-1-6",
+        "activity": "Kettensäge",
+        "hazard": "• Materiallagerung\n• Rückschlaggefahr ,,Kickback‘‘",
+        "measure": "• Nicht mit Schienenspitze sägen. Rückschlaggefahr!\n• Bei Stechschnitten rückschlagarme Sägeketten verwenden.\n• Material bzw. Leitungen so lagern, dass ein Verkanten des\nSchwertes verhindert wird und durch eine sichere Lastverteilung,\nein unkontrolliertes Umstürzen bzw. Herabfallen vermieden wird.",
+        "reference": "BG-Baustein\nB259",
+        "sourcePage": 23
+      },
+      {
+        "id": "tiefbau-24-1-3",
+        "activity": "Trennjäger",
+        "hazard": "• Maschineneinstellung\n• Arbeitsumgebung",
+        "measure": "• Vor Arbeitsbeginn die Wirksamkeit und Einstellung der\nSchutzhaube sowie den ordnungsgemäßen Zustand prüfen.\n• Leerlaufdrehzahl so einstellen, dass die Kette/Schneidscheibe\nbeim Starten bzw. im warmen Zustand nicht mitläuft.\n• Nur scharfe und gerätespezifische Schneidscheiben verwenden.\n• Stolperstellen vermeiden. Schneidplatz ordnen.\n• Stets für einen festen und sicheren Stand sorgen.\n• Trennjäger immer beidhändig führen.\n• Nicht über Schulterhöhe schneiden.",
+        "reference": "BG-Baustein\nB247",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-24-1-4",
+        "activity": "Trennjäger",
+        "hazard": "• Rückschlaggefahr ,,Kickback‘‘",
+        "measure": "• Möglichst nicht im oberen Viertel der Schneidscheibe schneiden.\nRückschlaggefahr!\n• Bei Stechschnitten nur behutsam mit dem unteren Bereich der\nSchneidscheibe in die Schnittfuge eintauchen.\n• Material bzw. Leitungen so lagern, dass ein Verkanten oder ein\nStecken bleiben der Schneidscheibe verhindert wird.",
+        "reference": "BG-Baustein\nB247",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-24-1-5",
+        "activity": "Trennjäger",
+        "hazard": "Rückschlaggefahr ,,Kickback‘‘",
+        "measure": "",
+        "reference": "BG-Baustein\nB247",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-24-1-6",
+        "activity": "Trennjäger",
+        "hazard": "• Schnittverletzungen\n• Augenverletzungen\n• Lärm",
+        "measure": "• Vor der Verwendung den sicheren Zustand der Maschine und die\nFunktion von Schutzeinrichtungen prüfen.\n• Mechanische und Thermische Gefahren für die Haut durch\nlangärmlige Kleidung und geeignete Schutzhandschuhe\nreduzieren.\n• Schnittschutzkleidung bzw. Schnittschutzhose verwenden.\n• Helm mit Visier und Gehörschutzkapseln verwenden.",
+        "reference": "BG-Baustein\nB259\nDGUV-I 209-023",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-24-1-7",
+        "activity": "Trennjäger",
+        "hazard": "• Augenverletzungen durch Funkenflug\n• Fußverletzungen",
+        "measure": "• Schutzbrille tragen.\n• Schutzschuhe tragen",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-24-1-8",
+        "activity": "Trennjäger",
+        "hazard": "• Trennjäger ,,Kickback‘‘",
+        "measure": "• Erdverlegte Leitungen müssen möglichst spannungsfrei gelagert\nwerden.\n• Die zu bearbeitenden Rohrleitungen sind zu befestigen und so zu",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "tiefbau-25-1-3",
+        "activity": "Trennjäger",
+        "hazard": "",
+        "measure": "unterstützen, dass während des Schneidvorgangs die\nSchnittfuge geöffnet bleibt.\n• Die Rohrleitungen dürfen nicht hohl liegen und müssen gegen\nAbsacken, Wegrollen und Schwingungen gesichert werden.",
+        "reference": "",
+        "sourcePage": 25
+      },
+      {
+        "id": "tiefbau-25-2-3",
+        "activity": "Baustellenkreissäge",
+        "hazard": "• Lärm\n• Unkontrolliert bewegte Teile.\n• Herabfallende Gegenstände",
+        "measure": "• Gehörschutz zur Verfügung stellen und das Verwenden\nveranlassen\n• Bei unkontrolliert bewegten Teilen eine geeignete Schutzbrille\nverwenden.\n• Bei Bedarf Schutzschuhe tragen.",
+        "reference": "DGUV-I 209-023",
+        "sourcePage": 25
+      },
+      {
+        "id": "tiefbau-25-2-4",
+        "activity": "Baustellenkreissäge",
+        "hazard": "• Kontrolliert bewegte ungeschützte Teile",
+        "measure": "• Ausreichende Tischlänge, die ein Abkippen des Werkstücks\nverhindert.\n• Bei schräg gestelltem Sägeblatt breite Schutzhaube verwenden.\n• Beim Schneiden schmaler Werkstücke (< 120 mm) Schiebestock\nbzw. (< 30 mm) Schiebeholz verwenden\n• Für Material und Arbeitsgang geeignetes Sägeblatt verwenden.\n• Geeigneten Spaltkeil einsetzen und einstellen.\n• Hilfsmittel unmittelbar an Maschine bereithalten\n• Kein Eingriff per Hand in den Gefahrbereich (120 mm um\nSägeblatt und Vorritzer).\n• Obere Werkzeugverdeckung auf das Werkstück absenken (bei",
+        "reference": "DGUV-R 109-606",
+        "sourcePage": 25
+      },
+      {
+        "id": "tiefbau-26-1-3",
+        "activity": "Baustellenkreissäge",
+        "hazard": "",
+        "measure": "schmalen Werkstücken Parallelanschlag drehen oder\nHilfsanschlag nutzen).\n• Verwendung von Hilfsmitteln (z. B. Schiebestock, Schiebeholz,\nWechselgriff, Sägehilfen, Besäumhilfen, Abweisleiste).\n• Selbsttätig schließende Schutzhauben dürfen nicht manipuliert\nwerden!\n• Auf richtige Anbringung und Einstellung der Schutzhaube achten.\nNicht selbsttätig schließende Schutzhauben so weit wie möglich\nauf das Werkstück absenken.\n• Bei älteren Maschinen möglichst selbsttägig schließende\nSchutzhauben nachrüsten.\n• Splitter, Späne usw. nicht mit der Hand aus dem Bereich des\nlaufenden Sägeblattes entfernen.\n• Vor dem Verlassen des Bedienungsstandes die Maschine\nausschalten.",
+        "reference": "",
+        "sourcePage": 26
+      },
+      {
+        "id": "tiefbau-26-1-4",
+        "activity": "Baustellenkreissäge",
+        "hazard": "• Unkontrolliert bewegte Teile\n• Einzugsgefährdungen\n• Mechanische Belastungen der Haut",
+        "measure": "• Mechanische Gefahren für die Haut durch langärmlige Kleidung\nund geeignete Schutzhandschuhe reduzieren. Dabei sollten\njedoch mögliche Einzugsgefährdungen der Kleidung beachtet\nwerden. Bei möglicher Einzugsgefährdung sollten Ärmel\numgeschlagen werden. Mechanische Belastungen der Haut\nsollten vermieden werden.\n• Bei der Verwendung von stationären Maschinen mit rotierenden\nTeilen oder möglichen Einzugsstellen ist immer enganliegende\nKleidung zu tragen.\n•",
+        "reference": "BG Baustein\nB265",
+        "sourcePage": 26
+      },
+      {
+        "id": "tiefbau-26-1-5",
+        "activity": "Baustellenkreissäge",
+        "hazard": "• Verwendung falscher Kreissägeblätter",
+        "measure": "• Nur Kreissägeblätter verwenden, die mit dem Namen oder\nZeichen des Herstellers gekennzeichnet sind (10).\n• Bei Verbundkreissägeblättern muss zusätzlich die\nhöchstzulässige Drehzahl angegeben sein. Angegebene\nDrehzahl nicht überschreiten (14).\n• Lärmarme Sägeblätter benutzen (13).\n• Beschädigte Sägeblätter, z.B. solche mit Rissen, Verformungen,\nBrandflecken, aussortieren.\n• Keine Sägeblätter aus hoch legiertem Schnellarbeitsstahl (HSS)\nverwenden.",
+        "reference": "BG Baustein\nB265",
+        "sourcePage": 26
+      },
+      {
+        "id": "tiefbau-27-2-3",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Baggern bzw. Erdbaumaschinen:\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Baggern zu unterweisen, die Unterweisung ist zu\ndokumentieren,\n die für den Einsatz von Baggern erforderlichen Vorschriften,\nRegeln und Informationen (Betriebsanweisung, Betriebsanleitung\ndes Herstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.\nDer Maschinenführer muss:\n mindestens 18 Jahre alt sein,\n zuverlässig sowie geeignet sein,\n die Betriebsanleitung kennen und diese am Fahrerplatz oder\nan der Verwendungsstelle leicht zugänglich aufbewahren,\n den Bagger bestimmungsgemäß benutzen und\n festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 27
+      },
+      {
+        "id": "tiefbau-27-2-4",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Allgemein\n• Stolpern / Rutschen / Stürzen",
+        "measure": "• Trittsichere Tritte (z.B. Warzenblech, Roste)\n• Unterweisung:\n Tritte sauber halten bei Erd- und Straßenbaumaschinen\n Schuhsohlen reinigen beim Führen und Warten von Erd- und\nStraßenbaumaschinen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 27
+      },
+      {
+        "id": "tiefbau-28-1-3",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "",
+        "measure": " Schutzgeländer nicht entfernen.\n Schutzbügel nach Aufstieg auf Maschinen bzw. Anlagen\nschließen.\n Standflächen frei von Material und sonstigen Gegenständen\nhalten.\n Anweisung: Sicherheitsgurt immer anlegen oder Kabine\ngeschlossen halten.",
+        "reference": "",
+        "sourcePage": 28
+      },
+      {
+        "id": "tiefbau-28-1-4",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Unzureichende Standsicherheit\n• Umsturz der Baumaschine",
+        "measure": "• Tragfähigkeit des Untergrundes prüfen.\n• Unterweisung:\n Keine großen Unebenheiten befahren.\n Mit Erd- und Straßenbaumaschinen Sicherheitsabstand zu\nAbsturzkanten halten.\n Abstützungen an der Maschine einsetzen (Erd- und\nStraßenbaumaschinen)\n Geringere Standsicherheit der Minibagger berücksichtigen.\nUnterweisung:\n Mit Erd- und Straßenbaumaschinen vorgeschriebene\nAbstände (nach DIN 4124) zu den Rändern von Gruben und\nGräben einhalten.\n• Maschinenführer anhand der Betriebsanleitung des Gerätes\neinweisen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 28
+      },
+      {
+        "id": "tiefbau-28-1-5",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Technische Mängel",
+        "measure": "• Anweisung: Bei erheblichen Funktionsstörungen Betrieb der\nMaschine sofort einstellen.\n• Arbeitstägliche Sicht- und Funktionskontrolle durch den\nMaschinenführer veranlassen.\n• Laufende Instandhaltung: Wartung, Inspektion und\nInstandsetzung (Reparatur).\n• Regelmäßige Prüfungen durch Sachkundige.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 28
+      },
+      {
+        "id": "tiefbau-29-1-3",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Sichtfeldeinschränkungen bei Fahr- und\nArbeitsbewegungen\n• Mechanische Gefährdungen\n• angefahren/ überfahren werden",
+        "measure": "• Einsatz von Spiegelsystemen, um Sichtfeldeinschränkungen\nauszugleichen\n• Sichtfeldüberprüfung von Erdbaumaschinen veranlassen\n(Überprüfung, ob Maschinenführer im Abstand von 1,0 m vor\nbzw. hinter der Maschine eine leicht gebückt arbeitende Person\n(ca. 1,50 m) sehen kann. Die Sichtfeldüberprüfung erfolgt bei\nabgestelltem Motor und abgesenkter Arbeitseinrichtung)\n• Warnwesten als zusätzliche persönliche Schutzausrüstung zur\nVerfügung stellen.\n• kein Aufenthalt von Personen im Fahrbereich (Gefahrenbereich)\nvon Erdbaumaschinen (eingeschränktes Sichtfeld bzw. tote\nWinkel für Maschinenführer)\n• vor Betreten des Gefahrenbereiches Blickkontakt zum\nMaschinenführer aufnehmen.",
+        "reference": "DGUV-R 100-500\nKap. 2.12\nDGUV-V1",
+        "sourcePage": 29
+      },
+      {
+        "id": "tiefbau-29-1-4",
+        "activity": "Aushub mit Bagger /\nFrontbagger / Radlader",
+        "hazard": "• Quetschgefahr & Erfasst werden",
+        "measure": "• Personen dürfen sich grundsätzlich nicht im Fahr- oder\nSchwenkbereich (Gefahrbereich) aufhalten\n• Nicht unter die angehobene Arbeitseinrichtung oder die\ngehobene Last treten.\n• Der Maschinenführer darf mit dem Bagger nur Arbeiten\nausführen, wenn sich keine Personen im Gefahrbereich aufhalten\nund er den Fahrweg einsehen kann. Ggf muss ein Einweiser\nbereitstehen.\n• Der Maschinenführer hat bei Gefahr für Personen die Gefahr\nbringende Bewegung zu stoppen und Warnzeichen zu geben.\n• Für Personen im Umfeld des Baggers gilt:\n festgelegte Maßnahmen beachten\n vor Betreten des Gefahrbereiches Kontakt mit\nMaschinenführer aufnehmen.\n Arbeitsweise miteinander abstimmen.",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 29
+      },
+      {
+        "id": "tiefbau-29-1-5",
+        "activity": "Aushub mit Bagger /\nFrontbagger / Radlader",
+        "hazard": "• Aufenthalt im Gefahrenbereich\n• Unzureichendes Sichtfeld",
+        "measure": "• Der Maschinenführer darf mit dem Bagger oder mit\nBaumaschinen keine Arbeiten ausführen, wenn sich Personen im\nGefahrbereich aufhalten.",
+        "reference": "BG-Baustein\nB181\nDGUV-V38",
+        "sourcePage": 29
+      },
+      {
+        "id": "tiefbau-30-1-3",
+        "activity": "Aushub mit Bagger /\nFrontbagger / Radlader",
+        "hazard": "",
+        "measure": "Ausnahmen sind möglich, wenn:\n• aus betrieblichen Gründen oder im Fortgang eines\nArbeitsverfahrens unvermeidbar sind und\n• auf Grundlage einer Gefährdungsbeurteilung Maßnahmen\nfestgelegt wurden (Betriebsanweisung).",
+        "reference": "",
+        "sourcePage": 30
+      },
+      {
+        "id": "tiefbau-30-1-4",
+        "activity": "Aushub mit Bagger",
+        "hazard": "• Getroffen werden von herabstürzenden\nTeilen",
+        "measure": "• Fahrerplatz gegen herabfallende Gegenstände sichern, z. B.\ndurch normgerechte Schutzaufbauten (Schutzdach und\nFrontschutz).",
+        "reference": "",
+        "sourcePage": 30
+      },
+      {
+        "id": "tiefbau-30-1-5",
+        "activity": "Lasttransport mit\nBagger",
+        "hazard": "• Pendelnde oder herabfallende Lasten bei\nfalscher Sicherung\n• Bagger im Hebezeugbetrieb",
+        "measure": "• Bagger und Lastaufnahmeeinrichtungen richtig ausgewählt und\nbestimmungsgemäß eingesetzt.\n• Zulässige Tragmittel an Baumaschinen und deren Auslegern\nverwenden (Haken+Hakensicherung)\n• Nur geprüfte und ordnungsgemäße Anschlagmittel verwenden.\nDefekte Anschlagmittel nicht verwenden.\n• Lasttransport in angemessener Geschwindigkeit durchführen.\n• Nicht unter die Last oder den angehobenen Ausleger treten.\n• Gefahrenbereiche erst betreten, wenn Lasten nicht mehr pendeln\nund eine unvorhergesehene Bewegung ausgeschlossen werden\nkann.",
+        "reference": "BG-Baustein\nB181\nDGUV-V38",
+        "sourcePage": 30
+      },
+      {
+        "id": "tiefbau-30-1-6",
+        "activity": "Lasttransport mit\nBagger",
+        "hazard": "• Bagger im Hebezeugbetrieb",
+        "measure": "• Unterweisung der Maschinenführer:\n Standfestigkeit des Untergrundes prüfen.\n Hebezeugarbeiten nur mit in Betrieb befindlichen\nSicherheitseinrichtungen durchführen.\n Beobachtung des Gefahrenbereiches.\n Lasten nicht über Personen hinweg führen.\n Betriebsanleitung des Herstellers beachten.\n Traglasttabelle am Gerät beachten.\n Last dicht über dem Boden führen.\n Pendeln vermeiden.",
+        "reference": "",
+        "sourcePage": 30
+      },
+      {
+        "id": "tiefbau-31-1-3",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Angefahren / Überfahren werden von\nErdbaumaschinen.",
+        "measure": "• Möglichst Maschinen mit ,,Totmannschaltung´´ einsetzen wenn\nQuetschgefährdungen vorhanden sind.\n• Andrückschutzeinrichtung für Rückwärtsfahrt.\n• Warnwesten tragen.\n• Arbeitsbereiche auf Baustellen klar einteilen und festlegen.\n• Vor dem Begehen von möglichen Gefahrenbereichen den\nBlickkontakt mit dem Fahrzeugführer aufnehmen.\n•",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 31
+      },
+      {
+        "id": "tiefbau-31-1-4",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Verbrennungen an heißen Oberflächen.",
+        "measure": "• Intakter Verbrennungsschutz am Auspufftopf.",
+        "reference": "",
+        "sourcePage": 31
+      },
+      {
+        "id": "tiefbau-31-1-6",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Lärm",
+        "measure": "• Lärm durch technische Maßnahmen so weit wie\nmöglich reduzieren.\n• Ab 80 dB(A) geeigneten Gehörschutz zur Verfügung stellen.\n• Ab 85 dB(A) geeigneten Gehörschutz zur Verfügung stellen und\ndie Benutzung veranlassen.\n• Gehörvorsorgeuntersuchung G 20 veranlassen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 31
+      },
+      {
+        "id": "tiefbau-31-1-7",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Transport",
+        "measure": "• Angehängte Mitgängermaschinen (Rüttelplatten, Stampfer etc.)\nsicher anschlagen.\n• Anschlagpunkte nach Herstellerangaben auswählen.\n• Geprüfte und unbeschädigte Anschlagmittel verwenden.\n• Nicht im Fahrweg der Transportmaschine (Bagger, Radlader)\nlaufen. Blickkontakt zum Geräteführer – ansonsten keine\nFahrbewegung.",
+        "reference": "",
+        "sourcePage": 31
+      },
+      {
+        "id": "tiefbau-33-1-3",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Verbrennungen durch heiße Materialien\n• Gesundheitsschädliche Dämpfe\n• Lärm",
+        "measure": "• Geeignete persönliche Schutzausrüstung verwenden.\n- Arbeitshose\n- Arbeitsjacke\n- Handschuhe\n- Gehörschutz\n- Warnkleidung\n• In überdachten bzw. räumlich geschlossenen Fertigungsbereich\nmüssen technische Absaugungen eingesetzt werden.",
+        "reference": "DGUV-V38\nBG Baustein 186",
+        "sourcePage": 33
+      },
+      {
+        "id": "tiefbau-33-1-4",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Eingezogen zu werden.\n• Ungesicherte Maschinenteile",
+        "measure": "• Im Grundgerätebereich müssen Verteilerschnecken durch\nAbdeckungen gesichert werden.\n• Während laufender Maschine dürfen keine Wartungs- bzw.\nReparaturarbeiten durchgeführt werden.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 33
+      },
+      {
+        "id": "tiefbau-33-1-5",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Unbefugte Benutzung",
+        "measure": "• Maschine gegen unbefugte Benutzung sichern.\n• Vor dem Betreten des Einfüllbunkers - Kratzerbandbetrieb\nabschalten und vor unbefugtem Ingangsetzen sichern.\n• Bergab niemals mit ausgekuppeltem Motor fahren.\n• Maschine regelmäßig und vor jeder Benutzung auf\nBeschädigungen prüfen.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 33
+      },
+      {
+        "id": "tiefbau-34-1-3",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Bohrgeräten\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Bohrgeräten zu unterweisen, die Unterweisung ist zu\ndokumentieren,\n die für den Einsatz von Bohrgeräten erforderlichen Vorschriften,\nRegeln und Informationen (Betriebsanweisung, Betriebsanleitung\ndes Herstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.\nDer/Die Maschinenführer*in muss:\n mindestens 18 Jahre alt sein,\n zuverlässig sowie geeignet sein,\n die Betriebsanleitung kennen und diese am Bedienplatz oder\nan der Verwendungsstelle leicht zugänglich aufbewahren,\n das Bohrgerät bestimmungsgemäß benutzen und\n festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 34
+      },
+      {
+        "id": "tiefbau-34-1-4",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Unzureichende Erkundung",
+        "measure": "Vor Beginn der Arbeiten:\n• Baufeld erkunden ,\n ob im Arbeitsbereich Kabel, Leitungen, Kanäle o.Ä. vorhanden\nsind, von denen Gefahren ausgehen können,\n ob der Baugrund frei von Kontaminationen und Kampfmitteln\nist,\n ob der Baugrund gleichmäßig ausreichend tragfähig für das\nBefahren mit schweren Baumaschinen ist.\n• Baufeld vorbereiten ,\n entsprechend den Ergebnissen der Erkundung,\n ggf. vorhandene Leitungen umlegen, freischalten, sichern,\n Verkehrswege und Lagerflächen festlegen und kennzeichnen,",
+        "reference": "DGUV-R 101-008\nBG-Baustein B184",
+        "sourcePage": 34
+      },
+      {
+        "id": "tiefbau-35-1-3",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "",
+        "measure": " Arbeitsplanum herrichten.",
+        "reference": "",
+        "sourcePage": 35
+      },
+      {
+        "id": "tiefbau-35-1-4",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Nicht tragfähiger Untergrund\n• Umsturz von Bohrgeräten",
+        "measure": "• Bohrgeräte nur auf tragfähigem Untergrund betreiben – zulässige\nBodenpressung beachten.\n• Schrägzug grundsätzlich nicht zulässig.\n• Standsicherheitskriterien der Betriebsanleitung beachten.",
+        "reference": "DGUV-R 101-008\nBG-Baustein B184",
+        "sourcePage": 35
+      },
+      {
+        "id": "tiefbau-35-1-5",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Aufenthalt in Gefahrenbereichen",
+        "measure": "• Der unbefugte Aufenthalt im Gefahrbereich ist verboten. Halten\nsich Unbefugte im Gefahrbereich auf, hat der Maschinenführer die\nArbeit zu unterbrechen.\n• Ist für bestimmte Arbeitsschritte der Aufenthalt im Gefahrbereich\nunerlässlich oder ist die Sicht des Maschinenführers auf den Fahr-\nund Arbeitsbereich eingeschränkt, sind vom Unternehmer\nbesondere Schutzmaßnahmen festzulegen und von den\nMitarbeitern einzuhalten, z. B.:\n zusätzliche Einrichtungen zur Verbesserung der Sicht nutzen\n(z.B. Kamera-Monitorsysteme ggf. Einweiser),\n Arbeitsweise aufeinander abstimmen,\n• vor dem Betreten Kontakt mit dem Maschinenführer aufnehmen.",
+        "reference": "DGUV-R 101-008\nBG-Baustein B184",
+        "sourcePage": 35
+      },
+      {
+        "id": "tiefbau-35-1-6",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Quergefährdungen – z.B.: Lärm + Staub",
+        "measure": "Staub:\n• Beim Bohren (insbesondere Trockenbohren im Festgestein) sind\nwirksame Maßnahmen zur Staubbekämpfung zu planen und\ndurchzuführen, z.B.:\n Absaugen am Bohrlochmund,\n Staub niederschlagen (benetzen) oder\n Umstellen auf Flüssigkeitsspülung.\nLärm:\n• Beim Betreiben von Bohrgeräten (insbesondere beim\nSchlagbohren) ist mit erhöhter Lärmbelastung zu rechnen, daher\n geeigneten Gehörschutz tragen,\n regelmäßige arbeitsmedizinische Betreuung sicherstellen.",
+        "reference": "DGUV-R 101-008\nBG-Baustein B184\nGBU-Kap. PSA",
+        "sourcePage": 35
+      },
+      {
+        "id": "tiefbau-36-1-4",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Durch Bohrpfahlarbeiten",
+        "measure": "• Für das Koppeln von Bohrrohren beim Pfahlbohren sind sichere\nArbeitsplätze zu schaffen oder Zusatzeinrichtungen zu verwenden\n(ferngesteuerte Rohradapter, Verriegelung mittels Stangen vom\nBoden aus).\n• Bohrrohre so lagern, dass ein Umfallen oder Rollen\nausgeschlossen ist.\n• Bohrungen für Pfähle, an denen nicht gearbeitet wird, müssen\ngegen Hineinfallen gesichert werden (abdecken oder umwehren).",
+        "reference": "DGUV-R 101-008\nBG-Baustein B184",
+        "sourcePage": 36
+      },
+      {
+        "id": "tiefbau-36-1-5",
+        "activity": "Bedienen von\nBohrgeräten",
+        "hazard": "• Durch Ankerbohrarbeiten",
+        "measure": "• Schutzeinrichtungen immer in betriebsbereitem Zustand halten\n(z.B. Schutzgitter, Schaltleinen, feste Absperrungen o.Ä.).\n• Zum Lösen von Schraubgestängen sind\nGestängebrecheinrichtungen zu verwenden.\n• Müssen Rohre oder Gestängeteile mit mehr als 25 kg\nEinzelgewicht gehoben werden, sind mechanisierte\nHandhabungssysteme zu nutzen (Magazin, Manipulator o. Ä.).",
+        "reference": "BG-Baustein B184",
+        "sourcePage": 36
+      },
+      {
+        "id": "tiefbau-36-2-3",
+        "activity": "Kranarbeiten mit\nBaumaschinen",
+        "hazard": "• Allgemein",
+        "measure": "Die beauftragten Kranführer/Geräteführer, müssen bei allen Kran- bzw.\nGerätebewegungen die Last bzw. die Lastaufnahmemittel, beobachten\nbzw. müssen bei eingeschränkten Sichtverhältnissen einen benannten\nAnschläger einsetzen.",
+        "reference": "DGUV-V38\nDGUV-\nV53 ,,Krane’’",
+        "sourcePage": 36
+      },
+      {
+        "id": "tiefbau-37-1-3",
+        "activity": "Kranarbeiten mit\nBaumaschinen",
+        "hazard": "",
+        "measure": "Erkennt der Kranführer, dass Lasten sachgemäß bzw. ordnungsgemäß\nangeschlagen sind, darf er sie eigenständig befördern.\n(Siehe DGUV-Vorschrift 53 §30 Abs.7,9,10)",
+        "reference": "",
+        "sourcePage": 37
+      },
+      {
+        "id": "tiefbau-37-1-4",
+        "activity": "Kranarbeiten mit\nBaumaschinen",
+        "hazard": "• Tragfähigkeit und Belastung\n(Krane/Baugeräte)",
+        "measure": "• Der Unternehmer hat für den jeweiligen vorgesehenen Einsatz\nden geeigneten Kran /Baumaschine zur Verfügung zu stellen.\n• Berücksichtigung der ausreichenden Tragfähigkeit, Hubhöhe und\nReichweite bzw. Ausladung in der Vorplanung.\n• Kran bzw. Geräteführer dürfen die höchstzulässigen Belastungen\nnicht überschreiten.",
+        "reference": "DGUV-\nV53 ,,Krane’’\n§31 Abs.1",
+        "sourcePage": 37
+      },
+      {
+        "id": "tiefbau-37-1-5",
+        "activity": "Kranarbeiten\nAnschlagen von Lasten",
+        "hazard": "• Anschlagmittel, Tragmittel,\nLastaufnahmeeinrichtungen",
+        "measure": "• Lastaufnahmeeinrichtungen dürfen nicht über die Tragfähigkeit\nhinaus belastet werden.\n• Beim Anschlagen mit Anschlagmitteln ist immer die\nTragfähigkeitstabelle zu beachten. Fehlt diese, darf das\nAnschlagmittel nicht benutzt werden.\n• Beim Anschlagen mit mehreren Strängen dürfen nur zwei\nStränge als tragend angenommen werden. Dies gilt nicht, wenn\nsichergestellt ist, dass sich die Last gleichmäßig auch auf weitere\nStränge verteilt oder bei ungleicher Lastverteilung die zulässige\nBelastung der einzelnen Stränge nicht überschritten wird.\n• Lastaufnahmeeinrichtungen sind jährlich durch einen\nSachkundigen zu prüfen.\n• Außerordentliche Prüfungen der Lastaufnahmeeinrichtungen sind\nnach besonderen Vorkommnissen oder Schadensfällen und\nSichtprüfung direkt vor Einsatz (LMRA) durchzuführen.",
+        "reference": "BGR 500-2.8\nDGUV-I 209-012",
+        "sourcePage": 37
+      },
+      {
+        "id": "tiefbau-37-1-6",
+        "activity": "Kranarbeiten\nAnschlagen von Lasten",
+        "hazard": "• Durch Schäden an Anschlagmittel,\nTragmittel, Lastaufnahmeeinrichtungen",
+        "measure": "Die Beschäftigten müssen beachten, dass Lastaufnahmeeinrichtungen\nso verwendet werden, dass Schäden, die zu einer Beeinträchtigung\nder Tragfähigkeit führen können, vermieden werden.\nDie Anwender haben Lastaufnahmeeinrichtungen während des\nGebrauchs auf augenscheinliche Mängel hin zu beobachten.",
+        "reference": "BGR 500-2.8\nDGUV-I 209-012",
+        "sourcePage": 37
+      },
+      {
+        "id": "tiefbau-38-1-3",
+        "activity": "Kranarbeiten\nAnschlagen von Lasten",
+        "hazard": "",
+        "measure": "Insbesondere ist Folgendes zu beachten:\n• Seile, Ketten und Hebebänder dürfen nicht über scharfe Kanten\nvon Lasten gespannt oder gezogen werden.\n• Hebebänder dürfen nicht über raue Oberflächen gezogen\nwerden.\n• Seilverbindungen dürfen nicht an Kanten der Last, in Lasthaken\noder in die Bucht der Schnürung gelegt werden.\n• Seile dürfen durch Verdrehen nicht verspannt werden.\n• Verdrehte Ketten sind vor dem Anheben auszudrehen.\n• Stahldrahtseile, Rundstahlketten und Hebebänder dürfen nicht\ngeknotet werden. Faserseile dürfen nicht durch Knoten\nverbunden werden.\n• Lasthaken dürfen nicht auf der Spitze belastet werden. Dies gilt\nnicht, wenn es sich um Haken für Sonderzwecke handelt, die\nentsprechend berechnet und ausgelegt sind.\n• Lasten dürfen auf Anschlagmitteln nicht abgesetzt werden, wenn\ndas Anschlagmittel dadurch beschädigt werden kann.\n• Defekte bzw. Beschädigte Anschlagmittel,\nLastaufnahmeeinrichtungen, bzw. Hebezeuge, sind bei jeweiliger\nFeststellung des Mangels, sofort der Benutzung zu entziehen.",
+        "reference": "",
+        "sourcePage": 38
+      },
+      {
+        "id": "tiefbau-38-1-4",
+        "activity": "Kranarbeiten",
+        "hazard": "• Schäden an Anschlagmittel,\nLastaufnahmeeinrichtungen durch falsche\nLagerung",
+        "measure": "• Anschlag- und Lastaufnahmemittel vor Witterungseinflüssen und\naggressiven Stoffen geschützt lagern.",
+        "reference": "",
+        "sourcePage": 38
+      },
+      {
+        "id": "tiefbau-39-1-3",
+        "activity": "Betonierarbeiten mit\nkranbarem Betonsilo\nPersonentransport\nPersonenaufnahmemitt\nel oder offenen\nArbeitskörben",
+        "hazard": "• Allgemeine Info zur Vermeidung von\nGefährdungen durch das jeweilige\nArbeitsmittel",
+        "measure": "• Die Kombination aus Kran und Betonsilo mit Bedienerstand /\nPersonenbeförderungs- / offener Arbeitskorb (im Folgenden\nArbeitsmittel genannt) darf nur von Personen betrieben werden,\ndie in der sicheren Benutzung der Kombination, einschließlich\nder Vorgehensweise für Ausstieg bei Ausfall der\nEnergieversorgung oder der Steuerung unterwiesen sind.\n• Vor Erstinbetriebnahme ist dies der zuständigen\nBerufsgenossenschaft schriftlich anzuzeigen, auf Verlangen auch\ndie Inbetriebnahme nach längeren Arbeitspausen und nach\nStandortwechsel. Die Anzeige muss mind. 14 Tage vor dem\nEinsatz erfolgen.\n• Die auf dem Typenschild angegebenen Kenndaten über\nEigengewicht, Tragfähigkeit, Gesamtgewicht, besonders aber die\nerforderliche Mindesttragkraft des Hebezeuges sind unbedingt zu\nbeachten und einzuhalten.\n• Die max. zulässige Anzahl von Personen im Arbeitsmittel laut\nHersteller ist einzuhalten.",
+        "reference": "Betriebsanleitu\nng-Eichinger\n1016H PAM\nBG-Baustein\nB146\nBG-Baustein\nB147",
+        "sourcePage": 39
+      },
+      {
+        "id": "tiefbau-39-1-4",
+        "activity": "Betonierarbeiten mit\nkranbarem Betonsilo\nPersonentransport\nPersonenaufnahmemitt\nel oder offenen\nArbeitskörben",
+        "hazard": "• Gefahr durch unkontrollierte Bewegungen\nund missverständliche Kommunikation",
+        "measure": "• Wenn sich Personen im Arbeitsmittel befinden, darf der\nKranführer den Steuerstand nicht verlassen bzw. die\nFernbedienung aus der Hand geben\n• Die Verständigung zwischen Kranführer und der Person im\nArbeitsmittel muss jederzeit gewährleistet werden, ggf. durch\nEinweisen, Funksprechverkehr, vereinbarte Zeichen, etc.",
+        "reference": "Betriebsanleitu\nng-Eichinger\n1016H PAM",
+        "sourcePage": 39
+      },
+      {
+        "id": "tiefbau-39-1-5",
+        "activity": "Betonierarbeiten mit\nkranbarem Betonsilo\nPersonentransport\nPersonenaufnahmemitt",
+        "hazard": "• Versagen der Konstruktion",
+        "measure": "• Die max. zulässige Anzahl von Personen im Arbeitsmittel laut\nHersteller ist einzuhalten.\n• Die max. zulässige Traglast des Betonsilos und des Hebegerätes\n(Kran/Baumaschine etc.) ist einzuhalten.",
+        "reference": "BGR 159-6.1 +\n6.2",
+        "sourcePage": 39
+      },
+      {
+        "id": "tiefbau-40-1-3",
+        "activity": "el oder offenen\nArbeitskörben",
+        "hazard": "",
+        "measure": "Prüfung vor Inbetriebnahme:\n• Personenaufnahmemittel vor der ersten Inbetriebnahme und\nnach wesentlichen Änderungen durch einen Sachverständigen\nprüfen lassen.\nRegelmäßige Prüfung:\n• Jährliche Prüfung durch eine befähigte Person.\n• Je nach Einsatzbedingungen sind kürzere Prüfintervalle möglich.\n• Prüfergebnisse sind schriftlich festzuhalten.\n• Ein Prüfbuch ist zu führen.\nWartung:\n• Das Betonsilo ist nach Verwendung rechtzeitig zu reinigen und\ngegen Rost zu schützen.\n• Die Gelenkbolzen sind zu schmieren und gangbar zu halten.\n• Ist eine Sicherheitsüberprüfung der Ketten wegen\nVerschmutzung nicht möglich, darf das Gerät als\nPersonenaufnahmemittel nicht mehr verwendet werden.\n• Ein Auswechseln des Kettengehänges darf nur vom Hersteller\ndurchgeführt werden.\n• Reparaturarbeiten am Betonsilo, die die Sicherheit und Statik\nbeeinflussen sind nur vom Hersteller durchzuführen.\nSicherheit:\n• Bedienungsanleitung sollte am Einsatzort verfügbar sein.\n• Schäden oder Mängel am Silo/ Personenfördermittel dem\nAufsichtsführenden melden. Gerät bis zur Behebung nicht\nbenutzen.\n• Das angebrachte Typenschild darf nicht entfernt werden.\nEinsatzort für unbefugte Personen weiträumig absperren.",
+        "reference": "TRBS2121\nTeil4 Pkt. 5.1",
+        "sourcePage": 40
+      },
+      {
+        "id": "tiefbau-41-1-3",
+        "activity": "Allgemein",
+        "hazard": "Kopfschutz / Schutzhelm:\n• Für den Kopfbereich\n• Durch herabfallende Gegenstände",
+        "measure": "• Kopfschutz (Schutzhelme) bereitstellen.\n• Anwendung des Kopfschutzes kontrollieren.",
+        "reference": "BG-\nBaustein(e):\nE602",
+        "sourcePage": 41
+      },
+      {
+        "id": "tiefbau-41-1-5",
+        "activity": "Allgemein",
+        "hazard": "Gehörschutzmittel:\n• Durch Lärmbelastungen\n• Gehörschäden",
+        "measure": "• Schallschutz (Gehörschutzmittel) ab 85dB\n• Einsatz lärmgeminderter Baumaschinen bzw. Baugeräte (Stand der\nTechnik beachten)\n• Vorsorge Typ Lärm anbieten.\n• PSA – Geeignete Gehörschutzmittel bereitstellen.\n• Bei Bedarf, Unterweisungen im Lärmbereich durchführen.",
+        "reference": "BG-\nBaustein(e):\nE609\nDGUV-R 112-\n198",
+        "sourcePage": 41
+      },
+      {
+        "id": "tiefbau-42-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 42
+      },
+      {
+        "id": "tiefbau-42-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 42
+      },
+      {
+        "id": "tiefbau-42-0-7",
+        "activity": "Allgemein",
+        "hazard": "Hand- / Hautschutz:\n• Gefahren für Hände und Haut",
+        "measure": "",
+        "reference": "• Geeignete Schutzhandschuhe bereitstellen.\n• Handschuhplan beachten.\n• Hautreinigungs-/ Hautschutz- / Hautpflegemittel bereitstellen.",
+        "sourcePage": 42
+      },
+      {
+        "id": "tiefbau-42-0-8",
+        "activity": "Allgemein",
+        "hazard": "Atemschutz:\n• Gefahren für Atemorgane",
+        "measure": "",
+        "reference": "• Geeigneten Filter-Atemschutz bereitstellen.\n• Außenluftunabhängigen Atemschutz bereitstellen.\n• Beschäftigte in Atemschutzgeräte einweisen.\n• Vorsorgeuntersuchung anbieten/durchführen.",
+        "sourcePage": 42
+      },
+      {
+        "id": "tiefbau-43-1-2",
+        "activity": "Lärm",
+        "hazard": "• Durch Lärm",
+        "measure": "• Einsatz lärmarmer Arbeitsverfahren\n• Einsatz lärmgeminderter Baumaschinen und Baugeräte (z.B.\nKreissägen mit lärmgeminderten Sägeblättern)\n• Fernbedienung lärmintensiver Geräte bzw. Baumaschinen\n• Abschirmung der Lärmquelle durch Lärmschutzwände oder\nKapselung (z.B. Kompressor)\n• Persönliche Schutzausrüstung (z.B. Gehörschutz) bereitstellen",
+        "reference": "",
+        "sourcePage": 43
+      },
+      {
+        "id": "tiefbau-43-1-3",
+        "activity": "Lärm",
+        "hazard": "• Durch Dauerlärm",
+        "measure": "• Ermittlung des Lärm-Beurteilungspegels\n• Lärmbereiche kennzeichnen\n• Arbeitszeiten in Lärmbereichen beschränken\n• Arbeitsmedizinische Vorsorgeuntersuchung bei Lärm-\nBeurteilungspegel über 85 dB(A) veranlassen",
+        "reference": "",
+        "sourcePage": 43
+      },
+      {
+        "id": "tiefbau-43-1-4",
+        "activity": "Stäube",
+        "hazard": "• Durch Stäube",
+        "measure": "• Staubfreie / staubarme Arbeitsverfahren auswählen.\n• Staubbindung/Staubniederschlag-Nassschnitt bei Fugenschneidern,\nSchleifmaschinen, Steinsägen- Einsatz von Bohrspülungen (z.B. bei\nBohrungen im Gestein für Sprengungen oder Felsanker)- Nässen\nvon Verkehrswegen beim Straßenbau, auf Deponien u.ä.\n• Technische Lüftung (z.B. Absaugung) bei Auftreten von Stäuben,\nDämpfen, Aerosolen.\n• Persönliche Schutzausrüstung (z.B. Atemschutz, Schutzkleidung,\nSchutzhandschuhe) bereitstellen.",
+        "reference": "BG-\nBaustein(e):\nE603",
+        "sourcePage": 43
+      },
+      {
+        "id": "tiefbau-43-1-5",
+        "activity": "Stäube",
+        "hazard": "• Durch Stäube",
+        "measure": "• Getrennte Aufbewahrung Arbeits- und Straßenkleidung\n• Reinigung der Arbeitskleidung veranlassen\n• Arbeitsmedizinische Vorsorge veranlassen",
+        "reference": "",
+        "sourcePage": 43
+      },
+      {
+        "id": "tiefbau-43-1-6",
+        "activity": "Kälte, Regen, Zugluft\nim Freien",
+        "hazard": "• Unzureichender Witterungsschutz\n• Unzureichende Schutzkleidung",
+        "measure": "• Wenn möglich, Arbeitsplätze gegen Wind, Kälte und Regen\nschützen.\n• Schutzkleidung gegen Kälte und Regen bereitstellen.\n• Schutzkleidung tragen, regelmäßig aufwärmen, warme Getränke zu",
+        "reference": "BG-\nBaustein(e):\nD505\nE606",
+        "sourcePage": 43
+      },
+      {
+        "id": "tiefbau-44-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-44-0-2",
+        "activity": "A-20-40",
+        "hazard": "",
+        "measure": "2025-08-26",
+        "reference": "",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-44-0-7",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "Gefahren durch erhöhte Außentemperaturen\n• Sonnenstich\n• Hitzeerschöpfung\n• Hitzschlag\n• Hitzetod",
+        "measure": "",
+        "reference": "• Anpassung von Arbeitszeiten und Pausen, um direkte\nSonneneinstrahlung insbesondere von 11 bis 15 Uhr zu vermeiden,\nevtl. Schattenspender aufstellen.\n• Baumaschinen und Fahrzeugen mit Klimaanlagen ausstatten\n• Für gute Belüftung von Arbeitsbereichen im Inneren von Bauwerken\nsorgen.",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-44-0-8",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "• Unzureichender Sonnen- bzw. UV-Schutz\n• Mangelhafte Trinkwasserversorgung",
+        "measure": "",
+        "reference": "• Kopfschutz mit Nacken- und Ohrenschutz bereitstellen.\n• Luft- und feuchtigkeitsdurchlässige (atmungsaktive) Unterbekleidung\ntragen.\n• Langärmelige Arbeitskleidung tragen.\n• Schutzbrille mit Seiten- und UV-Schutz tragen.",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-44-0-9",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "• Unzureichende UV-Prävention",
+        "measure": "",
+        "reference": "• Sonnenschutzcreme mit hohem Lichtschutzfaktor (mindestens 30)\nbereitstellen.\n• Mineralwasser/Getränke bereitstellen.\n• Häufige Kurzpausen/Trinkpausen im Schatten einplanen.\n• Getränke in ausreichenden Mengen zu sich nehmen: alkoholfrei,\nungesüßt, kohlensäurearm, nicht stark koffeinhaltig, nicht stark\ngekühlt; Wasser, Fruchtsaftschorle, Früchtetee.\n• Leichte Mahlzeiten einnehmen.",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-44-1-3",
+        "activity": "Demontage / Abbruch",
+        "hazard": "• Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das\nGefahrenpotential am Arbeitsplatz unterwiesen werden.\nDie eingesetzten Geräteführer müssen ihre Befähigungen in\nBezug auf die kommenden Arbeiten nachgewiesen haben.",
+        "reference": "DGUV-V38",
+        "sourcePage": 44
+      },
+      {
+        "id": "tiefbau-45-1-3",
+        "activity": "Demontage / Abbruch",
+        "hazard": "• Abbruch – PSA",
+        "measure": "• Gehörschutz, Schutzbrille\n• Schutzhelm\n• Sicherheitsschuhe mind. S3\n• Ggf. Auffanggurt mit Anschlagmittel.",
+        "reference": "",
+        "sourcePage": 45
+      },
+      {
+        "id": "tiefbau-45-1-4",
+        "activity": "Demontage / Abbruch",
+        "hazard": "• Abbruch – Allg.",
+        "measure": "§ 21 – Absperren von Gefahrenbereichen\nDer Aufsichtführende hat dafür zu sorgen, dass\nGefahrenbereiche, die durch Abbrucharbeiten entstehen, nicht\nbetreten werden.",
+        "reference": "DGUV-V38",
+        "sourcePage": 45
+      },
+      {
+        "id": "tiefbau-45-1-5",
+        "activity": "Demontage / Abbruch",
+        "hazard": "• Gefahrenbereiche",
+        "measure": "• Gefahrenbereiche sind bei Bedarf deutlich zu kennzeichnen.\n• Beschäftigte sind in die Gefahrenbereiche einzuweisen.\n• Verkehrswege sind festzulegen.",
+        "reference": "",
+        "sourcePage": 45
+      },
+      {
+        "id": "tiefbau-45-1-6",
+        "activity": "Demontage / Abbruch",
+        "hazard": "• Absturz",
+        "measure": "• Grundsätzlich sind technische Absturzsicherungen einzurichten.\n• Können keine technischen Absturzsicherungen eingerichtet\nwerden so sind organisatorische Maßnahmen zu ergreifen.\n• Allgemeiner Gefahrenbereich 2m zur Absturzkante /\nAbbruchkante\n• Gefahrenbereich ist mittels Kette zu kennzeichnen.\n• Beschäftigte und Geräteführer müssen im Gefahrenbereich\nunterwiesen werden.",
+        "reference": "BG-Baustein\nB100\nDGUV-V38 - §9",
+        "sourcePage": 45
+      },
+      {
+        "id": "tiefbau-45-1-7",
+        "activity": "Demontage",
+        "hazard": "• Abbruchmaterial",
+        "measure": "Schutz gegen herabfallende Gegenstände und Massen\n(1) Bauarbeiten dürfen an übereinanderliegenden Stellen nicht\ngleichzeitig ausgeführt werden, sofern nicht die untenliegenden\nArbeitsplätze und Verkehrswege gegen herabfallende,\numstürzende, abgleitende oder abrollende Gegenstände und\nMassen geschützt sind.\n(2) Bereiche, in denen Personen durch herabfallende,\numstürzende, abgleitende oder abrollende Gegenstände\ngefährdet werden können, dürfen nicht betreten werden. Der",
+        "reference": "",
+        "sourcePage": 45
+      },
+      {
+        "id": "tiefbau-46-1-3",
+        "activity": "Demontage",
+        "hazard": "",
+        "measure": "Vorgesetzte nach § 4 Abs. 1 muss diese Bereiche festlegen. Sie\nsind zu kennzeichnen und abzusperren oder durch Warnposten\nzu sichern.\n(3) Schütt-Trichter über Arbeitsplätzen und Verkehrswegen sind\nso auszubilden, dass niemand durch überschüttetes Material\ngetroffen werden kann.\n(4) Traggerüste sowie Verbau von Gruben, Gräben und\nSchächten sind von losen Gegenständen freizuhalten.",
+        "reference": "",
+        "sourcePage": 46
+      },
+      {
+        "id": "tiefbau-46-1-4",
+        "activity": "Demontage",
+        "hazard": "• Abbruchmaterial",
+        "measure": "• Arbeiten beim zuständigen SiGeKo anmelden.\n• Anlagenteile und Leitungen durch geeignette Maßnahmen\nsichern bzw. schützen.\n• Gefahrenbereiche deutlich kennzeichnen.\n• Stoplergefahren vermeiden.",
+        "reference": "",
+        "sourcePage": 46
+      },
+      {
+        "id": "tiefbau-46-2-3",
+        "activity": "Rodungsarbeiten",
+        "hazard": "• Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das\nGefahrenpotential am Arbeitsplatz unterwiesen werden.\nDie motormanuelle Holzernte bzw. Rodung zählt zu den\ngefährlichen Arbeiten. Die Gefährdungen können deutlich\nreduziert werden, wenn bei der Waldarbeit unter\nBerücksichtigung\nder Bestandes- und Umgebungsbedingungen geeignete\nMaßnahmen zum Schutz der Versicherten getroffen werden und",
+        "reference": "DGUV-V38",
+        "sourcePage": 46
+      },
+      {
+        "id": "tiefbau-47-1-3",
+        "activity": "Rodungsarbeiten",
+        "hazard": "",
+        "measure": "für deren Einhaltung während des Hiebes gesorgt wird.",
+        "reference": "",
+        "sourcePage": 47
+      },
+      {
+        "id": "tiefbau-47-1-4",
+        "activity": "Rodungsarbeiten",
+        "hazard": "• Umgebungsbedingungen",
+        "measure": "• Waldarbeiten werden nur ausgeführt, wenn für Versicherte,\nMaschinen und Geräte ein sicherer Stand gewährleistet ist.\n• Das Gehen im unwegsamen Gelände wird den\nUmgebungsverhältnissen angepasst. Geeignetes Schuhwerk\nwird getragen und es wird vorausschauend gegangen.\n• Bei starker Behinderung durch Bewuchs oder aufliegendem\nMaterial werden die Hindernisse beseitigt oder das Arbeitsfeld\n(z.B. Rückweiche) wird so hergerichtet, dass ein sicheres\nArbeiten möglich ist.\n• Bei der Gefahr, dass lose Äste, Baumteile, angeschobene\nBäume oder Totholz herabstürzen und Versicherte verletzen,\nwerden geeignete Schutzmaßnahmen getroffen.\n• Hängengebliebene Bäume werden unverzüglich und fachgerecht\nzu Fall gebracht oder der Gefahrenbereich wird gekennzeichnet\nund erforderlichenfalls abgesperrt.\n• Versicherte arbeiten am Hang nur untereinander, wenn die\nArbeitsstellen soweit seitlich versetzt sind, dass tiefer arbeitende\nVersicherte durch herabfallendes, abgleitendes oder abrollendes\nMaterial nicht gefährdet sind.",
+        "reference": "DGUV-R 114-018",
+        "sourcePage": 47
+      },
+      {
+        "id": "tiefbau-47-1-5",
+        "activity": "Rodungsarbeiten",
+        "hazard": "• Arbeitsmittel / Arbeitsgeräte / Maschinen",
+        "measure": "• Fahrzeuge, Maschinen und Geräte für Waldarbeiten werden\nbestimmungsgemäß verwendet und dabei die Betriebs- und\nBedienungsanleitungen der Hersteller sowie die\nBetriebsanweisungen des Unternehmers beachtet.\n• Motorsägen werden nur von Versicherten bedient, die an der\nMotorsäge ausgebildet und mit der Durchführung der Arbeiten\nbeauftragt sind.",
+        "reference": "DGUV-R 114-018",
+        "sourcePage": 47
+      },
+      {
+        "id": "tiefbau-47-1-6",
+        "activity": "Rodungsarbeiten",
+        "hazard": "• Aufbewahrung und Transport von\nArbeitsgeräte / Maschinen",
+        "measure": "• Arbeitsmittel werden so mitgeführt und aufbewahrt, dass sich\nniemand an ihnen verletzen kann.\n• Schneiden von Werkzeugen werden mit Schutz versehen.\n• Arbeitsgeräte und Maschinen einschließlich ihres Zubehörs\nwerden beim Transport in Fahrzeugen so verstaut und gesichert,\ndass bei üblichen Verkehrsbedingungen eine Gefährdung, z.B.",
+        "reference": "DGUV-R 114-018",
+        "sourcePage": 47
+      },
+      {
+        "id": "tiefbau-48-1-3",
+        "activity": "Rodungsarbeiten",
+        "hazard": "",
+        "measure": "durch Verrutschen, Wegrollen, Umfallen oder Herabfallen der\nLadung, ausgeschlossen ist.",
+        "reference": "",
+        "sourcePage": 48
+      },
+      {
+        "id": "tiefbau-48-1-4",
+        "activity": "Rodungsarbeiten",
+        "hazard": "• Unzureichende PSA",
+        "measure": "• Schnittschutzhose + Schnittschutzschuhe verwenden.\n• Gesichtsschutzschild + Gehörschutz (Kapsel) verwenden.\n• Schutzhelm verwenden.",
+        "reference": "DGUV-R 114-018",
+        "sourcePage": 48
+      },
+      {
+        "id": "tiefbau-48-2-3",
+        "activity": "Arbeiten in Gruben und\nGräben",
+        "hazard": "• Verschüttet werden",
+        "measure": "• Abböschung gemäß Standsicherheitsnachweis.\n• Abböschung mit max. 45° bei nichtbindigen oder weichen\nbindigen Böden gemäß DIN 4124 bis 5,00 m Tiefe.\n• Abböschung mit max. 60° bei steifen bindigen Böden gemäß DIN\n4124 bis 5,00 m Tiefe.\n• Abböschung mit max. 80° bei Fels gemäß DIN 4124 bis 5,00 m\nTiefe.\n• Bereich von mind. 1 m Breite bis zur Böschungskante für\nFahrzeuge und Maschinen mit einem Gesamtgewicht bis 12 t\nGesamtgewicht sperren lassen.\n• Bereich von mind. 2 m Breite bis zur Böschungskante für\nFahrzeuge und Maschinen mit einem Gesamtgewicht von 12 t bis\n40 t Gesamtgewicht sperren lassen.\n• Mind. 0,60 m Schutzstreifen neben der Böschungskante\nanordnen und von Aushubmaterial und Gegenständen freihalten\nlassen.",
+        "reference": "DGUV-V38\nBGV C22",
+        "sourcePage": 48
+      },
+      {
+        "id": "tiefbau-48-2-4",
+        "activity": "Arbeiten in Gruben und\nGräben",
+        "hazard": "• Verschüttet werden",
+        "measure": "• Prüfung der anstehenden Bodenarten auf Wassergehalt,\nBodengefüge, Dichte, Konsistenz, Schichtung, Schichtenwasser,",
+        "reference": "",
+        "sourcePage": 48
+      },
+      {
+        "id": "tiefbau-49-1-3",
+        "activity": "Arbeiten in Gruben und\nGräben",
+        "hazard": "",
+        "measure": "Findlinge usw. veranlassen.\n• Prüfung weiterer Einflüsse, die die Standsicherheit gefährden\n(z.B. Erschütterungen durch Verkehr, Ramm-, Verdichtungs-\nbzw. Sprengarbeiten, Grundwasserabsenkungen, unterirdische\nLeitungen, Lasten aus Bebauungen, Krane usw.) veranlassen.\n• Regelmäßige Sichtkontrolle der Böschungen.\n• Unterweisung:\n• - nur Gräben bis 0,80 m Tiefe mit einseitigem Schutzstreifen\nherstellen\n• - nur Baugruben bzw. Gräben bis 1,25 m Tiefe mit senkrechten\nWänden herstellen.\n• - Sonderlösungen (z.B. Wände 1,25 m senkrecht + 0,5 m 45°\nBöschung oder 0,5 m Teilverbau) sind nur für bis 1,75 m tiefe\nBaugruben und Gräben in steifen bindigen Böden zulässig.\n• - Schutzstreifen frei von Aushub und Lasten halten.\n• - Findlinge, Bauwerksreste, Pflastersteine usw. sind von den\nBöschungen und Böschungskanten zu entfernen.\n• - Fahrzeuge und Maschinen bis 12 t Gesamtgewicht müssen\n1,00 m Mindestabstand zur Böschungskante einhalten.\n• - Fahrzeuge und Maschinen über 12 t bis 40 t Gesamtgewicht\nmüssen 2,00 m Mindestabstand zur Böschungskante einhalten.",
+        "reference": "",
+        "sourcePage": 49
+      },
+      {
+        "id": "tiefbau-49-1-4",
+        "activity": "Arbeiten in Gruben und\nGräben",
+        "hazard": "• Verkehrswege an Baugruben und Gräben",
+        "measure": "• Geländer anbringen an Gruben und Gräben, die tiefer als 2 m\nund längere Zeit offen sind.\n• Leiterzugänge für Sohltiefe ab 1,25m.\n• Rutschhemmende Maßnahmen für begangene Wege.\n• Schutzstreifen mindestens 60 cm breit.\n• Schutzstreifen von Hindernissen freihalten.\n• Übergänge über Gruben und Gräben mindestens 80 cm breit.\n• Verkehrswege an Stellen ohne Absturzgefahr anordnen.",
+        "reference": "",
+        "sourcePage": 49
+      },
+      {
+        "id": "tiefbau-50-1-3",
+        "activity": "Verbauarbeiten",
+        "hazard": "• Verschüttet werden",
+        "measure": "• Waagerechter Verbau und senkrechter Verbau kann aus\nHolzbohlen oder Kanaldielen ausgebildet werden.\n• Vor Beginn der Aushubarbeiten prüfen, ob erdverlegte Leitungen\noder Anlagen vorhanden sind.\n• Am oberen Rand ist beidseitig ein mindestens 0,60 m breiter\nSchutzstreifen freizuhalten.\n• Die Arbeitsraum- und Mindestgrabenbreiten sind zu beachten.\n• Der Überstand über Geländeoberkante muss bei\n Grabentiefen bis 2,0 m mind. 5 cm betragen,\n Grabentiefen über 2,0 m mind. 10 cm betragen.",
+        "reference": "DGUV-V38\nBG-Baustein C470",
+        "sourcePage": 50
+      },
+      {
+        "id": "tiefbau-50-1-4",
+        "activity": "Verbauarbeiten",
+        "hazard": "• Verschüttet werden",
+        "measure": "• Leitungsgräben normgerecht nach DIN 4124 verbauen. Wird von\nden Maßen der Regelausführung abgewichen, ist der Verbau\nstatisch nachzuweisen.\n• Zwischen Verbau und Boden entstandene Hohlräume sind zu\nverfüllen und zu verdichten.\n• Der Verbau muss auf der gesamten Fläche dicht am Boden\nanliegen. Durch Fugen und Stöße darf kein Boden austreten.\n• Mit den Verbauarbeiten spätestens bei 1,25 m Grabentiefe\nbeginnen.\n• Alle Teile des Verbaus überprüfen:\n nach starken Regenfällen,\n bei wesentlichen Änderungen der Belastung,\n bei einsetzendem Tauwetter,\n nach längeren Arbeitsunterbrechungen,\n nach Sprengungen.",
+        "reference": "DGUV-V38\nDIN 4124\nBG-Baustein C470",
+        "sourcePage": 50
+      },
+      {
+        "id": "tiefbau-50-1-5",
+        "activity": "Verbauarbeiten",
+        "hazard": "• Verschüttet werden",
+        "measure": "• Steifen gegen Herabfallen sichern.\n• Stählerne Kanalstreben und Spindelköpfe müssen den\n\"Grundsätzen für die Prüfung von Aussteifungsmitteln für den",
+        "reference": "DGUV-V38",
+        "sourcePage": 50
+      },
+      {
+        "id": "tiefbau-51-1-3",
+        "activity": "Verbauarbeiten",
+        "hazard": "",
+        "measure": "Leitungsbau\" entsprechen.\n• Die Mindestdicke von Holzbohlen beträgt bei mehr als 1,25 m\nTiefe des Grabens 5 cm.\n• Rundholzsteifen müssen einen Mindestdurchmesser von 10 cm\naufweisen.\n• Der Rückbau hat schrittweise mit dem Verfüllen zu erfolgen.",
+        "reference": "DIN 4124\nBG-Baustein C470",
+        "sourcePage": 51
+      },
+      {
+        "id": "tiefbau-51-1-4",
+        "activity": "Verbauarbeiten",
+        "hazard": "• Zugänge / Übergänge",
+        "measure": "• Bei Gräben mit einer Breite von > 0,80 m sind Übergänge\nerforderlich; die Übergänge müssen mindestens 0,50 m breit\nsein.\n• Bei einer Grabentiefe von > 1,00 m müssen die Übergänge\nbeidseitig mit dreiteiligem Seitenschutz versehen sein.\n• Bei Grabentiefen > 1,25 m sind als Zugänge Treppen oder\nLeitern zu benutzen. (siehe Kapitel Leitern/ Gerüste)",
+        "reference": "",
+        "sourcePage": 51
+      },
+      {
+        "id": "tiefbau-51-2-3",
+        "activity": "Heben und Tragen\nschwerer Lasten",
+        "hazard": "• Erkrankungen der Wirbelsäule durch Heben\nund Tragen schwerer Lasten",
+        "measure": "• Wenn möglich Transporthilfsmittel und Hubeinrichtungen\nverwenden\n• Ergonomische Arbeitsplatzgestaltung\n• Unterweisen zum richtigen Heben und Tragen",
+        "reference": "DGUV-V38\nBGI 523\nBGI 527",
+        "sourcePage": 51
+      },
+      {
+        "id": "tiefbau-51-2-4",
+        "activity": "Heben und Tragen\nschwerer Lasten",
+        "hazard": "• Fußverletzungen durch Herabfallen\nschwerer Teile.",
+        "measure": "• Schutzschuhe tragen.",
+        "reference": "BGR 191",
+        "sourcePage": 51
+      },
+      {
+        "id": "tiefbau-51-2-5",
+        "activity": "Allgemein",
+        "hazard": "• Allgemein",
+        "measure": "Grundsätzlich müssen alle Beschäftigten in das Gefahrenpotential\nam Arbeitsplatz unterwiesen werden. Beim Heben und Tragen",
+        "reference": "",
+        "sourcePage": 51
+      },
+      {
+        "id": "tiefbau-52-1-3",
+        "activity": "Allgemein",
+        "hazard": "",
+        "measure": "muss die Körperliche Verfassung der Beschäftigten berücksichtigt\nwerden. Körperliche Überlastung muss vermieden werden.\nWann immer möglich sollten Hilfsmittel wie Sackkarren,\nTransportwagen, etc. eingesetzt werden.\nTragestrecken vom Hilfsmittel zum Absetzort so kurz wie möglich\nwählen\nAls Anhalt für das Lastgewicht, das ohne Hilfsmittel bewegt wird,\nkann folgendes pro Träger angenommen werden:\nMänner max. 25kg\nFrauen ca. 50% (12,5kg)\nSchwangere Frauen regelmäßige Lasten bis max. 5kg und im\nEinzelfall max. 10kg",
+        "reference": "",
+        "sourcePage": 52
+      },
+      {
+        "id": "tiefbau-52-1-4",
+        "activity": "Allgemein",
+        "hazard": "• Überlastung Gelenke und Muskulatur",
+        "measure": "Beim Heben, Absetzen und Umsetzen müssen folgende Punkte\nbeachtet werden:\n• Arbeitsvorbereitung vor Transportbeginn durchführen\n- Transportweg und vorgesehene Absetzstelle sichten und\nevtl. frei räumen.\n- Bei schweren Gegenständen Absetzunterlagen zur\nVermeidung von Fingerquetschungen vorbereiten.\n- Prüfen, ob Hebehilfen eingesetzt werden können (z.B.\nSaugheber, Haken, Hebegriffe, etc.)\n- Vor dem Anheben der Last prüfen, ob diese frei hebbar\nist.\n- Falls nötig, weiter Personen hinzuziehen.\n- Bei mehreren Trägern kommandogebende Person\nbestimmen.\n- Kommandos festlegen.\n- Die Träger sollten ungefähr die gleiche Größe haben.\n- Bei mehr als 2 Trägern darf der Ausfall eines Trägers\nnicht zur Überlastung der anderen führen.",
+        "reference": "",
+        "sourcePage": 52
+      },
+      {
+        "id": "tiefbau-53-2-3",
+        "activity": "Allgemein",
+        "hazard": "• Unsichere Verkehrswege",
+        "measure": "• Zugänge zu Arbeitsplätzen durch vom Hersteller vorgesehene\nEinrichtungen, z.B. systemgebundene Leitern oder Treppentürme,\nvorsehen.\n• Arbeiten von der tragbaren Leiter sind auf das Mindestmaß zu\nbeschränken und nur zulässig, wenn sicherere Arbeitsmittel nicht\neingesetzt werden können.\n• Arbeitsplätze so anordnen, dass alle Arbeitsbereiche sicher ohne\nzusätzliche Leitern oder Böcke erreicht werden können.",
+        "reference": "DGUV-V38\nBG-Baustein(e)\nB134",
+        "sourcePage": 53
+      },
+      {
+        "id": "tiefbau-53-2-4",
+        "activity": "Allgemein",
+        "hazard": "• Absturzgefahren\n• Mängel an Seitenschutz oder Belag",
+        "measure": "• Das Hochklettern an der Schalungskonstruktion ist verboten.\n• Betoniergerüste anordnen und mit Seitenschutz versehen.\n• Belagbreite von Betoniergerüsten mindestens 0,60 m Konsolen\nvoll auslegen.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 53
+      },
+      {
+        "id": "tiefbau-53-2-5",
+        "activity": "Allgemein",
+        "hazard": "• Transport\n• Krantransport",
+        "measure": "• Lose Kleinteile entfernen. Am Schalelement verbleibende Teile\ngegen Herabfallen sichern.\n• Schalelemente beim Aufnehmen und Ablegen nicht betreten.\n• Ein Personentransport mit dem Schalelement ist verboten.\n• Bei starkem Wind Schalelemente evtl. mit Leitseilen führen, ggfs.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 53
+      },
+      {
+        "id": "tiefbau-54-1-3",
+        "activity": "Allgemein",
+        "hazard": "",
+        "measure": "Kranbetrieb einstellen.\n• Schrägzug vermeiden.\n• Lasten so führen, dass Anprall an andere Schalungselemente\nvermieden wird.\n• Anschlagmittel erst lösen, wenn Schalelemente standsicher\nabgestützt sind. Windlasten berücksichtigen.",
+        "reference": "",
+        "sourcePage": 54
+      },
+      {
+        "id": "tiefbau-54-1-4",
+        "activity": "Allgemein",
+        "hazard": "• Montage - allgemein",
+        "measure": "• Auf der Baustelle müssen eine Aufbau- und\nVerwendungsanleitung des Herstellers sowie eine\nMontageanweisung des Verwenders vorliegen. Diese müssen\nfolgende Angaben enthalten:\n Reihenfolge des Auf-, Um- und Abbaues der Schalung,\n Gewicht der einzelnen Schalelemente,\n Lage der Anschlagpunkte und Angabe über erforderliche\nAnschlagmittel,\n Lage und Breite der Arbeitsbühnen einschl. des\nSeitenschutzes und der Zugänge (Verkehrswege),\n Auf-, Um- und Abbau nur unter Aufsicht einer fachkundigen\nPerson.\n• Zum Schalsystem zugehörige sicherheitstechnische\nSystembauteile (z. B. Seitenschutzbauteile, Zugänge,\nBetonierbühne) verwenden.\n• Vom Unternehmer ist eine Betriebsanweisung zu erstellen,\nanhand derer die Beschäftigten zu unterweisen sind.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 54
+      },
+      {
+        "id": "tiefbau-54-1-5",
+        "activity": "Allgemein",
+        "hazard": "• Aufstellung\n• Umsturz der Schalungselemente",
+        "measure": "• Schalelemente nur auf tragfähigem Untergrund aufstellen.\n• Wandschalelemente mind. an beiden Enden oberhalb des\nSchwerpunktes zug- und druckfest abstützen und verankern.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 54
+      },
+      {
+        "id": "tiefbau-54-1-6",
+        "activity": "Allgemein",
+        "hazard": "• Durch Anschlussbewehrung",
+        "measure": "• Bei der Verwendung von Leitern im angrenzenden Bereich\noffenstehender Anschlussbewehrung mit geeigneten\nSchutzbelägen oder -kappen abdecken.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 54
+      },
+      {
+        "id": "tiefbau-55-1-3",
+        "activity": "Allgemein",
+        "hazard": "• Durch Ausschalen",
+        "measure": "• Ausschalfristen beachten.\n• Vor Ausbau der Verankerung Schalelemente gegen Umstürzen\nsichern.\n• Schalelemente nicht mit Kran losreißen.\n• An Schalelementen Anschlagmittel sicher an- und abschlagen.\n• Nach dem Ausschalen Schalelemente standsicher z. B. in\nGestellen oder übereinanderliegend lagern.",
+        "reference": "BG-Baustein(e)\nB134",
+        "sourcePage": 55
+      },
+      {
+        "id": "tiefbau-55-2-3",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Allgemein\n• Beim Trockenspritzen unterliegen die\nMitarbeiter erhöhten Belastungen durch\nstarke Staubentwicklung.",
+        "measure": "• Mitgeltend sind alle Kapitel dieser GBU.",
+        "reference": "BG-Baustein\nC465",
+        "sourcePage": 55
+      },
+      {
+        "id": "tiefbau-55-2-4",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Unsachgemäße / falsche Verwendung von\nAnlagen und Geräten",
+        "measure": "• Betriebsanleitung des Herstellers beachten.\n• Nur mit CE-gekennzeichnete und mit einem Typenschild\nversehene Betonspritzmaschinen verwenden und stand sicher\naufstellen. Das Typenschild enthält z.B. Angaben über den\nzulässigen Betriebsüberdruck.\n• Betonspritzmaschine und Verdichter bezüglich der Druckhöhen\naufeinander abstimmen. Luftmenge an der Maschine auf die\nvorgegebene Förderleistung einstellen, dabei Fördermenge und\nFörderlänge beachten.",
+        "reference": "BG-Baustein\nC465",
+        "sourcePage": 55
+      },
+      {
+        "id": "tiefbau-56-1-3",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Unzureichende bzw. fehlerhafte\nVerbindungen/ Leitungen",
+        "measure": "• Schläuche, Rohre und deren Verbindungen müssen geprüft und\nzugelassen sein.\n• Durchmesser der Förderleitung und Förderleistung der Spritz\n-maschine auf die Körnung des Spritzgutes abstimmen.\n• Förderleitungen so verlegen, dass Beschädigungen, Knicke und\nSchlauchverengungen vermieden werden.",
+        "reference": "BG-Baustein\nC476",
+        "sourcePage": 56
+      },
+      {
+        "id": "tiefbau-56-1-4",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Unsachgemäße bzw. fehlerhafte\nVerbindungen/ Leitungen",
+        "measure": "• Förderleitungen nur mit gut gesäuberten Sicherheitskupplungen\nverbinden.\n• Vor dem Lösen von Förderleitungen Druckluftzufuhr\nunterbrechen und das System drucklos machen.\n• Verstopfer nur nach Angaben der Betriebsanleitung beseitigen.",
+        "reference": "BG-Baustein\nC476",
+        "sourcePage": 56
+      },
+      {
+        "id": "tiefbau-56-1-5",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Gefahrenbereiche\n• Abstimmung / Koordination",
+        "measure": "• Im Gefahrbereich der Spritzbetondüse darf sich außer dem\nDüsenführer niemand aufhalten.\n• Während der Spritzbetonarbeiten muss sich eine zweite Person\nin Ruf- oder Sichtweite des Düsenführers befinden, oder die\nBetonspritzmaschine muss mit einer Fernbedienung\nausgerüstet sein.\n• Der Düsenführer bestimmt Beginn und Ende der\nMaterialförderung.",
+        "reference": "BG-Baustein\nC476",
+        "sourcePage": 56
+      },
+      {
+        "id": "tiefbau-56-1-6",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Staubemissionen",
+        "measure": "• Prüfen, ob nicht, aufgrund der geringeren Staubbelastung,\nalternativ das Nassspritzverfahren angewendet werden kann.",
+        "reference": "BG-Baustein\nC476",
+        "sourcePage": 56
+      },
+      {
+        "id": "tiefbau-56-1-7",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "• Staubemissionen\n• Unzureichende Schutzkleidung",
+        "measure": "• Atemschutz mit Partikelfilter P2 oder filtrierende Halbmasken\nFFP2 gegen mineralischen Staub,\n• Ggf. gebläseunterstützte Helme/Hauben (Jethelm) einsetzen.\n• Gesichtsschutz (Schutzbrillen, Schutzschirme) gegen\nzurückprallendes Spritzgut,\n• Schutzkleidung und splittersicherer Gesichtsschutz bei\nStahlfaser-Spritzbeton,\n• Geeignete Schutzhandschuhe gegen Verätzungen (EN374),",
+        "reference": "BG-Baustein\nC476",
+        "sourcePage": 56
+      },
+      {
+        "id": "tiefbau-57-1-3",
+        "activity": "Spritzbetonarbeiten",
+        "hazard": "",
+        "measure": "• Gehörschutz gegen Lärm.",
+        "reference": "",
+        "sourcePage": 57
+      },
+      {
+        "id": "tiefbau-58-1-3",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Brandgefahr",
+        "measure": "• Zündquellen vermeiden.\n• Rauchverbot in den gefährdeten Bereichen.\n• Feuerlöscher und Löschdecke bereithalten.",
+        "reference": "DGUV-V1\nGefStoffV\nBGR 104",
+        "sourcePage": 58
+      },
+      {
+        "id": "tiefbau-58-1-4",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Erkrankungen durch Einatmen, Hautkontakt\nund versehentliche Einnahme von Lacken,\nLösemitteln und deren Dämpfen",
+        "measure": "• Offene Behälter stets verschließen oder abdecken.\n• Keine Lebensmittelbehälter zum Aufbewahren von Gefahrstoffen\nverwenden.\n• Geeignete Schutzhandschuhe verwenden und regelmäßig\nwechseln.\n• Hautschutz- und Hautpflegemittel regelmäßig benutzen.\n• Behälter kennzeichnen.\n• Betriebsanweisungen beachten.\n• Sicherheitsdatenblatt beachten",
+        "reference": "GUV-R 190\nBGR 195\nGUV-I 8620\nBGI 658",
+        "sourcePage": 58
+      },
+      {
+        "id": "tiefbau-58-1-5",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Durch Organisationsmängel bei\nBereitstellung und Transport",
+        "measure": "• Sicherheitsdatenblatt bereitstellen\n• Gefahrstoffverzeichnis erstellen\n• Betriebsanweisung erstellen.\n• Transport durch geschultes Personal in geeigneten Fahrzeugen\nsicherstellen\n• Transport gemäß Kleinmengenregelung sicherstellen.",
+        "reference": "BG-Baustein\nA042\nGefStoffV",
+        "sourcePage": 58
+      },
+      {
+        "id": "tiefbau-58-1-6",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Durch umstürzende oder abrollende\nMaterialien",
+        "measure": "• Mitarbeiter auf die Besonderheiten des stabilen Lagerns\nhinweisen",
+        "reference": "DGUV-R 100-001",
+        "sourcePage": 58
+      },
+      {
+        "id": "tiefbau-58-1-7",
+        "activity": "Gefahrstoffe",
+        "hazard": "• O. g. und ggf. weitere Gefährdungen",
+        "measure": "• Beachten der Betriebsanweisungen nach Gef.St.V § 14\n• Unterweisen der Mitarbeiter.",
+        "reference": "BGI 578\nBGI 527",
+        "sourcePage": 58
+      },
+      {
+        "id": "tiefbau-59-1-3",
+        "activity": "Freilegen von\nerdverlegten Leitungen",
+        "hazard": "• Stromübertritt, Gasexplosion\nGesundheitsgefährdung durch Abwasser.",
+        "measure": "• Anweisungen der jeweiligen Leitungsbetreiber einholen und\nbeachten! Fachkundige Person des Leitungsbetreibers sollte zur\nAbstimmung vor Ort sein und Anweisungen erteilen.\n• Leitungen mit gebotener Vorsicht freilegen. (z.B Einweisung der\nMitarbeiter, Handschachtung)\n• Leitungen orten und Lage kennzeichnen. (Pläne einholen /\nauswerten, Leitungssuchgeräte einsetzen.\n• Leitungen sichern (Beschädigungen während des Baubetriebs\nausschließen)\n• Unterweisung:\n• - Lage der Leitungen feststellen\n• - Bei Beschädigungen erdverlegter Leitungen: Arbeiten sofort\neinstellen und Aufsicht verständigen.",
+        "reference": "DGUV-I 203-017",
+        "sourcePage": 59
+      },
+      {
+        "id": "tiefbau-60-1-3",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Das Berühren spannungsführender\nelektrischer Freileitungen kann tödliche\nFolgen haben.",
+        "measure": "• In der Nähe Spannung führender elektrischer Freileitungen nur\narbeiten, wenn die Schutzabstände nicht unterschritten werden.\n• Das Ausschwingen der Leitungsseile bei Wind bei der\nBemessung des Sicherheitsabstandes berücksichtigen.\n• Können die Sicherheitsabstände zu elektrischen Freileitungen\nnicht eingehalten werden,\n muss deren spannungsfreier Zustand hergestellt und für die\nDauer der Arbeiten sichergestellt sein oder\n müssen die Spannung führenden Teile durch Abdecken oder\nAbschranken geschützt sein.\n• Abdeckungen stellen nur einen\nSchutz gegen zufälliges Berühren dar und ersetzen keine\nBetriebsisolierung.\n• Sicherheitsmaßnahmen immer in Abstimmung mit dem Betreiber\nder Leitungen (z.B. Elektroversorgungsunternehmen, Deutsche\nBahn) festlegen und durchführen.\n• Bei der Schutzmaßnahme „Schutz durch Abstand“ muss der\nArbeitsverantwortliche mit einer geeigneten Aufsicht für die",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 60
+      },
+      {
+        "id": "tiefbau-61-1-3",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "",
+        "measure": "Einhaltung der Schutzabstände sorgen.",
+        "reference": "",
+        "sourcePage": 61
+      },
+      {
+        "id": "tiefbau-61-1-4",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Leitungskontakt mit Baumaschinen, Kränen,\nAuslegern",
+        "measure": "• Dreh-, Höhen- oder Auslegerbegrenzungen an Maschinen vor\nnehmen, wenn Gefahr besteht, die Freileitung mit Maschinen\noder Geräten zu berühren.\n• Bei Arbeiten mit\n Maschinen, z.B. Kranen, Baggern, Betonpumpen,\nBauaufzügen, mechanischen Leitern,\n sperrigen Lasten an Hebezeugen, wie z.B. Bewehrungseisen,\nSchalungselementen, Fertigteilen\n Einbauteilen, z.B. Stahlpfetten, Profilblechen\nist die Gefahr der unzulässigen Annäherung an Spannung führende\nFreileitungen besonders bei der Bemessung des\nSicherheitsabstandes zu berücksichtigen.\n• Die Schutzabstände dürfen durch örtliche Bedingungen nicht\nunterschritten werden.",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 61
+      },
+      {
+        "id": "tiefbau-61-1-5",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Durch unzureichende Abstimmung",
+        "measure": "• Vor Beginn der Arbeiten\n Erlaubnis zum Durchführen der Arbeiten vom\nAnlagenverantwortlichen einholen,\n Einweisung des Arbeitsverantwortlichen für die Bauarbeiten\ndurch den Anlagenverantwortlichen des Betreibers vor Ort,\n Beschäftigte durch den Arbeitsverantwortlichen einweisen\nund über die Gefahr informieren.\n müssen den Beschäftigten die Arbeitsgrenzen bekannt sein.\n• Die Einweisung und die Erlaubnis zum Durchführen der Arbeiten,\nsowie die Festlegung der Arbeitsgrenzen sollte dokumentiert\nwerden.\n• Bei Abweichungen von der geplanten Durchführung der Arbeiten\nentscheidet der Anlagenverantwortliche des Betreibers der\nFreileitung.\n• Für Notfälle muss für eine schnellstmögliche Ausschaltung\nmöglich sein. Dafür notwendige Kontaktmöglichkeiten sind vor\nBeginn der Arbeiten zu vereinbaren.",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 61
+      },
+      {
+        "id": "tiefbau-62-1-3",
+        "activity": "Aushub mit Bagger",
+        "hazard": "• Explosion von Kampfmitteln",
+        "measure": "• Bauherrn veranlassen, Auftrag zur Räumung des Baufeldes von\nMunition und Bomben an KMBD oder Fachfirma zu erteilen.\n• Bei Mithilfe an der Räumung sind die Anweisungen der für die\nRäumung verantwortlichen Person genau zu befolgen.\n• Unterweisung:\n- Mitarbeiter durch die verantwortliche Person über Maßnahmen\nbei Munitionsfund unterweisen lassen.\nVerbindung zum Staatlichen Kampfmittelbeseitigungsdienst (KMBD)\naufnehmen.",
+        "reference": "Handlungshilfe\nKampfmittel",
+        "sourcePage": 62
+      },
+      {
+        "id": "tiefbau-62-1-4",
+        "activity": "Aushub mit Bagger",
+        "hazard": "• Unzureichende Untersuchung",
+        "measure": "• Die Kampfmitteluntersuchung ist in mehreren Abschnitten\nauszuführen. Die flächige Untersuchung ist vor dem\nBaugrubenaushub und dem Voraushub folgend wenigstens in 2\nAbschnitten auszuführen, die Messbohrungen für die Bohrpfähle\nsind ebenfalls in 2 Abschnitten und die schrägen Messbohrungen\nfür die Vernagelung der Spritzbetonwand in ca. 4 Abschnitten\nauszuführen.\n• Lotrechte Sondierungsbohrungen im Zentrum geplanter\nVerbauträger oder Bohrpfahlgründungen.\nSiehe Anweisungen LV bzw. Vorgabe von Kampfmittelsondierer\nbeachten!",
+        "reference": "LV Pos 3.1\nLV Pos 3.1.40",
+        "sourcePage": 62
+      },
+      {
+        "id": "tiefbau-63-1-3",
+        "activity": "Allgemein",
+        "hazard": "• Mangelnde Erstversorgung von Verletzten",
+        "measure": "• Aushang „Anleitung zur Ersten Hilfe“ mit Rufnummern und\nAdresse von Notarzt, Rettungsdienst, Krankenhaus erstellen.\n• Ersthelfer in ausreichender Anzahl.\n• Mitarbeiter, die auf Baustellen von AG tätig sind werden in\ndessen Erste-Hilfe Systeme eingebunden.\n• Verbandskasten bereithalten.\n• Verbandbuch bereithalten und pflegen.",
+        "reference": "DGUV-V38\nAushang\nDGUV-V1\n§24,25,4",
+        "sourcePage": 63
+      },
+      {
+        "id": "tiefbau-63-2-3",
+        "activity": "Allgemein",
+        "hazard": "• Verbrennung / Rauchvergiftung / Ersticken",
+        "measure": "• Feuerlöscher 6kg Pulver bei Bedarf vorhalten.\nUnterweisung (Bei Bedarf):\nMitarbeiter in den Umgang mit Feuerlöschern und Löschmitteln\neinweisen und einüben.",
+        "reference": "DGUV-V38\nDGUV-V1\nASR A2.2.",
+        "sourcePage": 63
+      }
+    ]
+  },
+  {
+    "key": "asphaltbau",
+    "code": "A-20-50",
+    "title": "Asphaltbau allgemein",
+    "revision": "00",
+    "issuedAt": "2025-08-18",
+    "sourceFile": "A-20-50-GBU-Asphaltbau allg._Rev00 - 2025-08-18.pdf",
+    "pageCount": 30,
+    "items": [
+      {
+        "id": "asphaltbau-4-1-3",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Unfälle durch verrutschende Lasten\n• Unfälle im Straßenverkehr",
+        "measure": "• Geeignete Einrichtungen zur Lastsicherung (Kanthölzer,\nVerzurrgurte) verwenden\n• Unterweisen der Mitarbeiter über umsichtiges Fahren und\nverkehrsgerechtes Verhalten\n• Kein Alkohol vor und während der Fahrt\n• Teilnahme am Fahrsicherheitstraining\n• Übermüdung und Unkonzentriertheit durch regelmäßige Pausen\nvermeiden\n• Bei Reparaturarbeiten während der Fahrt Warnweste benutzen\n• Unfallstelle ordnungsgemäß absichern und Polizei verständigen.",
+        "reference": "BGI 527\nBGV D29",
+        "sourcePage": 4
+      },
+      {
+        "id": "asphaltbau-4-1-4",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Defekte/ unzureichende Zurrmittel",
+        "measure": "• Eingesetzte Zurrmittel müssen ausreichend vorhanden, richtig\ndimensioniert und unbeschädigt sein.\n• Die Berechnung zum Niederzurren und Direkt- bzw.\nDiagonalzurren sind zu beachten.\n• Reibwerte sind individuell, je nach Witterung und\nOberflächenbeschaffenheit der eingesetzten Transportmittel,\nMaschinen und Ladungen, zu bewerten.",
+        "reference": "DGUV-I 214-003",
+        "sourcePage": 4
+      },
+      {
+        "id": "asphaltbau-4-1-5",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Gefährdung durch öffentlichen Verkehr",
+        "measure": "• Mitarbeiter müssen bei Gefährdung durch öffentlichen Verkehr\nWarnkleidung tragen.\n• Verkehrsrechtliche Anordnung auf der Baustelle vorbehalten.\n• Verkehrssicherung gemäß behördlicher Anordnung aufgestellt.\n• Verkehrszeichenplan erstellen und Genehmigung durch\nzuständige Behörde einholen.\n• Wartung von Absperrmaterial und Verkehrszeichen veranlassen.",
+        "reference": "§45 StVO",
+        "sourcePage": 4
+      },
+      {
+        "id": "asphaltbau-4-1-6",
+        "activity": "Arbeiten und\nTransport auf\nöffentlichen Straßen",
+        "hazard": "• Getroffen werden von Maschinen / Material",
+        "measure": "• Funktionsfähige, stabile Auffahrrampen einsetzen.\n• Geeignete Transportmittel (z.B. Tieflader).\n• Ladungssicherung (z. B. Zurrmittel, Keile).",
+        "reference": "",
+        "sourcePage": 4
+      },
+      {
+        "id": "asphaltbau-5-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 5
+      },
+      {
+        "id": "asphaltbau-5-0-2",
+        "activity": "A-20-50",
+        "hazard": "",
+        "measure": "2025-08-18",
+        "reference": "",
+        "sourcePage": 5
+      },
+      {
+        "id": "asphaltbau-5-0-8",
+        "activity": "Auswahl der\nMitarbeiter",
+        "hazard": "• Fahrerlaubnis",
+        "measure": "",
+        "reference": "• Die zum Transport beauftragten Mitarbeiter müssen über eine\ngültige Fahrerlaubnis verfügen.\n• Die Mitarbeiter dürfen nicht unter Einfluss von Drogen stehen.\n• Die Baustellenordnung muss eingehalten werden.",
+        "sourcePage": 5
+      },
+      {
+        "id": "asphaltbau-5-1-3",
+        "activity": "Transport auf\nBaustellen",
+        "hazard": "• Angefahren / Überfahren werden",
+        "measure": "• Gefahrenbereiche absperren lassen.\n• Maschinenführer anweisen, niemanden im Gefahrenbereich zu\ndulden.\n• Sicherungsposten (Einweiser) aufstellen.\n• Sicherungsposten bei Sichtbehinderung immer einsetzen.\n• Unterweisung:\n Im Gefahrenbereich von Arbeitsbewegungen niemanden mit\nArbeiten beauftragen.\n Nicht in den Gefahrenbereich von Baumaschinen treten.",
+        "reference": "BGI 527\nBGV D29",
+        "sourcePage": 5
+      },
+      {
+        "id": "asphaltbau-6-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 6
+      },
+      {
+        "id": "asphaltbau-6-0-2",
+        "activity": "A-20-50",
+        "hazard": "",
+        "measure": "2025-08-18",
+        "reference": "",
+        "sourcePage": 6
+      },
+      {
+        "id": "asphaltbau-6-0-8",
+        "activity": "A-20-50",
+        "hazard": "• Einsinken / Umkippen von Baumaschinen",
+        "measure": "",
+        "reference": "• Nur zugewiesene Bereiche befahren.\n• Abstände zu Baugruben und Gräben immer einhalten.\n• Nur feste Untergründe befahren.\n• Vor dem Befahren den Untergrund auf Standsicherheit prüfen.",
+        "sourcePage": 6
+      },
+      {
+        "id": "asphaltbau-6-1-3",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Baggern bzw. Erdbaumaschinen:\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Radladern zu unterweisen, die Unterweisung ist zu\ndokumentieren,\n die für den Einsatz von Radladern erforderlichen Vorschriften,\nRegeln und Informationen (Betriebsanweisung, Betriebsanleitung\ndes Herstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.\nDer Maschinenführer muss:\n mindestens 18 Jahre alt sein,\n zuverlässig sowie geeignet sein,\n die Betriebsanleitung kennen und diese am Fahrerplatz oder",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 6
+      },
+      {
+        "id": "asphaltbau-7-1-3",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "",
+        "measure": "an der Verwendungsstelle leicht zugänglich aufbewahren,\n den Bagger bestimmungsgemäß benutzen und\n festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "",
+        "sourcePage": 7
+      },
+      {
+        "id": "asphaltbau-7-1-4",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Allgemein\n• Stolpern / Rutschen / Stürzen",
+        "measure": "• Trittsichere Tritte (z.B. Warzenblech, Roste)\n• Unterweisung:\n Tritte sauber halten bei Erd- und Straßenbaumaschinen\n Schuhsohlen reinigen beim Führen und Warten von Erd- und\nStraßenbaumaschinen.\n Schutzgeländer nicht entfernen.\n Schutzbügel nach Aufstieg auf Maschinen bzw. Anlagen\nschließen.\n Standflächen frei von Material und sonstigen Gegenständen\nhalten.\n Anweisung: Sicherheitsgurt immer anlegen oder Kabine\ngeschlossen halten.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 7
+      },
+      {
+        "id": "asphaltbau-7-1-5",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Unzureichende Standsicherheit\n• Umsturz der Baumaschine",
+        "measure": "• Tragfähigkeit des Untergrundes prüfen.\n• Unterweisung:\n Keine großen Unebenheiten befahren.\n Mit Erd- und Straßenbaumaschinen Sicherheitsabstand zu\nAbsturzkanten halten.\n Abstützungen an der Maschine einsetzen (Erd- und\nStraßenbaumaschinen)\n Geringere Standsicherheit der Minibagger berücksichtigen.\nUnterweisung:\n Mit Erd- und Straßenbaumaschinen vorgeschriebene\nAbstände (nach DIN 4124) zu den Rändern von Gruben und\nGräben einhalten.\n• Maschinenführer anhand der Betriebsanleitung des Gerätes\neinweisen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 7
+      },
+      {
+        "id": "asphaltbau-8-1-4",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Technische Mängel",
+        "measure": "• Anweisung: Bei erheblichen Funktionsstörungen Betrieb der\nMaschine sofort einstellen.\n• Arbeitstägliche Sicht- und Funktionskontrolle durch den\nMaschinenführer veranlassen.\n• Laufende Instandhaltung: Wartung, Inspektion und\nInstandsetzung (Reparatur).\n• Regelmäßige Prüfungen durch Sachkundige.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 8
+      },
+      {
+        "id": "asphaltbau-8-1-5",
+        "activity": "Bedienen von\nErdbaumaschinen",
+        "hazard": "• Sichtfeldeinschränkungen bei Fahr- und\nArbeitsbewegungen\n• Mechanische Gefährdungen\n• angefahren/ überfahren werden",
+        "measure": "• Einsatz von Spiegelsystemen, um Sichtfeldeinschränkungen\nauszugleichen\n• Sichtfeldüberprüfung von Erdbaumaschinen veranlassen\n(Überprüfung, ob Maschinenführer im Abstand von 1,0 m vor\nbzw. hinter der Maschine eine leicht gebückt arbeitende Person\n(ca. 1,50 m) sehen kann. Die Sichtfeldüberprüfung erfolgt bei\nabgestelltem Motor und abgesenkter Arbeitseinrichtung)\n• Warnwesten als zusätzliche persönliche Schutzausrüstung zur\nVerfügung stellen.\n• kein Aufenthalt von Personen im Fahrbereich (Gefahrenbereich)\nvon Erdbaumaschinen (eingeschränktes Sichtfeld bzw. tote\nWinkel für Maschinenführer)\n• vor Betreten des Gefahrenbereiches Blickkontakt zum\nMaschinenführer aufnehmen.",
+        "reference": "DGUV-R 100-500\nKap. 2.12\nDGUV-V1",
+        "sourcePage": 8
+      },
+      {
+        "id": "asphaltbau-8-1-6",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Angefahren / Überfahren werden von\nErdbaumaschinen.",
+        "measure": "• Möglichst Maschinen mit ,,Totmannschaltung´´ einsetzen wenn\nQuetschgefährdungen vorhanden sind.\n• Andrückschutzeinrichtung für Rückwärtsfahrt.\n• Warnwesten tragen.\n• Arbeitsbereiche auf Baustellen klar einteilen und festlegen.\n• Vor dem Begehen von möglichen Gefahrenbereichen den\nBlickkontakt mit dem Fahrzeugführer aufnehmen.\n•",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 8
+      },
+      {
+        "id": "asphaltbau-8-1-7",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Verbrennungen an heißen Oberflächen.",
+        "measure": "• Intakter Verbrennungsschutz am Auspufftopf.",
+        "reference": "",
+        "sourcePage": 8
+      },
+      {
+        "id": "asphaltbau-9-1-4",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Lärm",
+        "measure": "• Lärm durch technische Maßnahmen so weit wie\nmöglich reduzieren.\n• Ab 80 dB(A) geeigneten Gehörschutz zur Verfügung stellen.\n• Ab 85 dB(A) geeigneten Gehörschutz zur Verfügung stellen und\ndie Benutzung veranlassen.\n• Gehörvorsorgeuntersuchung G 20 veranlassen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 9
+      },
+      {
+        "id": "asphaltbau-9-1-5",
+        "activity": "Mitgängermaschinen",
+        "hazard": "• Transport",
+        "measure": "• Angehängte Mitgängermaschinen (Rüttelplatten, Stampfer etc.)\nsicher anschlagen.\n• Anschlagpunkte nach Herstellerangaben auswählen.\n• Geprüfte und unbeschädigte Anschlagmittel verwenden.\n• Nicht im Fahrweg der Transportmaschine (Bagger, Radlader)\nlaufen. Blickkontakt zum Geräteführer – ansonsten keine\nFahrbewegung.",
+        "reference": "",
+        "sourcePage": 9
+      },
+      {
+        "id": "asphaltbau-10-1-3",
+        "activity": "Straßenfräse",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat Maschinenführer*innen vor der erstmaligen\nVerwendung von Straßenfräsen\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von den jeweiligen Maschinen zu unterweisen, die\nUnterweisung ist zu dokumentieren,\n die für den Einsatz von Fräsen erforderlichen Vorschriften, Regeln\nund Informationen (Betriebsanweisung, Betriebsanleitung des\nHerstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.",
+        "reference": "DGUV-R 100-500",
+        "sourcePage": 10
+      },
+      {
+        "id": "asphaltbau-10-1-4",
+        "activity": "Straßenfräse",
+        "hazard": "• Unbefugte Benutzung\n• Unbeabsichtigtes Ingangsetzen",
+        "measure": "• Bei Arbeitsschluss und in Arbeitspausen Straßenfräsen gegen\nunbefugtes Ingangsetzen sichern.\n• Fräsen nur vom vorgesehenen Fahrerplatz aus betreiben\n• Fräseinrichtungen müssen bei laufender Antriebsmaschine durch\nNotabschaltung zum Stillstand gebracht werden können.\n• Beim Ansetzen der Fräseinrichtung auf der Straßenoberfläche\ndie Andrückkräfte so steuern, dass sich die Straßenfräse nicht\nunbeabsichtigt in Bewegung setzen kann.\n• Vor dem Verlassen des Führerstandes Fräse gegen\nunbeabsichtigte Bewegungen mit den dafür vorgesehenen\nEinrichtungen, z.B. Feststellbremse, sichern.\n•",
+        "reference": "BG Baustein 187",
+        "sourcePage": 10
+      },
+      {
+        "id": "asphaltbau-10-1-5",
+        "activity": "Straßenfräse",
+        "hazard": "• Stolpern / Rutschen / Stürzen",
+        "measure": "• Trittsichere Aufstiege verwenden (z.B. Warzenblech, Roste)\n• Handläufe bzw. Haltebügel verwenden.\n• Maschinenführerplätze, die mehr als 1,00 m über Gelände liegen,\nmüssen Absturzsicherungen haben, z.B. Geländer",
+        "reference": "BG Baustein 187",
+        "sourcePage": 10
+      },
+      {
+        "id": "asphaltbau-10-1-6",
+        "activity": "Straßenfräse",
+        "hazard": "• Quetschgefahr & Erfasst werden",
+        "measure": "• Personen dürfen sich grundsätzlich nicht im Fahrbereich\n(Gefahrbereich) aufhalten.",
+        "reference": "BG Baustein 187",
+        "sourcePage": 10
+      },
+      {
+        "id": "asphaltbau-11-1-3",
+        "activity": "Straßenfräse",
+        "hazard": "",
+        "measure": "• Während des Fräsvorganges darf sich niemand hinter der\nMaschine aufhalten.\n• Der Maschinenführer hat bei Gefahr für Personen die Gefahr\nbringende Bewegung zu stoppen und Warnzeichen zu geben.\n• Für Personen im Umfeld des Straßenfräsen gilt:\n festgelegte Maßnahmen beachten\n vor Betreten des Gefahrbereiches Kontakt mit\nMaschinenführer aufnehmen.\nArbeitsweise miteinander abstimmen.",
+        "reference": "",
+        "sourcePage": 11
+      },
+      {
+        "id": "asphaltbau-11-1-4",
+        "activity": "Straßenfräse",
+        "hazard": "• Eingezogen zu werden.\n• Ungesicherte Maschinenteile",
+        "measure": "• Schutzabdeckungen nur zur Wartung bzw. Instandsetzung\nentfernen. – Maschinen stillsetzen und gegen Einschalten\nsichern.\n• Während laufender Maschine dürfen keine Wartungs- bzw.\nReparaturarbeiten durchgeführt werden.",
+        "reference": "BG Baustein 187",
+        "sourcePage": 11
+      },
+      {
+        "id": "asphaltbau-11-1-5",
+        "activity": "Straßenfräse",
+        "hazard": "• Durch angrenzenden Verkehr",
+        "measure": "• Im öffentlichen Verkehrsbereich Warnkleidung tragen\n• Beim Einsatz im öffentlichen Verkehrsraum Baustelle gemäß\nRSA sichern und zwischen Arbeits- und Verkehrsbereich gemäß\nASR A5.2 einhalten.",
+        "reference": "RSA-21\nASR A5.2",
+        "sourcePage": 11
+      },
+      {
+        "id": "asphaltbau-11-1-6",
+        "activity": "Straßenfräse",
+        "hazard": "• Allgemein\n• Lärm",
+        "measure": "• Geeignete persönliche Schutzausrüstung verwenden.\n- Arbeitshose\n- Arbeitsjacke\n- Handschuhe\n- Gehörschutz\n- Sicherheitsschuhe",
+        "reference": "BG Baustein 187",
+        "sourcePage": 11
+      },
+      {
+        "id": "asphaltbau-11-1-7",
+        "activity": "Straßenfräse",
+        "hazard": "• Gesundheitsschädliche Stäube",
+        "measure": "• Es sind vorrangig solche Straßenfräsen einzusetzen, für die die\nEinhaltung der Staubgrenzwerte nachgewiesen wurde. Solange\nsolche Fräsen nicht oder in nicht ausreichendem Umfang zur\nVerfügung stehen, ist das Tragen von Atemschutz bei\nerkennbarer Staubentwicklung sofort notwendig (z.B. filtrierende\nHalbmasken FFP2 mit Ausatemventil oder Atemschutzhauben",
+        "reference": "BG Baustein 187\nTRGS 559",
+        "sourcePage": 11
+      },
+      {
+        "id": "asphaltbau-12-1-3",
+        "activity": "Straßenfräse",
+        "hazard": "",
+        "measure": "P2). Entsprechenden Atemschutz auf der Fräse vorhalten.",
+        "reference": "",
+        "sourcePage": 12
+      },
+      {
+        "id": "asphaltbau-12-1-4",
+        "activity": "Straßenfräse",
+        "hazard": "• Fräsen von asbesthaltigen Zuschlagstoffen",
+        "measure": "• Beim Fräsen von Belägen mit asbesthaltigen Zuschlagstoffen\nTRGS 517 beachten:\n durch kontinuierliche Wasserberieselung optimalen\nStaubniederschlag gewährleisten (Trockenfräsen nicht\nzulässig),\n nicht in staubbelasteten Bereichen, wie der Windfahne,\naufhalten,\n Funktionstüchtigkeit der Wasserdüsen überprüfen und\ngegebenenfalls reinigen,\n Maschinen und Maschinenteile nass reinigen.",
+        "reference": "BG Baustein 187\nTRGS 517",
+        "sourcePage": 12
+      },
+      {
+        "id": "asphaltbau-12-1-5",
+        "activity": "Straßenfräse",
+        "hazard": "• Durch Gefahrstoffe",
+        "measure": "• Sicherheitsdatenblätter der verwendeten Stoffe zur Einsicht\nhalten.",
+        "reference": "BG Baustein 187",
+        "sourcePage": 12
+      },
+      {
+        "id": "asphaltbau-12-1-6",
+        "activity": "Straßenfräse",
+        "hazard": "• Sichtprüfung / Wartung",
+        "measure": "• Maschine regelmäßig und vor jeder Benutzung auf\nBeschädigungen prüfen.\n• Vor Meißelwechsel Fahr- und Rotorantrieb abschalten und gegen\nunbefugtes Ingangsetzen sichern.\n•",
+        "reference": "BG Baustein 187",
+        "sourcePage": 12
+      },
+      {
+        "id": "asphaltbau-13-1-3",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Baggern bzw. Erdbaumaschinen:\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Straßenfertiger zu unterweisen, die Unterweisung ist\nzu dokumentieren,\n die für den Einsatz von den jeweiligen Maschinen erforderlichen\nVorschriften, Regeln und Informationen (Betriebsanweisung,\nBetriebsanleitung des Herstellers) zur Verfügung zu stellen und\nverständlich zu vermitteln.\nDer Maschinenführer muss:\n mindestens 18 Jahre alt sein,\n zuverlässig sowie geeignet sein,\n die Betriebsanleitung kennen und diese am Fahrerplatz oder\nan der Verwendungsstelle leicht zugänglich aufbewahren,\n den Straßenfertiger bestimmungsgemäß benutzen und\n festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "DGUV-R 100-500",
+        "sourcePage": 13
+      },
+      {
+        "id": "asphaltbau-13-1-4",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Unbefugte Benutzung\n• Unbeabsichtigtes Ingangsetzen",
+        "measure": "• Elektrische Starteinrichtungen gegen unbefugtes Ingangsetzen\nsichern, z.B. durch Schlösser.\n• Bei Arbeitsschluss und in Arbeitspausen Fertiger gegen\nunbefugtes Ingangsetzen sichern.\n• Bergab niemals mit ausgekuppeltem Motor fahren.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 13
+      },
+      {
+        "id": "asphaltbau-13-1-5",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Stolpern / Rutschen / Stürzen",
+        "measure": "• Trittsichere Aufstiege verwenden (z.B. Warzenblech, Roste)\n• Handläufe bzw. Haltebügel verwenden.\n• Maschinenführerplätze, die mehr als 1,00 m über Gelände liegen,\nmüssen Absturzsicherungen haben, z.B. Geländer",
+        "reference": "BG Baustein 186",
+        "sourcePage": 13
+      },
+      {
+        "id": "asphaltbau-14-1-4",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Quetschgefahr & Erfasst werden",
+        "measure": "• Personen dürfen sich grundsätzlich nicht ohne klare\nArbeitsaufgabe im Fahrbereich (Gefahrbereich) aufhalten.\n• Der Maschinenführer hat bei Gefahr für Personen die Gefahr\nbringende Bewegung zu stoppen und Warnzeichen zu geben.\n• Für Personen im Umfeld des Straßenfertiger gilt:\n festgelegte Maßnahmen beachten\n vor Betreten des Gefahrbereiches Kontakt mit\nMaschinenführer aufnehmen.\nArbeitsweise miteinander abstimmen.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 14
+      },
+      {
+        "id": "asphaltbau-14-1-5",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Eingezogen zu werden.\n• Ungesicherte Maschinenteile",
+        "measure": "• Im Grundgerätebereich müssen Verteilerschnecken durch\nAbdeckungen gesichert werden.\n• Die Schneckenverbreiterungen sind durch Abdeckungen oder\ndurch Schutzbügel zu sichern.\n• An hydraulischen Verstellbohlen muss die vorhandene\nTotmannschaltung funktionstüchtig sein.\n• Vor dem Betreten des Einfüllbunkers Kratzerbandbetrieb\nabschalten und vor unbefugtem Ingangsetzen sichern.\n• Während laufender Maschine dürfen keine Wartungs- bzw.\nReparaturarbeiten durchgeführt werden.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 14
+      },
+      {
+        "id": "asphaltbau-14-1-6",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Durch angrenzenden Verkehr",
+        "measure": "• Im öffentlichen Verkehrsbereich Warnkleidung tragen\n• Beim Einsatz im öffentlichen Verkehrsraum Baustelle gemäß\nRSA sichern und zwischen Arbeits- und Verkehrsbereich gemäß\nASR A5.2 einhalten.",
+        "reference": "RSA-21\nASR A5.2",
+        "sourcePage": 14
+      },
+      {
+        "id": "asphaltbau-14-1-7",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Verbrennungen durch heiße Materialien\n• Lärm",
+        "measure": "• Geeignete persönliche Schutzausrüstung verwenden.\n- Arbeitshose\n- Arbeitsjacke\n- Handschuhe\n- Gehörschutz\n• Sicherheitsschuhe mit wärmeisolierendem Unterbau (z.B. S 2 HI)\nbenutzen.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 14
+      },
+      {
+        "id": "asphaltbau-15-1-4",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Gesundheitsschädliche Dämpfe",
+        "measure": "• In überdachten bzw. räumlich geschlossenen Fertigungsbereich\nmüssen technische Absaugungen eingesetzt werden.\n• Bei ungünstigen Luftverhältnissen, z.B. zwischen\nLärmschutzwänden und in Tunnelabschnitten,\ntemperaturabgesenkten Asphalt einbauen und für künstliche\nBewetterung sorgen.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 15
+      },
+      {
+        "id": "asphaltbau-15-1-5",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Durch Gefahrstoffe",
+        "measure": "• Dieselkraftstoffe nicht als Trennmittel verwenden (durch Hitze\nfreiwerdende Dämpfe können krebserregend wirken).\n• Sicherheitsdatenblätter der verwendeten Stoffe zur Einsicht\nhalten.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 15
+      },
+      {
+        "id": "asphaltbau-15-1-6",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Durch Flüssiggasanlagen",
+        "measure": "• Vor Arbeitspausen, zum Arbeitsschluss, beim Erlöschen der\nBrenner und bei Bränden Flaschenventile schließen.\n• Brenner müssen mit einer Flammenüberwachungseinrichtung,\nz.B. Zündsicherung, ausgerüstet sein, die nicht unwirksam\ngemacht werden darf.\n• Damit kein Flüssiggas aus zerstörten Schläuchen austreten\nkann, sind Schlauchbruchsicherungen einzubauen.",
+        "reference": "BG Baustein 186\nDGUV-V79",
+        "sourcePage": 15
+      },
+      {
+        "id": "asphaltbau-15-1-7",
+        "activity": "Asphalt- Straßen-\nfertiger",
+        "hazard": "• Unzureichende Sichtprüfung / Wartung",
+        "measure": "• Maschine regelmäßig und vor jeder Benutzung auf\nBeschädigungen prüfen.",
+        "reference": "BG Baustein 186",
+        "sourcePage": 15
+      },
+      {
+        "id": "asphaltbau-16-1-3",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• Unzureichende Qualifikation /\nVoraussetzungen",
+        "measure": "Der Unternehmer hat den Maschinenführer vor der erstmaligen\nVerwendung von Straßenwalzen:\n schriftlich zu beauftragen, (Empfehlung)\n ihn über Gefährdungen und erforderliche Schutzmaßnahmen beim\nEinsatz von Straßenwalzen zu unterweisen, die Unterweisung ist\nzu dokumentieren,\n die für den Einsatz von Straßenwalzen erforderlichen Vorschriften,\nRegeln und Informationen (Betriebsanweisung, Betriebsanleitung\ndes Herstellers) zur Verfügung zu stellen und verständlich zu\nvermitteln.\nDer Maschinenführer muss:\n mindestens 18 Jahre alt sein,\n zuverlässig sowie geeignet sein,\n die Betriebsanleitung kennen und diese am Fahrerplatz oder\nan der Verwendungsstelle leicht zugänglich aufbewahren,\n die Straßenwalze bestimmungsgemäß benutzen und\n festgestellte Mängel dem Aufsichtführenden mitteilen.",
+        "reference": "DGUV-V38\nDGUV-R 100-500",
+        "sourcePage": 16
+      },
+      {
+        "id": "asphaltbau-16-1-4",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• durch unbeabsichtigtes Ingangsetzen\n• durch Wegrollen",
+        "measure": "• Beim Motorstart Fahrhebel in Nullstellung setzen, damit ein\nunbeabsichtigtes Ingangsetzen ausgeschlossen ist.\n• Bei laufendem Motor unbeabsichtigte Fahrbewegungen durch\nfestgelegten Fahrhebel ausschließen.\n• Während der Fahrt im Gefälle mit Walzen ohne lastschalt bare\nGetriebe Gangschaltung nicht betätigen.\n• Vor dem Befahren von Gefällestrecken ist der dem Ge fälle\nentsprechende Fahrgang einzulegen.\n• Bergab nicht mit ausgekuppeltem Motor fahren.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 16
+      },
+      {
+        "id": "asphaltbau-17-1-3",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• Unbefugtes Benutzen",
+        "measure": "• Elektrische Starteinrichtungen müssen gegen unbefugtes\nIngangsetzen gesichert werden, z.B. durch eine verschließbare\nKabine, ein Sicherheitszündschloss oder eine verschließbare\nAbdeckung.",
+        "reference": "",
+        "sourcePage": 17
+      },
+      {
+        "id": "asphaltbau-17-1-4",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• angefahren/ überfahren werden",
+        "measure": "• Im Fahrbereich bzw. direkten Gefahrenbereich von Walzen dürfen\nsich keine Beschäftigten oder andere Personen aufhalten.\n(eingeschränktes Sichtfeld bzw. tote Winkel für\nMaschinenbediener*in)\n• Beim Einsatz im öffentlichen Verkehrsraum Baustelle gemäß RSA\nsichern und Sicherheitsabstände zwischen Arbeits- und\nVerkehrsbereich gemäß ASR A5.2 einhalten.\n• Warnkleidung mind. Klasse 2 als persönliche Schutzausrüstung\nzur Verfügung stellen. Die Beschäftigten sind angehalten die\nWarnkleidung zu tragen.\n• vor Betreten des Gefahrenbereiches Blickkontakt zum\nMaschinenführer aufnehmen.\n• Der Maschinenführer hat bei Gefahr für Personen die Gefahr\nbringende Bewegung zu stoppen und Warnzeichen zu geben.\n• Für Personen im Umfeld des Baggers gilt:\n festgelegte Maßnahmen beachten\n vor Betreten des Gefahrbereiches Kontakt / Blickkontakt mit\nMaschinenführer aufnehmen.\n• Arbeitsweisen / -schritte miteinander abstimmen.",
+        "reference": "BG-Baustein\nB185\nASR A5.2",
+        "sourcePage": 17
+      },
+      {
+        "id": "asphaltbau-17-1-5",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• Sichtfeldeinschränkungen bei Fahr- und\nArbeitsbewegungen",
+        "measure": "• Einsatz von Drehsitzen bei Walzen. Dies ermöglicht auch bei\nRückwärtsfahrt den Blick in Fahrtrichtung.\n• nur vom Fahrerplatz aus betreiben. Bei eingeschränkten\nSichtverhältnissen - einen Einweiser einsetzen.\n• Einsatz von Spiegelsystemen, um Sichtfeldeinschränkungen\nauszugleichen\n• Sichtfeldüberprüfung von Erdbaumaschinen veranlassen\n(Überprüfung, ob Maschinenführer im Abstand von 1,0 m vor\nbzw. hinter der Maschine eine leicht gebückt arbeitende Person",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 17
+      },
+      {
+        "id": "asphaltbau-18-1-3",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "",
+        "measure": "(ca. 1,50 m) sehen kann. Die Sichtfeldüberprüfung erfolgt bei\nabgestelltem Motor und abgesenkter Arbeitseinrichtung)",
+        "reference": "",
+        "sourcePage": 18
+      },
+      {
+        "id": "asphaltbau-18-1-4",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• durch Kippen und Umstürzen",
+        "measure": "• Zum Verladen nur tragfähige Verladerampen benutzen.\n• Nicht schräg zum Hang, sondern in der Falllinie fahren.\n• Walzen mit Überrollschutz - konstruktion (ROPS) und Sicher -\nheitsgurt am Fahrersitz einsetzen und beim Betrieb Sicherheits -\ngurt anlegen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 18
+      },
+      {
+        "id": "asphaltbau-18-1-5",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• Allgemein\n• Stolpern / Rutschen / Stürzen",
+        "measure": "• Fahrerplätze müssen über sicher begehbare Zugänge erreicht\nund verlassen werden können.\n- beidseitig vom Aufstieg an - gebrachte Haltestangen bzw.\nHaltegriffe\n- trittsichere Aufstiege (Tränen oder Warzenbleche, Roste)\n-\n• Unterweisung:\n Tritte sauber halten\n Schuhsohlen reinigen\n Schutzgeländer nicht entfernen.\n Standflächen frei von Material und sonstigen Gegenständen\nhalten.\n Anweisung: Sicherheitsgurt immer anlegen oder Kabinentür\ngeschlossen halten.",
+        "reference": "DGUV-R 101-003\nBG-Baustein\nB185",
+        "sourcePage": 18
+      },
+      {
+        "id": "asphaltbau-18-1-6",
+        "activity": "Bedienen von\nStraßenwalzen\n(mit Fahrerplatz)",
+        "hazard": "• Absturz aus Kabine",
+        "measure": "• Maschinenführerplätze, die mehr als 1,00 m über Gelände liegen,\nmüssen Absturzsicherungen, z.B. Armlehnen oder geschlossene\nKabinen, haben. Beim Betrieb Kabinentüren schließen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 18
+      },
+      {
+        "id": "asphaltbau-18-1-7",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "• Rückschlag durch Kurbelstart",
+        "measure": "• Kleindieselmotoren müssen wegen der Rückschlaggefahr beim\nKurbelstart mit einer Sicherheitsandrehkurbel besser noch mit\nBatteriestarteinrichtungen ausgerüstet sein.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 18
+      },
+      {
+        "id": "asphaltbau-19-1-3",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "• Quetschgefahr\n• Stoßgefahr",
+        "measure": "• Besonders bei Rückwärtsfahrt wegen Quetschgefahr neben dem\nDeichselende gehen.\n• Bei Fahrt im Gefälle immer bergseitig gehen.\n• Geschwindigkeit bei Fahrten über Unebenheiten, Rampen und\nAbsätze vermindern, damit ein Hochschlagen der Deichsel\nvermieden wird.\n•",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 19
+      },
+      {
+        "id": "asphaltbau-19-1-4",
+        "activity": "Bedienen von\nStraßenwalzen\n(Mitgängerbetrieb)",
+        "hazard": "• Durch Funkbetrieb",
+        "measure": "• Bei Infrarot-Fernsteuerung vor Inbetriebnahme die Sende- und\nEmpfangselemente säubern.\n• Sicherstellen, dass fremde Signale (z.B. andere\nFernsteuereinrichtungen) nicht zu gefahrbringenden\nBewegungen führen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 19
+      },
+      {
+        "id": "asphaltbau-19-1-5",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "• Technische Mängel",
+        "measure": "• Anweisung: Bei erheblichen Funktionsstörungen Betrieb der\nMaschine sofort einstellen.\n• Arbeitstägliche Sicht- und Funktionskontrolle durch den\nMaschinenführer*in veranlassen.\n• Laufende Instandhaltung: Wartung, Inspektion und\nInstandsetzung (Reparatur).\n• Regelmäßige Prüfungen durch Sachkundige.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 19
+      },
+      {
+        "id": "asphaltbau-19-1-6",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "• Verbrennungen an heißen Oberflächen.",
+        "measure": "• Intakter Verbrennungsschutz am Auspufftopf.",
+        "reference": "",
+        "sourcePage": 19
+      },
+      {
+        "id": "asphaltbau-19-1-8",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "• Lärm",
+        "measure": "• Lärm durch technische Maßnahmen so weit wie\nmöglich reduzieren.\n• Ab 80 dB(A) geeigneten Gehörschutz zur Verfügung stellen.\n• Ab 85 dB(A) geeigneten Gehörschutz zur Verfügung stellen und\ndie Benutzung veranlassen.\n• Gehörvorsorgeuntersuchung G 20 veranlassen.",
+        "reference": "DGUV-R 101-003",
+        "sourcePage": 19
+      },
+      {
+        "id": "asphaltbau-20-1-4",
+        "activity": "Bedienen von\nStraßenwalzen",
+        "hazard": "• Transport",
+        "measure": "• Angehängte Mitgängermaschinen (Rüttelplatten, Stampfer etc.)\nsicher anschlagen.\n• Anschlagpunkte nach Herstellerangaben auswählen.\n• Geprüfte und unbeschädigte Anschlagmittel verwenden.\n• Nicht im Fahrweg der Transportmaschine (Bagger, Radlader)\nlaufen. Blickkontakt zum Geräteführer – ansonsten keine\nFahrbewegung.",
+        "reference": "",
+        "sourcePage": 20
+      },
+      {
+        "id": "asphaltbau-20-1-5",
+        "activity": "Wartung / Reparatur",
+        "hazard": "• angefahren/ überfahren werden",
+        "measure": "• Ein- und Nachfüllen von Wasser, nur bei stehender und gegen\nAbrollen gesicherter Walze durch führen.",
+        "reference": "BG-Baustein\nB185",
+        "sourcePage": 20
+      },
+      {
+        "id": "asphaltbau-20-2-1",
+        "activity": "Wartung / Reparatur",
+        "hazard": "",
+        "measure": "ja",
+        "reference": "",
+        "sourcePage": 20
+      },
+      {
+        "id": "asphaltbau-21-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-21-0-2",
+        "activity": "A-20-50",
+        "hazard": "",
+        "measure": "2025-08-18",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-21-0-7",
+        "activity": "Allgemein",
+        "hazard": "Kopfschutz / Schutzhelm:\n• Für den Kopfbereich\n• Durch herabfallende Gegenstände",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-21-0-9",
+        "activity": "Allgemein",
+        "hazard": "Gehörschutzmittel:\n• Durch Lärmbelastungen\n• Gehörschäden",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-21-0-11",
+        "activity": "Allgemein",
+        "hazard": "Hand- / Hautschutz:\n• Gefahren für Hände und Haut",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-21-0-12",
+        "activity": "Allgemein",
+        "hazard": "Atemschutz:\n• Gefahren für Atemorgane",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 21
+      },
+      {
+        "id": "asphaltbau-23-1-1",
+        "activity": "Allgemein",
+        "hazard": "",
+        "measure": "ja",
+        "reference": "",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-23-1-2",
+        "activity": "Lärm",
+        "hazard": "• Durch Lärm",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-23-1-3",
+        "activity": "Lärm",
+        "hazard": "• Durch Dauerlärm",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-23-1-4",
+        "activity": "Stäube",
+        "hazard": "• Durch Stäube",
+        "measure": "",
+        "reference": "BG-Baustein(e):\nE603",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-23-1-5",
+        "activity": "Stäube",
+        "hazard": "• Durch Stäube",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-23-1-6",
+        "activity": "Kälte, Regen, Zugluft\nim Freien",
+        "hazard": "• Unzureichender Witterungsschutz\n• Unzureichende Schutzkleidung",
+        "measure": "",
+        "reference": "BG-Baustein(e):\nD505\nE606",
+        "sourcePage": 23
+      },
+      {
+        "id": "asphaltbau-24-0-1",
+        "activity": "Interne Nummer:",
+        "hazard": "",
+        "measure": "Ausgabe:",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "asphaltbau-24-0-2",
+        "activity": "A-20-50",
+        "hazard": "",
+        "measure": "2025-08-18",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "asphaltbau-24-0-7",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "Gefahren durch erhöhte Außentemperaturen\n• Sonnenstich\n• Hitzeerschöpfung\n• Hitzschlag\n• Hitzetod",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "asphaltbau-24-0-8",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "• Unzureichender Sonnen- bzw. UV-Schutz\n• Mangelhafte Trinkwasserversorgung",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "asphaltbau-24-0-9",
+        "activity": "Hitze und UV-\nEinstrahlungen im\nFreien",
+        "hazard": "• Unzureichende UV-Prävention",
+        "measure": "",
+        "reference": "",
+        "sourcePage": 24
+      },
+      {
+        "id": "asphaltbau-25-1-3",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Brandgefahr",
+        "measure": "• Zündquellen vermeiden.\n• Rauchverbot in den gefährdeten Bereichen.\n• Feuerlöscher und Löschdecke bereithalten.",
+        "reference": "DGUV-V1\nGefStoffV\nBGR 104",
+        "sourcePage": 25
+      },
+      {
+        "id": "asphaltbau-25-1-4",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Erkrankungen durch Einatmen, Hautkontakt\nund versehentliche Einnahme von Lacken,\nLösemitteln und deren Dämpfen",
+        "measure": "• Offene Behälter stets verschließen oder abdecken.\n• Keine Lebensmittelbehälter zum Aufbewahren von Gefahrstoffen\nverwenden.\n• Geeignete Schutzhandschuhe verwenden und regelmäßig\nwechseln.\n• Hautschutz- und Hautpflegemittel regelmäßig benutzen.\n• Behälter kennzeichnen.\n• Betriebsanweisungen beachten.\n• Sicherheitsdatenblatt beachten",
+        "reference": "GUV-R 190\nBGR 195\nGUV-I 8620\nBGI 658",
+        "sourcePage": 25
+      },
+      {
+        "id": "asphaltbau-25-1-5",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Durch Organisationsmängel bei\nBereitstellung und Transport",
+        "measure": "• Sicherheitsdatenblatt bereitstellen\n• Gefahrstoffverzeichnis erstellen\n• Betriebsanweisung erstellen.\n• Transport durch geschultes Personal in geeigneten Fahrzeugen\nsicherstellen\n• Transport gemäß Kleinmengenregelung sicherstellen.",
+        "reference": "BG-Baustein\nA042\nGefStoffV",
+        "sourcePage": 25
+      },
+      {
+        "id": "asphaltbau-25-1-6",
+        "activity": "Gefahrstoffe",
+        "hazard": "• Durch umstürzende oder abrollende\nMaterialien",
+        "measure": "• Mitarbeiter auf die Besonderheiten des stabilen Lagerns\nhinweisen",
+        "reference": "DGUV-R 100-001",
+        "sourcePage": 25
+      },
+      {
+        "id": "asphaltbau-25-1-7",
+        "activity": "Gefahrstoffe",
+        "hazard": "• O. g. und ggf. weitere Gefährdungen",
+        "measure": "• Beachten der Betriebsanweisungen nach Gef.St.V § 14\n• Unterweisen der Mitarbeiter.",
+        "reference": "BGI 578\nBGI 527",
+        "sourcePage": 25
+      },
+      {
+        "id": "asphaltbau-26-1-3",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Das Berühren spannungsführender\nelektrischer Freileitungen kann tödliche\nFolgen haben.",
+        "measure": "• In der Nähe Spannung führender elektrischer Freileitungen nur\narbeiten, wenn die Schutzabstände nicht unterschritten werden.\n• Das Ausschwingen der Leitungsseile bei Wind bei der\nBemessung des Sicherheitsabstandes berücksichtigen.\n• Können die Sicherheitsabstände zu elektrischen Freileitungen\nnicht eingehalten werden,\n muss deren spannungsfreier Zustand hergestellt und für die\nDauer der Arbeiten sichergestellt sein oder\n müssen die Spannung führenden Teile durch Abdecken oder\nAbschranken geschützt sein.\n• Abdeckungen stellen nur einen\nSchutz gegen zufälliges Berühren dar und ersetzen keine\nBetriebsisolierung.\n• Sicherheitsmaßnahmen immer in Abstimmung mit dem Betreiber\nder Leitungen (z.B. Elektroversorgungsunternehmen, Deutsche\nBahn) festlegen und durchführen.\n• Bei der Schutzmaßnahme „Schutz durch Abstand“ muss der\nArbeitsverantwortliche mit einer geeigneten Aufsicht für die\nEinhaltung der Schutzabstände sorgen.",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 26
+      },
+      {
+        "id": "asphaltbau-27-1-3",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Leitungskontakt mit Baumaschinen, Kränen,\nAuslegern",
+        "measure": "• Dreh-, Höhen- oder Auslegerbegrenzungen an Maschinen vor\nnehmen, wenn Gefahr besteht, die Freileitung mit Maschinen\noder Geräten zu berühren.\n• Bei Arbeiten mit\n Maschinen, z.B. Kranen, Baggern, Betonpumpen,\nBauaufzügen, mechanischen Leitern,\n sperrigen Lasten an Hebezeugen, wie z.B. Bewehrungseisen,\nSchalungselementen, Fertigteilen\n Einbauteilen, z.B. Stahlpfetten, Profilblechen\nist die Gefahr der unzulässigen Annäherung an Spannung führende\nFreileitungen besonders bei der Bemessung des\nSicherheitsabstandes zu berücksichtigen.\n• Die Schutzabstände dürfen durch örtliche Bedingungen nicht\nunterschritten werden.",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 27
+      },
+      {
+        "id": "asphaltbau-27-1-4",
+        "activity": "Arbeiten in der Nähe\nvon elektrischen\nFreileitungen",
+        "hazard": "• Durch unzureichende Abstimmung",
+        "measure": "• Vor Beginn der Arbeiten\n Erlaubnis zum Durchführen der Arbeiten vom\nAnlagenverantwortlichen einholen,\n Einweisung des Arbeitsverantwortlichen für die Bauarbeiten\ndurch den Anlagenverantwortlichen des Betreibers vor Ort,\n Beschäftigte durch den Arbeitsverantwortlichen einweisen\nund über die Gefahr informieren.\n müssen den Beschäftigten die Arbeitsgrenzen bekannt sein.\n• Die Einweisung und die Erlaubnis zum Durchführen der Arbeiten,\nsowie die Festlegung der Arbeitsgrenzen sollte dokumentiert\nwerden.\n• Bei Abweichungen von der geplanten Durchführung der Arbeiten\nentscheidet der Anlagenverantwortliche des Betreibers der\nFreileitung.\n• Für Notfälle muss für eine schnellstmögliche Ausschaltung\nmöglich sein. Dafür notwendige Kontaktmöglichkeiten sind vor\nBeginn der Arbeiten zu vereinbaren.",
+        "reference": "BG-Baustein\nC412",
+        "sourcePage": 27
+      },
+      {
+        "id": "asphaltbau-28-1-3",
+        "activity": "Allgemein",
+        "hazard": "• Mangelnde Erstversorgung von Verletzten",
+        "measure": "• Aushang „Anleitung zur Ersten Hilfe“ mit Rufnummern und\nAdresse von Notarzt, Rettungsdienst, Krankenhaus erstellen.\n• Ersthelfer in ausreichender Anzahl.\n• Mitarbeiter, die auf Baustellen von AG tätig sind werden in\ndessen Erste-Hilfe Systeme eingebunden.\n• Verbandskasten bereithalten.\n• Verbandbuch bereithalten und pflegen.",
+        "reference": "DGUV-V38\nAushang\nDGUV-V1\n§24,25,4",
+        "sourcePage": 28
+      },
+      {
+        "id": "asphaltbau-28-2-3",
+        "activity": "Allgemein",
+        "hazard": "• Verbrennung / Rauchvergiftung / Ersticken",
+        "measure": "• Feuerlöscher 6kg Pulver bei Bedarf vorhalten.\nUnterweisung (Bei Bedarf):\nMitarbeiter in den Umgang mit Feuerlöschern und Löschmitteln\neinweisen und einüben.",
+        "reference": "DGUV-V38\nDGUV-V1\nASR A2.2.",
+        "sourcePage": 28
+      }
+    ]
+  }
+]

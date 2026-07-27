@@ -95,6 +95,7 @@ model Project {
   safetyAccidentReports             SafetyAccidentReport[]
   safetyInstructionRecords          SafetyInstructionRecord[]
   projectStartChecklists            ProjectStartChecklist[]
+  generalRiskAssessments            GeneralRiskAssessment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1126,6 +1127,8 @@ model Employee {
   safetyAccidentReports           SafetyAccidentReport[]
   safetyInstructionSignatures     SafetyInstructionSignature[]
   projectStartChecklistParticipants ProjectStartChecklistParticipant[]
+  assessedGeneralRiskAssessments  GeneralRiskAssessment[]
+  generalRiskAssessmentParticipants GeneralRiskAssessmentParticipant[]
 
   notes String?
 
@@ -2568,6 +2571,69 @@ model ProjectStartChecklistParticipant {
 
   @@unique([checklistId, employeeId])
   @@index([checklistId])
+  @@index([employeeId])
+  @@index([instructionDate])
+  @@index([signedAt])
+}
+
+model GeneralRiskAssessment {
+  id String @id @default(cuid())
+
+  templateKey      String
+  templateCode     String
+  templateTitle    String
+  templateRevision String
+  sourcePdfPath    String
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  assessedEmployeeId String?
+  assessedEmployee   Employee? @relation(fields: [assessedEmployeeId], references: [id], onDelete: SetNull)
+
+  status             String   @default("DRAFT")
+  assessmentDate     DateTime @default(now())
+  location           String?
+  responsibleName    String?
+  responsibleSignatureDataUrl String?
+  presenterName      String?
+  presenterSignatureDataUrl String?
+  instructionTopics  String?
+  notes              String?
+  answersJson        String   @default("{}")
+  createdByName      String?
+
+  participants GeneralRiskAssessmentParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateKey])
+  @@index([projectId])
+  @@index([assessedEmployeeId])
+  @@index([status])
+  @@index([assessmentDate])
+}
+
+model GeneralRiskAssessmentParticipant {
+  id String @id @default(cuid())
+
+  assessmentId String
+  assessment   GeneralRiskAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  companyDepartment String?
+  signatureDataUrl  String?
+  instructionDate   DateTime?
+  signedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, employeeId])
+  @@index([assessmentId])
   @@index([employeeId])
   @@index([instructionDate])
   @@index([signedAt])
