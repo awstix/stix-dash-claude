@@ -602,7 +602,7 @@ async function resolveOwnTruckAssignment({
 
   if (!vehicle) {
     throw new Error(
-      `Für Fahrer ${driver.lastName}, ${driver.firstName} ist kein Stammfahrzeug hinterlegt. Bitte ein freies Fahrzeug auswählen.`,
+      `Für Fahrer ${driver.lastName}, ${driver.firstName} ist kein Hauptfahrzeug hinterlegt. Bitte ein freies Fahrzeug auswählen.`,
     );
   }
 

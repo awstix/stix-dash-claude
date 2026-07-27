@@ -289,7 +289,7 @@ export function LongHaulOwnTruckSuggestionForm({
 
       {!initialSuggestion ? (
         <div className="mt-3 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
-          Kein freier STIX-LKW mit hinterlegter Nutzlast und freiem Stammfahrer
+          Kein freier STIX-LKW mit hinterlegter Nutzlast und freiem zugeordneten Fahrer
           gefunden. Du kannst unten trotzdem manuell einteilen.
         </div>
       ) : null}
@@ -334,10 +334,10 @@ export function LongHaulOwnTruckSuggestionForm({
                   {driver.lastName}, {driver.firstName}
                   {primaryVehicle
                     ? ` · ${primaryVehicle.licensePlate ?? "-"} · ${primaryVehicle.category}`
-                    : " · kein Stammfahrzeug"}
+                    : " · kein Hauptfahrzeug"}
                   {conflict ? ` · bereits ${conflict}` : ""}
                   {!conflict && primaryVehicleConflict
-                    ? ` · Stammfahrzeug bereits ${primaryVehicleConflict}`
+                    ? ` · Hauptfahrzeug bereits ${primaryVehicleConflict}`
                     : ""}
                 </option>
               );

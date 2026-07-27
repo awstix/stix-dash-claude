@@ -240,7 +240,7 @@ function getPrimaryVehicleLabel(driver: DriverWithVehicles) {
   const vehicle = getPrimaryVehicle(driver);
 
   if (!vehicle) {
-    return "kein Stammfahrzeug";
+    return "kein Hauptfahrzeug";
   }
 
   return `${vehicle.licensePlate ?? "-"} · ${vehicle.category}`;
@@ -2294,13 +2294,13 @@ function DriverSelectOptions({
             {getPrimaryVehicleLabel(driver)}
             {driverConflict ? ` · bereits Langstrecke ${driverConflict}` : ""}
             {!driverConflict && primaryVehicleConflict
-              ? ` · Stammfahrzeug bereits Langstrecke ${primaryVehicleConflict}`
+              ? ` · Hauptfahrzeug bereits Langstrecke ${primaryVehicleConflict}`
               : ""}
             {shortDriverConflict
               ? ` · bereits Kurzstrecke ${shortDriverConflict}`
               : ""}
             {!shortDriverConflict && shortVehicleConflict
-              ? ` · Stammfahrzeug bereits Kurzstrecke ${shortVehicleConflict}`
+              ? ` · Hauptfahrzeug bereits Kurzstrecke ${shortVehicleConflict}`
               : ""}
           </option>
         );

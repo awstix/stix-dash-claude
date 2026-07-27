@@ -263,10 +263,10 @@ function getPrimaryVehicleText(driver: {
   const primaryVehicle = driver.vehicleAssignments[0]?.vehicle;
 
   if (!primaryVehicle) {
-    return "Stammfahrzeug: kein Stammfahrzeug";
+    return "Hauptfahrzeug: kein Hauptfahrzeug";
   }
 
-  return `Stammfahrzeug: ${getVehicleLabel(primaryVehicle)}`;
+  return `Hauptfahrzeug: ${getVehicleLabel(primaryVehicle)}`;
 }
 
 function addUniqueLabel(labels: string[], label: string | null) {
@@ -1376,7 +1376,7 @@ export default async function ShortHaulPage({
         kind: "VEHICLE" as const,
         title: `${vehicle.vehicleNumber} · ${vehicle.licensePlate ?? "-"}`,
         subtitle: assignedDriver
-          ? `Stammfahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
+          ? `Zugeordneter Fahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
           : `frei zugeordnet · ${vehicle.category} · ${vehicle.vehicleType}`,
         shortHaulAssignmentId: dayAssignment?.id,
         dayDriverId:
@@ -1801,7 +1801,7 @@ export default async function ShortHaulPage({
             {formatGermanDate(selectedDate)}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            Fahrer mit Stammfahrzeug können direkt gewählt werden. Neue Touren
+            Fahrer mit Hauptfahrzeug können direkt gewählt werden. Neue Touren
             starten automatisch mit dem Ende der vorherigen Tour.
           </p>
         </div>
@@ -2551,10 +2551,10 @@ export default async function ShortHaulPage({
             title: `${driver.lastName}, ${driver.firstName}`,
             description:
               driver.vehicleAssignments[0]?.vehicle != null
-                ? `Stammfahrzeug: ${getVehicleLabel(
+                ? `Hauptfahrzeug: ${getVehicleLabel(
                     driver.vehicleAssignments[0].vehicle
                   )}`
-                : "kein Stammfahrzeug",
+                : "kein Hauptfahrzeug",
           }))}
         />
 

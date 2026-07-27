@@ -84,7 +84,7 @@ function getPrimaryVehicleLabel(driver: DriverOption) {
   const vehicle = getPrimaryVehicle(driver);
 
   if (!vehicle) {
-    return "kein Stammfahrzeug";
+    return "kein Hauptfahrzeug";
   }
 
   return `${vehicle.licensePlate ?? "-"} · ${vehicle.category}`;
@@ -835,7 +835,7 @@ export function ShortHaulForm({
 
       {selectedDriver ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-          Stammfahrzeug-Vorschlag:{" "}
+          Hauptfahrzeug-Vorschlag:{" "}
           <span className="font-semibold text-gray-900">
             {getPrimaryVehicleLabel(selectedDriver)}
           </span>
@@ -847,7 +847,7 @@ export function ShortHaulForm({
           <div className="font-semibold">Bitte Fahrzeug auswählen</div>
           <p className="mt-1 text-red-800">
             Der gewählte Fahrer hat kein automatisch gesetztes verfügbares
-            Stammfahrzeug. Bitte wähle rechts ein Fahrzeug aus.
+            Hauptfahrzeug. Bitte wähle rechts ein Fahrzeug aus.
           </p>
 
           <button

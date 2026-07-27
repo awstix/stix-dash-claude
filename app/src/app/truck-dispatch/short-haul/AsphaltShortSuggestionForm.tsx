@@ -520,10 +520,10 @@ export function AsphaltShortSuggestionForm({
                             {driver.lastName}, {driver.firstName}
                             {primaryVehicle
                               ? ` · ${getVehicleLabel(primaryVehicle)}`
-                              : " · kein Stammfahrzeug"}
+                              : " · kein Hauptfahrzeug"}
                             {conflict ? ` · bereits ${conflict}` : ""}
                             {primaryVehicleConflict
-                              ? ` · Stammfahrzeug bereits ${primaryVehicleConflict}`
+                              ? ` · Hauptfahrzeug bereits ${primaryVehicleConflict}`
                               : ""}
                             {duplicateConflict ? " · bereits in Vorschlägen" : ""}
                           </option>
@@ -677,7 +677,7 @@ export function AsphaltShortSuggestionForm({
         {!nextSuggestedRow && remainingAfterRows > 0 ? (
           <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
             Für die Restmenge wurde kein weiterer freier LKW mit Nutzlast und
-            freiem Stammfahrer gefunden. Du kannst manuell eine weitere Zeile
+            freiem zugeordneten Fahrer gefunden. Du kannst manuell eine weitere Zeile
             ergänzen oder Inventar/Zuordnung prüfen.
           </div>
         ) : null}

@@ -284,8 +284,8 @@ export function TackCoatShortAllocationForm({
                   {conflict ? `belegt ${conflict} · ` : ""}
                   {driver.lastName}, {driver.firstName}
                   {primaryVehicle
-                    ? ` · Stammfahrzeug ${getVehicleLabel(primaryVehicle)}`
-                    : " · kein Stammfahrzeug"}
+                    ? ` · Hauptfahrzeug ${getVehicleLabel(primaryVehicle)}`
+                    : " · kein Hauptfahrzeug"}
                 </option>
               );
             })}

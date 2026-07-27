@@ -123,7 +123,7 @@ function getPrimaryVehicleLabel(driver: DriverWithVehicles) {
   const vehicle = getPrimaryVehicle(driver);
 
   if (!vehicle) {
-    return "kein Stammfahrzeug";
+    return "kein Hauptfahrzeug";
   }
 
   return `${vehicle.licensePlate ?? "-"} · ${vehicle.category}`;
@@ -247,13 +247,13 @@ function DriverOptions({
             {getPrimaryVehicleLabel(driver)}
             {driverConflict ? ` · bereits Langstrecke ${driverConflict}` : ""}
             {!driverConflict && primaryVehicleConflict
-              ? ` · Stammfahrzeug bereits Langstrecke ${primaryVehicleConflict}`
+              ? ` · Hauptfahrzeug bereits Langstrecke ${primaryVehicleConflict}`
               : ""}
             {shortDriverConflict
               ? ` · bereits Kurzstrecke ${shortDriverConflict}`
               : ""}
             {!shortDriverConflict && shortVehicleConflict
-              ? ` · Stammfahrzeug bereits Kurzstrecke ${shortVehicleConflict}`
+              ? ` · Hauptfahrzeug bereits Kurzstrecke ${shortVehicleConflict}`
               : ""}
             {duplicateConflict ? ` · ${duplicateConflict}` : ""}
           </option>
@@ -904,7 +904,7 @@ export function InitialTruckRows({
           <div>
             <div className="text-sm font-semibold text-gray-900">LKW-STIX</div>
             <p className="mt-1 text-xs text-gray-500">
-              Fahrer und Stammfahrzeug werden automatisch miteinander
+              Fahrer und Hauptfahrzeug werden automatisch miteinander
               übernommen. Touren und t/Tour werden direkt als geplante Leistung
               gespeichert. Die Tourenzahl wird aus Materialmenge und
               Fahrzeug-Nutzlast vorgeschlagen.
@@ -986,7 +986,7 @@ export function InitialTruckRows({
               </div>
             ) : (
               <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-medium text-yellow-900">
-                Keine freie STIX-Kombination mit Nutzlast und freiem Stammfahrer
+                Keine freie STIX-Kombination mit Nutzlast und freiem zugeordneten Fahrer
                 gefunden. Bitte manuell einteilen oder Inventar/Zuordnung prüfen.
               </div>
             )
@@ -1216,13 +1216,13 @@ export function InitialTruckRows({
                       {selectedDriver.lastName}, {selectedDriver.firstName}
                     </span>
                     {" · "}
-                    Stammfahrzeug:{" "}
+                    Hauptfahrzeug:{" "}
                     <span className="font-semibold text-gray-900">
                       {primaryVehicle
                         ? `${primaryVehicle.vehicleNumber} · ${
                             primaryVehicle.licensePlate ?? "-"
                           } · ${primaryVehicle.category}`
-                        : "kein Stammfahrzeug"}
+                        : "kein Hauptfahrzeug"}
                     </span>
                   </div>
                 ) : null}
@@ -1245,14 +1245,14 @@ export function InitialTruckRows({
                     {vehicleAssignedDriver ? (
                       <>
                         {" · "}
-                        Stammfahrer:{" "}
+                        Zugeordneter Fahrer:{" "}
                         <span className="font-semibold">
                           {vehicleAssignedDriver.lastName},{" "}
                           {vehicleAssignedDriver.firstName}
                         </span>
                       </>
                     ) : (
-                      " · kein Stammfahrer hinterlegt"
+                      " · kein zugeordneter Fahrer hinterlegt"
                     )}
                   </div>
                 ) : null}
@@ -1260,14 +1260,14 @@ export function InitialTruckRows({
                 {driverSelectedButNoVehicle ? (
                   <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-semibold text-yellow-900">
                     Fahrzeug zuweisen: Der gewählte Fahrer hat kein verfügbares
-                    Stammfahrzeug. Bitte rechts ein Fahrzeug auswählen.
+                    Hauptfahrzeug. Bitte rechts ein Fahrzeug auswählen.
                   </div>
                 ) : null}
 
                 {vehicleSelectedButNoDriver ? (
                   <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-semibold text-yellow-900">
                     Fahrer zuweisen: Für das gewählte Fahrzeug wurde kein
-                    Stammfahrer übernommen. Bitte links einen Fahrer auswählen.
+                    zugeordneten Fahrer übernommen. Bitte links einen Fahrer auswählen.
                   </div>
                 ) : null}
               </div>

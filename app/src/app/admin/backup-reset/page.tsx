@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { getResetPreview } from "@/lib/data-maintenance";
-import {
-  cleanupLegacyMasterDataAction,
-  resetDashboardDataAction,
-} from "./actions";
+import { resetDashboardDataAction } from "./actions";
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("de-DE").format(value);
@@ -242,33 +239,20 @@ export default async function BackupResetPage({
           </form>
         </section>
 
-        <section className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <h2 className="text-xl font-bold text-amber-950">
-                Alte Stammdaten-Leichen bereinigen
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-700">
-                Löscht nur die alten Listen für Material, Asphalt und Beton.
-                Das neue Inventar, Inventarkategorien, Mitarbeiter, Projekte
-                und Dispositionen bleiben erhalten. Vorher wird automatisch ein
-                Datenbank-Backup erstellt.
-              </p>
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                Die interne Fahrzeug-Brücke bleibt vorerst erhalten, bis alle
-                Dispositionen vollständig direkt auf Inventarobjekte zugreifen.
-              </p>
-            </div>
-
-            <form action={cleanupLegacyMasterDataAction}>
-              <button
-                type="submit"
-                className="rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white hover:bg-amber-700"
-              >
-                Alte Stammdaten bereinigen
-              </button>
-            </form>
-          </div>
+        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-blue-950">
+            Technische Inventar-Brücken
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-blue-950/80">
+            Die früheren Material- und Asphaltlisten sind in der Oberfläche
+            ausgeblendet, werden intern aber noch für bestehende Dispositionen
+            und Bautagesberichte benötigt. Neue Einträge werden über das
+            Inventar gepflegt und technisch synchronisiert.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-blue-950/65">
+            Eine Bereinigung ist erst möglich, wenn alle Relationen vollständig
+            auf Inventarobjekte umgestellt wurden.
+          </p>
         </section>
       </div>
     </AppShell>

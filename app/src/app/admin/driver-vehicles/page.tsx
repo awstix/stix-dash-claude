@@ -1052,7 +1052,7 @@ export default async function DriverVehiclesPage({
             Bemerkung
             <input
               name="notes"
-              placeholder="z.B. Stammfahrzeug"
+              placeholder="z.B. Hauptfahrzeug"
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
             />
           </label>
@@ -1450,7 +1450,7 @@ export default async function DriverVehiclesPage({
                         <input
                           form={formId}
                           name="notes"
-                          placeholder="z.B. Stammfahrzeug"
+                          placeholder="z.B. Hauptfahrzeug"
                           className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                         />
                       </Td>

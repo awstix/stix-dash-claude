@@ -290,8 +290,8 @@ export function AsphaltShortAllocationForm({
                   {conflict ? `⚠ ${conflict} · ` : ""}
                   {driver.lastName}, {driver.firstName}
                   {primaryVehicle
-                    ? ` · Stammfahrzeug ${getVehicleLabel(primaryVehicle)}`
-                    : " · kein Stammfahrzeug"}
+                    ? ` · Hauptfahrzeug ${getVehicleLabel(primaryVehicle)}`
+                    : " · kein Hauptfahrzeug"}
                 </option>
               );
             })}

@@ -161,10 +161,10 @@ function getPrimaryVehicleLabel(driver: {
   const primaryVehicle = driver.vehicleAssignments[0]?.vehicle;
 
   if (!primaryVehicle) {
-    return "Stammfahrzeug: kein Stammfahrzeug";
+    return "Hauptfahrzeug: kein Hauptfahrzeug";
   }
 
-  return `Stammfahrzeug: ${getVehicleLabel(primaryVehicle)}`;
+  return `Hauptfahrzeug: ${getVehicleLabel(primaryVehicle)}`;
 }
 
 function addUniqueLabel(labels: string[], label: string | null) {
@@ -808,7 +808,7 @@ export default async function TruckDispatchPage({
         kind: "VEHICLE" as const,
         title: `${vehicle.vehicleNumber} · ${vehicle.licensePlate ?? "-"}`,
         subtitle: assignedDriver
-          ? `Stammfahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
+          ? `Zugeordneter Fahrer: ${assignedDriver.lastName}, ${assignedDriver.firstName} · ${vehicle.category}`
           : `frei zugeordnet · ${vehicle.category} · ${vehicle.vehicleType}`,
         inventoryHref: inventoryItem ? `/inventory/${inventoryItem.id}` : undefined,
         inventoryLabel: inventoryLabel ?? undefined,
