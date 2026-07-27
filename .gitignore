@@ -5,3 +5,5 @@ node_modules
 dist
 build
 .DS_Store
+app/public/uploads/safety-data-sheets/**
+app/public/uploads/safety-operating-instructions/**

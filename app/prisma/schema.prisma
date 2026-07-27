@@ -2455,9 +2455,23 @@ model SafetyInstructionSignature {
 model SafetyHazardousSubstance {
   id String @id @default(cuid())
 
+  templateRowId      String?  @unique
   name               String
   manufacturer       String?
   category           String?
+  registerSection    String   @default("HAZARDOUS")
+  sequentialNumber   String?
+  substanceType      String?
+  safetyDataSheetPresent Boolean @default(false)
+  safetyDataSheetDate DateTime?
+  operatingInstructionPresent Boolean @default(false)
+  operatingInstructionTemplateIds String?
+  packageUnit        String?
+  quantity           Float?
+  repeatYears        Int?
+  repeatMonths       Int?
+  repeatDays         Int?
+  nextReviewDate     DateTime?
   usageArea          String?
   storagePlace       String?
   signalWord         String?
@@ -2478,7 +2492,24 @@ model SafetyHazardousSubstance {
 
   @@index([name])
   @@index([category])
+  @@index([registerSection])
   @@index([isActive])
+}
+
+model SafetyHazardRule {
+  id String @id @default(cuid())
+
+  topic          String
+  source         String
+  section        String?
+  text           String
+  implementation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([topic])
+  @@index([source])
 }
 
 model SafetyDataSheet {
@@ -2494,6 +2525,7 @@ model SafetyDataSheet {
   publicUrl        String
   storagePath      String
   mimeType         String?
+  documentType     String @default("SDB")
   fileSizeBytes    Int?
   uploadedByName   String?
 
@@ -2504,4 +2536,5 @@ model SafetyDataSheet {
   @@index([hazardousSubstanceId])
   @@index([versionDate])
   @@index([uploadedAt])
+  @@index([documentType])
 }

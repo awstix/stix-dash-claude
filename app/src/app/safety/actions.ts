@@ -1,13 +1,17 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import {
+  nextHazardSequentialNumber,
+  readHazardRegisterTemplate,
+} from "@/lib/hazard-register";
 import {
   PROJECT_FORM_FIELD_TYPES,
   type ProjectFormFieldDefinition,
@@ -50,6 +54,18 @@ function optionalDateValue(value: FormDataEntryValue | null) {
 
 function checked(value: FormDataEntryValue | null) {
   return value === "on" || value === "true" || value === "1";
+}
+
+function optionalNumber(value: FormDataEntryValue | null) {
+  const text = optionalString(value)?.replace(",", ".");
+  if (!text) return null;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
+}
+
+function optionalInteger(value: FormDataEntryValue | null) {
+  const number = optionalNumber(value);
+  return number === null ? null : Math.max(0, Math.trunc(number));
 }
 
 type SafetyFormTemplateInput = {
@@ -301,7 +317,12 @@ async function saveAccidentPhotos(reportId: string, files: File[]) {
   });
 }
 
-async function saveSafetyDataSheets(substanceId: string, files: File[], versionDate: Date | null) {
+async function saveSafetyDocuments(
+  substanceId: string,
+  files: File[],
+  versionDate: Date | null,
+  documentType: "BA" | "SDB",
+) {
   const usableFiles = files.filter((file) => file.size > 0);
 
   if (usableFiles.length === 0) {
@@ -312,7 +333,7 @@ async function saveSafetyDataSheets(substanceId: string, files: File[], versionD
     process.cwd(),
     "public",
     "uploads",
-    "safety-data-sheets",
+    documentType === "BA" ? "safety-operating-instructions" : "safety-data-sheets",
     substanceId,
   );
 
@@ -327,12 +348,19 @@ async function saveSafetyDataSheets(substanceId: string, files: File[], versionD
     const extension = originalExtension || (file.type === "application/pdf" ? ".pdf" : fileExtension(file));
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
     const storagePath = path.join(uploadDir, fileName);
-    const publicUrl = `/uploads/safety-data-sheets/${substanceId}/${fileName}`;
+    const publicUrl = `/uploads/${
+      documentType === "BA"
+        ? "safety-operating-instructions"
+        : "safety-data-sheets"
+    }/${substanceId}/${fileName}`;
 
     await writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
 
     rows.push({
-      displayName: file.name || "Sicherheitsdatenblatt",
+      displayName:
+        file.name ||
+        (documentType === "BA" ? "Betriebsanweisung" : "Sicherheitsdatenblatt"),
+      documentType,
       fileName,
       fileSizeBytes: file.size,
       hazardousSubstanceId: substanceId,
@@ -570,38 +598,342 @@ export async function deleteSafetyAccidentReport(formData: FormData) {
   redirect("/safety/accidents");
 }
 
-export async function createHazardousSubstance(formData: FormData) {
-  const substance = await prisma.safetyHazardousSubstance.create({
-    data: {
-      category: optionalString(formData.get("category")),
-      disposalNotes: optionalString(formData.get("disposalNotes")),
-      firstAidMeasures: optionalString(formData.get("firstAidMeasures")),
-      hStatements: optionalString(formData.get("hStatements")),
-      hazardSymbols: optionalString(formData.get("hazardSymbols")),
-      isActive: true,
-      manufacturer: optionalString(formData.get("manufacturer")),
-      name: requiredString(formData.get("name"), "Gefahrstoff"),
-      notes: optionalString(formData.get("notes")),
-      pStatements: optionalString(formData.get("pStatements")),
-      protectiveMeasures: optionalString(formData.get("protectiveMeasures")),
-      responsibleName: optionalString(formData.get("responsibleName")),
-      signalWord: optionalString(formData.get("signalWord")),
-      storagePlace: optionalString(formData.get("storagePlace")),
-      usageArea: optionalString(formData.get("usageArea")),
+async function hazardousSubstanceSequentialNumber(
+  requestedValue: FormDataEntryValue | null,
+  currentId?: string,
+  templateRowId?: string | null,
+) {
+  const requested = optionalString(requestedValue);
+  const templateNumbers = readHazardRegisterTemplate().rows
+    .filter((row) => row.id !== templateRowId)
+    .map((row) => row.sequentialNumber);
+  const databaseRows = await prisma.safetyHazardousSubstance.findMany({
+    select: {
+      id: true,
+      sequentialNumber: true,
     },
   });
+  const otherDatabaseRows = databaseRows.filter((row) => row.id !== currentId);
+  const occupied = [
+    ...templateNumbers,
+    ...otherDatabaseRows.map((row) => row.sequentialNumber),
+  ];
 
+  if (!requested) {
+    return nextHazardSequentialNumber(occupied);
+  }
+
+  if (!/^[1-9]\d*$/.test(requested)) {
+    throw new Error("Die laufende Nummer muss eine positive ganze Zahl sein.");
+  }
+
+  if (occupied.some((value) => String(value ?? "").trim() === requested)) {
+    throw new Error(`Die laufende Nummer ${requested} ist bereits vergeben.`);
+  }
+
+  return requested;
+}
+
+function hazardousSubstanceData(
+  formData: FormData,
+  safetyDataSheetFiles: File[],
+  operatingInstructionFiles: File[],
+  safetyDataSheetDate: Date | null,
+  sequentialNumber: string,
+  existingSdbPresent = false,
+  existingBaPresent = false,
+) {
+  const operatingInstructionTemplateIds = formData
+    .getAll("operatingInstructionTemplateId")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const usageAreas = [
+    ...formData.getAll("usageArea"),
+    ...formData.getAll("customUsageArea"),
+  ]
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  return {
+    category: optionalString(formData.get("category")),
+    disposalNotes: optionalString(formData.get("disposalNotes")),
+    firstAidMeasures: optionalString(formData.get("firstAidMeasures")),
+    hStatements: optionalString(formData.get("hStatements")),
+    hazardSymbols: formData
+      .getAll("hazardSymbol")
+      .map((value) => String(value).trim())
+      .filter(Boolean)
+      .join(", "),
+    isActive: true,
+    manufacturer: optionalString(formData.get("manufacturer")),
+    name: requiredString(formData.get("name"), "Gefahrstoff"),
+    nextReviewDate: optionalDateValue(formData.get("nextReviewDate")),
+    notes: optionalString(formData.get("notes")),
+    operatingInstructionPresent:
+      existingBaPresent ||
+      operatingInstructionFiles.length > 0 ||
+      operatingInstructionTemplateIds.length > 0,
+    operatingInstructionTemplateIds:
+      operatingInstructionTemplateIds.join(", ") || null,
+    packageUnit: optionalString(formData.get("packageUnit")),
+    pStatements: optionalString(formData.get("pStatements")),
+    protectiveMeasures: optionalString(formData.get("protectiveMeasures")),
+    quantity: optionalNumber(formData.get("quantity")),
+    registerSection:
+      optionalString(formData.get("registerSection")) === "WITHOUT_BA"
+        ? "WITHOUT_BA"
+        : "HAZARDOUS",
+    repeatDays: optionalInteger(formData.get("repeatDays")),
+    repeatMonths: optionalInteger(formData.get("repeatMonths")),
+    repeatYears: optionalInteger(formData.get("repeatYears")),
+    responsibleName: optionalString(formData.get("responsibleName")),
+    safetyDataSheetDate,
+    safetyDataSheetPresent:
+      existingSdbPresent ||
+      checked(formData.get("safetyDataSheetPresent")) ||
+      safetyDataSheetFiles.length > 0,
+    sequentialNumber,
+    signalWord: optionalString(formData.get("signalWord")),
+    storagePlace: optionalString(formData.get("storagePlace")),
+    substanceType: optionalString(formData.get("substanceType")),
+    templateRowId: optionalString(formData.get("templateRowId")),
+    usageArea: Array.from(new Set(usageAreas)).join(" + ") || null,
+  };
+}
+
+export async function createHazardousSubstance(formData: FormData) {
   const files = formData
     .getAll("safetyDataSheets")
-    .filter((entry): entry is File => entry instanceof File);
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const operatingInstructionFiles = formData
+    .getAll("operatingInstructionFiles")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const safetyDataSheetDate = optionalDateValue(
+    formData.get("safetyDataSheetDate"),
+  );
+  const sequentialNumber = await hazardousSubstanceSequentialNumber(
+    formData.get("sequentialNumber"),
+    undefined,
+    optionalString(formData.get("templateRowId")),
+  );
 
-  await saveSafetyDataSheets(
+  const substance = await prisma.safetyHazardousSubstance.create({
+    data: hazardousSubstanceData(
+      formData,
+      files,
+      operatingInstructionFiles,
+      safetyDataSheetDate,
+      sequentialNumber,
+    ),
+  });
+
+  await saveSafetyDocuments(
     substance.id,
     files,
-    optionalDateValue(formData.get("versionDate")),
+    safetyDataSheetDate,
+    "SDB",
+  );
+  await saveSafetyDocuments(
+    substance.id,
+    operatingInstructionFiles,
+    null,
+    "BA",
   );
 
   revalidatePath("/safety");
+  revalidatePath("/safety/hazardous-substances");
+}
+
+export async function updateHazardousSubstance(formData: FormData) {
+  const id = requiredString(formData.get("id"), "Gefahrstoff");
+  const existing = await prisma.safetyHazardousSubstance.findUnique({
+    where: { id },
+  });
+  if (!existing?.isActive) {
+    throw new Error("Der Gefahrstoff ist nicht aktiv oder wurde nicht gefunden.");
+  }
+
+  const files = formData
+    .getAll("safetyDataSheets")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const operatingInstructionFiles = formData
+    .getAll("operatingInstructionFiles")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const existingDocuments = await prisma.safetyDataSheet.findMany({
+    select: { documentType: true },
+    where: { hazardousSubstanceId: id },
+  });
+  const safetyDataSheetDate = optionalDateValue(
+    formData.get("safetyDataSheetDate"),
+  );
+  const sequentialNumber = await hazardousSubstanceSequentialNumber(
+    formData.get("sequentialNumber"),
+    id,
+  );
+
+  await prisma.safetyHazardousSubstance.update({
+    data: hazardousSubstanceData(
+      formData,
+      files,
+      operatingInstructionFiles,
+      safetyDataSheetDate,
+      sequentialNumber,
+      existingDocuments.some((document) => document.documentType === "SDB"),
+      existingDocuments.some((document) => document.documentType === "BA"),
+    ),
+    where: { id },
+  });
+  await saveSafetyDocuments(id, files, safetyDataSheetDate, "SDB");
+  await saveSafetyDocuments(id, operatingInstructionFiles, null, "BA");
+
+  revalidatePath("/safety/hazardous-substances");
+}
+
+export async function archiveHazardousSubstance(formData: FormData) {
+  const id = requiredString(formData.get("id"), "Gefahrstoff");
+  await prisma.safetyHazardousSubstance.update({
+    data: { isActive: false },
+    where: { id },
+  });
+  revalidatePath("/safety/hazardous-substances");
+  revalidatePath("/safety/hazardous-substances/archive");
+}
+
+export async function archiveTemplateHazardousSubstance(formData: FormData) {
+  const templateRowId = requiredString(
+    formData.get("templateRowId"),
+    "Excel-Zeile",
+  );
+  const sequentialNumber = requiredString(
+    formData.get("sequentialNumber"),
+    "Laufende Nummer",
+  );
+  await prisma.safetyHazardousSubstance.create({
+    data: {
+      category: optionalString(formData.get("category")),
+      hazardSymbols: optionalString(formData.get("hazardSymbols")),
+      isActive: false,
+      manufacturer: optionalString(formData.get("manufacturer")),
+      name: requiredString(formData.get("name"), "Gefahrstoff"),
+      operatingInstructionPresent: checked(
+        formData.get("operatingInstructionPresent"),
+      ),
+      packageUnit: optionalString(formData.get("packageUnit")),
+      quantity: optionalNumber(formData.get("quantity")),
+      registerSection:
+        optionalString(formData.get("registerSection")) === "WITHOUT_BA"
+          ? "WITHOUT_BA"
+          : "HAZARDOUS",
+      repeatDays: optionalInteger(formData.get("repeatDays")),
+      repeatMonths: optionalInteger(formData.get("repeatMonths")),
+      repeatYears: optionalInteger(formData.get("repeatYears")),
+      safetyDataSheetDate: optionalDateValue(formData.get("safetyDataSheetDate")),
+      safetyDataSheetPresent: checked(formData.get("safetyDataSheetPresent")),
+      sequentialNumber,
+      substanceType: optionalString(formData.get("substanceType")),
+      templateRowId,
+      usageArea: optionalString(formData.get("usageArea")),
+    },
+  });
+  revalidatePath("/safety/hazardous-substances");
+  revalidatePath("/safety/hazardous-substances/archive");
+}
+
+export async function restoreHazardousSubstance(formData: FormData) {
+  const id = requiredString(formData.get("id"), "Gefahrstoff");
+  await prisma.safetyHazardousSubstance.update({
+    data: { isActive: true },
+    where: { id },
+  });
+  revalidatePath("/safety/hazardous-substances");
+  revalidatePath("/safety/hazardous-substances/archive");
+}
+
+export async function deleteHazardousSubstancePermanently(formData: FormData) {
+  const id = requiredString(formData.get("id"), "Gefahrstoff");
+  const substance = await prisma.safetyHazardousSubstance.findUnique({
+    select: { isActive: true },
+    where: { id },
+  });
+  if (!substance) return;
+  if (substance.isActive) {
+    throw new Error(
+      "Der Gefahrstoff muss vor dem endgültigen Löschen archiviert werden.",
+    );
+  }
+
+  await prisma.safetyHazardousSubstance.delete({ where: { id } });
+  revalidatePath("/safety/hazardous-substances");
+  revalidatePath("/safety/hazardous-substances/archive");
+}
+
+export async function deleteSafetyDataSheet(formData: FormData) {
+  const id = requiredString(formData.get("id"), "Sicherheitsdatenblatt");
+  const document = await prisma.safetyDataSheet.findUnique({
+    select: {
+      documentType: true,
+      hazardousSubstanceId: true,
+      storagePath: true,
+    },
+    where: { id },
+  });
+  if (!document) return;
+
+  const allowedRoots = ["safety-data-sheets", "safety-operating-instructions"].map(
+    (folder) =>
+      path.resolve(process.cwd(), "public", "uploads", folder),
+  );
+  const storedPath = path.resolve(document.storagePath);
+  if (
+    !allowedRoots.some((root) => storedPath.startsWith(`${root}${path.sep}`))
+  ) {
+    throw new Error("Ungültiger Speicherort des Sicherheitsdatenblatts.");
+  }
+
+  await prisma.safetyDataSheet.delete({ where: { id } });
+  await rm(storedPath, { force: true });
+
+  const remaining = await prisma.safetyDataSheet.count({
+    where: {
+      documentType: document.documentType,
+      hazardousSubstanceId: document.hazardousSubstanceId,
+    },
+  });
+  if (remaining === 0) {
+    const substance =
+      document.documentType === "BA"
+        ? await prisma.safetyHazardousSubstance.findUnique({
+            select: { operatingInstructionTemplateIds: true },
+            where: { id: document.hazardousSubstanceId },
+          })
+        : null;
+    await prisma.safetyHazardousSubstance.update({
+      data:
+        document.documentType === "BA"
+          ? {
+              operatingInstructionPresent: Boolean(
+                substance?.operatingInstructionTemplateIds?.trim(),
+              ),
+            }
+          : { safetyDataSheetPresent: false },
+      where: { id: document.hazardousSubstanceId },
+    });
+  }
+
+  revalidatePath("/safety/hazardous-substances");
+}
+
+export async function createSafetyHazardRule(formData: FormData) {
+  await prisma.safetyHazardRule.create({
+    data: {
+      implementation: optionalString(formData.get("implementation")),
+      section: optionalString(formData.get("section")),
+      source: requiredString(formData.get("source"), "Quelle"),
+      text: requiredString(formData.get("text"), "Text"),
+      topic: requiredString(formData.get("topic"), "Thema"),
+    },
+  });
+
   revalidatePath("/safety/hazardous-substances");
 }
 

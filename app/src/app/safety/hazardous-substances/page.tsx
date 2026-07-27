@@ -1,376 +1,444 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 
 import { AppShell } from "@/components/AppShell";
+import { HAZARD_SYMBOLS } from "@/lib/hazard-register-constants";
+import {
+  nextHazardSequentialNumber,
+  type HazardRegisterRow,
+  readHazardRegisterTemplate,
+} from "@/lib/hazard-register";
 import { prisma } from "@/lib/prisma";
 
-import { createHazardousSubstance } from "../actions";
+import { HazardRegisterTabs } from "./HazardRegisterTabs";
+import { HazardRuleModal } from "./HazardRuleModal";
+import { HazardousSubstanceArchiveDialog } from "./HazardousSubstanceArchiveDialog";
+import { HazardousSubstanceDetailsDialog } from "./HazardousSubstanceDetailsDialog";
+import { HazardousSubstanceModal } from "./HazardousSubstanceModal";
+import type { EditableHazardousSubstance } from "./HazardousSubstanceModal";
+
+export const dynamic = "force-dynamic";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
-
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }
 
-export default async function HazardousSubstancesPage() {
-  const substances = await prisma.safetyHazardousSubstance.findMany({
-    include: {
-      safetyDataSheets: {
-        orderBy: [
-          {
-            versionDate: "desc",
-          },
-          {
-            uploadedAt: "desc",
-          },
-        ],
-      },
-    },
-    orderBy: [
-      {
-        category: "asc",
-      },
-      {
-        name: "asc",
-      },
-    ],
-  });
+function inputDate(date: Date | null) {
+  return date ? date.toISOString().slice(0, 10) : null;
+}
 
-  const activeCount = substances.filter((substance) => substance.isActive).length;
-  const sheetCount = substances.reduce(
-    (sum, substance) => sum + substance.safetyDataSheets.length,
-    0,
+function editableRow(row: HazardRegisterRow): EditableHazardousSubstance {
+  return {
+    category: row.category,
+    dataSheets: row.dataSheets.map((sheet) => ({
+      displayName: sheet.displayName,
+      documentType: sheet.documentType,
+      id: sheet.id,
+      publicUrl: sheet.publicUrl,
+      uploadedAt: sheet.uploadedAt.toISOString(),
+      versionDate: inputDate(sheet.versionDate),
+    })),
+    hazardSymbols: row.hazardSymbols,
+    id: row.id,
+    manufacturer: row.manufacturer,
+    name: row.name,
+    nextReviewDate: inputDate(row.nextReviewDate),
+    operatingInstructionPresent: row.operatingInstructionPresent,
+    operatingInstructionTemplateIds: row.operatingInstructionTemplateIds,
+    packageUnit: row.packageUnit,
+    quantity: row.quantity,
+    registerSection: row.registerSection,
+    repeatDays: row.repeatDays,
+    repeatMonths: row.repeatMonths,
+    repeatYears: row.repeatYears,
+    safetyDataSheetDate: inputDate(row.safetyDataSheetDate),
+    safetyDataSheetPresent: row.safetyDataSheetPresent,
+    sequentialNumber: row.sequentialNumber,
+    substanceType: row.substanceType,
+    usageArea: row.usageArea,
+  };
+}
+
+type HazardousSubstanceWithSheets =
+  Prisma.SafetyHazardousSubstanceGetPayload<{
+    include: { safetyDataSheets: true };
+  }>;
+
+function databaseRow(
+  substance: HazardousSubstanceWithSheets,
+): HazardRegisterRow {
+  return {
+    category: substance.category,
+    dataSheets: substance.safetyDataSheets.map((sheet) => ({
+      displayName: sheet.displayName,
+      documentType: sheet.documentType,
+      id: sheet.id,
+      publicUrl: sheet.publicUrl,
+      uploadedAt: sheet.uploadedAt,
+      versionDate: sheet.versionDate,
+    })),
+    hazardSymbols: String(substance.hazardSymbols ?? "")
+      .split(/[^A-Z0-9]+/)
+      .filter((value) => /^GHS0[1-9]$/.test(value)),
+    id: substance.id,
+    manufacturer: substance.manufacturer,
+    name: substance.name,
+    nextReviewDate: substance.nextReviewDate,
+    operatingInstructionPresent: substance.operatingInstructionPresent,
+    operatingInstructionTemplateIds: String(
+      substance.operatingInstructionTemplateIds ?? "",
+    )
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+    packageUnit: substance.packageUnit,
+    quantity: substance.quantity,
+    registerSection:
+      substance.registerSection === "WITHOUT_BA" ? "WITHOUT_BA" : "HAZARDOUS",
+    repeatDays: substance.repeatDays,
+    repeatMonths: substance.repeatMonths,
+    repeatYears: substance.repeatYears,
+    safetyDataSheetDate: substance.safetyDataSheetDate,
+    safetyDataSheetPresent: substance.safetyDataSheetPresent,
+    sequentialNumber: substance.sequentialNumber,
+    source: "database",
+    substanceType: substance.substanceType,
+    usageArea: substance.usageArea,
+  };
+}
+
+export default async function HazardousSubstancesPage() {
+  const [
+    { rows: templateRows, rules: templateRules },
+    substances,
+    savedRules,
+    operatingInstructionTemplates,
+  ] =
+    await Promise.all([
+    Promise.resolve(readHazardRegisterTemplate()),
+    prisma.safetyHazardousSubstance.findMany({
+      include: {
+        safetyDataSheets: {
+          orderBy: [{ versionDate: "desc" }, { uploadedAt: "desc" }],
+        },
+      },
+      orderBy: [{ createdAt: "asc" }],
+    }),
+    prisma.safetyHazardRule.findMany({
+      orderBy: [{ createdAt: "asc" }],
+    }),
+    prisma.safetyInstructionTemplate.findMany({
+      orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      select: { id: true, title: true },
+      where: { isActive: true, type: "OPERATING_INSTRUCTION" },
+    }),
+  ]);
+  const rules = [
+    ...templateRules,
+    ...savedRules.map((rule) => ({
+      implementation: rule.implementation ?? "",
+      section: rule.section ?? "",
+      source: rule.source,
+      text: rule.text,
+      topic: rule.topic,
+    })),
+  ];
+  const bridgedTemplateRows = new Set(
+    substances.flatMap((substance) =>
+      substance.templateRowId ? [substance.templateRowId] : [],
+    ),
+  );
+  const activeSubstances = substances.filter((substance) => substance.isActive);
+  const rows = [
+    ...templateRows.filter((row) => !bridgedTemplateRows.has(row.id)),
+    ...activeSubstances.map(databaseRow),
+  ];
+  const suggestedSequentialNumber = nextHazardSequentialNumber([
+    ...templateRows.map((row) => row.sequentialNumber),
+    ...substances.map((substance) => substance.sequentialNumber),
+  ]);
+  const availableWorkAreas = Array.from(
+    new Set([
+      "Baustellen",
+      "Werkstatt",
+      "Mischanlage",
+      "Büro",
+      ...rows.flatMap((row) =>
+        String(row.usageArea ?? "")
+          .split(/\s*\+\s*/)
+          .map((area) => area.trim())
+          .filter(Boolean),
+      ),
+    ]),
+  ).sort((left, right) => left.localeCompare(right, "de"));
+  const hazardousRows = rows.filter(
+    (row) => row.registerSection === "HAZARDOUS",
+  );
+  const withoutBaRows = rows.filter(
+    (row) => row.registerSection === "WITHOUT_BA",
   );
 
   return (
     <AppShell
       title="Gefahrstoffe"
-      description="Gefahrstoffkataster mit Sicherheitsdatenblättern, Lagerort, Schutzmaßnahmen und Verantwortlichkeit."
+      description="Gefahrstoffkataster nach A-30-19-01.1 mit allen drei Reitern der Originaldatei."
     >
-      <div className="mb-5 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link
           className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           href="/safety"
         >
           ← Arbeitssicherheit
         </Link>
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-            Gefahrstoffe
-          </p>
-          <p className="mt-2 text-3xl font-bold text-gray-950">
-            {substances.length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-            Aktiv
-          </p>
-          <p className="mt-2 text-3xl font-bold text-gray-950">{activeCount}</p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-            Sicherheitsdatenblätter
-          </p>
-          <p className="mt-2 text-3xl font-bold text-gray-950">{sheetCount}</p>
+        <div className="flex flex-wrap gap-3">
+          <a
+            className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm hover:bg-gray-50"
+            href="/safety/hazardous-substances/export"
+          >
+            Excel exportieren
+          </a>
+          <Link
+            className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm hover:bg-gray-50"
+            href="/safety/hazardous-substances/archive"
+          >
+            Gefahrstoffarchiv
+          </Link>
+          <HazardousSubstanceModal
+            availableWorkAreas={availableWorkAreas}
+            operatingInstructionTemplates={operatingInstructionTemplates}
+            suggestedSequentialNumber={suggestedSequentialNumber}
+          />
+          <HazardRuleModal />
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-950">
-            Gefahrstoff anlegen
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Grunddaten erfassen und Sicherheitsdatenblatt direkt als PDF/JPG
-            anhängen.
-          </p>
-
-          <form action={createHazardousSubstance} className="mt-6 space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Gefahrstoff
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="name"
-                  placeholder="z. B. Dieselkraftstoff"
-                  required
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Hersteller / Lieferant
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="manufacturer"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Kategorie
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="category"
-                  placeholder="Kraftstoff, Reinigungsmittel, Bindemittel..."
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Einsatzbereich
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="usageArea"
-                  placeholder="Werkstatt, Bauhof, Baustelle..."
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Lagerort
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="storagePlace"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Verantwortlich
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="responsibleName"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Signalwort
-                </span>
-                <select
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-950 shadow-sm"
-                  name="signalWord"
-                >
-                  <option value="">Keine Angabe</option>
-                  <option value="Gefahr">Gefahr</option>
-                  <option value="Achtung">Achtung</option>
-                </select>
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Gefahrensymbole
-                </span>
-                <input
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="hazardSymbols"
-                  placeholder="GHS02, GHS07..."
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  H-Sätze
-                </span>
-                <textarea
-                  className="min-h-24 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="hStatements"
-                />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  P-Sätze
-                </span>
-                <textarea
-                  className="min-h-24 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="pStatements"
-                />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Schutzmaßnahmen
-                </span>
-                <textarea
-                  className="min-h-24 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="protectiveMeasures"
-                />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-800">
-                  Erste Hilfe / Entsorgung
-                </span>
-                <textarea
-                  className="min-h-24 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="firstAidMeasures"
-                  placeholder="Erste-Hilfe-Maßnahmen"
-                />
-              </label>
-            </div>
-
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-gray-800">
-                Sicherheitsdatenblatt
-              </span>
-              <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
-                <input
-                  className="rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                  name="versionDate"
-                  type="date"
-                />
-                <input
-                  accept="application/pdf,image/*"
-                  className="w-full rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-800"
-                  multiple
-                  name="safetyDataSheets"
-                  type="file"
-                />
-              </div>
-            </label>
-
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-gray-800">
-                Notizen
-              </span>
-              <textarea
-                className="min-h-20 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-950 shadow-sm"
-                name="notes"
-              />
-            </label>
-
-            <button
-              className="rounded-xl bg-yellow-400 px-5 py-3 text-sm font-bold text-gray-950 hover:bg-yellow-300"
-              type="submit"
-            >
-              Gefahrstoff speichern
-            </button>
-          </form>
-        </section>
-
-        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-950">
-            Gefahrstoffkataster
-          </h2>
-          <div className="mt-4 space-y-3">
-            {substances.length === 0 ? (
-              <p className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600">
-                Noch keine Gefahrstoffe angelegt.
-              </p>
-            ) : (
-              substances.map((substance) => (
-                <article
-                  className="rounded-2xl border border-gray-200 p-4"
-                  key={substance.id}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-bold text-gray-950">
-                        {substance.name}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {[substance.category, substance.manufacturer]
-                          .filter(Boolean)
-                          .join(" · ") || "Ohne Kategorie"}
-                      </p>
-                    </div>
-                    {substance.signalWord ? (
-                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-950">
-                        {substance.signalWord}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                    <p>
-                      <span className="font-bold text-gray-700">Lagerort:</span>{" "}
-                      {substance.storagePlace || "—"}
-                    </p>
-                    <p>
-                      <span className="font-bold text-gray-700">
-                        Einsatzbereich:
-                      </span>{" "}
-                      {substance.usageArea || "—"}
-                    </p>
-                    <p>
-                      <span className="font-bold text-gray-700">
-                        Verantwortlich:
-                      </span>{" "}
-                      {substance.responsibleName || "—"}
-                    </p>
-                    <p>
-                      <span className="font-bold text-gray-700">
-                        Gefahrensymbole:
-                      </span>{" "}
-                      {substance.hazardSymbols || "—"}
-                    </p>
-                  </div>
-
-                  <details className="mt-4 rounded-2xl bg-gray-50 p-4">
-                    <summary className="cursor-pointer text-sm font-bold text-gray-950">
-                      Schutz / Hinweise anzeigen
-                    </summary>
-                    <div className="mt-3 grid gap-3 text-sm text-gray-700">
-                      <p className="whitespace-pre-wrap">
-                        <span className="font-bold text-gray-900">H-Sätze:</span>{" "}
-                        {substance.hStatements || "—"}
-                      </p>
-                      <p className="whitespace-pre-wrap">
-                        <span className="font-bold text-gray-900">P-Sätze:</span>{" "}
-                        {substance.pStatements || "—"}
-                      </p>
-                      <p className="whitespace-pre-wrap">
-                        <span className="font-bold text-gray-900">
-                          Schutzmaßnahmen:
-                        </span>{" "}
-                        {substance.protectiveMeasures || "—"}
-                      </p>
-                      <p className="whitespace-pre-wrap">
-                        <span className="font-bold text-gray-900">
-                          Erste Hilfe:
-                        </span>{" "}
-                        {substance.firstAidMeasures || "—"}
-                      </p>
-                    </div>
-                  </details>
-
-                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
-                    <p className="text-sm font-bold text-gray-950">
-                      Sicherheitsdatenblätter
-                    </p>
-                    {substance.safetyDataSheets.length === 0 ? (
-                      <p className="mt-2 text-sm text-gray-500">
-                        Noch kein Sicherheitsdatenblatt hinterlegt.
-                      </p>
-                    ) : (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {substance.safetyDataSheets.map((sheet) => (
-                          <a
-                            className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50"
-                            href={sheet.publicUrl}
-                            key={sheet.id}
-                            target="_blank"
-                          >
-                            📄 {sheet.displayName} · {formatDate(sheet.versionDate)}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
+      <HazardRegisterTabs
+        hazardous={
+          <RegisterSection
+            includeUsageArea
+            rows={hazardousRows}
+            availableWorkAreas={availableWorkAreas}
+            operatingInstructionTemplates={operatingInstructionTemplates}
+            suggestedSequentialNumber={suggestedSequentialNumber}
+            title="Gefährliche Gefahrstoffe"
+          />
+        }
+        withoutBa={
+          <RegisterSection
+            rows={withoutBaRows}
+            availableWorkAreas={availableWorkAreas}
+            operatingInstructionTemplates={operatingInstructionTemplates}
+            suggestedSequentialNumber={suggestedSequentialNumber}
+            title="Gefahrstoffe ohne BA"
+          />
+        }
+        rules={
+          <section
+            className="overflow-hidden rounded-2xl border border-gray-700 bg-white shadow-sm"
+            style={{ color: "#000000" }}
+          >
+        <div className="overflow-x-auto">
+          <table
+            className="min-w-[1200px] border-collapse text-left text-xs font-semibold"
+            style={{ color: "#000000" }}
+          >
+            <thead className="bg-gray-300" style={{ color: "#000000" }}>
+              <tr>
+                {["Thema", "Quelle", "Abschnitt", "Text", "Bemerkung / Umsetzung"].map(
+                  (label) => (
+                    <th className="border border-gray-700 px-3 py-2 font-extrabold" key={label}>
+                      {label}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((rule, index) => (
+                <tr className="align-top" key={`${rule.source}-${index}`}>
+                  <td className="border border-gray-700 px-3 py-2 text-black">{rule.topic}</td>
+                  <td className="border border-gray-700 px-3 py-2 text-black">{rule.source}</td>
+                  <td className="w-52 border border-gray-700 px-3 py-2 text-black">{rule.section}</td>
+                  <td className="max-w-3xl whitespace-pre-wrap border border-gray-700 px-3 py-2 leading-5 text-black">
+                    {rule.text}
+                  </td>
+                  <td className="w-72 whitespace-pre-wrap border border-gray-700 px-3 py-2 leading-5 text-black">
+                    {rule.implementation}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+          </section>
+        }
+      />
     </AppShell>
+  );
+}
+
+function RegisterSection({
+  includeUsageArea = false,
+  availableWorkAreas,
+  operatingInstructionTemplates,
+  rows,
+  suggestedSequentialNumber,
+  title,
+}: {
+  includeUsageArea?: boolean;
+  availableWorkAreas: string[];
+  operatingInstructionTemplates: Array<{ id: string; title: string }>;
+  rows: HazardRegisterRow[];
+  suggestedSequentialNumber: string;
+  title: string;
+}) {
+  return (
+    <section
+      className="overflow-hidden rounded-2xl border border-gray-700 bg-white shadow-sm"
+      style={{ color: "#000000" }}
+    >
+      <div className="overflow-x-auto">
+        <table
+          aria-label={title}
+          className="min-w-[1800px] border-collapse text-left text-xs font-semibold"
+          style={{ color: "#000000" }}
+        >
+          <thead>
+            <tr className="bg-gray-300" style={{ color: "#000000" }}>
+              <th className="w-24 border border-gray-700 px-2 py-2 text-center font-extrabold text-black">
+                Aktionen
+              </th>
+              {HAZARD_SYMBOLS.map(([code, label, imagePath]) => (
+                <th
+                  className="w-16 border border-gray-700 px-1.5 py-1.5 text-center font-extrabold text-black"
+                  key={code}
+                  title={label}
+                >
+                  <img
+                    alt={`${code}: ${label}`}
+                    className="mx-auto h-11 w-11 object-contain"
+                    height={44}
+                    src={imagePath}
+                    width={44}
+                  />
+                  <span className="mt-1 block text-[10px]">{code}</span>
+                </th>
+              ))}
+              {[
+                "Stoffkategorie",
+                "Lfd. Nummer",
+                "Hersteller",
+                "Produktname / Typ",
+                "Art",
+                "SDB",
+                "SDB Datum",
+                "BA",
+                "Einheit / Gebinde",
+                "Menge",
+                "Jahre",
+                "Mon.",
+                "Tage",
+                "Datum nächste Prüfung",
+                ...(includeUsageArea ? ["Arbeitsbereiche"] : []),
+              ].map((label) => (
+                <th className="border border-gray-700 px-2.5 py-2 font-extrabold text-black" key={label}>
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr className="align-top" key={row.id}>
+                <td className="border border-gray-700 bg-white p-1.5">
+                  <div className="flex items-center justify-center gap-1">
+                      <HazardousSubstanceDetailsDialog
+                        operatingInstructionTemplates={
+                          operatingInstructionTemplates
+                        }
+                        substance={editableRow(row)}
+                      />
+                      <HazardousSubstanceModal
+                        availableWorkAreas={availableWorkAreas}
+                        operatingInstructionTemplates={
+                          operatingInstructionTemplates
+                        }
+                        suggestedSequentialNumber={suggestedSequentialNumber}
+                        substance={editableRow(row)}
+                      />
+                      <HazardousSubstanceArchiveDialog
+                        id={row.id}
+                        name={row.name}
+                        sequentialNumber={row.sequentialNumber}
+                        substance={editableRow(row)}
+                      />
+                  </div>
+                </td>
+                {HAZARD_SYMBOLS.map(([code, label, imagePath]) => (
+                  <td
+                    className="h-12 border border-gray-700 bg-yellow-300 p-1 text-center font-black text-black"
+                    style={{ color: "#000000" }}
+                    key={code}
+                  >
+                    {row.hazardSymbols.includes(code) ? (
+                      <img
+                        alt={`${code}: ${label}`}
+                        className="mx-auto h-9 w-9 object-contain"
+                        height={36}
+                        src={imagePath}
+                        title={`${code}: ${label}`}
+                        width={36}
+                      />
+                    ) : null}
+                  </td>
+                ))}
+                <Cell className="bg-red-400 font-bold">{row.category}</Cell>
+                <Cell>{row.sequentialNumber}</Cell>
+                <Cell>{row.manufacturer}</Cell>
+                <Cell className="min-w-56 font-semibold">{row.name}</Cell>
+                <Cell>{row.substanceType}</Cell>
+                <Cell className="bg-green-400 text-center font-black">
+                  {row.safetyDataSheetPresent ? "X" : ""}
+                </Cell>
+                <Cell>{formatDate(row.safetyDataSheetDate)}</Cell>
+                <Cell className="bg-green-400 text-center font-black">
+                  {row.operatingInstructionPresent ? "X" : ""}
+                </Cell>
+                <Cell>{row.packageUnit}</Cell>
+                <Cell>{row.quantity}</Cell>
+                <Cell>{row.repeatYears}</Cell>
+                <Cell>{row.repeatMonths}</Cell>
+                <Cell>{row.repeatDays}</Cell>
+                <Cell>{formatDate(row.nextReviewDate)}</Cell>
+                {includeUsageArea ? <Cell>{row.usageArea}</Cell> : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function Cell({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <td
+      className={`border border-gray-700 px-2.5 py-1.5 text-black ${className}`}
+      style={{ color: "#000000" }}
+    >
+      {children ?? ""}
+    </td>
   );
 }
