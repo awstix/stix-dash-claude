@@ -94,6 +94,7 @@ model Project {
   controllingInvoiceItems           ControllingInvoiceItem[]
   safetyAccidentReports             SafetyAccidentReport[]
   safetyInstructionRecords          SafetyInstructionRecord[]
+  projectStartChecklists            ProjectStartChecklist[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1124,6 +1125,7 @@ model Employee {
   controllingRates                ControllingEmployeeRate[]
   safetyAccidentReports           SafetyAccidentReport[]
   safetyInstructionSignatures     SafetyInstructionSignature[]
+  projectStartChecklistParticipants ProjectStartChecklistParticipant[]
 
   notes String?
 
@@ -2510,6 +2512,65 @@ model SafetyHazardRule {
 
   @@index([topic])
   @@index([source])
+}
+
+model ProjectStartChecklist {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  templateCode     String @default("A-30-30-001")
+  templateRevision String @default("00")
+  status           String @default("DRAFT")
+  checklistDate    DateTime @default(now())
+  startDate        DateTime?
+  endDate          DateTime?
+  siteStreet       String?
+  sitePostalCity   String?
+  responsibleManager String?
+  responsiblePhone   String?
+  responsibleMobile  String?
+  presenterName      String?
+  presenterSignatureDataUrl String?
+  activitiesJson     String @default("[]")
+  otherActivities    String?
+  assessmentsJson    String @default("{}")
+  instructionTopics  String?
+  createdByName      String?
+
+  participants ProjectStartChecklistParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([checklistDate])
+}
+
+model ProjectStartChecklistParticipant {
+  id String @id @default(cuid())
+
+  checklistId String
+  checklist   ProjectStartChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  companyDepartment String?
+  signatureDataUrl  String?
+  instructionDate   DateTime?
+  signedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([checklistId, employeeId])
+  @@index([checklistId])
+  @@index([employeeId])
+  @@index([instructionDate])
+  @@index([signedAt])
 }
 
 model SafetyDataSheet {
