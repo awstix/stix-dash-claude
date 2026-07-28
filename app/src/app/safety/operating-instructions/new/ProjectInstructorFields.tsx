@@ -3,14 +3,18 @@
 import { useMemo, useState } from "react";
 
 export function ProjectInstructorFields({
+  initialInstructor = "",
+  initialProjectId = "",
   managerOptions,
   projects,
 }: {
+  initialInstructor?: string;
+  initialProjectId?: string;
   managerOptions: string[];
   projects: { constructionManager: string; id: string; label: string }[];
 }) {
-  const [projectId, setProjectId] = useState("");
-  const [instructor, setInstructor] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId);
+  const [instructor, setInstructor] = useState(initialInstructor);
   const instructors = useMemo(
     () =>
       Array.from(

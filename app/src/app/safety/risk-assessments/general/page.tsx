@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { GENERAL_RISK_ASSESSMENT_TEMPLATES } from "@/lib/general-risk-assessments";
 import { prisma } from "@/lib/prisma";
+import { SafetyParticipantSummary } from "../../_components/SafetyParticipantSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,12 @@ export default async function GeneralRiskAssessmentsPage({
       assessedEmployee: {
         select: { firstName: true, lastName: true },
       },
-      participants: { select: { signatureDataUrl: true } },
+      participants: {
+        select: {
+          employee: { select: { firstName: true, lastName: true } },
+          signatureDataUrl: true,
+        },
+      },
       project: { select: { name: true, projectNumber: true } },
     },
     orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }],
@@ -80,12 +86,13 @@ export default async function GeneralRiskAssessmentsPage({
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-gray-300 bg-white">
-            <table className="min-w-[1000px] w-full text-left text-sm text-black">
+            <table className="min-w-[1150px] w-full text-left text-sm text-black">
               <thead className="bg-gray-200">
                 <tr>
                   <th className="p-3">Vorlage</th>
                   <th className="p-3">Datum</th>
                   <th className="p-3">Projekt / Person</th>
+                  <th className="p-3">Betroffene Person(en)</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Unterschriften</th>
                   <th className="p-3">Aktionen</th>
@@ -101,6 +108,14 @@ export default async function GeneralRiskAssessmentsPage({
                       <p className="text-xs text-gray-500">
                         {record.templateCode} · Rev. {record.templateRevision}
                       </p>
+                    </td>
+                    <td className="p-3">
+                      <SafetyParticipantSummary
+                        names={record.participants.map(
+                          (participant) =>
+                            `${participant.employee.lastName}, ${participant.employee.firstName}`,
+                        )}
+                      />
                     </td>
                     <td className="p-3">
                       {record.assessmentDate.toLocaleDateString("de-DE")}

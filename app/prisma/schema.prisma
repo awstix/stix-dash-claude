@@ -2453,6 +2453,11 @@ model SafetyInstructionRecord {
   checkedSectionsJson String   @default("[]")
   notes               String?
   status              String   @default("DRAFT")
+  archivedAt          DateTime?
+
+  previousVersionId String?
+  previousVersion   SafetyInstructionRecord?  @relation("SafetyInstructionRecordVersions", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  newerVersions     SafetyInstructionRecord[] @relation("SafetyInstructionRecordVersions")
 
   signatures SafetyInstructionSignature[]
 
@@ -2463,6 +2468,8 @@ model SafetyInstructionRecord {
   @@index([projectId])
   @@index([instructionDate])
   @@index([status])
+  @@index([archivedAt])
+  @@index([previousVersionId])
 }
 
 model SafetyInstructionSignature {

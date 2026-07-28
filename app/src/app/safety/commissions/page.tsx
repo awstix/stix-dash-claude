@@ -1,10 +1,13 @@
 import Link from "next/link";
 
 import { AppShell } from "@/components/AppShell";
+import { ActionIcon } from "@/components/ActionIcon";
 import catalogJson from "@/lib/safety-commission-catalog.json";
 import { prisma } from "@/lib/prisma";
 
 import { SafetyTemplateFolderManager } from "../_components/SafetyTemplateFolderManager";
+import { SafetyParticipantSummary } from "../_components/SafetyParticipantSummary";
+import { CommissionArchiveButton } from "./CommissionArchiveButton";
 
 type CatalogEntry = {
   docxPath: string | null;
@@ -121,11 +124,14 @@ export default async function SafetyCommissionsPage() {
     prisma.safetyInstructionRecord.findMany({
       include: {
         project: { select: { name: true, projectNumber: true } },
+        signatures: {
+          select: { employeeId: true, employeeName: true },
+        },
         template: { select: { title: true } },
       },
       orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
       take: 80,
-      where: { template: { type: "COMMISSION" } },
+      where: { archivedAt: null, template: { type: "COMMISSION" } },
     }),
   ]);
   return (
@@ -146,6 +152,9 @@ export default async function SafetyCommissionsPage() {
         >
           ← Arbeitssicherheit
         </Link>
+        <Link className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700" href="/safety/commissions/archive">
+          Archiv
+        </Link>
       </section>
       <SafetyTemplateFolderManager
         area="COMMISSION"
@@ -157,19 +166,27 @@ export default async function SafetyCommissionsPage() {
           Laufende und abgeschlossene Beauftragungen
         </h2>
         <div className="overflow-x-auto rounded-2xl border border-gray-300 bg-white">
-          <table className="min-w-[850px] w-full text-left text-sm text-black">
+          <table className="min-w-[1050px] w-full text-left text-sm text-black">
             <thead className="bg-gray-200">
               <tr>
+                <th className="p-3">Aktionen</th>
                 <th className="p-3">Beauftragung</th>
                 <th className="p-3">Datum</th>
                 <th className="p-3">Projekt</th>
+                <th className="p-3">Beauftragte Person(en)</th>
                 <th className="p-3">Status</th>
-                <th className="p-3">Aktion</th>
               </tr>
             </thead>
             <tbody>
               {records.map((record) => (
                 <tr className="border-t border-gray-200" key={record.id}>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <Link className="rounded-lg border border-gray-300 p-2" href={`/safety/instruction-records/${record.id}`} title="Öffnen"><ActionIcon name="open" /></Link>
+                      <Link className="rounded-lg border border-gray-300 p-2" href={`/safety/template-library/new?templateId=${record.templateId}&sourceRecordId=${record.id}`} title="Neue Version bearbeiten"><ActionIcon name="edit" /></Link>
+                      <CommissionArchiveButton recordId={record.id} title={record.template.title} />
+                    </div>
+                  </td>
                   <td className="p-3 font-semibold">{record.template.title}</td>
                   <td className="p-3">
                     {record.instructionDate.toLocaleDateString("de-DE")}
@@ -180,21 +197,18 @@ export default async function SafetyCommissionsPage() {
                       : "–"}
                   </td>
                   <td className="p-3">
-                    {record.status === "SIGNED" ? "Abgeschlossen" : "Offen"}
+                    <SafetyParticipantSummary
+                      names={commissionedNames(record.signatures)}
+                    />
                   </td>
                   <td className="p-3">
-                    <Link
-                      className="rounded-lg border border-gray-300 px-3 py-2 font-bold"
-                      href={`/safety/instruction-records/${record.id}`}
-                    >
-                      Öffnen
-                    </Link>
+                    {record.status === "SIGNED" ? "Abgeschlossen" : "Offen"}
                   </td>
                 </tr>
               ))}
               {!records.length ? (
                 <tr>
-                  <td className="p-6 text-center text-gray-600" colSpan={5}>
+                  <td className="p-6 text-center text-gray-600" colSpan={6}>
                     Noch keine Beauftragung durchgeführt.
                   </td>
                 </tr>
@@ -205,4 +219,33 @@ export default async function SafetyCommissionsPage() {
       </section>
     </AppShell>
   );
+}
+
+function commissionedNames(
+  signatures: Array<{ employeeId: string | null; employeeName: string }>,
+) {
+  const employees = signatures
+    .filter((signature) => signature.employeeId)
+    .map((signature) => signature.employeeName);
+  if (employees.length) return employees;
+
+  const administrativeLabels = [
+    "Sicherheitsunterweisung durchgeführt",
+    "Sicherheitsunterweisung erhalten",
+    "Technische Einweisung durchgeführt",
+    "Technische Einweisung erhalten",
+    "Fahrtraining / Eignungstest durchgeführt",
+    "Fahrtraining / Eignungstest erhalten",
+  ];
+  return signatures
+    .filter(
+      (signature) =>
+        !signature.employeeName.startsWith("Unternehmen · ") &&
+        !administrativeLabels.some(
+          (label) =>
+            signature.employeeName === label ||
+            signature.employeeName.startsWith(`${label} · `),
+        ),
+    )
+    .map((signature) => signature.employeeName);
 }

@@ -11,10 +11,13 @@ type EmployeeOption = {
 
 export function DirectParticipantSignatures({
   employees,
+  initialSelectedIds = [],
 }: {
   employees: EmployeeOption[];
+  initialSelectedIds?: string[];
 }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] =
+    useState<string[]>(initialSelectedIds);
   const selectedEmployees = employees.filter((employee) =>
     selectedIds.includes(employee.id),
   );

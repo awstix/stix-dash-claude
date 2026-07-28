@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppShell } from "@/components/AppShell";
 import { SafetyTemplateFolderManager } from "../_components/SafetyTemplateFolderManager";
+import { SafetyParticipantSummary } from "../_components/SafetyParticipantSummary";
 import catalogJson from "@/lib/operating-instruction-catalog.json";
 import { prisma } from "@/lib/prisma";
 
@@ -162,7 +163,9 @@ export default async function OperatingInstructionsPage({
       include: {
         _count: { select: { signatures: true } },
         project: { select: { name: true, projectNumber: true } },
-        signatures: { select: { signatureDataUrl: true } },
+        signatures: {
+          select: { employeeName: true, signatureDataUrl: true },
+        },
         template: { select: { title: true } },
       },
       orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
@@ -252,12 +255,13 @@ export default async function OperatingInstructionsPage({
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-gray-300 bg-white">
-            <table className="min-w-[1000px] w-full text-left text-sm text-black">
+            <table className="min-w-[1150px] w-full text-left text-sm text-black">
               <thead className="bg-gray-200">
                 <tr>
                   <th className="p-3">Vorlage</th>
                   <th className="p-3">Datum</th>
                   <th className="p-3">Projekt / Person</th>
+                  <th className="p-3">Unterwiesene Person(en)</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Unterschriften</th>
                   <th className="p-3">Aktionen</th>
@@ -273,6 +277,13 @@ export default async function OperatingInstructionsPage({
                       <p className="text-xs text-gray-500">
                         Betriebsanweisung
                       </p>
+                    </td>
+                    <td className="p-3">
+                      <SafetyParticipantSummary
+                        names={record.signatures.map(
+                          (signature) => signature.employeeName,
+                        )}
+                      />
                     </td>
                     <td className="p-3">
                       {record.instructionDate.toLocaleDateString("de-DE")}

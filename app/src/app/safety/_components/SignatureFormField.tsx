@@ -8,12 +8,16 @@ type Point = {
 };
 
 export function SignatureFormField({
+  form,
   label,
   name,
+  onChange,
   value,
 }: {
+  form?: string;
   label: string;
   name: string;
+  onChange?: (value: string) => void;
   value?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -118,7 +122,9 @@ export function SignatureFormField({
     lastPointRef.current = null;
 
     if (canvas) {
-      setSignature(canvas.toDataURL("image/png"));
+      const nextSignature = canvas.toDataURL("image/png");
+      setSignature(nextSignature);
+      onChange?.(nextSignature);
     }
   }
 
@@ -131,11 +137,12 @@ export function SignatureFormField({
     }
 
     setSignature("");
+    onChange?.("");
   }
 
   return (
     <div className="space-y-2 rounded-2xl border border-gray-300 bg-gray-50 p-3">
-      <input name={name} type="hidden" value={signature} />
+      <input form={form} name={name} type="hidden" value={signature} />
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-gray-800">{label}</span>
         <button

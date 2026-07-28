@@ -966,7 +966,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
     .filter(Boolean);
   const commissionedPersonName = optionalString(
     formData.get("commissionedPersonName"),
-  );
+  ) ?? optionalString(formData.get("commissionedPersonSignatureSignerName"));
   if (employeeIds.length === 0 && !commissionedPersonName) {
     throw new Error(
       "Bitte mindestens einen Mitarbeiter auswählen oder eine externe beauftragte Person eintragen.",
@@ -1015,11 +1015,33 @@ export async function createSafetyInstructionRecord(formData: FormData) {
       },
     }),
   ]);
+  const previousVersionId = optionalString(formData.get("previousVersionId"));
+  if (previousVersionId) {
+    const previous = await prisma.safetyInstructionRecord.findFirst({
+      select: { id: true },
+      where: { id: previousVersionId, templateId },
+    });
+    if (!previous) {
+      throw new Error("Die vorherige Version gehört nicht zu dieser Vorlage.");
+    }
+  }
 
   const projectId = optionalString(formData.get("projectId"));
+  const originalFormFields = Array.from(formData.entries())
+    .filter(
+      ([key, value]) =>
+        key.startsWith("commissionField.") &&
+        typeof value === "string" &&
+        value.trim(),
+    )
+    .map(
+      ([key, value]) =>
+        `${key.slice("commissionField.".length)}: ${String(value).trim()}`,
+    );
   const commissionDetails =
     template.type === "COMMISSION"
       ? [
+          ["Firma", optionalString(formData.get("companyName"))],
           ["Geburtsdatum", optionalString(formData.get("birthDate"))],
           ["Wohnort", optionalString(formData.get("residence"))],
           [
@@ -1030,6 +1052,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
         ]
           .filter((entry) => entry[1])
           .map((entry) => `${entry[0]}: ${entry[1]}`)
+          .concat(originalFormFields)
       : [];
   const recordNotes = [
     ...commissionDetails,
@@ -1062,14 +1085,42 @@ export async function createSafetyInstructionRecord(formData: FormData) {
                 ),
               }
             : null,
-          optionalString(formData.get("authorizedPersonName"))
+          optionalString(formData.get("authorizedPersonName")) ||
+          optionalString(formData.get("authorizedPersonSignatureSignerName")) ||
+          optionalString(formData.get("authorizedPersonSignature"))
             ? {
-                employeeName: `Unternehmen · ${optionalString(formData.get("authorizedPersonName"))}`,
+                employeeName: `Unternehmen · ${
+                  optionalString(formData.get("authorizedPersonName")) ??
+                  optionalString(
+                    formData.get("authorizedPersonSignatureSignerName"),
+                  )
+                }`,
                 signatureDataUrl: optionalString(
                   formData.get("authorizedPersonSignature"),
                 ),
               }
             : null,
+          ...[
+            ["Sicherheitsunterweisung durchgeführt", "earthSafetyConductedSignature"],
+            ["Sicherheitsunterweisung erhalten", "earthSafetyReceivedSignature"],
+            ["Technische Einweisung durchgeführt", "earthTechnicalConductedSignature"],
+            ["Technische Einweisung erhalten", "earthTechnicalReceivedSignature"],
+            ["Fahrtraining / Eignungstest durchgeführt", "earthTrainingConductedSignature"],
+            ["Fahrtraining / Eignungstest erhalten", "earthTrainingReceivedSignature"],
+          ].map(([employeeName, fieldName]) => {
+            const signatureDataUrl = optionalString(formData.get(fieldName));
+            const signerName = optionalString(
+              formData.get(`${fieldName}SignerName`),
+            );
+            return signatureDataUrl
+              ? {
+                  employeeName: signerName
+                    ? `${employeeName} · ${signerName}`
+                    : employeeName,
+                  signatureDataUrl,
+                }
+              : null;
+          }),
         ].filter(
           (
             entry,
@@ -1093,6 +1144,9 @@ export async function createSafetyInstructionRecord(formData: FormData) {
       instructedByName: optionalString(formData.get("instructedByName")),
       instructionDate: dateValue(formData.get("instructionDate"), "Datum"),
       notes: recordNotes || null,
+      previousVersion: previousVersionId
+        ? { connect: { id: previousVersionId } }
+        : undefined,
       project: projectId
         ? {
             connect: {
@@ -1153,6 +1207,39 @@ export async function createSafetyInstructionRecord(formData: FormData) {
     redirect(redirectTo);
   }
   redirect(`/safety/instruction-records/${record.id}`);
+}
+
+export async function archiveSafetyInstructionRecord(formData: FormData) {
+  const recordId = requiredString(formData.get("recordId"), "Nachweis");
+  await prisma.safetyInstructionRecord.update({
+    data: { archivedAt: new Date() },
+    where: { id: recordId },
+  });
+  revalidatePath("/safety/commissions");
+  revalidatePath("/safety/commissions/archive");
+}
+
+export async function restoreSafetyInstructionRecord(formData: FormData) {
+  const recordId = requiredString(formData.get("recordId"), "Nachweis");
+  await prisma.safetyInstructionRecord.update({
+    data: { archivedAt: null },
+    where: { id: recordId },
+  });
+  revalidatePath("/safety/commissions");
+  revalidatePath("/safety/commissions/archive");
+}
+
+export async function permanentlyDeleteSafetyInstructionRecord(formData: FormData) {
+  const recordId = requiredString(formData.get("recordId"), "Nachweis");
+  const record = await prisma.safetyInstructionRecord.findUnique({
+    select: { archivedAt: true },
+    where: { id: recordId },
+  });
+  if (!record?.archivedAt) {
+    throw new Error("Nur archivierte Nachweise können endgültig gelöscht werden.");
+  }
+  await prisma.safetyInstructionRecord.delete({ where: { id: recordId } });
+  revalidatePath("/safety/commissions/archive");
 }
 
 export async function saveSafetyInstructionSignature(

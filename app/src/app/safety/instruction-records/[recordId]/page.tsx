@@ -136,13 +136,26 @@ export default async function SafetyInstructionRecordPage({
             Unterweisungsnachweis PDF
           </a>
         ) : null}
+        {record.template.type === "COMMISSION" ? (
+          <a
+            className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white"
+            href={`/safety/instruction-records/${record.id}/pdf`}
+            target="_blank"
+          >
+            Ausgefüllte Beauftragung als PDF
+          </a>
+        ) : null}
       </div>
 
       {sourcePdfPath ? (
         <section className="mb-6 overflow-hidden rounded-3xl border border-gray-300 bg-gray-200 shadow-sm">
           <iframe
             className="h-[70vh] w-full bg-white"
-            src={`${sourcePdfPath}#page=1&view=Fit&zoom=page-fit&navpanes=0`}
+            src={`${
+              record.template.type === "COMMISSION"
+                ? `/safety/instruction-records/${record.id}/pdf`
+                : sourcePdfPath
+            }#page=1&view=Fit&zoom=page-fit&navpanes=0`}
             title={`Original: ${record.template.title}`}
           />
         </section>
