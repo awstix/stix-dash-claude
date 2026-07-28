@@ -42,19 +42,21 @@ export default async function GeneralRiskAssessmentDetailPage({
           location: assessment.location ?? "",
           notes: assessment.notes ?? "",
           participantDates: Object.fromEntries(
-            assessment.participants.map((participant) => [
-              participant.employeeId,
-              iso(participant.instructionDate),
-            ]),
+            assessment.participants.flatMap((participant) =>
+              participant.employeeId
+                ? [[participant.employeeId, iso(participant.instructionDate)]]
+                : [],
+            ),
           ),
-          participantIds: assessment.participants.map(
-            (participant) => participant.employeeId,
+          participantIds: assessment.participants.flatMap(
+            (participant) => participant.employeeId ? [participant.employeeId] : [],
           ),
           participantSignatures: Object.fromEntries(
-            assessment.participants.map((participant) => [
-              participant.employeeId,
-              participant.signatureDataUrl ?? "",
-            ]),
+            assessment.participants.flatMap((participant) =>
+              participant.employeeId
+                ? [[participant.employeeId, participant.signatureDataUrl ?? ""]]
+                : [],
+            ),
           ),
           presenterName: assessment.presenterName ?? "",
           presenterSignatureDataUrl:

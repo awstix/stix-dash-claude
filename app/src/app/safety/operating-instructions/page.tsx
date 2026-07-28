@@ -25,6 +25,7 @@ async function synchronizeCatalog() {
     ["safety-a-30-00-hautschutzplan", "A-30-00 · Hautschutzplan"],
     ["safety-a-30-20", "A-30-20 · Baustellenordnungen"],
     ["safety-a-30-30", "A-30-30 · Checklisten"],
+    ["safety-a-70-20", "A-70-20 · Erstunterweisungen"],
   ] as const) {
     const folder = await prisma.safetyTemplateFolder.upsert({
       create: {
@@ -37,6 +38,9 @@ async function synchronizeCatalog() {
     });
     if (systemKey === "safety-a-30-20") {
       specialFolders.set("A-30-20", folder.id);
+    }
+    if (systemKey === "safety-a-70-20") {
+      specialFolders.set("A-70-20", folder.id);
     }
   }
   const rootFolder = await prisma.safetyTemplateFolder.upsert({

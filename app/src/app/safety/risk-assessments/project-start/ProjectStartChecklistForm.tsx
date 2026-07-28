@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { SignatureFormField } from "../../_components/SignatureFormField";
+import { ExternalParticipants } from "../../_components/ExternalParticipants";
 import {
   PROJECT_START_ACTIVITIES,
   PROJECT_START_ASSESSMENT_SECTIONS,
@@ -270,6 +271,7 @@ export function ProjectStartChecklistForm({
             </div>
           ))}
         </div>
+        <ExternalParticipants defaultDate={initial.checklistDate} />
       </Section>
 
       <div className="sticky bottom-3 z-20 flex flex-wrap justify-end gap-3 border border-black bg-white/95 p-3 shadow-xl backdrop-blur">

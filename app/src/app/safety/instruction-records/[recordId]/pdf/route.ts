@@ -14,7 +14,19 @@ export async function GET(
   const record = await prisma.safetyInstructionRecord.findUnique({
     include: {
       project: { select: { name: true, projectNumber: true } },
-      signatures: { orderBy: { employeeName: "asc" } },
+      signatures: {
+        include: {
+          employee: {
+            select: {
+              companyLabel: true,
+              departmentLabel: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { employeeName: "asc" },
+      },
       template: true,
     },
     where: { id: recordId },
@@ -43,6 +55,19 @@ export async function GET(
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         "Content-Disposition": `inline; filename="${fileName}"`,
+        "Content-Type": "application/pdf",
+      },
+    });
+  }
+  if (sourcePath?.includes("/A-70-20/")) {
+    pdf = await PDFDocument.load(
+      await fs.readFile(path.join(process.cwd(), "public", sourcePath)),
+    );
+    await fillFirstInductionOriginal(pdf, record);
+    const bytes = await pdf.save();
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        "Content-Disposition": `inline; filename="${slug(record.template.title)}-ausgefuellt.pdf"`,
         "Content-Type": "application/pdf",
       },
     });
@@ -151,6 +176,103 @@ export async function GET(
       "Content-Type": "application/pdf",
     },
   });
+}
+
+async function fillFirstInductionOriginal(
+  pdf: PDFDocument,
+  record: {
+    checkedSectionsJson: string;
+    instructedByName: string | null;
+    instructionDate: Date;
+    notes: string | null;
+    signatures: Array<{
+      employee: {
+        companyLabel: string | null;
+        departmentLabel: string | null;
+        firstName: string;
+        lastName: string;
+      } | null;
+      employeeName: string;
+      signatureDataUrl: string | null;
+    }>;
+  },
+) {
+  const page = pdf.getPage(11);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const values = noteValues(record.notes);
+  const checkedSections = parseArray(record.checkedSectionsJson);
+
+  drawOverlayText(page, font, values.get("Sonstige Themen") ?? "", 31.5, 25.3, 65);
+  drawOverlayText(page, font, values.get("Kapitel") ?? "", 21, 37.2, 75.5);
+  drawOverlayText(page, font, values.get("Ort") ?? "", 31.5, 42.2, 26);
+  drawOverlayText(
+    page,
+    font,
+    record.instructionDate.toLocaleDateString("de-DE"),
+    75.5,
+    42.2,
+    21,
+  );
+  drawOverlayText(page, font, record.instructedByName ?? "", 31.5, 46.2, 26);
+
+  if (checkedSections.includes("Gesamtes Dokument")) {
+    drawCheck(page, 14.4, 32.35);
+  }
+  if (checkedSections.includes("Einzelne Kapitel")) {
+    drawCheck(page, 14.4, 34.75);
+  }
+
+  const presenter = record.signatures.find((signature) =>
+    signature.employeeName.startsWith("Vortragende Person · "),
+  );
+  if (presenter?.signatureDataUrl) {
+    await drawSignature(pdf, page, presenter.signatureDataUrl, 75.5, 45.5, 21);
+  }
+
+  const participants = record.signatures.filter(
+    (signature) =>
+      signature.employee || signature.employeeName.startsWith("Extern · "),
+  );
+  const rowTops = [61.2, 64.15, 67.1, 70.05, 73, 75.95, 78.9, 81.85, 84.8, 87.75];
+  for (const [index, signature] of participants.slice(0, rowTops.length).entries()) {
+    const externalParts = signature.employeeName.startsWith("Extern · ")
+      ? signature.employeeName.split(" · ")
+      : [];
+    const externalName = externalParts[2]?.split(",").map((value) => value.trim());
+    const employee = signature.employee;
+    const companyDepartment = employee
+      ? [employee.companyLabel, employee.departmentLabel]
+          .filter(Boolean)
+          .join(" / ")
+      : externalParts[1] ?? "";
+    drawOverlayText(page, font, companyDepartment, 13.2, rowTops[index], 18.4);
+    drawOverlayText(
+      page,
+      font,
+      employee?.lastName ?? externalName?.[0] ?? "",
+      31.8,
+      rowTops[index],
+      26.2,
+    );
+    drawOverlayText(
+      page,
+      font,
+      employee?.firstName ?? externalName?.[1] ?? "",
+      58.3,
+      rowTops[index],
+      20.8,
+    );
+    if (signature.signatureDataUrl) {
+      await drawSignature(
+        pdf,
+        page,
+        signature.signatureDataUrl,
+        79.5,
+        rowTops[index] - 0.7,
+        16,
+      );
+    }
+  }
 }
 
 async function fillCommissionOriginal(

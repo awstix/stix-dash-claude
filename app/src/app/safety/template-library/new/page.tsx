@@ -9,6 +9,7 @@ import { DirectParticipantSignatures } from "../../_components/DirectParticipant
 import { createSafetyInstructionRecord } from "../../actions";
 import { ProjectInstructorFields } from "../../operating-instructions/new/ProjectInstructorFields";
 import { CommissionOriginalForm } from "./SifaOriginalForm";
+import { FirstInductionOriginalForm } from "./FirstInductionOriginalForm";
 
 export default async function NewLibraryTemplatePage({
   searchParams,
@@ -51,6 +52,9 @@ export default async function NewLibraryTemplatePage({
   const sections = parseSections(template.sectionsJson);
   const isRiskAssessment = template.type === "RISK_ASSESSMENT";
   const isCommission = template.type === "COMMISSION";
+  const isFirstInduction = template.title.includes(
+    "Erstunterweisung Allgemein",
+  );
   const backHref = isRiskAssessment
     ? "/safety/risk-assessments"
     : isCommission
@@ -118,7 +122,9 @@ export default async function NewLibraryTemplatePage({
         ) : null}
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)]">
-        {isCommission ? (
+        {isFirstInduction ? (
+          <FirstInductionOriginalForm />
+        ) : isCommission ? (
           <CommissionOriginalForm
             initialCheckedSections={initialCheckedSections}
             initialValues={initialValues}
@@ -177,7 +183,7 @@ export default async function NewLibraryTemplatePage({
               type="date"
             />
           </label> : null}
-          <div>
+          {!isFirstInduction ? <div>
             <p className="text-sm font-bold text-gray-950">
               Behandelte Inhalte
             </p>
@@ -198,7 +204,7 @@ export default async function NewLibraryTemplatePage({
                 </label>
               ))}
             </div>
-          </div>
+          </div> : null}
           <DirectParticipantSignatures
             employees={options.employees}
             initialSelectedIds={initialEmployeeIds}

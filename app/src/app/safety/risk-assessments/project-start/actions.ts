@@ -93,8 +93,25 @@ export async function saveProjectStartChecklist(formData: FormData) {
       where: { checklistId: checklist.id },
     });
 
-  await prisma.$transaction(
-    participantIds.map((employeeId) => {
+  const externalFirstNames = formData.getAll("externalFirstName").map(String);
+  const externalLastNames = formData.getAll("externalLastName").map(String);
+  const externalCompanies = formData.getAll("externalCompany").map(String);
+  const externalDates = formData.getAll("externalInstructionDate").map(String);
+  const externalSignatures = formData.getAll("externalSignature").map(String);
+  const externalParticipants = externalFirstNames
+    .map((firstName, index) => ({
+      externalCompany: externalCompanies[index]?.trim() || null,
+      externalFirstName: firstName.trim(),
+      externalLastName: externalLastNames[index]?.trim() || "",
+      instructionDate: externalDates[index]
+        ? new Date(`${externalDates[index]}T00:00:00`)
+        : checklistDate,
+      signatureDataUrl: externalSignatures[index]?.trim() || null,
+    }))
+    .filter((participant) => participant.externalFirstName || participant.externalLastName);
+
+  await prisma.$transaction([
+    ...participantIds.map((employeeId) => {
       const signatureDataUrl = text(formData, `signature_${employeeId}`);
       const previous = existingParticipants.find(
         (participant) => participant.employeeId === employeeId,
@@ -138,19 +155,30 @@ export async function saveProjectStartChecklist(formData: FormData) {
         },
       });
     }),
-  );
+    ...externalParticipants.map((participant) =>
+      prisma.projectStartChecklistParticipant.create({
+        data: {
+          checklistId: checklist.id,
+          ...participant,
+          signedAt: participant.signatureDataUrl ? new Date() : null,
+        },
+      }),
+    ),
+  ]);
   const signedParticipants =
     await prisma.projectStartChecklistParticipant.findMany({
       select: { employeeId: true, instructionDate: true },
       where: {
         checklistId: checklist.id,
+        employeeId: { not: null },
         signatureDataUrl: { not: null },
       },
     });
   await Promise.all(
-    signedParticipants.map((participant) => {
+    signedParticipants.flatMap((participant) => {
+      if (!participant.employeeId) return [];
       const trainingDate = participant.instructionDate ?? checklistDate;
-      return prisma.employeeTrainingRecord.upsert({
+      return [prisma.employeeTrainingRecord.upsert({
         create: {
           employeeId: participant.employeeId,
           notes: `Automatisch aus Arbeitssicherheit · /safety/risk-assessments/project-start/${checklist.id}`,
@@ -169,7 +197,7 @@ export async function saveProjectStartChecklist(formData: FormData) {
         where: {
           safetySourceKey: `project-start:${checklist.id}:${participant.employeeId}`,
         },
-      });
+      })];
     }),
   );
 

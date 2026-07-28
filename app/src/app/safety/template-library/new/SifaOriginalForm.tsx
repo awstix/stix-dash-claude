@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { ActionIcon } from "@/components/ActionIcon";
 import { SignatureFormField } from "../../_components/SignatureFormField";
 
 const FORM_ID = "safety-template-record-form";
@@ -87,6 +88,12 @@ export function CommissionOriginalForm({
     dialogRef.current?.close();
   }
 
+  function closeSignatureDialog() {
+    setSignatureError("");
+    setSignatureTarget(null);
+    dialogRef.current?.close();
+  }
+
   return (
     <>
       <section className="space-y-5 rounded-2xl border border-gray-300 bg-gray-200 p-2 shadow-sm">
@@ -169,7 +176,16 @@ export function CommissionOriginalForm({
         className="m-auto w-[min(94vw,48rem)] rounded-2xl bg-white p-0 shadow-2xl backdrop:bg-gray-950/60"
         ref={dialogRef}
       >
-        <div className="p-5">
+        <div className="relative p-5 pt-16">
+          <button
+            aria-label="Unterschriftenfenster schließen"
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-800 shadow-sm hover:bg-gray-100"
+            onClick={closeSignatureDialog}
+            title="Schließen"
+            type="button"
+          >
+            <ActionIcon className="h-5 w-5" name="close" />
+          </button>
           {Object.entries(signerNames).map(([name, value]) => (
             <input
               form={FORM_ID}

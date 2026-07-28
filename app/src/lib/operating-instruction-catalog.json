@@ -2078,5 +2078,23 @@
       "Instandhaltung, Wartung und sachgerechter Abschluss"
     ],
     "title": "Baustellenordnung Stix"
+  },
+  {
+    "category": "Erstunterweisungen",
+    "categoryCode": "A-70-20",
+    "date": "2024-08-29",
+    "docxPath": null,
+    "pdfPath": "/templates/operating-instructions/A-70-20/A-70-20-001 - Erstunterweisung Allgemein - 2024-08-29 Rev00.pdf",
+    "sections": [
+      "Gesamtes Dokument",
+      "Allgemeines, Zweck und Geltungsbereich",
+      "Verantwortung und Pflichten im Arbeitsschutz",
+      "Unterweisungen und Fragen zum Arbeitsschutz",
+      "Allgemeine Forderungen und Verhaltensregeln",
+      "Persönliche Schutzausrüstung",
+      "Erste Hilfe und Reanimation",
+      "Betriebs-, Werk- und Standortregeln"
+    ],
+    "title": "A-70-20-001 · Erstunterweisung Allgemein"
   }
 ]

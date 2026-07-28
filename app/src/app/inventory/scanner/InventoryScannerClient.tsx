@@ -82,8 +82,11 @@ export function InventoryScannerClient() {
   const [scannedByName, setScannedByName] = useState("Unbekannt");
   const [shouldUseLocation, setShouldUseLocation] = useState(true);
   const [isOpening, setIsOpening] = useState(false);
+  const [isPhotoScanning, setIsPhotoScanning] = useState(false);
+  const [isSecureContext, setIsSecureContext] = useState<boolean | null>(null);
 
   useEffect(() => {
+    setIsSecureContext(window.isSecureContext);
     const timeout = window.setTimeout(() => {
       void refreshScannerSupport();
     }, 0);
@@ -204,6 +207,14 @@ export function InventoryScannerClient() {
   async function startCamera() {
     setError(null);
 
+    if (!window.isSecureContext) {
+      setIsSupported(false);
+      setError(
+        "Der Live-Scanner benötigt HTTPS. Nutze auf dem Tablet „Code fotografieren“ – das funktioniert auch im lokalen WLAN.",
+      );
+      return;
+    }
+
     const BarcodeDetector = (window as BarcodeDetectorWindow).BarcodeDetector;
 
     if (!BarcodeDetector || !navigator.mediaDevices) {
@@ -275,6 +286,30 @@ export function InventoryScannerClient() {
         "Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen, andere Kamera wählen oder manuelle Eingabe nutzen.",
       );
       stopCamera();
+    }
+  }
+
+  async function scanPhoto(file: File | null) {
+    if (!file) return;
+    setError(null);
+    setIsPhotoScanning(true);
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const { BrowserMultiFormatReader } = await import("@zxing/browser");
+      const reader = new BrowserMultiFormatReader();
+      const result = await reader.decodeFromImageUrl(imageUrl);
+      const rawValue = result.getText();
+      if (!rawValue) {
+        throw new Error("Kein Code erkannt");
+      }
+      await openTarget(rawValue);
+    } catch {
+      setError(
+        "Auf dem Foto wurde kein lesbarer QR- oder DataMatrix-Code erkannt. Bitte Code gerade, vollständig und bei gutem Licht fotografieren.",
+      );
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+      setIsPhotoScanning(false);
     }
   }
 
@@ -350,6 +385,21 @@ export function InventoryScannerClient() {
         </div>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <label className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-600">
+            {isPhotoScanning ? "Foto wird gelesen …" : "Code fotografieren"}
+            <input
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              disabled={isPhotoScanning || isOpening}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                void scanPhoto(file);
+              }}
+              type="file"
+            />
+          </label>
           {isScanning ? (
             <button
               className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -380,6 +430,13 @@ export function InventoryScannerClient() {
           <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm font-semibold text-orange-950">
             {error}
           </div>
+        ) : null}
+
+        {isSecureContext === false ? (
+          <p className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-950">
+            Tablet im lokalen WLAN: Bitte „Code fotografieren“ verwenden. Der
+            Live-Videostream wird von iOS und Android über HTTP blockiert.
+          </p>
         ) : null}
 
         {lastScan ? (

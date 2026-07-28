@@ -2602,10 +2602,13 @@ model ProjectStartChecklistParticipant {
   checklistId String
   checklist   ProjectStartChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   companyDepartment String?
+  externalFirstName String?
+  externalLastName  String?
+  externalCompany   String?
   signatureDataUrl  String?
   instructionDate   DateTime?
   signedAt          DateTime?
@@ -2668,10 +2671,13 @@ model GeneralRiskAssessmentParticipant {
   assessmentId String
   assessment   GeneralRiskAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   companyDepartment String?
+  externalFirstName String?
+  externalLastName  String?
+  externalCompany   String?
   signatureDataUrl  String?
   instructionDate   DateTime?
   signedAt          DateTime?

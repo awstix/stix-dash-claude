@@ -983,9 +983,33 @@ export async function createSafetyInstructionRecord(formData: FormData) {
   const commissionedPersonName = optionalString(
     formData.get("commissionedPersonName"),
   ) ?? optionalString(formData.get("commissionedPersonSignatureSignerName"));
-  if (employeeIds.length === 0 && !commissionedPersonName) {
+  const externalFirstNames = formData
+    .getAll("externalParticipantFirstName")
+    .map((value) => String(value).trim());
+  const externalLastNames = formData
+    .getAll("externalParticipantLastName")
+    .map((value) => String(value).trim());
+  const externalCompanies = formData
+    .getAll("externalParticipantCompany")
+    .map((value) => String(value).trim());
+  const externalParticipantSignatures = formData
+    .getAll("externalParticipantSignature")
+    .map((value) => String(value).trim());
+  const externalParticipants = externalFirstNames
+    .map((firstName, index) => ({
+      company: externalCompanies[index] ?? "",
+      firstName,
+      lastName: externalLastNames[index] ?? "",
+      signatureDataUrl: externalParticipantSignatures[index] || null,
+    }))
+    .filter(({ firstName, lastName }) => firstName || lastName);
+  if (
+    employeeIds.length === 0 &&
+    externalParticipants.length === 0 &&
+    !commissionedPersonName
+  ) {
     throw new Error(
-      "Bitte mindestens einen Mitarbeiter auswählen oder eine externe beauftragte Person eintragen.",
+      "Bitte mindestens einen internen Mitarbeiter oder eine externe Person eintragen.",
     );
   }
 
@@ -1074,10 +1098,10 @@ export async function createSafetyInstructionRecord(formData: FormData) {
         ]
           .filter((entry) => entry[1])
           .map((entry) => `${entry[0]}: ${entry[1]}`)
-          .concat(originalFormFields)
       : [];
   const recordNotes = [
     ...commissionDetails,
+    ...originalFormFields,
     optionalString(formData.get("notes")),
   ]
     .filter(Boolean)
@@ -1096,7 +1120,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
       signatureDataUrl,
     };
   });
-  const externalSignatures =
+  const externalSignatures = (
     template.type === "COMMISSION"
       ? [
           commissionedPersonName
@@ -1143,15 +1167,32 @@ export async function createSafetyInstructionRecord(formData: FormData) {
                 }
               : null;
           }),
-        ].filter(
+        ]
+      : [
+          ...externalParticipants.map((participant) => ({
+            employeeName: `Extern · ${participant.company || "Ohne Firmenangabe"} · ${participant.lastName}, ${participant.firstName}`,
+            signatureDataUrl: participant.signatureDataUrl,
+          })),
+          optionalString(formData.get("presenterSignatureDataUrl"))
+            ? {
+                employeeName: `Vortragende Person · ${
+                  optionalString(formData.get("instructedByName")) ??
+                  "Nicht angegeben"
+                }`,
+                signatureDataUrl: optionalString(
+                  formData.get("presenterSignatureDataUrl"),
+                ),
+              }
+            : null,
+        ]
+  ).filter(
           (
             entry,
           ): entry is {
             employeeName: string;
             signatureDataUrl: string | null;
           } => Boolean(entry),
-        )
-      : [];
+        );
   const isFullySigned =
     employeesWithSignatures.every(
       ({ signatureDataUrl }) => Boolean(signatureDataUrl),

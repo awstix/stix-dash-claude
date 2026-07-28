@@ -540,12 +540,16 @@ export async function GET(
       y: y - height,
     });
     page.drawText(
-      safe(`${participant.employee.lastName}, ${participant.employee.firstName}`),
+      safe(
+        participant.employee
+          ? `${participant.employee.lastName}, ${participant.employee.firstName}`
+          : `${participant.externalLastName ?? ""}, ${participant.externalFirstName ?? ""}`,
+      ),
       { x: MARGIN + 5, y: y - 19, size: 8, font: fonts.bold, color: BLACK },
     );
     page.drawText(
       safe(
-        `${participant.companyDepartment || "-"} / Unterwiesen am ${date(
+        `${participant.employee ? participant.companyDepartment || "-" : participant.externalCompany || "-"} / Unterwiesen am ${date(
           participant.instructionDate,
         )}`,
       ),

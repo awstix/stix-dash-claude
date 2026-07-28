@@ -31,7 +31,7 @@ export default async function ProjectStartChecklistPage() {
             {checklists.map((item) => <tr className="border-t border-gray-200" key={item.id}>
               <td className="p-3 font-bold">{item.project.projectNumber} · {item.project.name}</td>
               <td className="p-3">{item.checklistDate.toLocaleDateString("de-DE")}</td>
-              <td className="p-3"><SafetyParticipantSummary names={item.participants.map((participant) => `${participant.employee.lastName}, ${participant.employee.firstName}`)} /></td>
+              <td className="p-3"><SafetyParticipantSummary names={item.participants.map((participant) => participant.employee ? `${participant.employee.lastName}, ${participant.employee.firstName}` : `${participant.externalLastName ?? ""}, ${participant.externalFirstName ?? ""}${participant.externalCompany ? ` · ${participant.externalCompany}` : ""}`)} /></td>
               <td className="p-3">{item.status === "COMPLETED" ? "Abgeschlossen" : "Entwurf"}</td>
               <td className="p-3">{item.participants.filter((p) => p.signatureDataUrl).length}/{item.participants.length}</td>
               <td className="p-3"><div className="flex gap-2"><Link className="rounded-lg border border-gray-300 px-3 py-2 font-bold" href={`/safety/risk-assessments/project-start/${item.id}`}>Öffnen</Link><a className="rounded-lg border border-gray-300 px-3 py-2 font-bold" href={`/safety/risk-assessments/project-start/${item.id}/pdf`}>PDF</a></div></td>

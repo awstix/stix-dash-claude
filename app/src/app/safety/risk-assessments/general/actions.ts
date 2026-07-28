@@ -127,11 +127,28 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
       where: { assessmentId: assessment.id },
     });
 
+  const externalFirstNames = formData.getAll("externalFirstName").map(String);
+  const externalLastNames = formData.getAll("externalLastName").map(String);
+  const externalCompanies = formData.getAll("externalCompany").map(String);
+  const externalDates = formData.getAll("externalInstructionDate").map(String);
+  const externalSignatures = formData.getAll("externalSignature").map(String);
+  const externalParticipants = externalFirstNames
+    .map((firstName, index) => ({
+      externalCompany: externalCompanies[index]?.trim() || null,
+      externalFirstName: firstName.trim(),
+      externalLastName: externalLastNames[index]?.trim() || "",
+      instructionDate: externalDates[index]
+        ? new Date(`${externalDates[index]}T12:00:00`)
+        : data.assessmentDate,
+      signatureDataUrl: externalSignatures[index]?.trim() || null,
+    }))
+    .filter((participant) => participant.externalFirstName || participant.externalLastName);
+
   await prisma.$transaction([
     prisma.generalRiskAssessmentParticipant.deleteMany({
       where: {
         assessmentId: assessment.id,
-        employeeId: { notIn: participantIds },
+        employeeId: { not: null, notIn: participantIds },
       },
     }),
     ...participantIds.map((employeeId) => {
@@ -178,19 +195,30 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
         },
       });
     }),
+    ...externalParticipants.map((participant) =>
+      prisma.generalRiskAssessmentParticipant.create({
+        data: {
+          assessmentId: assessment.id,
+          ...participant,
+          signedAt: participant.signatureDataUrl ? new Date() : null,
+        },
+      }),
+    ),
   ]);
   const signedParticipants =
     await prisma.generalRiskAssessmentParticipant.findMany({
       select: { employeeId: true, instructionDate: true },
       where: {
         assessmentId: assessment.id,
+        employeeId: { not: null },
         signatureDataUrl: { not: null },
       },
     });
   await Promise.all(
-    signedParticipants.map((participant) => {
+    signedParticipants.flatMap((participant) => {
+      if (!participant.employeeId) return [];
       const trainingDate = participant.instructionDate ?? assessmentDate;
-      return prisma.employeeTrainingRecord.upsert({
+      return [prisma.employeeTrainingRecord.upsert({
         create: {
           employeeId: participant.employeeId,
           notes: `Automatisch aus Arbeitssicherheit · /safety/risk-assessments/general/${assessment.id}`,
@@ -210,7 +238,7 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
         where: {
           safetySourceKey: `general-risk:${assessment.id}:${participant.employeeId}`,
         },
-      });
+      })];
     }),
   );
 

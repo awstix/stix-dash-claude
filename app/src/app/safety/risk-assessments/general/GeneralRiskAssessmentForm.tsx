@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { SignatureFormField } from "../../_components/SignatureFormField";
+import { ExternalParticipants } from "../../_components/ExternalParticipants";
 import type {
   GeneralRiskAssessmentAnswer,
   GeneralRiskAssessmentTemplate,
@@ -829,6 +830,7 @@ export function GeneralRiskAssessmentForm({
                 </div>
               ))}
           </div>
+          <ExternalParticipants defaultDate={initial.assessmentDate} />
         </Section>
 
         {template.key === "tiefbau" ||

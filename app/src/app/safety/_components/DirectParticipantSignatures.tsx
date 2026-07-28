@@ -18,6 +18,7 @@ export function DirectParticipantSignatures({
 }) {
   const [selectedIds, setSelectedIds] =
     useState<string[]>(initialSelectedIds);
+  const [externalParticipants, setExternalParticipants] = useState<string[]>([]);
   const selectedEmployees = employees.filter((employee) =>
     selectedIds.includes(employee.id),
   );
@@ -81,6 +82,79 @@ export function DirectParticipantSignatures({
           ))}
         </div>
       ) : null}
+
+      <div className="border-t border-gray-300 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-gray-950">
+              Externe teilnehmende Personen
+            </p>
+            <p className="mt-1 text-xs font-medium text-gray-600">
+              Für Nachunternehmer, Besucher oder andere Personen außerhalb der Firma.
+            </p>
+          </div>
+          <button
+            className="rounded-xl border border-gray-950 bg-white px-4 py-2 text-sm font-bold text-gray-950"
+            onClick={() =>
+              setExternalParticipants((current) => [
+                ...current,
+                crypto.randomUUID(),
+              ])
+            }
+            type="button"
+          >
+            + Externe Person
+          </button>
+        </div>
+        <div className="mt-3 space-y-3">
+          {externalParticipants.map((id, index) => (
+            <div className="rounded-xl border border-gray-300 p-4" key={id}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-bold text-gray-950">
+                  Externe Person {index + 1}
+                </p>
+                <button
+                  aria-label="Externe Person entfernen"
+                  className="text-xl font-bold text-gray-700"
+                  onClick={() =>
+                    setExternalParticipants((current) =>
+                      current.filter((entry) => entry !== id),
+                    )
+                  }
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <input
+                  className="rounded-xl border border-gray-400 bg-white px-3 py-3 text-gray-950"
+                  name="externalParticipantCompany"
+                  placeholder="Firma / Abteilung"
+                />
+                <input
+                  className="rounded-xl border border-gray-400 bg-white px-3 py-3 text-gray-950"
+                  name="externalParticipantFirstName"
+                  placeholder="Vorname"
+                  required
+                />
+                <input
+                  className="rounded-xl border border-gray-400 bg-white px-3 py-3 text-gray-950"
+                  name="externalParticipantLastName"
+                  placeholder="Nachname"
+                  required
+                />
+              </div>
+              <div className="mt-3">
+                <SignatureFormField
+                  label="Unterschrift der externen Person"
+                  name="externalParticipantSignature"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

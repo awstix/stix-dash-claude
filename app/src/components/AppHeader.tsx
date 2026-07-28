@@ -39,6 +39,7 @@ export function AppHeader({
     | "controlling"
     | null
   >(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -110,7 +111,17 @@ export function AppHeader({
           Dashboard Stix
         </Link>
 
-        <nav className="flex flex-wrap justify-end gap-2 text-sm font-medium text-gray-600">
+        <button
+          aria-expanded={mobileMenuOpen}
+          aria-label="Navigation öffnen"
+          className="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 font-bold text-gray-900 shadow-sm xl:hidden"
+          onClick={() => setMobileMenuOpen((current) => !current)}
+          type="button"
+        >
+          {mobileMenuOpen ? "Menü schließen ×" : "Menü ☰"}
+        </button>
+
+        <nav className="hidden flex-wrap justify-end gap-2 text-sm font-medium text-gray-600 xl:flex">
           {primaryNavigation.map((item) => (
             <NavigationLink
               item={item}
@@ -212,7 +223,111 @@ export function AppHeader({
           ))}
         </nav>
       </div>
+      {mobileMenuOpen ? (
+        <nav className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-gray-200 bg-white p-4 text-gray-900 shadow-xl xl:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {primaryNavigation.map((item) => (
+              <MobileNavigationLink
+                item={item}
+                key={item.href}
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
+            ))}
+            <MobileNavigationSection
+              items={projectNavigation}
+              label="Projekte"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={dispositionNavigation}
+              label="Disposition"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={inventoryNavigation}
+              label="Inventar"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={controllingNavigation}
+              label="Controlling"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={safetyNavigation}
+              label="Arbeitssicherheit"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={workshopNavigation}
+              label="Werkstatt"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={employeeNavigation}
+              label="Mitarbeiter"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            {secondaryNavigation.map((item) => (
+              <MobileNavigationLink
+                item={item}
+                key={item.href}
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
+            ))}
+          </div>
+        </nav>
+      ) : null}
     </header>
+  );
+}
+
+function MobileNavigationLink({
+  item,
+  onNavigate,
+}: {
+  item: NavigationItem;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      className="flex min-h-12 items-center rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 font-bold"
+      href={item.href}
+      onClick={onNavigate}
+    >
+      {item.name}
+    </Link>
+  );
+}
+
+function MobileNavigationSection({
+  items,
+  label,
+  onNavigate,
+}: {
+  items: NavigationItem[];
+  label: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <details className="rounded-xl border border-gray-300 bg-white">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 font-bold">
+        {label}
+        <span aria-hidden>⌄</span>
+      </summary>
+      <div className="space-y-1 border-t border-gray-200 p-2">
+        {items.map((item) => (
+          <Link
+            className="block min-h-11 rounded-lg px-3 py-3 font-semibold text-gray-800 hover:bg-gray-100"
+            href={item.href}
+            key={item.href}
+            onClick={onNavigate}
+          >
+            {item.name}
+          </Link>
+        ))}
+      </div>
+    </details>
   );
 }
 

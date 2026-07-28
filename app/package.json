@@ -13,6 +13,7 @@
     "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@zxing/browser": "^0.2.1",
     "adm-zip": "^0.6.0",
     "better-sqlite3": "^12.10.0",
     "bwip-js": "^4.11.1",

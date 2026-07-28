@@ -379,7 +379,10 @@ async function drawParticipant(
   y: number,
   participant: {
     companyDepartment: string | null;
-    employee: { firstName: string; lastName: string };
+    employee: { firstName: string; lastName: string } | null;
+    externalCompany: string | null;
+    externalFirstName: string | null;
+    externalLastName: string | null;
     instructionDate: Date | null;
     signatureDataUrl: string | null;
   },
@@ -393,9 +396,12 @@ async function drawParticipant(
     x += width;
   });
   page.drawText("Name", { x: MARGIN + 4, y: y - 10, size: 6.5, font: fonts.regular, color: MUTED });
-  page.drawText(`${participant.employee.lastName}, ${participant.employee.firstName}`, { x: MARGIN + 4, y: y - 29, size: 8.5, font: fonts.bold, color: BLACK });
+  const participantName = participant.employee
+    ? `${participant.employee.lastName}, ${participant.employee.firstName}`
+    : `${participant.externalLastName ?? ""}, ${participant.externalFirstName ?? ""}`;
+  page.drawText(participantName, { x: MARGIN + 4, y: y - 29, size: 8.5, font: fonts.bold, color: BLACK });
   page.drawText("Firma / Abteilung", { x: MARGIN + 194, y: y - 10, size: 6.5, font: fonts.regular, color: MUTED });
-  page.drawText(fit(participant.companyDepartment || "—", fonts.regular, 7.5, 107), { x: MARGIN + 194, y: y - 29, size: 7.5, font: fonts.regular, color: BLACK });
+  page.drawText(fit(participant.employee ? participant.companyDepartment || "—" : participant.externalCompany || "—", fonts.regular, 7.5, 107), { x: MARGIN + 194, y: y - 29, size: 7.5, font: fonts.regular, color: BLACK });
   page.drawText("Datum", { x: MARGIN + 309, y: y - 10, size: 6.5, font: fonts.regular, color: MUTED });
   page.drawText(date(participant.instructionDate), { x: MARGIN + 309, y: y - 29, size: 8, font: fonts.regular, color: BLACK });
   page.drawText("Unterschrift", { x: MARGIN + 384, y: y - 10, size: 6.5, font: fonts.regular, color: MUTED });

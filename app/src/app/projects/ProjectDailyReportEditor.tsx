@@ -1521,7 +1521,7 @@ function MaterialRowsSection({
           <tbody>
             {rows.map((row, index) => (
               <tr className="border-t border-gray-100" key={row.key}>
-                <td className="w-32 px-3 py-2">
+                <td className="w-32 px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     min="0"
@@ -1533,7 +1533,7 @@ function MaterialRowsSection({
                     value={formatEditableNumber(row.quantity)}
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     onChange={(event) =>
@@ -1548,7 +1548,7 @@ function MaterialRowsSection({
                     />
                   ) : null}
                 </td>
-                <td className="w-28 px-3 py-2">
+                <td className="w-28 px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     onChange={(event) =>
@@ -1557,7 +1557,7 @@ function MaterialRowsSection({
                     value={row.unit}
                   />
                 </td>
-                <td className="w-24 px-3 py-2">
+                <td className="w-24 px-3 py-2 align-top">
                   <button
                     className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
                     onClick={() => removeRow(index)}
@@ -1670,7 +1670,7 @@ function CountRowsSection({
           <tbody>
             {rows.map((row, index) => (
               <tr className="border-t border-gray-100" key={row.key}>
-                <td className="w-24 px-3 py-2">
+                <td className="w-24 px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     min="0"
@@ -1681,7 +1681,7 @@ function CountRowsSection({
                     value={formatEditableNumber(row.count)}
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     onChange={(event) =>
@@ -1696,7 +1696,7 @@ function CountRowsSection({
                     />
                   ) : null}
                 </td>
-                <td className="w-28 px-3 py-2">
+                <td className="w-28 px-3 py-2 align-top">
                   <input
                     className={compactInputClassName}
                     min="0"
@@ -1709,7 +1709,7 @@ function CountRowsSection({
                   />
                 </td>
                 {allowCustomRows ? (
-                  <td className="w-24 px-3 py-2">
+                  <td className="w-24 px-3 py-2 align-top">
                     <button
                       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
                       onClick={() => removeRow(index)}

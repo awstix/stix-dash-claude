@@ -21,6 +21,9 @@ export default async function GeneralRiskAssessmentsPage({
       participants: {
         select: {
           employee: { select: { firstName: true, lastName: true } },
+          externalCompany: true,
+          externalFirstName: true,
+          externalLastName: true,
           signatureDataUrl: true,
         },
       },
@@ -113,7 +116,9 @@ export default async function GeneralRiskAssessmentsPage({
                       <SafetyParticipantSummary
                         names={record.participants.map(
                           (participant) =>
-                            `${participant.employee.lastName}, ${participant.employee.firstName}`,
+                            participant.employee
+                              ? `${participant.employee.lastName}, ${participant.employee.firstName}`
+                              : `${participant.externalLastName ?? ""}, ${participant.externalFirstName ?? ""}${participant.externalCompany ? ` · ${participant.externalCompany}` : ""}`,
                         )}
                       />
                     </td>
