@@ -21,7 +21,7 @@ export default async function NewProjectStartChecklistPage({
   return <AppShell title="Projektstart Tiefbau ausfüllen" description="A-30-30-001 · Rev. 00">
     <ProjectStartChecklistForm
       employees={employees.map((e) => ({ companyDepartment: [e.companyLabel, e.departmentLabel].filter(Boolean).join(" / "), id: e.id, label: `${e.lastName}, ${e.firstName}` }))}
-      initial={{ activities: [], assessments: {}, checklistDate: today, endDate: "", instructionTopics: "", otherActivities: "", participantDates: {}, participantIds: [], participantSignatures: {}, presenterName: selectedProject?.constructionManager ?? "", presenterSignatureDataUrl: "", projectId: selectedProject?.id ?? "", responsibleManager: selectedProject?.constructionManager ?? "", responsibleMobile: "", responsiblePhone: "", sitePostalCity: "", siteStreet: "", startDate: today }}
+      initial={{ activities: [], assessments: {}, checklistDate: today, endDate: "", instructionTopics: "", otherActivities: "", participantDates: {}, participantIds: [], participantSignatures: {}, presenterName: selectedProject?.constructionManager ?? "", presenterSignatureDataUrl: "", projectId: selectedProject?.id ?? "", responsibleManager: selectedProject?.constructionManager ?? "", responsibleMobile: "", responsiblePhone: "", sitePostalCity: "", siteStreet: "", startDate: today, validityMonths: 12 }}
       managerOptions={employees
         .filter((employee) =>
           employee.positions.some((position) =>

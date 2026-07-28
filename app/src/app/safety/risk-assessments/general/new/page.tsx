@@ -46,6 +46,7 @@ export default async function NewGeneralRiskAssessmentPage({
           projectId,
           responsibleName: project?.constructionManager ?? "",
           responsibleSignatureDataUrl: "",
+          validityMonths: 12,
         }}
         template={template}
       />

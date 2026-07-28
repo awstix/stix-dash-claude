@@ -1304,6 +1304,7 @@ model EmployeeTrainingRecord {
   validityMonths        Int?
   validUntil            DateTime?
   notes                 String?
+  safetySourceKey       String? @unique
   documents             EmployeeTrainingRecordDocument[]
 
   createdAt DateTime @default(now())
@@ -2423,6 +2424,7 @@ model SafetyTemplateFolder {
   systemKey String? @unique
   isDeleted Boolean @default(false)
   sortOrder Int    @default(0)
+  defaultValidityMonths Int?
 
   parentId String?
   parent   SafetyTemplateFolder?  @relation("SafetyTemplateFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
@@ -2454,6 +2456,8 @@ model SafetyInstructionRecord {
   notes               String?
   status              String   @default("DRAFT")
   archivedAt          DateTime?
+  validityMonths      Int      @default(12)
+  validUntil          DateTime?
 
   previousVersionId String?
   previousVersion   SafetyInstructionRecord?  @relation("SafetyInstructionRecordVersions", fields: [previousVersionId], references: [id], onDelete: SetNull)
@@ -2470,6 +2474,7 @@ model SafetyInstructionRecord {
   @@index([status])
   @@index([archivedAt])
   @@index([previousVersionId])
+  @@index([validUntil])
 }
 
 model SafetyInstructionSignature {
@@ -2563,6 +2568,8 @@ model ProjectStartChecklist {
   templateRevision String @default("00")
   status           String @default("DRAFT")
   checklistDate    DateTime @default(now())
+  validityMonths   Int      @default(12)
+  validUntil       DateTime?
   startDate        DateTime?
   endDate          DateTime?
   siteStreet       String?
@@ -2586,6 +2593,7 @@ model ProjectStartChecklist {
   @@index([projectId])
   @@index([status])
   @@index([checklistDate])
+  @@index([validUntil])
 }
 
 model ProjectStartChecklistParticipant {
@@ -2629,6 +2637,8 @@ model GeneralRiskAssessment {
 
   status             String   @default("DRAFT")
   assessmentDate     DateTime @default(now())
+  validityMonths     Int      @default(12)
+  validUntil         DateTime?
   location           String?
   responsibleName    String?
   responsibleSignatureDataUrl String?
@@ -2649,6 +2659,7 @@ model GeneralRiskAssessment {
   @@index([assessedEmployeeId])
   @@index([status])
   @@index([assessmentDate])
+  @@index([validUntil])
 }
 
 model GeneralRiskAssessmentParticipant {

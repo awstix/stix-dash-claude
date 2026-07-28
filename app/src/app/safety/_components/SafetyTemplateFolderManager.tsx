@@ -9,6 +9,7 @@ import { SafetyTemplateDocumentMoveButton } from "./SafetyTemplateDocumentMoveBu
 import { SafetyTemplateFolderActions } from "./SafetyTemplateFolderActions";
 
 type Folder = {
+  defaultValidityMonths: number | null;
   id: string;
   name: string;
   parentId: string | null;
@@ -71,6 +72,13 @@ export function SafetyTemplateFolderManager({
                 </option>
               ))}
             </select>
+            <input
+              className={inputClass}
+              min="1"
+              name="defaultValidityMonths"
+              placeholder="Gültigkeit in Monaten (Standard: 12)"
+              type="number"
+            />
             <button className={buttonClass} type="submit">
               Ordner erstellen
             </button>
@@ -191,7 +199,6 @@ function FolderNode({
           ? "border-gray-600 bg-gray-700"
           : "ml-4 border-gray-300 bg-white sm:ml-7"
       }`}
-      open={folder.systemKey === "operating-instructions-a-30-19"}
     >
       <summary
         className={`flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-bold marker:hidden ${
@@ -207,8 +214,9 @@ function FolderNode({
         >
           <ActionIcon className="h-4 w-4" name="open" />
         </span>
-        <SafetyTemplateFolderActions
-          currentName={folder.name}
+      <SafetyTemplateFolderActions
+        currentName={folder.name}
+        defaultValidityMonths={folder.defaultValidityMonths}
           folderId={folder.id}
           parentId={folder.parentId}
           targets={allFolders
@@ -228,7 +236,8 @@ function FolderNode({
             isTopLevel ? "text-gray-300" : "text-gray-500"
           }`}
         >
-          {totalFolderCount} Unterordner · {totalDocumentCount} Dokumente
+          {totalFolderCount} Unterordner · {totalDocumentCount} Dokumente ·{" "}
+          {effectiveValidityMonths(folder, allFolders)} Monate gültig
         </span>
       </summary>
       <div className="space-y-2 border-t border-gray-200 bg-gray-50 p-3">
@@ -404,6 +413,19 @@ function collectDescendantIds(folderId: string, folders: Folder[]) {
     }
   }
   return descendants;
+}
+
+function effectiveValidityMonths(folder: Folder, folders: Folder[]) {
+  let current: Folder | undefined = folder;
+  const visited = new Set<string>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    if (current.defaultValidityMonths) return current.defaultValidityMonths;
+    current = current.parentId
+      ? folders.find((entry) => entry.id === current?.parentId)
+      : undefined;
+  }
+  return 12;
 }
 
 const inputClass =

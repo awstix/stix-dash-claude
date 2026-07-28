@@ -63,6 +63,22 @@ function optionalNumber(value: FormDataEntryValue | null) {
   return Number.isFinite(number) ? number : null;
 }
 
+function positiveIntegerOrNull(value: FormDataEntryValue | null) {
+  const text = optionalString(value);
+  if (!text) return null;
+  const number = Number.parseInt(text, 10);
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error("Die Gültigkeit muss mindestens einen Monat betragen.");
+  }
+  return number;
+}
+
+function addMonths(date: Date, months: number) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
 function optionalInteger(value: FormDataEntryValue | null) {
   const number = optionalNumber(value);
   return number === null ? null : Math.max(0, Math.trunc(number));
@@ -979,6 +995,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
         id: templateId,
       },
       select: {
+        folderId: true,
         title: true,
         type: true,
       },
@@ -1027,6 +1044,11 @@ export async function createSafetyInstructionRecord(formData: FormData) {
   }
 
   const projectId = optionalString(formData.get("projectId"));
+  const instructionDate = dateValue(formData.get("instructionDate"), "Datum");
+  const validityMonths =
+    positiveIntegerOrNull(formData.get("validityMonths")) ??
+    (await safetyValidityMonths(template.folderId));
+  const validUntil = addMonths(instructionDate, validityMonths);
   const originalFormFields = Array.from(formData.entries())
     .filter(
       ([key, value]) =>
@@ -1142,7 +1164,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
     data: {
       checkedSectionsJson: JSON.stringify(checkedSections),
       instructedByName: optionalString(formData.get("instructedByName")),
-      instructionDate: dateValue(formData.get("instructionDate"), "Datum"),
+      instructionDate,
       notes: recordNotes || null,
       previousVersion: previousVersionId
         ? { connect: { id: previousVersionId } }
@@ -1179,6 +1201,8 @@ export async function createSafetyInstructionRecord(formData: FormData) {
         ],
       },
       status: isFullySigned ? "SIGNED" : "OPEN",
+      validityMonths,
+      validUntil,
       template: {
         connect: {
           id: templateId,
@@ -1186,6 +1210,39 @@ export async function createSafetyInstructionRecord(formData: FormData) {
       },
     },
   });
+
+  await Promise.all(
+    employeesWithSignatures
+      .filter(({ signatureDataUrl }) => Boolean(signatureDataUrl))
+      .map(({ employee }) =>
+        prisma.employeeTrainingRecord.upsert({
+          create: {
+            employeeId: employee.id,
+            notes: `Automatisch aus Arbeitssicherheit · /safety/instruction-records/${record.id}`,
+            safetySourceKey: `safety-record:${record.id}:${employee.id}`,
+            topic: template.title,
+            trainingDate: instructionDate,
+            type:
+              template.type === "COMMISSION"
+                ? "Beauftragung"
+                : template.type === "RISK_ASSESSMENT"
+                  ? "Gefährdungsbeurteilung"
+                  : "Betriebsanweisung / Unterweisung",
+            validityMonths,
+            validUntil,
+          },
+          update: {
+            topic: template.title,
+            trainingDate: instructionDate,
+            validityMonths,
+            validUntil,
+          },
+          where: {
+            safetySourceKey: `safety-record:${record.id}:${employee.id}`,
+          },
+        }),
+      ),
+  );
 
   revalidatePath("/safety/risk-assessments");
   revalidatePath("/safety/operating-instructions");
@@ -1207,6 +1264,22 @@ export async function createSafetyInstructionRecord(formData: FormData) {
     redirect(redirectTo);
   }
   redirect(`/safety/instruction-records/${record.id}`);
+}
+
+async function safetyValidityMonths(folderId: string | null) {
+  let currentId = folderId;
+  const visited = new Set<string>();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const folder = await prisma.safetyTemplateFolder.findUnique({
+      select: { defaultValidityMonths: true, parentId: true },
+      where: { id: currentId },
+    });
+    if (!folder) break;
+    if (folder.defaultValidityMonths) return folder.defaultValidityMonths;
+    currentId = folder.parentId;
+  }
+  return 12;
 }
 
 export async function archiveSafetyInstructionRecord(formData: FormData) {
@@ -1375,8 +1448,24 @@ export async function createSafetyTemplateFolder(formData: FormData) {
     }
   }
 
+  const defaultValidityMonths = positiveIntegerOrNull(
+    formData.get("defaultValidityMonths"),
+  );
   await prisma.safetyTemplateFolder.create({
-    data: { area, name, parentId },
+    data: { area, defaultValidityMonths, name, parentId },
+  });
+  revalidateSafetyLibraries();
+}
+
+export async function updateSafetyTemplateFolderValidity(formData: FormData) {
+  const folderId = requiredString(formData.get("folderId"), "Ordner");
+  await prisma.safetyTemplateFolder.update({
+    data: {
+      defaultValidityMonths: positiveIntegerOrNull(
+        formData.get("defaultValidityMonths"),
+      ),
+    },
+    where: { id: folderId },
   });
   revalidateSafetyLibraries();
 }

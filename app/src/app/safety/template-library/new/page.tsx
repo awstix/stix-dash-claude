@@ -18,7 +18,7 @@ export default async function NewLibraryTemplatePage({
   const params = await searchParams;
   const templateId = params.templateId;
   if (!templateId) notFound();
-  const [template, options, sourceRecord] = await Promise.all([
+  const [template, options, sourceRecord, folders] = await Promise.all([
     prisma.safetyInstructionTemplate.findUnique({
       where: { id: templateId },
     }),
@@ -29,6 +29,9 @@ export default async function NewLibraryTemplatePage({
           where: { id: params.sourceRecordId, templateId },
         })
       : null,
+    prisma.safetyTemplateFolder.findMany({
+      select: { defaultValidityMonths: true, id: true, parentId: true },
+    }),
   ]);
   if (
     !template ||
@@ -82,6 +85,9 @@ export default async function NewLibraryTemplatePage({
     sourceRecord?.signatures
       .map((signature) => signature.employeeId)
       .filter((id): id is string => Boolean(id)) ?? [];
+  const validityMonths =
+    sourceRecord?.validityMonths ??
+    inheritedValidityMonths(template.folderId, folders);
 
   return (
     <AppShell
@@ -144,6 +150,23 @@ export default async function NewLibraryTemplatePage({
             managerOptions={options.managerOptions}
             projects={options.projects}
           />
+          <label className="block space-y-2">
+            <span className="text-sm font-bold text-gray-950">
+              Gültigkeit in Monaten
+            </span>
+            <input
+              className={inputClass}
+              defaultValue={validityMonths}
+              min="1"
+              name="validityMonths"
+              required
+              type="number"
+            />
+            <span className="block text-xs text-gray-600">
+              Aus dem Ordner vorausgewählt und für diesen Nachweis individuell
+              änderbar.
+            </span>
+          </label>
           {!isCommission ? <label className="block space-y-2">
             <span className="text-sm font-bold text-gray-950">Datum</span>
             <input
@@ -222,6 +245,26 @@ function recordValues(notes: string | null) {
     values[standardNames[label] ?? `commissionField.${label}`] = value;
   }
   return values;
+}
+
+function inheritedValidityMonths(
+  folderId: string | null,
+  folders: Array<{
+    defaultValidityMonths: number | null;
+    id: string;
+    parentId: string | null;
+  }>,
+) {
+  let currentId = folderId;
+  const visited = new Set<string>();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const folder = folders.find((entry) => entry.id === currentId);
+    if (!folder) break;
+    if (folder.defaultValidityMonths) return folder.defaultValidityMonths;
+    currentId = folder.parentId;
+  }
+  return 12;
 }
 
 function parseSections(value: string) {

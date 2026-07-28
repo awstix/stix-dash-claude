@@ -7,6 +7,7 @@ import {
   deleteSafetyTemplateFolder,
   moveSafetyTemplateFolder,
   renameSafetyTemplateFolder,
+  updateSafetyTemplateFolderValidity,
 } from "../actions";
 
 type FolderOption = {
@@ -16,11 +17,13 @@ type FolderOption = {
 
 export function SafetyTemplateFolderActions({
   currentName,
+  defaultValidityMonths,
   folderId,
   parentId,
   targets,
 }: {
   currentName: string;
+  defaultValidityMonths: number | null;
   folderId: string;
   parentId: string | null;
   targets: FolderOption[];
@@ -134,6 +137,30 @@ export function SafetyTemplateFolderActions({
               </select>
               <button className={buttonClass} type="submit">
                 Ordner verschieben
+              </button>
+            </form>
+            <form
+              action={updateSafetyTemplateFolderValidity}
+              className="mt-5 space-y-2 border-t border-gray-200 pt-5"
+            >
+              <input name="folderId" type="hidden" value={folderId} />
+              <label className="block text-xs font-bold text-gray-700">
+                Gültigkeit der Nachweise in Monaten
+              </label>
+              <input
+                className={inputClass}
+                defaultValue={defaultValidityMonths ?? ""}
+                min="1"
+                name="defaultValidityMonths"
+                placeholder="Leer = vom Überordner, sonst 12 Monate"
+                type="number"
+              />
+              <p className="text-xs text-gray-600">
+                Unterordner ohne eigenen Wert übernehmen diese Gültigkeit
+                automatisch.
+              </p>
+              <button className={buttonClass} type="submit">
+                Gültigkeit speichern
               </button>
             </form>
           </div>

@@ -29,6 +29,7 @@ type ChecklistValues = {
   sitePostalCity: string;
   siteStreet: string;
   startDate: string;
+  validityMonths: number;
 };
 
 export function ProjectStartChecklistForm({
@@ -156,6 +157,7 @@ export function ProjectStartChecklistForm({
             </select>
           </Field>
           <Field label="Datum"><input className={input} defaultValue={initial.checklistDate} name="checklistDate" type="date" /></Field>
+          <Field label="Gültigkeit in Monaten"><input className={input} defaultValue={initial.validityMonths} min="1" name="validityMonths" required type="number" /></Field>
           <Field label="Verantwortliche Bauleitung">
             <select
               className={input}

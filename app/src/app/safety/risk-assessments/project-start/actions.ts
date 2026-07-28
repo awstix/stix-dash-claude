@@ -16,6 +16,20 @@ function date(formData: FormData, name: string) {
   return value ? new Date(`${value}T00:00:00`) : null;
 }
 
+function addMonths(value: Date, months: number) {
+  const result = new Date(value);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
+function validityMonthsValue(formData: FormData) {
+  const value = Number.parseInt(text(formData, "validityMonths") ?? "12", 10);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error("Die Gültigkeit muss mindestens einen Monat betragen.");
+  }
+  return value;
+}
+
 export async function saveProjectStartChecklist(formData: FormData) {
   const id = text(formData, "id");
   const projectId = text(formData, "projectId");
@@ -47,10 +61,12 @@ export async function saveProjectStartChecklist(formData: FormData) {
     );
   }
 
+  const checklistDate = date(formData, "checklistDate") ?? new Date();
+  const validityMonths = validityMonthsValue(formData);
   const data = {
     activitiesJson: JSON.stringify(activities),
     assessmentsJson: JSON.stringify(assessments),
-    checklistDate: date(formData, "checklistDate") ?? new Date(),
+    checklistDate,
     endDate: date(formData, "endDate"),
     instructionTopics: text(formData, "instructionTopics"),
     otherActivities: text(formData, "otherActivities"),
@@ -64,6 +80,8 @@ export async function saveProjectStartChecklist(formData: FormData) {
     siteStreet: text(formData, "siteStreet"),
     startDate: date(formData, "startDate"),
     status,
+    validityMonths,
+    validUntil: addMonths(checklistDate, validityMonths),
   };
 
   const checklist = id
@@ -117,6 +135,39 @@ export async function saveProjectStartChecklist(formData: FormData) {
             checklistId: checklist.id,
             employeeId,
           },
+        },
+      });
+    }),
+  );
+  const signedParticipants =
+    await prisma.projectStartChecklistParticipant.findMany({
+      select: { employeeId: true, instructionDate: true },
+      where: {
+        checklistId: checklist.id,
+        signatureDataUrl: { not: null },
+      },
+    });
+  await Promise.all(
+    signedParticipants.map((participant) => {
+      const trainingDate = participant.instructionDate ?? checklistDate;
+      return prisma.employeeTrainingRecord.upsert({
+        create: {
+          employeeId: participant.employeeId,
+          notes: `Automatisch aus Arbeitssicherheit · /safety/risk-assessments/project-start/${checklist.id}`,
+          safetySourceKey: `project-start:${checklist.id}:${participant.employeeId}`,
+          topic: "Projektstart Tiefbau / Asphaltbau",
+          trainingDate,
+          type: "Gefährdungsbeurteilung / Unterweisung",
+          validityMonths,
+          validUntil: addMonths(trainingDate, validityMonths),
+        },
+        update: {
+          trainingDate,
+          validityMonths,
+          validUntil: addMonths(trainingDate, validityMonths),
+        },
+        where: {
+          safetySourceKey: `project-start:${checklist.id}:${participant.employeeId}`,
         },
       });
     }),

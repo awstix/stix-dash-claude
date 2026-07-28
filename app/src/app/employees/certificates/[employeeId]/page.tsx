@@ -16,6 +16,21 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+function safetyValidity(date: Date | null) {
+  if (!date) return { className: "bg-gray-100 text-gray-700", label: "—" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const soon = new Date(today);
+  soon.setDate(soon.getDate() + 60);
+  if (date < today) {
+    return { className: "bg-red-100 text-red-900", label: "Abgelaufen" };
+  }
+  if (date <= soon) {
+    return { className: "bg-yellow-100 text-yellow-950", label: "Bald fällig" };
+  }
+  return { className: "bg-green-100 text-green-900", label: "Gültig" };
+}
+
 function formatAddress(employee: {
   city: string | null;
   postalCode: string | null;
@@ -291,6 +306,7 @@ export default async function EmployeeCertificateDetailPage({
         templateRevision: assessment.templateRevision,
         templateTitle: assessment.templateTitle,
         typeLabel: "Personenbezogene GBU",
+        validUntil: assessment.validUntil,
         recordPath: `/safety/risk-assessments/general/${assessment.id}`,
         pdfPath: `/safety/risk-assessments/general/${assessment.id}/pdf`,
       })),
@@ -307,6 +323,7 @@ export default async function EmployeeCertificateDetailPage({
         templateRevision: participant.assessment.templateRevision,
         templateTitle: participant.assessment.templateTitle,
         typeLabel: "Unterweisung",
+        validUntil: participant.assessment.validUntil,
         recordPath: `/safety/risk-assessments/general/${participant.assessment.id}`,
         pdfPath: `/safety/risk-assessments/general/${participant.assessment.id}/pdf`,
       })),
@@ -337,6 +354,7 @@ export default async function EmployeeCertificateDetailPage({
             signature.record.template.type === "COMMISSION"
               ? "Beauftragung"
               : "Betriebsanweisung",
+          validUntil: signature.record.validUntil,
         })),
     ]
       .reduce(
@@ -358,6 +376,7 @@ export default async function EmployeeCertificateDetailPage({
             templateRevision: string;
             templateTitle: string;
             typeLabel: string;
+            validUntil: Date | null;
             recordPath: string;
             pdfPath: string;
           }
@@ -518,6 +537,7 @@ export default async function EmployeeCertificateDetailPage({
                   <th className="p-3">Unterweisung</th>
                   <th className="p-3">Projekt</th>
                   <th className="p-3">Unterwiesen am</th>
+                  <th className="p-3">Gültig bis</th>
                   <th className="p-3">Unterschrift</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Aktionen</th>
@@ -551,6 +571,11 @@ export default async function EmployeeCertificateDetailPage({
                     </td>
                     <td className="p-3 text-gray-700">
                       {formatDate(entry.instructionDate)}
+                    </td>
+                    <td className="p-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${safetyValidity(entry.validUntil).className}`}>
+                        {formatDate(entry.validUntil)} · {safetyValidity(entry.validUntil).label}
+                      </span>
                     </td>
                     <td className="p-3">
                       <span
@@ -627,6 +652,11 @@ export default async function EmployeeCertificateDetailPage({
                       </td>
                       <td className="p-3 text-gray-700">
                         {formatDate(participant.instructionDate)}
+                      </td>
+                      <td className="p-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${safetyValidity(participant.checklist.validUntil).className}`}>
+                          {formatDate(participant.checklist.validUntil)} · {safetyValidity(participant.checklist.validUntil).label}
+                        </span>
                       </td>
                       <td className="p-3">
                         <span

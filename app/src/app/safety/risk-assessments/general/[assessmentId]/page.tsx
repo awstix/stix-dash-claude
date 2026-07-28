@@ -63,6 +63,7 @@ export default async function GeneralRiskAssessmentDetailPage({
           responsibleName: assessment.responsibleName ?? "",
           responsibleSignatureDataUrl:
             assessment.responsibleSignatureDataUrl ?? "",
+          validityMonths: assessment.validityMonths,
         }}
         template={template}
       />

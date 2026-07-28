@@ -19,6 +19,20 @@ function dateValue(formData: FormData, key: string) {
   return value ? new Date(`${value}T12:00:00`) : null;
 }
 
+function addMonths(date: Date, months: number) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
+function validityMonthsValue(formData: FormData) {
+  const value = Number.parseInt(text(formData, "validityMonths") ?? "12", 10);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error("Die Gültigkeit muss mindestens einen Monat betragen.");
+  }
+  return value;
+}
+
 export async function saveGeneralRiskAssessment(formData: FormData) {
   const id = text(formData, "id");
   const templateKey = text(formData, "templateKey");
@@ -66,10 +80,12 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
     }
   }
 
+  const assessmentDate = dateValue(formData, "assessmentDate") ?? new Date();
+  const validityMonths = validityMonthsValue(formData);
   const data = {
     answersJson: JSON.stringify(answers),
     assessedEmployeeId: text(formData, "assessedEmployeeId"),
-    assessmentDate: dateValue(formData, "assessmentDate") ?? new Date(),
+    assessmentDate,
     instructionTopics: text(formData, "instructionTopics"),
     location: text(formData, "location"),
     notes: text(formData, "notes"),
@@ -90,6 +106,8 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
     templateKey: template.key,
     templateRevision: template.revision,
     templateTitle: template.title,
+    validityMonths,
+    validUntil: addMonths(assessmentDate, validityMonths),
   };
 
   const assessment = id
@@ -161,6 +179,40 @@ export async function saveGeneralRiskAssessment(formData: FormData) {
       });
     }),
   ]);
+  const signedParticipants =
+    await prisma.generalRiskAssessmentParticipant.findMany({
+      select: { employeeId: true, instructionDate: true },
+      where: {
+        assessmentId: assessment.id,
+        signatureDataUrl: { not: null },
+      },
+    });
+  await Promise.all(
+    signedParticipants.map((participant) => {
+      const trainingDate = participant.instructionDate ?? assessmentDate;
+      return prisma.employeeTrainingRecord.upsert({
+        create: {
+          employeeId: participant.employeeId,
+          notes: `Automatisch aus Arbeitssicherheit · /safety/risk-assessments/general/${assessment.id}`,
+          safetySourceKey: `general-risk:${assessment.id}:${participant.employeeId}`,
+          topic: template.title,
+          trainingDate,
+          type: "Gefährdungsbeurteilung",
+          validityMonths,
+          validUntil: addMonths(trainingDate, validityMonths),
+        },
+        update: {
+          topic: template.title,
+          trainingDate,
+          validityMonths,
+          validUntil: addMonths(trainingDate, validityMonths),
+        },
+        where: {
+          safetySourceKey: `general-risk:${assessment.id}:${participant.employeeId}`,
+        },
+      });
+    }),
+  );
 
   revalidatePath("/safety/risk-assessments");
   revalidatePath("/safety/risk-assessments/general");

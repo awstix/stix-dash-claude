@@ -25,6 +25,7 @@ type InitialValues = {
   projectId: string;
   responsibleName: string;
   responsibleSignatureDataUrl: string;
+  validityMonths: number;
 };
 
 type EmployeeOption = {
@@ -254,6 +255,16 @@ export function GeneralRiskAssessmentForm({
                 name="assessmentDate"
                 required
                 type="date"
+              />
+            </Field>
+            <Field label="Gültigkeit in Monaten">
+              <input
+                className={input}
+                defaultValue={initial.validityMonths}
+                min="1"
+                name="validityMonths"
+                required
+                type="number"
               />
             </Field>
             <Field label="Ort / Arbeitsbereich">
