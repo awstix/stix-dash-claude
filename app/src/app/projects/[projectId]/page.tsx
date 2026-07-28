@@ -361,6 +361,17 @@ export default async function ProjectDetailPage({
         },
         orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }],
       },
+      safetyInstructionRecords: {
+        include: {
+          signatures: {
+            select: { signatureDataUrl: true },
+          },
+          template: {
+            select: { title: true, type: true },
+          },
+        },
+        orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
+      },
       safetyAccidentReports: {
         include: {
           _count: {
@@ -1241,6 +1252,22 @@ export default async function ProjectDetailPage({
             templateCode: checklist.templateCode,
             templateRevision: checklist.templateRevision,
           }))}
+          operatingInstructions={project.safetyInstructionRecords
+            .filter(
+              (record) =>
+                record.template.type === "OPERATING_INSTRUCTION" ||
+                record.template.type === "COMMISSION",
+            )
+            .map((record) => ({
+              id: record.id,
+              instructionDate: record.instructionDate,
+              participantCount: record.signatures.length,
+              signedParticipantCount: record.signatures.filter(
+                (signature) => Boolean(signature.signatureDataUrl),
+              ).length,
+              status: record.status,
+              title: record.template.title,
+            }))}
           projectId={project.id}
         />
         <ProjectAccidentReportsSection
@@ -1271,6 +1298,7 @@ export default async function ProjectDetailPage({
 function ProjectSafetySection({
   assessments,
   checklists,
+  operatingInstructions,
   projectId,
 }: {
   assessments: {
@@ -1291,6 +1319,14 @@ function ProjectSafetySection({
     status: string;
     templateCode: string;
     templateRevision: string;
+  }[];
+  operatingInstructions: {
+    id: string;
+    instructionDate: Date;
+    participantCount: number;
+    signedParticipantCount: number;
+    status: string;
+    title: string;
   }[];
   projectId: string;
 }) {
@@ -1322,15 +1358,59 @@ function ProjectSafetySection({
           >
             Weitere GBU
           </Link>
+          <Link
+            className="w-fit rounded-xl bg-yellow-400 px-4 py-2 text-xs font-semibold text-gray-950 hover:bg-yellow-300"
+            href="/safety/operating-instructions"
+          >
+            Betriebsanweisung
+          </Link>
         </div>
       </div>
 
-      {checklists.length === 0 && assessments.length === 0 ? (
+      {checklists.length === 0 &&
+      assessments.length === 0 &&
+      operatingInstructions.length === 0 ? (
         <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
           Für dieses Projekt ist noch keine Projektstart-Checkliste hinterlegt.
         </p>
       ) : (
         <div className="mt-4 space-y-3">
+          {operatingInstructions.map((instruction) => (
+            <article
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              key={instruction.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">
+                    Betriebsanweisung · {instruction.title}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Unterwiesen am {formatDate(instruction.instructionDate)}
+                  </p>
+                </div>
+                <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                  {instruction.signedParticipantCount}/
+                  {instruction.participantCount} Unterschriften
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900"
+                  href={`/safety/instruction-records/${instruction.id}`}
+                >
+                  Öffnen / Teilnehmer nachtragen
+                </Link>
+                <a
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900"
+                  href={`/safety/instruction-records/${instruction.id}/pdf`}
+                  target="_blank"
+                >
+                  PDF
+                </a>
+              </div>
+            </article>
+          ))}
           {assessments.map((assessment) => (
             <article
               className="rounded-xl border border-gray-200 bg-gray-50 p-4"

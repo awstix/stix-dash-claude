@@ -964,9 +964,13 @@ export async function createSafetyInstructionRecord(formData: FormData) {
     .getAll("employeeIds")
     .map((value) => String(value).trim())
     .filter(Boolean);
-
-  if (employeeIds.length === 0) {
-    throw new Error("Bitte mindestens einen Mitarbeiter auswählen.");
+  const commissionedPersonName = optionalString(
+    formData.get("commissionedPersonName"),
+  );
+  if (employeeIds.length === 0 && !commissionedPersonName) {
+    throw new Error(
+      "Bitte mindestens einen Mitarbeiter auswählen oder eine externe beauftragte Person eintragen.",
+    );
   }
 
   const [template, project, employees] = await Promise.all([
@@ -976,6 +980,7 @@ export async function createSafetyInstructionRecord(formData: FormData) {
       },
       select: {
         title: true,
+        type: true,
       },
     }),
     optionalString(formData.get("projectId"))
@@ -1012,17 +1017,82 @@ export async function createSafetyInstructionRecord(formData: FormData) {
   ]);
 
   const projectId = optionalString(formData.get("projectId"));
+  const commissionDetails =
+    template.type === "COMMISSION"
+      ? [
+          ["Geburtsdatum", optionalString(formData.get("birthDate"))],
+          ["Wohnort", optionalString(formData.get("residence"))],
+          [
+            "Geräte / Fahrzeuge / Geltungsbereich",
+            optionalString(formData.get("commissionScope")),
+          ],
+          ["Befristung / Gültigkeit", optionalString(formData.get("validity"))],
+        ]
+          .filter((entry) => entry[1])
+          .map((entry) => `${entry[0]}: ${entry[1]}`)
+      : [];
+  const recordNotes = [
+    ...commissionDetails,
+    optionalString(formData.get("notes")),
+  ]
+    .filter(Boolean)
+    .join("\n");
   const checkedSections = formData
     .getAll("checkedSections")
     .map((value) => String(value).trim())
     .filter(Boolean);
+  const employeesWithSignatures = employees.map((employee) => {
+    const signatureDataUrl = optionalString(
+      formData.get(`participantSignature_${employee.id}`),
+    );
+
+    return {
+      employee,
+      signatureDataUrl,
+    };
+  });
+  const externalSignatures =
+    template.type === "COMMISSION"
+      ? [
+          commissionedPersonName
+            ? {
+                employeeName: commissionedPersonName,
+                signatureDataUrl: optionalString(
+                  formData.get("commissionedPersonSignature"),
+                ),
+              }
+            : null,
+          optionalString(formData.get("authorizedPersonName"))
+            ? {
+                employeeName: `Unternehmen · ${optionalString(formData.get("authorizedPersonName"))}`,
+                signatureDataUrl: optionalString(
+                  formData.get("authorizedPersonSignature"),
+                ),
+              }
+            : null,
+        ].filter(
+          (
+            entry,
+          ): entry is {
+            employeeName: string;
+            signatureDataUrl: string | null;
+          } => Boolean(entry),
+        )
+      : [];
+  const isFullySigned =
+    employeesWithSignatures.every(
+      ({ signatureDataUrl }) => Boolean(signatureDataUrl),
+    ) &&
+    externalSignatures.every(({ signatureDataUrl }) =>
+      Boolean(signatureDataUrl),
+    );
 
   const record = await prisma.safetyInstructionRecord.create({
     data: {
       checkedSectionsJson: JSON.stringify(checkedSections),
       instructedByName: optionalString(formData.get("instructedByName")),
       instructionDate: dateValue(formData.get("instructionDate"), "Datum"),
-      notes: optionalString(formData.get("notes")),
+      notes: recordNotes || null,
       project: projectId
         ? {
             connect: {
@@ -1034,16 +1104,27 @@ export async function createSafetyInstructionRecord(formData: FormData) {
         ? `${project.projectNumber} · ${project.name}`
         : null,
       signatures: {
-        create: employees.map((employee) => ({
-          employee: {
-            connect: {
-              id: employee.id,
-            },
-          },
-          employeeName: `${employee.lastName}, ${employee.firstName}`,
-        })),
+        create: [
+          ...employeesWithSignatures.map(
+            ({ employee, signatureDataUrl }) => ({
+              employee: {
+                connect: {
+                  id: employee.id,
+                },
+              },
+              employeeName: `${employee.lastName}, ${employee.firstName}`,
+              signatureDataUrl,
+              signedAt: signatureDataUrl ? new Date() : null,
+            }),
+          ),
+          ...externalSignatures.map((entry) => ({
+            employeeName: entry.employeeName,
+            signatureDataUrl: entry.signatureDataUrl,
+            signedAt: entry.signatureDataUrl ? new Date() : null,
+          })),
+        ],
       },
-      status: "OPEN",
+      status: isFullySigned ? "SIGNED" : "OPEN",
       template: {
         connect: {
           id: templateId,
@@ -1054,6 +1135,23 @@ export async function createSafetyInstructionRecord(formData: FormData) {
 
   revalidatePath("/safety/risk-assessments");
   revalidatePath("/safety/operating-instructions");
+  revalidatePath("/safety/commissions");
+  if (projectId) {
+    revalidatePath(`/projects/${projectId}`);
+  }
+  for (const employee of employees) {
+    revalidatePath(`/employees/certificates/${employee.id}`);
+  }
+
+  const redirectTo = optionalString(formData.get("redirectTo"));
+  if (
+    isFullySigned &&
+    (redirectTo === "/safety/operating-instructions" ||
+      redirectTo === "/safety/risk-assessments" ||
+      redirectTo === "/safety/commissions")
+  ) {
+    redirect(redirectTo);
+  }
   redirect(`/safety/instruction-records/${record.id}`);
 }
 
@@ -1096,4 +1194,299 @@ export async function saveSafetyInstructionSignature(
   }
 
   revalidatePath(`/safety/instruction-records/${recordId}`);
+}
+
+export async function addSafetyInstructionParticipants(
+  recordId: string,
+  formData: FormData,
+) {
+  const employeeIds = Array.from(
+    new Set(
+      formData
+        .getAll("employeeIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  );
+  if (!employeeIds.length) return;
+  const [existing, employees] = await Promise.all([
+    prisma.safetyInstructionSignature.findMany({
+      select: { employeeId: true },
+      where: { recordId },
+    }),
+    prisma.employee.findMany({
+      select: { firstName: true, id: true, lastName: true },
+      where: { id: { in: employeeIds } },
+    }),
+  ]);
+  const existingIds = new Set(existing.map((entry) => entry.employeeId));
+  const additions = employees.filter((employee) => !existingIds.has(employee.id));
+  if (additions.length) {
+    await prisma.$transaction([
+      prisma.safetyInstructionSignature.createMany({
+        data: additions.map((employee) => ({
+          employeeId: employee.id,
+          employeeName: `${employee.lastName}, ${employee.firstName}`,
+          recordId,
+        })),
+      }),
+      prisma.safetyInstructionRecord.update({
+        data: { status: "OPEN" },
+        where: { id: recordId },
+      }),
+    ]);
+  }
+  revalidatePath(`/safety/instruction-records/${recordId}`);
+  revalidatePath("/safety/operating-instructions");
+}
+
+const safetyTemplateAreas = [
+  "COMMISSION",
+  "OPERATING_INSTRUCTION",
+  "RISK_ASSESSMENT",
+] as const;
+
+function safetyTemplateArea(value: FormDataEntryValue | null) {
+  const area = requiredString(value, "Bereich");
+  if (!safetyTemplateAreas.includes(area as (typeof safetyTemplateAreas)[number])) {
+    throw new Error("Unbekannter Vorlagenbereich.");
+  }
+  return area;
+}
+
+function safeUploadName(value: string) {
+  const extension = path.extname(value).toLowerCase();
+  const stem = path
+    .basename(value, extension)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 100);
+  return `${stem || "vorlage"}-${randomUUID()}${extension}`;
+}
+
+function revalidateSafetyLibraries() {
+  revalidatePath("/safety/commissions");
+  revalidatePath("/safety/operating-instructions");
+  revalidatePath("/safety/risk-assessments");
+  revalidatePath("/safety/risk-assessments/templates");
+}
+
+export async function createSafetyTemplateFolder(formData: FormData) {
+  const area = safetyTemplateArea(formData.get("area"));
+  const name = requiredString(formData.get("name"), "Ordnername");
+  const parentId = optionalString(formData.get("parentId"));
+
+  if (parentId) {
+    const parent = await prisma.safetyTemplateFolder.findUnique({
+      select: { area: true },
+      where: { id: parentId },
+    });
+    if (!parent || parent.area !== area) {
+      throw new Error("Der übergeordnete Ordner gehört nicht zu diesem Bereich.");
+    }
+  }
+
+  await prisma.safetyTemplateFolder.create({
+    data: { area, name, parentId },
+  });
+  revalidateSafetyLibraries();
+}
+
+export async function renameSafetyTemplateFolder(formData: FormData) {
+  const folderId = requiredString(formData.get("folderId"), "Ordner");
+  const name = requiredString(formData.get("name"), "Ordnername");
+  await prisma.safetyTemplateFolder.update({
+    data: { name },
+    where: { id: folderId },
+  });
+  revalidateSafetyLibraries();
+}
+
+export async function moveSafetyTemplateFolder(formData: FormData) {
+  const folderId = requiredString(formData.get("folderId"), "Ordner");
+  const parentId = optionalString(formData.get("parentId"));
+  if (parentId === folderId) {
+    throw new Error("Ein Ordner kann nicht in sich selbst verschoben werden.");
+  }
+  const folder = await prisma.safetyTemplateFolder.findUniqueOrThrow({
+    select: { area: true },
+    where: { id: folderId },
+  });
+  if (parentId) {
+    let currentId: string | null = parentId;
+    const visited = new Set<string>();
+    while (currentId) {
+      if (currentId === folderId) {
+        throw new Error(
+          "Ein Ordner kann nicht in einen eigenen Unterordner verschoben werden.",
+        );
+      }
+      if (visited.has(currentId)) {
+        throw new Error("Die Ordnerstruktur enthält bereits einen Kreis.");
+      }
+      visited.add(currentId);
+      const current: { area: string; parentId: string | null } | null =
+        await prisma.safetyTemplateFolder.findUnique({
+          select: { area: true, parentId: true },
+          where: { id: currentId },
+        });
+      if (!current || current.area !== folder.area) {
+        throw new Error("Der Zielordner gehört nicht zum selben Bereich.");
+      }
+      currentId = current.parentId;
+    }
+  }
+  await prisma.safetyTemplateFolder.update({
+    data: { parentId },
+    where: { id: folderId },
+  });
+  revalidateSafetyLibraries();
+}
+
+export async function deleteSafetyTemplateFolder(formData: FormData) {
+  const folderId = requiredString(formData.get("folderId"), "Ordner");
+  const folder = await prisma.safetyTemplateFolder.findUniqueOrThrow({
+    include: {
+      _count: {
+        select: { children: true, templates: true },
+      },
+    },
+    where: { id: folderId },
+  });
+  if (folder._count.children || folder._count.templates) {
+    throw new Error(
+      "Der Ordner ist nicht leer. Verschiebe oder entferne zuerst alle Unterordner und Vorlagen.",
+    );
+  }
+  if (folder.systemKey) {
+    await prisma.safetyTemplateFolder.update({
+      data: { isDeleted: true },
+      where: { id: folderId },
+    });
+  } else {
+    await prisma.safetyTemplateFolder.delete({ where: { id: folderId } });
+  }
+  revalidateSafetyLibraries();
+}
+
+export async function moveSafetyDocumentTemplate(formData: FormData) {
+  const templateId = requiredString(formData.get("templateId"), "Vorlage");
+  const folderId = requiredString(formData.get("folderId"), "Zielordner");
+  const [template, folder] = await Promise.all([
+    prisma.safetyInstructionTemplate.findUnique({
+      select: { type: true },
+      where: { id: templateId },
+    }),
+    prisma.safetyTemplateFolder.findUnique({
+      select: { area: true },
+      where: { id: folderId },
+    }),
+  ]);
+  if (!template || !folder || template.type !== folder.area) {
+    throw new Error("Vorlage und Zielordner gehören nicht zum selben Bereich.");
+  }
+  await prisma.safetyInstructionTemplate.update({
+    data: { folderId },
+    where: { id: templateId },
+  });
+  revalidateSafetyLibraries();
+}
+
+export async function uploadSafetyDocumentTemplate(formData: FormData) {
+  const area = safetyTemplateArea(formData.get("area"));
+  const title = requiredString(formData.get("title"), "Titel");
+  const folderId = requiredString(formData.get("folderId"), "Ordner");
+  const pdf = formData.get("pdfFile");
+  const docx = formData.get("docxFile");
+  if (!(pdf instanceof File) || pdf.size === 0) {
+    throw new Error("Für die Webansicht muss eine PDF-Datei hochgeladen werden.");
+  }
+  if (
+    path.extname(pdf.name).toLowerCase() !== ".pdf" ||
+    (pdf.type && pdf.type !== "application/pdf")
+  ) {
+    throw new Error("Die Ansichtsdatei muss eine PDF-Datei sein.");
+  }
+  if (
+    docx instanceof File &&
+    docx.size > 0 &&
+    path.extname(docx.name).toLowerCase() !== ".docx"
+  ) {
+    throw new Error("Als bearbeitbare Datei ist nur DOCX zulässig.");
+  }
+  const folder = await prisma.safetyTemplateFolder.findUnique({
+    select: { area: true },
+    where: { id: folderId },
+  });
+  if (!folder || folder.area !== area) {
+    throw new Error("Der ausgewählte Ordner gehört nicht zu diesem Bereich.");
+  }
+
+  const templateId = randomUUID();
+  const uploadDirectory = path.join(
+    process.cwd(),
+    "public",
+    "uploads",
+    "safety-templates",
+    templateId,
+  );
+  await mkdir(uploadDirectory, { recursive: true });
+  const pdfName = safeUploadName(pdf.name);
+  await writeFile(
+    path.join(uploadDirectory, pdfName),
+    Buffer.from(await pdf.arrayBuffer()),
+  );
+  const sourcePdfPath = `/uploads/safety-templates/${templateId}/${pdfName}`;
+  let sourceDocxPath: string | null = null;
+  if (docx instanceof File && docx.size > 0) {
+    const docxName = safeUploadName(docx.name);
+    await writeFile(
+      path.join(uploadDirectory, docxName),
+      Buffer.from(await docx.arrayBuffer()),
+    );
+    sourceDocxPath = `/uploads/safety-templates/${templateId}/${docxName}`;
+  }
+
+  const sections =
+    area === "OPERATING_INSTRUCTION"
+      ? [
+          "Betriebsanweisung gemeinsam gelesen und erläutert",
+          "Gefahren für Mensch und Umwelt",
+          "Schutzmaßnahmen und Verhaltensregeln",
+          "Verhalten bei Störungen und im Gefahrfall",
+          "Erste Hilfe",
+          "Instandhaltung, Wartung und sachgerechter Abschluss",
+        ]
+      : area === "COMMISSION"
+        ? [
+            "Aufgaben und Verantwortungsbereich erläutert",
+            "Voraussetzungen und Fachkunde geprüft",
+            "Rechte, Pflichten und Befugnisse bestätigt",
+            "Originalvorlage gemeinsam gelesen",
+          ]
+        : [
+          "Gefährdungen und betroffene Tätigkeiten erläutert",
+          "Schutzmaßnahmen und Verantwortlichkeiten festgelegt",
+          "Wirksamkeitskontrolle besprochen",
+          "Teilnehmende Mitarbeiter unterwiesen",
+        ];
+
+  await prisma.safetyInstructionTemplate.create({
+    data: {
+      content: `SOURCE_PDF:${sourcePdfPath}${
+        sourceDocxPath ? `\nSOURCE_DOCX:${sourceDocxPath}` : ""
+      }`,
+      description: optionalString(formData.get("description")),
+      folderId,
+      id: templateId,
+      sectionsJson: JSON.stringify(sections),
+      sourceDocxPath,
+      sourcePdfPath,
+      title,
+      type: area,
+    },
+  });
+  revalidateSafetyLibraries();
 }

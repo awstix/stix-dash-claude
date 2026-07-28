@@ -1,0 +1,1843 @@
+[
+  {
+    "title": "Bestellung SiFa",
+    "pdfPath": "/templates/safety-commissions/A-90-00/A-90-00-001 - Bestellung SiFa_20230215 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Sicherheitsfachkraft",
+            "x0": 154.0,
+            "top": 28.4,
+            "x1": 315.7,
+            "bottom": 48.4
+          },
+          {
+            "text": "Firma:",
+            "x0": 128.7,
+            "top": 126.5,
+            "x1": 162.7,
+            "bottom": 138.5
+          },
+          {
+            "text": "Firma",
+            "x0": 77.4,
+            "top": 198.0,
+            "x1": 108.0,
+            "bottom": 210.0
+          },
+          {
+            "text": "/Herr/Frau:",
+            "x0": 111.4,
+            "top": 198.0,
+            "x1": 169.3,
+            "bottom": 210.0
+          },
+          {
+            "text": "verantwortlichen",
+            "x0": 123.8,
+            "top": 366.8,
+            "x1": 196.6,
+            "bottom": 376.8
+          },
+          {
+            "text": "Unternehmen,",
+            "x0": 429.9,
+            "top": 490.8,
+            "x1": 493.2,
+            "bottom": 500.8
+          },
+          {
+            "text": "verantwortlichen",
+            "x0": 449.9,
+            "top": 552.2,
+            "x1": 522.7,
+            "bottom": 562.2
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 710.7,
+            "x1": 89.5,
+            "bottom": 721.7
+          },
+          {
+            "text": "Geschäftsleitung",
+            "x0": 187.1,
+            "top": 710.7,
+            "x1": 269.0,
+            "bottom": 721.7
+          },
+          {
+            "text": "Sicherheitsfachkraft",
+            "x0": 371.4,
+            "top": 710.7,
+            "x1": 467.9,
+            "bottom": 721.7
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Bestellung Betriebsarzt / Betriebsärztin",
+    "pdfPath": "/templates/safety-commissions/A-90-00/A-90-00-002 - Bestellung BA_20230215 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Firma:",
+            "x0": 128.7,
+            "top": 126.5,
+            "x1": 162.7,
+            "bottom": 138.5
+          },
+          {
+            "text": "Firma",
+            "x0": 77.4,
+            "top": 193.1,
+            "x1": 108.0,
+            "bottom": 205.1
+          },
+          {
+            "text": "/Herr/Frau:",
+            "x0": 111.4,
+            "top": 193.1,
+            "x1": 169.3,
+            "bottom": 205.1
+          },
+          {
+            "text": "Betriebsarzt",
+            "x0": 150.0,
+            "top": 306.5,
+            "x1": 203.3,
+            "bottom": 316.5
+          },
+          {
+            "text": "verantwortlichen",
+            "x0": 123.8,
+            "top": 361.9,
+            "x1": 196.6,
+            "bottom": 371.9
+          },
+          {
+            "text": "Unternehmen,",
+            "x0": 429.9,
+            "top": 485.9,
+            "x1": 493.2,
+            "bottom": 495.9
+          },
+          {
+            "text": "verantwortlichen",
+            "x0": 449.9,
+            "top": 547.3,
+            "x1": 522.7,
+            "bottom": 557.3
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 705.8,
+            "x1": 89.5,
+            "bottom": 716.8
+          },
+          {
+            "text": "Geschäftsleitung",
+            "x0": 187.1,
+            "top": 705.8,
+            "x1": 269.0,
+            "bottom": 716.8
+          },
+          {
+            "text": "Betriebsarzt",
+            "x0": 371.4,
+            "top": 705.8,
+            "x1": 430.0,
+            "bottom": 716.8
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Übertragung von Unternehmerpflichten – Bauleitung",
+    "pdfPath": "/templates/safety-commissions/A-90-10/A-90-10-001 - Unternehmerpflichten_BL_Rev01 - 20260520.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Firma",
+            "x0": 100.2,
+            "top": 243.2,
+            "x1": 132.5,
+            "bottom": 257.2
+          },
+          {
+            "text": "Verantwortung.",
+            "x0": 335.7,
+            "top": 289.2,
+            "x1": 413.1,
+            "bottom": 301.2
+          },
+          {
+            "text": "(Betriebsarzt,",
+            "x0": 93.2,
+            "top": 417.6,
+            "x1": 158.8,
+            "bottom": 429.6
+          },
+          {
+            "text": "Sicherheitsfachkraft,",
+            "x0": 161.5,
+            "top": 417.6,
+            "x1": 261.6,
+            "bottom": 429.6
+          },
+          {
+            "text": "Ort:",
+            "x0": 62.8,
+            "top": 609.9,
+            "x1": 82.1,
+            "bottom": 621.9
+          },
+          {
+            "text": "Datum:",
+            "x0": 299.0,
+            "top": 609.9,
+            "x1": 335.2,
+            "bottom": 621.9
+          },
+          {
+            "text": "Unterschrift",
+            "x0": 57.1,
+            "top": 691.6,
+            "x1": 115.6,
+            "bottom": 703.6
+          },
+          {
+            "text": "Unternehmens",
+            "x0": 138.0,
+            "top": 691.6,
+            "x1": 211.3,
+            "bottom": 703.6
+          },
+          {
+            "text": "Unterschrift",
+            "x0": 293.4,
+            "top": 691.6,
+            "x1": 351.8,
+            "bottom": 703.6
+          },
+          {
+            "text": "Verpflichteten",
+            "x0": 374.2,
+            "top": 691.6,
+            "x1": 444.2,
+            "bottom": 703.6
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Verantwortung",
+            "x0": 331.8,
+            "top": 608.6,
+            "x1": 399.9,
+            "bottom": 619.6
+          },
+          {
+            "text": "Verantwortungsbereich",
+            "x0": 161.9,
+            "top": 622.1,
+            "x1": 267.8,
+            "bottom": 633.1
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 3,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Verantwortung",
+            "x0": 222.3,
+            "top": 175.9,
+            "x1": 290.4,
+            "bottom": 186.9
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 54.1,
+            "top": 249.1,
+            "x1": 116.9,
+            "bottom": 260.1
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Übertragung von Unternehmerpflichten – Polier",
+    "pdfPath": "/templates/safety-commissions/A-90-20/A-90-20-001 - Unternehmerpflichten_PL_Rev01 - 20260520.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Firma",
+            "x0": 100.2,
+            "top": 243.2,
+            "x1": 132.5,
+            "bottom": 257.2
+          },
+          {
+            "text": "Verantwortung.",
+            "x0": 335.7,
+            "top": 289.2,
+            "x1": 413.1,
+            "bottom": 301.2
+          },
+          {
+            "text": "(Betriebsarzt,",
+            "x0": 93.2,
+            "top": 432.2,
+            "x1": 158.8,
+            "bottom": 444.2
+          },
+          {
+            "text": "Sicherheitsfachkraft,",
+            "x0": 161.5,
+            "top": 432.2,
+            "x1": 261.6,
+            "bottom": 444.2
+          },
+          {
+            "text": "Ort:",
+            "x0": 62.8,
+            "top": 595.2,
+            "x1": 82.1,
+            "bottom": 607.2
+          },
+          {
+            "text": "Datum:",
+            "x0": 299.0,
+            "top": 595.2,
+            "x1": 335.2,
+            "bottom": 607.2
+          },
+          {
+            "text": "Unterschrift",
+            "x0": 57.1,
+            "top": 676.9,
+            "x1": 115.6,
+            "bottom": 688.9
+          },
+          {
+            "text": "Unternehmens",
+            "x0": 138.0,
+            "top": 676.9,
+            "x1": 211.3,
+            "bottom": 688.9
+          },
+          {
+            "text": "Unterschrift",
+            "x0": 293.4,
+            "top": 676.9,
+            "x1": 351.8,
+            "bottom": 688.9
+          },
+          {
+            "text": "Verpflichteten",
+            "x0": 374.2,
+            "top": 676.9,
+            "x1": 444.2,
+            "bottom": 688.9
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Verantwortung",
+            "x0": 331.8,
+            "top": 608.6,
+            "x1": 399.9,
+            "bottom": 619.6
+          },
+          {
+            "text": "Verantwortungsbereich",
+            "x0": 161.9,
+            "top": 622.1,
+            "x1": 267.8,
+            "bottom": 633.1
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 3,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Verantwortung",
+            "x0": 222.3,
+            "top": 175.9,
+            "x1": 290.4,
+            "bottom": 186.9
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 54.1,
+            "top": 249.1,
+            "x1": 116.9,
+            "bottom": 260.1
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Benennung zum Ersthelfer",
+    "pdfPath": "/templates/safety-commissions/A-90-30/A-90-30-001 - Benennung zum Ersthelfer_20230215 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Ersthelfer*in",
+            "x0": 223.3,
+            "top": 28.4,
+            "x1": 327.5,
+            "bottom": 48.4
+          },
+          {
+            "text": "Firma:",
+            "x0": 54.1,
+            "top": 132.1,
+            "x1": 88.0,
+            "bottom": 144.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 54.1,
+            "top": 175.4,
+            "x1": 108.7,
+            "bottom": 187.4
+          },
+          {
+            "text": "geb.:",
+            "x0": 342.9,
+            "top": 175.4,
+            "x1": 369.6,
+            "bottom": 187.4
+          },
+          {
+            "text": "Ersthelfer*in",
+            "x0": 261.8,
+            "top": 232.4,
+            "x1": 321.7,
+            "bottom": 243.4
+          },
+          {
+            "text": "Ersthelfer*in",
+            "x0": 74.2,
+            "top": 275.9,
+            "x1": 139.6,
+            "bottom": 286.9
+          },
+          {
+            "text": "Geschäftsleitung",
+            "x0": 408.4,
+            "top": 275.9,
+            "x1": 497.6,
+            "bottom": 286.9
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 492.1,
+            "x1": 89.5,
+            "bottom": 503.1
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 187.1,
+            "top": 492.1,
+            "x1": 253.7,
+            "bottom": 503.1
+          },
+          {
+            "text": "Ersthelfer*in",
+            "x0": 371.4,
+            "top": 492.1,
+            "x1": 431.2,
+            "bottom": 503.1
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Benennung zum Brandschutzhelfer",
+    "pdfPath": "/templates/safety-commissions/A-90-40/A-90-40-001 - Benennung zum Brandschutzhelfer_20230215 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Brandschutzhelfer*in",
+            "x0": 223.3,
+            "top": 28.4,
+            "x1": 396.5,
+            "bottom": 48.4
+          },
+          {
+            "text": "Firma:",
+            "x0": 54.1,
+            "top": 132.1,
+            "x1": 88.0,
+            "bottom": 144.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 54.1,
+            "top": 175.4,
+            "x1": 108.7,
+            "bottom": 187.4
+          },
+          {
+            "text": "geb.:",
+            "x0": 342.9,
+            "top": 175.4,
+            "x1": 369.6,
+            "bottom": 187.4
+          },
+          {
+            "text": "Brandschutzhelfer*in",
+            "x0": 261.8,
+            "top": 217.9,
+            "x1": 363.3,
+            "bottom": 228.9
+          },
+          {
+            "text": "Brandschutzhelfer*in",
+            "x0": 189.1,
+            "top": 261.4,
+            "x1": 299.6,
+            "bottom": 272.4
+          },
+          {
+            "text": "Brandschutzhelfer",
+            "x0": 135.7,
+            "top": 493.4,
+            "x1": 232.3,
+            "bottom": 504.4
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 593.6,
+            "x1": 89.5,
+            "bottom": 604.6
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 187.1,
+            "top": 593.6,
+            "x1": 253.7,
+            "bottom": 604.6
+          },
+          {
+            "text": "Brandschutzhelfer*in",
+            "x0": 371.4,
+            "top": 593.6,
+            "x1": 472.8,
+            "bottom": 604.6
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Benennung zum Sicherheitsbeauftragten",
+    "pdfPath": "/templates/safety-commissions/A-90-50/A-90-50-001 - Benennung zum Sicherheitsbeauftragten_2025-02-24 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 223.3,
+            "top": 28.4,
+            "x1": 418.2,
+            "bottom": 48.4
+          },
+          {
+            "text": "Firma:",
+            "x0": 54.1,
+            "top": 132.1,
+            "x1": 88.0,
+            "bottom": 144.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 54.1,
+            "top": 175.4,
+            "x1": 108.7,
+            "bottom": 187.4
+          },
+          {
+            "text": "geb.:",
+            "x0": 342.9,
+            "top": 175.4,
+            "x1": 369.6,
+            "bottom": 187.4
+          },
+          {
+            "text": "Sicherheitsbeauftragte(r)",
+            "x0": 261.8,
+            "top": 217.9,
+            "x1": 382.8,
+            "bottom": 228.9
+          },
+          {
+            "text": "Sicherheitsbeauftragte(r)",
+            "x0": 74.2,
+            "top": 246.9,
+            "x1": 205.0,
+            "bottom": 257.9
+          },
+          {
+            "text": "Geschäftsleitung",
+            "x0": 339.9,
+            "top": 246.9,
+            "x1": 429.1,
+            "bottom": 257.9
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 189.1,
+            "top": 304.9,
+            "x1": 314.9,
+            "bottom": 315.9
+          },
+          {
+            "text": "Sicherheitsbeauftragte",
+            "x0": 134.5,
+            "top": 478.9,
+            "x1": 253.6,
+            "bottom": 489.9
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 593.6,
+            "x1": 89.5,
+            "bottom": 604.6
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 187.1,
+            "top": 593.6,
+            "x1": 253.7,
+            "bottom": 604.6
+          },
+          {
+            "text": "Sicherheitsbeauftragte(r)",
+            "x0": 371.4,
+            "top": 593.6,
+            "x1": 492.3,
+            "bottom": 604.6
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 223.3,
+            "top": 28.4,
+            "x1": 418.2,
+            "bottom": 48.4
+          },
+          {
+            "text": "Sicherheitsbeauftragte",
+            "x0": 73.2,
+            "top": 123.5,
+            "x1": 176.9,
+            "bottom": 134.5
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 90.8,
+            "top": 143.0,
+            "x1": 147.9,
+            "bottom": 153.0
+          },
+          {
+            "text": "Sicherheitsbeauftragte",
+            "x0": 216.2,
+            "top": 155.2,
+            "x1": 308.4,
+            "bottom": 165.2
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 435.0,
+            "top": 155.2,
+            "x1": 492.2,
+            "bottom": 165.2
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 389.6,
+            "top": 179.6,
+            "x1": 446.7,
+            "bottom": 189.6
+          },
+          {
+            "text": "Sicherheitsbeauftragte",
+            "x0": 436.2,
+            "top": 191.8,
+            "x1": 528.5,
+            "bottom": 201.8
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 80.8,
+            "top": 216.2,
+            "x1": 137.9,
+            "bottom": 226.2
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 96.4,
+            "top": 243.6,
+            "x1": 193.9,
+            "bottom": 253.6
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 96.4,
+            "top": 295.4,
+            "x1": 193.9,
+            "bottom": 305.4
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 220.1,
+            "top": 353.7,
+            "x1": 329.7,
+            "bottom": 364.7
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 90.8,
+            "top": 373.2,
+            "x1": 147.9,
+            "bottom": 383.2
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 80.8,
+            "top": 385.4,
+            "x1": 137.9,
+            "bottom": 395.4
+          },
+          {
+            "text": "Sicherheitsbeauftragte",
+            "x0": 162.6,
+            "top": 397.6,
+            "x1": 254.8,
+            "bottom": 407.6
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 80.8,
+            "top": 409.8,
+            "x1": 178.2,
+            "bottom": 419.8
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 125.6,
+            "top": 425.0,
+            "x1": 182.8,
+            "bottom": 435.0
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 248.5,
+            "top": 437.2,
+            "x1": 346.0,
+            "bottom": 447.2
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 240.3,
+            "top": 449.4,
+            "x1": 337.8,
+            "bottom": 459.4
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 243.9,
+            "top": 461.6,
+            "x1": 341.4,
+            "bottom": 471.6
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 96.4,
+            "top": 489.0,
+            "x1": 193.9,
+            "bottom": 499.0
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 188.6,
+            "top": 540.8,
+            "x1": 286.1,
+            "bottom": 550.8
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 80.8,
+            "top": 577.4,
+            "x1": 178.2,
+            "bottom": 587.4
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 80.8,
+            "top": 604.8,
+            "x1": 178.2,
+            "bottom": 614.8
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 96.4,
+            "top": 620.0,
+            "x1": 193.9,
+            "bottom": 630.0
+          },
+          {
+            "text": "Sicherheitsbeauftragten",
+            "x0": 188.6,
+            "top": 647.4,
+            "x1": 286.1,
+            "bottom": 657.4
+          },
+          {
+            "text": "Fortbildungsmaßnahmen",
+            "x0": 431.8,
+            "top": 647.4,
+            "x1": 534.2,
+            "bottom": 657.4
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Beauftragung Erdbaumaschinen",
+    "pdfPath": "/templates/safety-commissions/A-90-60-001/A-90-60-001 - Beauftragung - Erdbaumaschinen_Rev00 - 260107.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 59.3,
+            "top": 110.5,
+            "x1": 100.8,
+            "bottom": 122.5
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 59.3,
+            "top": 141.8,
+            "x1": 114.2,
+            "bottom": 153.8
+          },
+          {
+            "text": "geb.:",
+            "x0": 348.4,
+            "top": 141.8,
+            "x1": 375.2,
+            "bottom": 153.8
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 59.3,
+            "top": 169.8,
+            "x1": 108.2,
+            "bottom": 181.8
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 59.3,
+            "top": 240.5,
+            "x1": 130.9,
+            "bottom": 251.5
+          },
+          {
+            "text": "Fahrzeuge:",
+            "x0": 319.8,
+            "top": 293.0,
+            "x1": 375.4,
+            "bottom": 304.1
+          },
+          {
+            "text": "Fahrzeugen",
+            "x0": 332.0,
+            "top": 511.1,
+            "x1": 388.3,
+            "bottom": 521.1
+          },
+          {
+            "text": "Fahrzeuge",
+            "x0": 54.0,
+            "top": 540.3,
+            "x1": 104.2,
+            "bottom": 550.4
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 184.3,
+            "top": 540.3,
+            "x1": 248.5,
+            "bottom": 550.4
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 96.0,
+            "top": 586.2,
+            "x1": 156.6,
+            "bottom": 596.3
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 205.9,
+            "top": 586.2,
+            "x1": 271.0,
+            "bottom": 596.3
+          },
+          {
+            "text": "sofort",
+            "x0": 334.6,
+            "top": 684.6,
+            "x1": 359.7,
+            "bottom": 694.7
+          },
+          {
+            "text": "Datum:",
+            "x0": 59.3,
+            "top": 736.5,
+            "x1": 95.0,
+            "bottom": 747.5
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 192.6,
+            "top": 736.5,
+            "x1": 259.3,
+            "bottom": 747.5
+          },
+          {
+            "text": "Maschinenführer/-in",
+            "x0": 376.7,
+            "top": 736.5,
+            "x1": 474.1,
+            "bottom": 747.5
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 203.2,
+            "x1": 105.1,
+            "bottom": 214.3
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 228.5,
+            "x1": 117.3,
+            "bottom": 239.5
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 228.5,
+            "x1": 404.5,
+            "bottom": 239.5
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 678.1,
+            "x1": 85.9,
+            "bottom": 689.1
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 678.1,
+            "x1": 357.4,
+            "bottom": 689.1
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 3,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 219.1,
+            "x1": 105.1,
+            "bottom": 230.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 244.3,
+            "x1": 117.3,
+            "bottom": 255.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 244.3,
+            "x1": 404.5,
+            "bottom": 255.3
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 674.7,
+            "x1": 85.9,
+            "bottom": 685.8
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 674.7,
+            "x1": 357.4,
+            "bottom": 685.8
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 4,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 219.1,
+            "x1": 105.1,
+            "bottom": 230.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 244.3,
+            "x1": 117.3,
+            "bottom": 255.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 244.3,
+            "x1": 404.5,
+            "bottom": 255.3
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 663.0,
+            "x1": 85.9,
+            "bottom": 674.0
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 663.0,
+            "x1": 357.4,
+            "bottom": 674.0
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Beauftragung Gabelstapler",
+    "pdfPath": "/templates/safety-commissions/A-90-60-002-STAPLER/A-90-60-002 - Beauftragung_Gabelstapler_20230215 Rev00.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Firma:",
+            "x0": 54.1,
+            "top": 132.1,
+            "x1": 88.0,
+            "bottom": 144.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 54.1,
+            "top": 160.9,
+            "x1": 108.7,
+            "bottom": 172.9
+          },
+          {
+            "text": "geb.:",
+            "x0": 342.9,
+            "top": 160.9,
+            "x1": 369.6,
+            "bottom": 172.9
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 54.1,
+            "top": 189.0,
+            "x1": 102.7,
+            "bottom": 201.0
+          },
+          {
+            "text": "Fahrzeuge:",
+            "x0": 237.4,
+            "top": 274.3,
+            "x1": 293.0,
+            "bottom": 285.3
+          },
+          {
+            "text": "Fahrzeugen/",
+            "x0": 445.1,
+            "top": 384.4,
+            "x1": 509.8,
+            "bottom": 395.4
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 232.5,
+            "top": 398.9,
+            "x1": 303.3,
+            "bottom": 409.9
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 470.3,
+            "top": 456.9,
+            "x1": 536.9,
+            "bottom": 467.9
+          },
+          {
+            "text": "Verantwortung,",
+            "x0": 304.6,
+            "top": 471.4,
+            "x1": 379.1,
+            "bottom": 482.4
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 90.1,
+            "top": 601.9,
+            "x1": 156.7,
+            "bottom": 612.9
+          },
+          {
+            "text": "sofort",
+            "x0": 359.0,
+            "top": 630.9,
+            "x1": 386.5,
+            "bottom": 641.9
+          },
+          {
+            "text": "Datum:",
+            "x0": 54.1,
+            "top": 716.6,
+            "x1": 89.5,
+            "bottom": 727.6
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 187.1,
+            "top": 716.6,
+            "x1": 253.7,
+            "bottom": 727.6
+          },
+          {
+            "text": "Maschinenführer/-in",
+            "x0": 371.4,
+            "top": 716.6,
+            "x1": 468.5,
+            "bottom": 727.6
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Beauftragung LKW / PKW",
+    "pdfPath": "/templates/safety-commissions/A-90-60-002-LKW/A-90-60-002 - Beauftragung - LKW-PKW_Rev00 - 260107.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 59.3,
+            "top": 110.5,
+            "x1": 100.8,
+            "bottom": 122.5
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 59.3,
+            "top": 141.8,
+            "x1": 114.2,
+            "bottom": 153.8
+          },
+          {
+            "text": "geb.:",
+            "x0": 348.4,
+            "top": 141.8,
+            "x1": 375.2,
+            "bottom": 153.8
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 59.3,
+            "top": 169.8,
+            "x1": 108.2,
+            "bottom": 181.8
+          },
+          {
+            "text": "Fahrzeuge",
+            "x0": 422.7,
+            "top": 228.0,
+            "x1": 475.1,
+            "bottom": 239.0
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 139.6,
+            "top": 240.5,
+            "x1": 206.1,
+            "bottom": 251.5
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 59.3,
+            "top": 291.1,
+            "x1": 130.9,
+            "bottom": 302.1
+          },
+          {
+            "text": "Fahrzeugtypen",
+            "x0": 59.3,
+            "top": 303.9,
+            "x1": 132.9,
+            "bottom": 314.9
+          },
+          {
+            "text": "Fahrzeuge:",
+            "x0": 237.7,
+            "top": 343.7,
+            "x1": 293.3,
+            "bottom": 354.7
+          },
+          {
+            "text": "Fahrzeugen",
+            "x0": 233.6,
+            "top": 519.7,
+            "x1": 289.7,
+            "bottom": 529.8
+          },
+          {
+            "text": "Fahrzeuge",
+            "x0": 409.9,
+            "top": 536.0,
+            "x1": 459.8,
+            "bottom": 546.1
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 54.0,
+            "top": 549.2,
+            "x1": 118.7,
+            "bottom": 559.3
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 183.8,
+            "top": 594.8,
+            "x1": 244.2,
+            "bottom": 604.9
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 293.5,
+            "top": 594.8,
+            "x1": 358.6,
+            "bottom": 604.9
+          },
+          {
+            "text": "sofort",
+            "x0": 334.6,
+            "top": 693.5,
+            "x1": 359.7,
+            "bottom": 703.6
+          },
+          {
+            "text": "Datum:",
+            "x0": 59.3,
+            "top": 745.3,
+            "x1": 95.0,
+            "bottom": 756.4
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 192.6,
+            "top": 745.3,
+            "x1": 259.3,
+            "bottom": 756.4
+          },
+          {
+            "text": "Maschinenführer/-in",
+            "x0": 376.7,
+            "top": 745.3,
+            "x1": 474.1,
+            "bottom": 756.4
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 203.2,
+            "x1": 105.1,
+            "bottom": 214.3
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 228.5,
+            "x1": 117.3,
+            "bottom": 239.5
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 228.5,
+            "x1": 404.5,
+            "bottom": 239.5
+          },
+          {
+            "text": "Fahrzeugtypen",
+            "x0": 334.7,
+            "top": 257.0,
+            "x1": 412.2,
+            "bottom": 268.1
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 678.1,
+            "x1": 85.9,
+            "bottom": 689.1
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 678.1,
+            "x1": 357.4,
+            "bottom": 689.1
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 3,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 219.1,
+            "x1": 105.1,
+            "bottom": 230.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 244.3,
+            "x1": 117.3,
+            "bottom": 255.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 244.3,
+            "x1": 404.5,
+            "bottom": 255.3
+          },
+          {
+            "text": "Transportstellung",
+            "x0": 362.8,
+            "top": 401.6,
+            "x1": 447.1,
+            "bottom": 412.6
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 669.7,
+            "x1": 85.9,
+            "bottom": 680.7
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 669.7,
+            "x1": 357.4,
+            "bottom": 680.7
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 4,
+        "width": 595.2,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 67.5,
+            "top": 219.1,
+            "x1": 105.1,
+            "bottom": 230.1
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 67.5,
+            "top": 244.3,
+            "x1": 117.3,
+            "bottom": 255.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 380.1,
+            "top": 244.3,
+            "x1": 404.5,
+            "bottom": 255.3
+          },
+          {
+            "text": "Fahrzeug",
+            "x0": 362.8,
+            "top": 487.7,
+            "x1": 409.0,
+            "bottom": 498.8
+          },
+          {
+            "text": "Fahrzeug",
+            "x0": 362.8,
+            "top": 505.3,
+            "x1": 409.0,
+            "bottom": 516.3
+          },
+          {
+            "text": "Ort:",
+            "x0": 67.5,
+            "top": 690.3,
+            "x1": 85.9,
+            "bottom": 701.4
+          },
+          {
+            "text": "Datum:",
+            "x0": 322.2,
+            "top": 690.3,
+            "x1": 357.4,
+            "bottom": 701.4
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  },
+  {
+    "title": "Einarbeitung LKW",
+    "pdfPath": "/templates/safety-commissions/A-90-100/A-90-100 - Einarbeitung-LKW - 2022-10-24 Rev00 - Vorschlag.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 54.1,
+            "top": 113.5,
+            "x1": 95.4,
+            "bottom": 125.5
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 54.1,
+            "top": 144.6,
+            "x1": 108.7,
+            "bottom": 156.6
+          },
+          {
+            "text": "geb.:",
+            "x0": 342.9,
+            "top": 144.6,
+            "x1": 369.6,
+            "bottom": 156.6
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 54.1,
+            "top": 172.7,
+            "x1": 102.7,
+            "bottom": 184.7
+          },
+          {
+            "text": "Fahrzeugen",
+            "x0": 263.1,
+            "top": 230.4,
+            "x1": 321.8,
+            "bottom": 241.4
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 456.3,
+            "top": 230.4,
+            "x1": 527.8,
+            "bottom": 241.4
+          },
+          {
+            "text": "Geräteart:",
+            "x0": 54.1,
+            "top": 273.9,
+            "x1": 103.6,
+            "bottom": 284.9
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 432.3,
+            "top": 526.1,
+            "x1": 492.9,
+            "bottom": 536.1
+          },
+          {
+            "text": "Verantwortung,",
+            "x0": 257.9,
+            "top": 539.3,
+            "x1": 325.7,
+            "bottom": 549.3
+          },
+          {
+            "text": "Ort:",
+            "x0": 54.1,
+            "top": 651.5,
+            "x1": 72.4,
+            "bottom": 662.5
+          },
+          {
+            "text": "Datum:",
+            "x0": 272.1,
+            "top": 651.5,
+            "x1": 307.5,
+            "bottom": 662.5
+          },
+          {
+            "text": "Unternehmen",
+            "x0": 103.1,
+            "top": 705.0,
+            "x1": 169.7,
+            "bottom": 716.0
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 2,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 62.0,
+            "top": 188.5,
+            "x1": 99.6,
+            "bottom": 199.5
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 62.0,
+            "top": 213.8,
+            "x1": 111.7,
+            "bottom": 224.8
+          },
+          {
+            "text": "geb.:",
+            "x0": 374.4,
+            "top": 213.8,
+            "x1": 398.7,
+            "bottom": 224.8
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 62.0,
+            "top": 253.6,
+            "x1": 106.3,
+            "bottom": 264.6
+          },
+          {
+            "text": "Fahrzeugen",
+            "x0": 421.4,
+            "top": 295.2,
+            "x1": 479.6,
+            "bottom": 306.2
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 151.7,
+            "top": 307.8,
+            "x1": 222.6,
+            "bottom": 318.8
+          },
+          {
+            "text": "Fahrzeugtypen",
+            "x0": 329.7,
+            "top": 333.9,
+            "x1": 407.3,
+            "bottom": 344.9
+          },
+          {
+            "text": "Ort:",
+            "x0": 62.0,
+            "top": 680.7,
+            "x1": 80.1,
+            "bottom": 691.7
+          },
+          {
+            "text": "Datum:",
+            "x0": 316.6,
+            "top": 680.7,
+            "x1": 351.8,
+            "bottom": 691.7
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 3,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 62.0,
+            "top": 174.0,
+            "x1": 99.6,
+            "bottom": 185.0
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 62.0,
+            "top": 199.3,
+            "x1": 111.7,
+            "bottom": 210.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 374.4,
+            "top": 199.3,
+            "x1": 398.7,
+            "bottom": 210.3
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 62.0,
+            "top": 239.1,
+            "x1": 106.3,
+            "bottom": 250.1
+          },
+          {
+            "text": "Fahrzeugen",
+            "x0": 421.4,
+            "top": 280.7,
+            "x1": 479.6,
+            "bottom": 291.7
+          },
+          {
+            "text": "Verantwortung",
+            "x0": 151.7,
+            "top": 293.3,
+            "x1": 222.6,
+            "bottom": 304.3
+          },
+          {
+            "text": "Fahrzeugtypen",
+            "x0": 329.7,
+            "top": 319.4,
+            "x1": 407.3,
+            "bottom": 330.4
+          },
+          {
+            "text": "Transportstellung",
+            "x0": 351.6,
+            "top": 558.6,
+            "x1": 435.7,
+            "bottom": 569.6
+          },
+          {
+            "text": "Ort:",
+            "x0": 62.0,
+            "top": 663.6,
+            "x1": 80.1,
+            "bottom": 674.6
+          },
+          {
+            "text": "Datum:",
+            "x0": 316.6,
+            "top": 663.6,
+            "x1": 351.8,
+            "bottom": 674.6
+          }
+        ],
+        "checkboxes": []
+      },
+      {
+        "page": 4,
+        "width": 595.3,
+        "height": 841.9,
+        "labels": [
+          {
+            "text": "Betrieb:",
+            "x0": 62.0,
+            "top": 174.0,
+            "x1": 99.6,
+            "bottom": 185.0
+          },
+          {
+            "text": "Herr/Frau:",
+            "x0": 62.0,
+            "top": 199.3,
+            "x1": 111.7,
+            "bottom": 210.3
+          },
+          {
+            "text": "geb.:",
+            "x0": 374.4,
+            "top": 199.3,
+            "x1": 398.7,
+            "bottom": 210.3
+          },
+          {
+            "text": "Wohnort:",
+            "x0": 62.0,
+            "top": 239.1,
+            "x1": 106.3,
+            "bottom": 250.1
+          },
+          {
+            "text": "Fahrzeugtypen",
+            "x0": 329.7,
+            "top": 306.8,
+            "x1": 407.3,
+            "bottom": 317.8
+          },
+          {
+            "text": "Ort:",
+            "x0": 62.0,
+            "top": 675.2,
+            "x1": 80.1,
+            "bottom": 686.2
+          },
+          {
+            "text": "Datum:",
+            "x0": 316.6,
+            "top": 675.2,
+            "x1": 351.8,
+            "bottom": 686.2
+          }
+        ],
+        "checkboxes": []
+      }
+    ]
+  }
+]

@@ -53,6 +53,15 @@ export function GeneralRiskAssessmentForm({
     initial.responsibleName,
   );
   const [presenterName, setPresenterName] = useState(initial.presenterName);
+  const [answerStatuses, setAnswerStatuses] = useState<
+    Record<string, GeneralRiskAssessmentAnswer["status"]>
+  >(
+    Object.fromEntries(
+      Object.entries(initial.answers)
+        .filter(([, answer]) => answer.status)
+        .map(([itemId, answer]) => [itemId, answer.status]),
+    ),
+  );
   const groupedItems = useMemo(() => {
     const groups = new Map<string, typeof template.items>();
     for (const item of template.items) {
@@ -88,6 +97,19 @@ export function GeneralRiskAssessmentForm({
       ...managerOptions,
     ]),
   ).filter(Boolean);
+  const setItemsStatus = (
+    items: GeneralRiskAssessmentTemplate["items"],
+    status: NonNullable<GeneralRiskAssessmentAnswer["status"]>,
+  ) => {
+    setAnswerStatuses((current) => {
+      const next = { ...current };
+      for (const item of items) {
+        if ((item.kind ?? "choice") === "choice") next[item.id] = status;
+      }
+      return next;
+    });
+    setMissingItems(0);
+  };
 
   return (
     <>
@@ -307,9 +329,26 @@ export function GeneralRiskAssessmentForm({
               return (
               <div className="space-y-2" key={groupKey}>
                 {showChapter ? (
-                  <h3 className="border border-black bg-gray-900 px-4 py-3 text-lg font-bold text-white">
-                    {chapterTitle}
-                  </h3>
+                  <div className="flex flex-col gap-3 border border-black bg-gray-900 px-4 py-3 text-white lg:flex-row lg:items-center lg:justify-between">
+                    <h3 className="text-lg font-bold">{chapterTitle}</h3>
+                    <BulkStatusButtons
+                      label={`Komplettes Kapitel „${chapterTitle}“ bewerten`}
+                      selectedStatus={commonStatus(
+                        template.items.filter(
+                          (item) => item.chapterTitle === chapterTitle,
+                        ),
+                        answerStatuses,
+                      )}
+                      onSelect={(status) =>
+                        setItemsStatus(
+                          template.items.filter(
+                            (item) => item.chapterTitle === chapterTitle,
+                          ),
+                          status,
+                        )
+                      }
+                    />
+                  </div>
                 ) : null}
                 {showSection ? (
                   <h4 className="border border-black bg-gray-200 px-4 py-2 text-base font-bold text-black">
@@ -325,6 +364,16 @@ export function GeneralRiskAssessmentForm({
                   {items.filter((item) => (item.kind ?? "choice") === "choice").length}{" "}
                   bewertbare Positionen
                 </summary>
+                <div className="flex flex-col gap-2 border-t border-black bg-amber-50 px-3 py-3 lg:flex-row lg:items-center lg:justify-between">
+                  <span className="text-sm font-bold text-black">
+                    Gesamten Bereich bewerten
+                  </span>
+                  <BulkStatusButtons
+                    label={`Bereich „${activity}“ bewerten`}
+                    selectedStatus={commonStatus(items, answerStatuses)}
+                    onSelect={(status) => setItemsStatus(items, status)}
+                  />
+                </div>
                 <div>
                   {usesDetailedRiskTable ? (
                     <div className="grid border-t border-black bg-gray-300 text-xs font-bold text-black lg:grid-cols-[150px_1fr_1.5fr_120px_120px_160px]">
@@ -484,6 +533,7 @@ export function GeneralRiskAssessmentForm({
                             ["NO", "nein"],
                             ["NOT_APPLICABLE", "entfällt"],
                           ];
+                    const selectedStatus = answerStatuses[item.id];
                     return (
                       <div
                         className={`grid border-t border-black ${
@@ -576,10 +626,15 @@ export function GeneralRiskAssessmentForm({
                             >
                               <input
                                 aria-label={`${item.hazard}: ${label}`}
-                                defaultChecked={
-                                  initial.answers[item.id]?.status === value
-                                }
+                                checked={selectedStatus === value}
                                 name={`status_${item.id}`}
+                                onChange={() =>
+                                  setAnswerStatuses((current) => ({
+                                    ...current,
+                                    [item.id]:
+                                      value as GeneralRiskAssessmentAnswer["status"],
+                                  }))
+                                }
                                 type="radio"
                                 value={value}
                               />
@@ -593,6 +648,14 @@ export function GeneralRiskAssessmentForm({
                             </label>
                           ))}
                           </div>
+                          {selectedStatus === "NOT_APPLICABLE" &&
+                          item.options === "YES_NO" ? (
+                            <input
+                              name={`status_${item.id}`}
+                              type="hidden"
+                              value="NOT_APPLICABLE"
+                            />
+                          ) : null}
                         </div>
                         {usesDetailedRiskTable ? (
                           <div className="border-t border-gray-300 p-3 text-xs italic text-blue-950 lg:border-r lg:border-t-0 lg:border-black">
@@ -872,6 +935,60 @@ export function GeneralRiskAssessmentForm({
       ) : null}
     </>
   );
+}
+
+function BulkStatusButtons({
+  label,
+  onSelect,
+  selectedStatus,
+}: {
+  label: string;
+  onSelect: (
+    status: NonNullable<GeneralRiskAssessmentAnswer["status"]>,
+  ) => void;
+  selectedStatus?: GeneralRiskAssessmentAnswer["status"];
+}) {
+  const options = [
+    ["YES", "Ja"],
+    ["NO", "Nein"],
+    ["NOT_APPLICABLE", "Nicht relevant"],
+  ] as const;
+
+  return (
+    <div
+      aria-label={label}
+      className="flex w-full overflow-hidden border border-black bg-white text-black lg:w-auto"
+      role="group"
+    >
+      {options.map(([status, text]) => (
+        <button
+          aria-pressed={selectedStatus === status}
+          className={`flex-1 border-l border-black px-3 py-2 text-xs font-bold first:border-l-0 hover:bg-gray-900 hover:text-white lg:flex-none ${
+            selectedStatus === status ? "bg-gray-950 text-white" : ""
+          }`}
+          key={status}
+          onClick={() => onSelect(status)}
+          type="button"
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function commonStatus(
+  items: GeneralRiskAssessmentTemplate["items"],
+  statuses: Record<string, GeneralRiskAssessmentAnswer["status"]>,
+) {
+  const choiceItems = items.filter(
+    (item) => (item.kind ?? "choice") === "choice",
+  );
+  if (!choiceItems.length) return undefined;
+  const first = statuses[choiceItems[0].id];
+  return first && choiceItems.every((item) => statuses[item.id] === first)
+    ? first
+    : undefined;
 }
 
 function Section({

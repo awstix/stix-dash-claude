@@ -173,6 +173,25 @@ export default async function EmployeeCertificateDetailPage({
           },
           orderBy: [{ instructionDate: "desc" }, { createdAt: "desc" }],
         },
+        safetyInstructionSignatures: {
+          include: {
+            record: {
+              include: {
+                project: {
+                  select: {
+                    id: true,
+                    name: true,
+                    projectNumber: true,
+                  },
+                },
+                template: {
+                  select: { title: true, type: true },
+                },
+              },
+            },
+          },
+          orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
+        },
         inventoryAssignments: {
           include: {
             category: true,
@@ -272,6 +291,8 @@ export default async function EmployeeCertificateDetailPage({
         templateRevision: assessment.templateRevision,
         templateTitle: assessment.templateTitle,
         typeLabel: "Personenbezogene GBU",
+        recordPath: `/safety/risk-assessments/general/${assessment.id}`,
+        pdfPath: `/safety/risk-assessments/general/${assessment.id}/pdf`,
       })),
       ...employee.generalRiskAssessmentParticipants.map((participant) => ({
         assessmentDate: participant.assessment.assessmentDate,
@@ -286,7 +307,37 @@ export default async function EmployeeCertificateDetailPage({
         templateRevision: participant.assessment.templateRevision,
         templateTitle: participant.assessment.templateTitle,
         typeLabel: "Unterweisung",
+        recordPath: `/safety/risk-assessments/general/${participant.assessment.id}`,
+        pdfPath: `/safety/risk-assessments/general/${participant.assessment.id}/pdf`,
       })),
+      ...employee.safetyInstructionSignatures
+        .filter(
+          (signature) =>
+            signature.record.template.type === "OPERATING_INSTRUCTION" ||
+            signature.record.template.type === "COMMISSION",
+        )
+        .map((signature) => ({
+          assessmentDate: signature.record.instructionDate,
+          id: signature.record.id,
+          instructionDate:
+            signature.signedAt ?? signature.record.instructionDate,
+          pdfPath: `/safety/instruction-records/${signature.record.id}/pdf`,
+          project: signature.record.project,
+          recordPath: `/safety/instruction-records/${signature.record.id}`,
+          signed: Boolean(signature.signatureDataUrl),
+          status:
+            signature.record.status === "SIGNED" ? "COMPLETED" : "DRAFT",
+          templateCode:
+            signature.record.template.type === "COMMISSION"
+              ? "A-90"
+              : "A-30",
+          templateRevision: "Originalstand",
+          templateTitle: signature.record.template.title,
+          typeLabel:
+            signature.record.template.type === "COMMISSION"
+              ? "Beauftragung"
+              : "Betriebsanweisung",
+        })),
     ]
       .reduce(
         (entries, entry) => entries.set(entry.id, entry),
@@ -307,6 +358,8 @@ export default async function EmployeeCertificateDetailPage({
             templateRevision: string;
             templateTitle: string;
             typeLabel: string;
+            recordPath: string;
+            pdfPath: string;
           }
         >(),
       )
@@ -533,13 +586,13 @@ export default async function EmployeeCertificateDetailPage({
                       <div className="flex flex-wrap gap-2">
                         <Link
                           className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
-                          href={`/safety/risk-assessments/general/${entry.id}`}
+                          href={entry.recordPath}
                         >
                           Öffnen
                         </Link>
                         <a
                           className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-100"
-                          href={`/safety/risk-assessments/general/${entry.id}/pdf`}
+                          href={entry.pdfPath}
                           target="_blank"
                         >
                           PDF

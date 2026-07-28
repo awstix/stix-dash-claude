@@ -5,7 +5,10 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 
 import { SafetySignaturePad } from "../../_components/SafetySignaturePad";
-import { saveSafetyInstructionSignature } from "../../actions";
+import {
+  addSafetyInstructionParticipants,
+  saveSafetyInstructionSignature,
+} from "../../actions";
 
 function parseSections(value: string) {
   try {
@@ -39,11 +42,12 @@ export default async function SafetyInstructionRecordPage({
   params: Promise<{ recordId: string }>;
 }) {
   const { recordId } = await params;
-  const record = await prisma.safetyInstructionRecord.findUnique({
-    where: {
-      id: recordId,
-    },
-    include: {
+  const [record, employees] = await Promise.all([
+    prisma.safetyInstructionRecord.findUnique({
+      where: {
+        id: recordId,
+      },
+      include: {
       project: {
         select: {
           name: true,
@@ -66,14 +70,30 @@ export default async function SafetyInstructionRecordPage({
         },
       },
       template: true,
-    },
-  });
+      },
+    }),
+    prisma.employee.findMany({
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        firstName: true,
+        id: true,
+        lastName: true,
+        statusValue: true,
+      },
+    }),
+  ]);
 
   if (!record) {
     notFound();
   }
 
   const checkedSections = parseSections(record.checkedSectionsJson);
+  const sourcePdfPath =
+    record.template.sourcePdfPath ??
+    record.template.content
+      ?.split("\n")
+      .find((line) => line.startsWith("SOURCE_PDF:"))
+      ?.slice("SOURCE_PDF:".length) ?? null;
   const projectName = record.project
     ? `${record.project.projectNumber} · ${record.project.name}`
     : record.projectSnapshot ?? "Ohne Projekt";
@@ -87,7 +107,7 @@ export default async function SafetyInstructionRecordPage({
   return (
     <AppShell
       title={record.template.title}
-      description={`${record.template.type === "RISK_ASSESSMENT" ? "Gefährdungsbeurteilung" : "Betriebsunterweisung"} · ${formatDate(record.instructionDate)} · ${projectName}`}
+      description={`${record.template.type === "RISK_ASSESSMENT" ? "Gefährdungsbeurteilung" : record.template.type === "COMMISSION" ? "Beauftragung" : "Betriebsunterweisung"} · ${formatDate(record.instructionDate)} · ${projectName}`}
     >
       <div className="mb-5 flex flex-wrap gap-3">
         <Link
@@ -96,7 +116,37 @@ export default async function SafetyInstructionRecordPage({
         >
           ← Zur Übersicht
         </Link>
+        {sourcePdfPath ? (
+          <a
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            href={sourcePdfPath}
+            target="_blank"
+          >
+            Original öffnen
+          </a>
+        ) : null}
+        {["OPERATING_INSTRUCTION", "RISK_ASSESSMENT"].includes(
+          record.template.type,
+        ) ? (
+          <a
+            className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white"
+            href={`/safety/instruction-records/${record.id}/pdf`}
+            target="_blank"
+          >
+            Unterweisungsnachweis PDF
+          </a>
+        ) : null}
       </div>
+
+      {sourcePdfPath ? (
+        <section className="mb-6 overflow-hidden rounded-3xl border border-gray-300 bg-gray-200 shadow-sm">
+          <iframe
+            className="h-[70vh] w-full bg-white"
+            src={`${sourcePdfPath}#page=1&view=Fit&zoom=page-fit&navpanes=0`}
+            title={`Original: ${record.template.title}`}
+          />
+        </section>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -158,7 +208,8 @@ export default async function SafetyInstructionRecordPage({
             </div>
           ) : null}
 
-          {record.template.content ? (
+          {record.template.content &&
+          !record.template.content.startsWith("SOURCE_PDF:") ? (
             <div className="mt-4 rounded-2xl bg-gray-50 p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
                 Inhalt
@@ -233,6 +284,50 @@ export default async function SafetyInstructionRecordPage({
               </div>
             ))}
           </div>
+          <details className="mt-5 rounded-2xl border border-gray-300 bg-white">
+            <summary className="cursor-pointer px-4 py-3 font-bold text-gray-950">
+              Weitere Mitarbeiter nachtragen
+            </summary>
+            <form
+              action={addSafetyInstructionParticipants.bind(null, record.id)}
+              className="border-t border-gray-200 p-4"
+            >
+              <p className="mb-3 text-sm text-gray-600">
+                Nachgetragene Mitarbeiter unterschreiben separat. Das
+                tatsächliche Unterschriftsdatum wird am Nachweis gespeichert.
+              </p>
+              <div className="grid max-h-60 gap-2 overflow-auto sm:grid-cols-2">
+                {employees
+                  .filter(
+                    (employee) =>
+                      employee.statusValue !== "ausgeschieden" &&
+                      !record.signatures.some(
+                        (signature) => signature.employeeId === employee.id,
+                      ),
+                  )
+                  .map((employee) => (
+                    <label
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-800"
+                      key={employee.id}
+                    >
+                      <input
+                        className="h-5 w-5 accent-gray-950"
+                        name="employeeIds"
+                        type="checkbox"
+                        value={employee.id}
+                      />
+                      {employee.lastName}, {employee.firstName}
+                    </label>
+                  ))}
+              </div>
+              <button
+                className="mt-4 rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white"
+                type="submit"
+              >
+                Ausgewählte nachtragen
+              </button>
+            </form>
+          </details>
         </section>
       </div>
     </AppShell>

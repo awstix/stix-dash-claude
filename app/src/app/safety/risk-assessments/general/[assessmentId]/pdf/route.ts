@@ -818,10 +818,13 @@ function drawStatusOptions(
   optionType?: "YES_NO" | "YES_NO_NA",
   showLabels = true,
 ) {
-  const labels =
-    optionType === "YES_NO" ? ["ja", "nein"] : ["ja", "nein", "entfällt"];
-  const startX = optionType === "YES_NO" ? 478 : 469;
-  const gap = optionType === "YES_NO" ? 39 : 28;
+  const includeNotApplicable =
+    optionType !== "YES_NO" || selected === "entfällt";
+  const labels = includeNotApplicable
+    ? ["ja", "nein", "entfällt"]
+    : ["ja", "nein"];
+  const startX = includeNotApplicable ? 469 : 478;
+  const gap = includeNotApplicable ? 28 : 39;
   labels.forEach((label, index) => {
     const x = startX + index * gap;
     const boxY = y - Math.min(17, height - 5);
@@ -886,6 +889,15 @@ function drawOfficeAssessmentStatus(
       });
     }
   });
+  if (selected === "entfällt") {
+    page.drawText("nicht relevant", {
+      color: BLACK,
+      font: fonts.bold,
+      size: 5,
+      x: 476,
+      y: boxY + 1,
+    });
+  }
   page.drawRectangle({
     borderColor: BLACK,
     borderWidth: 0.6,
@@ -1076,6 +1088,15 @@ function drawRoadRollerRow(
       });
     }
   });
+  if (selected === "entfällt") {
+    page.drawText("n. rel.", {
+      color: BLACK,
+      font: fonts.bold,
+      size: 5,
+      x: 414,
+      y: y - 24,
+    });
+  }
   page.drawRectangle({
     borderColor: BLACK,
     borderWidth: 0.6,
