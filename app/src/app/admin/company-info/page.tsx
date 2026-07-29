@@ -36,16 +36,45 @@ export default async function CompanyInfoPage() {
               label="Zusätzliche Geschäftsbezeichnung"
               name="legalName"
             />
+            <div className="lg:col-span-2 rounded-xl border border-blue-300 bg-blue-50 p-4 text-sm text-blue-950">
+              <p className="font-bold">Logo für Portal, Formulare und PDF-Druck</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  Freigestelltes Logo mit transparentem Hintergrund verwenden.
+                </li>
+                <li>
+                  Empfohlen: SVG oder PNG, ideal etwa 1600 × 600 Pixel.
+                </li>
+                <li>
+                  Mindestbreite für einen sauberen Druck: 800 Pixel.
+                </li>
+                <li>
+                  Logo möglichst ohne große leere Ränder und nicht verzerrt
+                  exportieren.
+                </li>
+                <li>
+                  JPG ist ungeeignet, weil es keine Transparenz unterstützt.
+                </li>
+              </ul>
+              <p className="mt-2 font-semibold">
+                Hochgeladene Logos werden proportional auf maximal 1600 × 700
+                Pixel verarbeitet. Transparenz bleibt dabei erhalten.
+              </p>
+            </div>
             <label className="lg:col-span-2">
-              <span className="text-xs font-semibold text-gray-600">
-                Firmenlogo
+              <span className="text-sm font-bold text-gray-950">
+                Freigestelltes Firmenlogo auswählen
               </span>
               <input
-                accept="image/*"
+                accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp"
                 className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold`}
                 name="logo"
                 type="file"
               />
+              <span className="mt-1 block text-xs font-semibold text-gray-700">
+                Zulässig: PNG, SVG oder WebP mit transparentem Hintergrund ·
+                maximal 15 MB
+              </span>
             </label>
             {company?.logoPublicUrl ? (
               <div className="lg:col-span-2">

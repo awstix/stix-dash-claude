@@ -1,5 +1,6 @@
 import { AppHeader } from "./AppHeader";
 import { GlobalFormFeedback } from "./GlobalFormFeedback";
+import { prisma } from "@/lib/prisma";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
@@ -71,7 +72,7 @@ const employeeNavigation = [
   { name: "Mitarbeiterverwaltung", href: "/employees" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
-export function AppShell({
+export async function AppShell({
   title,
   description,
   children,
@@ -80,9 +81,19 @@ export function AppShell({
   description?: string;
   children: React.ReactNode;
 }) {
+  const company = await prisma.companyInfo.findUnique({
+    select: {
+      companyName: true,
+      logoPublicUrl: true,
+    },
+    where: { id: "default" },
+  });
+
   return (
     <main className="min-h-screen bg-gray-100">
       <AppHeader
+        companyLogoUrl={company?.logoPublicUrl ?? null}
+        companyName={company?.companyName ?? "Stix"}
         controllingNavigation={controllingNavigation}
         dispositionNavigation={dispositionNavigation}
         employeeNavigation={employeeNavigation}

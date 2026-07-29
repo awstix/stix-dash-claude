@@ -33,11 +33,25 @@ export async function saveCompanyInfo(formData: FormData) {
   let logoStoragePath = existing?.logoStoragePath ?? null;
 
   if (logo instanceof File && logo.size > 0) {
-    if (!logo.type.startsWith("image/")) {
-      throw new Error("Das Firmenlogo muss eine Bilddatei sein.");
+    const allowedLogoTypes = new Set([
+      "image/png",
+      "image/svg+xml",
+      "image/webp",
+    ]);
+    if (!allowedLogoTypes.has(logo.type)) {
+      throw new Error(
+        "Bitte ein freigestelltes Logo als PNG, SVG oder WebP hochladen. JPG unterstützt keinen transparenten Hintergrund.",
+      );
     }
     if (logo.size > 15 * 1024 * 1024) {
       throw new Error("Das Firmenlogo darf höchstens 15 MB groß sein.");
+    }
+    const sourceBuffer = Buffer.from(await logo.arrayBuffer());
+    const metadata = await sharp(sourceBuffer).metadata();
+    if (metadata.format !== "svg" && !metadata.hasAlpha) {
+      throw new Error(
+        "Das gewählte Logo besitzt keinen transparenten Hintergrund. Bitte eine freigestellte PNG-, SVG- oder WebP-Datei verwenden.",
+      );
     }
 
     const targetDirectory = path.join(
@@ -49,7 +63,7 @@ export async function saveCompanyInfo(formData: FormData) {
     await mkdir(targetDirectory, { recursive: true });
     const fileName = `logo-${randomUUID()}.png`;
     const absolutePath = path.join(targetDirectory, fileName);
-    const buffer = await sharp(Buffer.from(await logo.arrayBuffer()))
+    const buffer = await sharp(sourceBuffer)
       .rotate()
       .resize({
         fit: "inside",

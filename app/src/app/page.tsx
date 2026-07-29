@@ -1,43 +1,91 @@
+import Image from "next/image";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 
 const cards = [
   {
     title: "Dashboard",
-    description: "Übersicht über alle relevanten Informationen.",
+    description: "Kennzahlen, offene Aufgaben und fällige Prüfungen.",
     href: "/dashboard",
   },
   {
     title: "Projekte",
-    description: "Baustellen, Bauleiter, Status und Auftragssummen verwalten.",
+    description: "Projektakten, Bautagesberichte, Dokumente, Fotos und Formulare.",
     href: "/projects",
   },
   {
-    title: "Asphaltdisposition",
-    description: "Wochenplanung für die Kolonnen Stürmer und Becker.",
-    href: "/asphalt-dispatch",
+    title: "Disposition",
+    description: "Kolonnen, Mitarbeiter, Geräte, LKW, Asphalt und arbeitsfreie Tage.",
+    href: "/crew-dispatch",
   },
   {
-    title: "LKW-Einteilung",
-    description: "Langstrecke, Kurzstrecke, eigene LKW und Fremdfahrzeuge.",
-    href: "/truck-dispatch",
+    title: "Inventar & Lager",
+    description: "Inventar, Lagerbestände, Scanner, Etiketten und Erstprüfungen.",
+    href: "/inventory",
+  },
+  {
+    title: "Mitarbeiter",
+    description: "Mitarbeiterverwaltung, Mitarbeiterakten und Führerscheinkontrollen.",
+    href: "/employees",
+  },
+  {
+    title: "Arbeitssicherheit",
+    description: "GBU, Betriebsanweisungen, Beauftragungen, Gefahrstoffe und Unfälle.",
+    href: "/safety",
+  },
+  {
+    title: "Werkstatt",
+    description: "Werkstattaufträge, Reparaturen und Werkstattformulare.",
+    href: "/workshop",
   },
   {
     title: "Bestellung",
-    description: "Mischgut-, Fremd-LKW- und Betonbestellung für den Folgetag.",
+    description: "Mischgut-, Fremd-LKW- und Betonbestellungen.",
     href: "/orders",
   },
   {
-    title: "Admin Backend",
-    description: "Unternehmen, Fahrer, Kolonnen, Inventar und Auswahllisten pflegen.",
+    title: "Controlling",
+    description: "Leistungsmeldungen und Verrechnungssätze prüfen und pflegen.",
+    href: "/controlling/performance",
+  },
+  {
+    title: "Administration",
+    description: "Firma, Stammlisten, Kategorien, Berechtigungen und Datensicherung.",
     href: "/admin",
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const company = await prisma.companyInfo.findUnique({
+    select: {
+      companyName: true,
+      logoPublicUrl: true,
+    },
+    where: { id: "default" },
+  });
+
   return (
     <main className="min-h-screen bg-gray-100 px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">
       <div className="w-full">
-        <h1 className="text-4xl font-bold text-gray-900">Dashboard Stix</h1>
+        {company?.logoPublicUrl ? (
+          <div className="flex min-h-24 items-center">
+            <Image
+              alt={company.companyName || "Firmenlogo"}
+              className="h-auto max-h-28 w-auto max-w-[min(100%,440px)] object-contain object-left mix-blend-multiply"
+              height={180}
+              priority
+              src={company.logoPublicUrl}
+              width={520}
+            />
+            <h1 className="sr-only">
+              Dashboard {company.companyName || "Stix"}
+            </h1>
+          </div>
+        ) : (
+          <h1 className="text-4xl font-bold text-gray-900">
+            Dashboard {company?.companyName || "Stix"}
+          </h1>
+        )}
 
         <p className="mt-2 text-gray-600">
           Dispositionsdashboard für Bauunternehmen

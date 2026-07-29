@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -18,6 +19,8 @@ export function AppHeader({
   safetyNavigation,
   secondaryNavigation,
   workshopNavigation,
+  companyLogoUrl,
+  companyName,
 }: {
   controllingNavigation: NavigationItem[];
   dispositionNavigation: NavigationItem[];
@@ -28,6 +31,8 @@ export function AppHeader({
   safetyNavigation: NavigationItem[];
   secondaryNavigation: NavigationItem[];
   workshopNavigation: NavigationItem[];
+  companyLogoUrl: string | null;
+  companyName: string;
 }) {
   const [openMenu, setOpenMenu] = useState<
     | "projects"
@@ -104,11 +109,24 @@ export function AppHeader({
     >
       <div className="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8 2xl:px-10">
         <Link
-          className="shrink-0 text-xl font-bold text-gray-900"
+          className="flex h-12 w-40 shrink-0 items-center"
           href="/"
           onClick={() => setOpenMenu(null)}
         >
-          Dashboard Stix
+          {companyLogoUrl ? (
+            <Image
+              alt={companyName}
+              className="max-h-12 w-auto max-w-40 object-contain object-left"
+              height={70}
+              priority
+              src={companyLogoUrl}
+              width={190}
+            />
+          ) : (
+            <span className="text-xl font-bold text-gray-900">
+              Dashboard {companyName || "Stix"}
+            </span>
+          )}
         </Link>
 
         <button
