@@ -11,10 +11,12 @@ export function PositionPicker({
   options,
   defaultValues = [],
   defaultIsLeadership = false,
+  defaultCanManagePersonalInventory = false,
 }: {
   options: PositionOption[];
   defaultValues?: string[];
   defaultIsLeadership?: boolean;
+  defaultCanManagePersonalInventory?: boolean;
 }) {
   const [selectedValues, setSelectedValues] = useState(defaultValues);
   const [draggedValue, setDraggedValue] = useState<string | null>(null);
@@ -94,15 +96,26 @@ export function PositionPicker({
           </p>
         </div>
 
-        <label className="flex shrink-0 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
-          <input
-            name="isLeadership"
-            type="checkbox"
-            defaultChecked={defaultIsLeadership}
-            className="h-4 w-4"
-          />
-          Leitung
-        </label>
+        <div className="grid shrink-0 gap-2">
+          <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
+            <input
+              name="isLeadership"
+              type="checkbox"
+              defaultChecked={defaultIsLeadership}
+              className="h-4 w-4"
+            />
+            Leitung
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
+            <input
+              name="canManagePersonalInventory"
+              type="checkbox"
+              defaultChecked={defaultCanManagePersonalInventory}
+              className="h-4 w-4"
+            />
+            Persönliches Inventar verwalten
+          </label>
+        </div>
       </div>
 
       <div className="mt-4">

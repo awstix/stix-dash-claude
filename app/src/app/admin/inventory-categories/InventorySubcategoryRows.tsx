@@ -13,6 +13,7 @@ type SubcategoryRow = {
   objectNumberStart: string;
   sortOrder: string;
   isActive: boolean;
+  isPersonalInventory: boolean;
   useInSpecialVehicleDisposition: boolean;
   useInTeamManagement: boolean;
   useInEmployeeFile: boolean;
@@ -34,6 +35,7 @@ export function InventorySubcategoryRows({
         dailyReportMachineLabel: "",
         id: `new-${crypto.randomUUID()}`,
         isActive: true,
+        isPersonalInventory: false,
         isExisting: false,
         name: "",
         nextObjectNumber: "",
@@ -104,6 +106,11 @@ export function InventorySubcategoryRows({
             }`}
             key={row.id}
           >
+            <input
+              name="subcategoryIsPersonalInventory"
+              type="hidden"
+              value={row.isPersonalInventory ? "1" : "0"}
+            />
             <input
               name="subcategoryAsphaltDispositionUsage"
               type="hidden"
@@ -298,6 +305,19 @@ export function InventorySubcategoryRows({
                     type="checkbox"
                   />
                   Personalakte
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+                  <input
+                    checked={row.isPersonalInventory}
+                    className="h-4 w-4 rounded border-gray-300"
+                    onChange={(event) =>
+                      updateRow(row.id, {
+                        isPersonalInventory: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  Persönliches Inventar
                 </label>
                 <label className="flex items-center gap-2 text-xs font-semibold text-sky-800">
                   <input

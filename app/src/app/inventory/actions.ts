@@ -24,6 +24,12 @@ function optionalString(value: FormDataEntryValue | null) {
   return text.length > 0 ? text : null;
 }
 
+function requiredString(value: FormDataEntryValue | null, label: string) {
+  const text = optionalString(value);
+  if (!text) throw new Error(`${label} fehlt.`);
+  return text;
+}
+
 function optionalId(value: FormDataEntryValue | null) {
   const text = optionalString(value);
   return text === "__none" ? null : text;
@@ -1439,6 +1445,187 @@ export async function recordInventoryStockMovement(formData: FormData) {
   });
 
   revalidateInventoryItem(id);
+}
+
+export async function issuePersonalInventory(formData: FormData) {
+  const itemId = requiredString(formData.get("itemId"), "Inventarobjekt");
+  const employeeId = requiredString(formData.get("employeeId"), "Mitarbeiter");
+  const quantity = requiredStock(formData.get("quantity"), "Menge");
+  const signatureDataUrl = requiredString(
+    formData.get("signatureDataUrl"),
+    "Unterschrift des Mitarbeiters",
+  );
+  const issuedCondition = optionalString(formData.get("condition"));
+  const issueNotes = optionalString(formData.get("notes"));
+  const processedByEmployeeId = requiredString(
+    formData.get("processedByEmployeeId"),
+    "Ausgegeben durch",
+  );
+
+  await prisma.$transaction(async (tx) => {
+    const manager = await tx.employee.findFirst({
+      where: {
+        id: processedByEmployeeId,
+        statusValue: "active",
+        canManagePersonalInventory: true,
+      },
+    });
+    if (!manager) {
+      throw new Error("Die ausgewählte Person darf persönliches Inventar nicht ausgeben.");
+    }
+    const item = await tx.inventoryItem.findUnique({
+      include: {
+        category: {
+          include: { parentCategory: true },
+        },
+      },
+      where: { id: itemId },
+    });
+    if (!item) throw new Error("Inventarobjekt wurde nicht gefunden.");
+    const isPersonal =
+      item.category?.isPersonalInventory ||
+      item.category?.parentCategory?.isPersonalInventory;
+    if (!isPersonal) {
+      throw new Error(
+        "Die Kategorie ist nicht als persönliches Inventar freigegeben.",
+      );
+    }
+    if (!item.isStockManaged && quantity !== 1) {
+      throw new Error("Ein Einzelobjekt kann nur einmal ausgegeben werden.");
+    }
+    if (!item.isStockManaged) {
+      const existing = await tx.inventoryPersonalAssignment.count({
+        where: { itemId, status: "ISSUED" },
+      });
+      if (existing > 0) {
+        throw new Error("Dieses Einzelobjekt ist bereits ausgegeben.");
+      }
+    }
+
+    const stockBefore = item.currentStock ?? 0;
+    const stockAfter = item.isStockManaged ? stockBefore - quantity : null;
+    if (item.isStockManaged && (stockAfter ?? 0) < 0) {
+      throw new Error("Der Lagerbestand reicht für diese Ausgabe nicht aus.");
+    }
+    if (item.isStockManaged) {
+      await tx.inventoryItem.update({
+        data: { currentStock: stockAfter },
+        where: { id: itemId },
+      });
+    }
+
+    await tx.inventoryPersonalAssignment.create({
+      data: {
+        employeeId,
+        issueNotes,
+        issueSignatureDataUrl: signatureDataUrl,
+        issuedByName: `${manager.lastName}, ${manager.firstName}`,
+        issuedCondition,
+        itemId,
+        quantity,
+      },
+    });
+    await tx.inventoryUsageHistory.create({
+      data: {
+        employeeId,
+        eventType: "PERSONAL_ISSUE",
+        itemId,
+        notes: [issueNotes, "Ausgabe digital quittiert"].filter(Boolean).join(" · "),
+        quantity,
+        returnedAt: new Date(),
+        stockAfter,
+        stockBefore: item.isStockManaged ? stockBefore : null,
+      },
+    });
+  });
+
+  revalidateInventoryItem(itemId);
+  revalidatePath(`/employees/certificates/${employeeId}`);
+}
+
+export async function returnPersonalInventory(formData: FormData) {
+  const assignmentId = requiredString(formData.get("assignmentId"), "Ausgabe");
+  const returnQuantity = requiredStock(formData.get("quantity"), "Rückgabemenge");
+  const signatureDataUrl = requiredString(
+    formData.get("signatureDataUrl"),
+    "Rückgabeunterschrift",
+  );
+  const returnedCondition = optionalString(formData.get("condition"));
+  const returnNotes = optionalString(formData.get("notes"));
+  const processedByEmployeeId = requiredString(
+    formData.get("processedByEmployeeId"),
+    "Zurückgenommen durch",
+  );
+
+  const assignment = await prisma.$transaction(async (tx) => {
+    const manager = await tx.employee.findFirst({
+      where: {
+        id: processedByEmployeeId,
+        statusValue: "active",
+        canManagePersonalInventory: true,
+      },
+    });
+    if (!manager) {
+      throw new Error(
+        "Die ausgewählte Person darf persönliches Inventar nicht zurücknehmen.",
+      );
+    }
+    const current = await tx.inventoryPersonalAssignment.findUnique({
+      include: { item: true },
+      where: { id: assignmentId },
+    });
+    if (!current || current.status !== "ISSUED") {
+      throw new Error("Diese Ausgabe ist nicht mehr offen.");
+    }
+    const outstanding = current.quantity - current.returnedQuantity;
+    if (Math.abs(returnQuantity - outstanding) > 0.000001) {
+      throw new Error(
+        "Eine quittierte Ausgabe muss vollständig zurückgenommen werden. Für Teilmengen bitte getrennte Ausgaben anlegen.",
+      );
+    }
+    const returnedQuantity = current.returnedQuantity + returnQuantity;
+    const stockBefore = current.item.currentStock ?? 0;
+    const stockAfter = current.item.isStockManaged
+      ? stockBefore + returnQuantity
+      : null;
+
+    if (current.item.isStockManaged) {
+      await tx.inventoryItem.update({
+        data: { currentStock: stockAfter },
+        where: { id: current.itemId },
+      });
+    }
+    const updated = await tx.inventoryPersonalAssignment.update({
+      data: {
+        returnNotes,
+        returnSignatureDataUrl: signatureDataUrl,
+        returnedAt: new Date(),
+        returnedByName: `${manager.lastName}, ${manager.firstName}`,
+        returnedCondition,
+        returnedQuantity,
+        status: "RETURNED",
+      },
+      where: { id: assignmentId },
+    });
+    await tx.inventoryUsageHistory.create({
+      data: {
+        employeeId: current.employeeId,
+        eventType: "PERSONAL_RETURN",
+        itemId: current.itemId,
+        notes: [returnNotes, "Rückgabe digital quittiert"]
+          .filter(Boolean)
+          .join(" · "),
+        quantity: returnQuantity,
+        receivedAt: new Date(),
+        stockAfter,
+        stockBefore: current.item.isStockManaged ? stockBefore : null,
+      },
+    });
+    return updated;
+  });
+
+  revalidateInventoryItem(assignment.itemId);
+  revalidatePath(`/employees/certificates/${assignment.employeeId}`);
 }
 
 export async function deleteInventoryPhoto(formData: FormData) {

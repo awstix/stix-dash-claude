@@ -239,8 +239,10 @@ export default async function InventoryStoragePage({
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
+        canManagePersonalInventory: true,
         firstName: true,
         id: true,
+        isLeadership: true,
         lastName: true,
       },
     }),
@@ -252,6 +254,7 @@ export default async function InventoryStoragePage({
             parentCategory: {
               select: {
                 id: true,
+                isPersonalInventory: true,
                 name: true,
               },
             },
@@ -288,6 +291,9 @@ export default async function InventoryStoragePage({
     stockFilter,
     containerFilter,
   ].filter(Boolean).length;
+  const inventoryManagers = employees.filter(
+    (employee) => employee.canManagePersonalInventory,
+  );
 
   return (
     <AppShell
@@ -527,7 +533,13 @@ export default async function InventoryStoragePage({
                             item.currentStock,
                             item.stockUnit,
                           )}
+                          currentStock={item.currentStock}
                           employees={employees}
+                          isPersonalInventory={Boolean(
+                            item.category?.isPersonalInventory ||
+                              item.category?.parentCategory?.isPersonalInventory,
+                          )}
+                          inventoryManagers={inventoryManagers}
                           itemId={item.id}
                           itemName={item.name}
                           projects={projects}

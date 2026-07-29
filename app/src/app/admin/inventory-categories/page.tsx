@@ -10,6 +10,7 @@ import { InventoryCategoryEditDialog } from "./InventoryCategoryEditDialog";
 import { InventoryCategoryActionForm } from "./InventoryCategoryActionForm";
 import { InventoryCategoryImportPanel } from "./InventoryCategoryImportPanel";
 import { InventorySubcategoryRows } from "./InventorySubcategoryRows";
+import { PersonalInventoryCategorySettings } from "./PersonalInventoryCategorySettings";
 
 export default async function InventoryCategoriesPage() {
   const categories = await prisma.inventoryCategory.findMany({
@@ -35,6 +36,7 @@ export default async function InventoryCategoriesPage() {
           dailyReportMachineLabel: true,
           id: true,
           isActive: true,
+          isPersonalInventory: true,
           name: true,
           nextObjectNumber: true,
           objectNumberEnd: true,
@@ -248,6 +250,7 @@ function InventoryCategoryForm({
     description: string | null;
     id: string;
     isActive: boolean;
+    isPersonalInventory: boolean;
     name: string;
     nextObjectNumber: number | null;
     objectNumberEnd: number | null;
@@ -267,6 +270,7 @@ function InventoryCategoryForm({
       useInSpecialVehicleDisposition: boolean;
       useInTeamManagement: boolean;
       useInEmployeeFile: boolean;
+      isPersonalInventory: boolean;
       useInTruckDispatchSelection: boolean;
     }[];
     useInDailyReports: boolean;
@@ -414,6 +418,7 @@ function InventoryCategoryForm({
           dailyReportMachineLabel: childCategory.dailyReportMachineLabel ?? "",
           id: childCategory.id,
           isActive: childCategory.isActive,
+          isPersonalInventory: childCategory.isPersonalInventory,
           isExisting: true,
           name: childCategory.name,
           nextObjectNumber: formatObjectNumberInput(
@@ -486,6 +491,9 @@ function InventoryCategoryForm({
             defaultChecked={category?.useInEmployeeFile ?? false}
             label="In Personalakte listen"
             name="useInEmployeeFile"
+          />
+          <PersonalInventoryCategorySettings
+            defaultChecked={category?.isPersonalInventory ?? false}
           />
           <Checkbox
             defaultChecked={category?.useInTruckDispatchSelection ?? false}
@@ -598,6 +606,7 @@ function UsageBadges({
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
     useInEmployeeFile: boolean;
+    isPersonalInventory: boolean;
     useInTruckDispatchSelection: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
@@ -628,6 +637,9 @@ function UsageBadges({
 
   if (category.useInEmployeeFile) {
     badges.push({ label: "Personalakte", tone: "emerald" });
+  }
+  if (category.isPersonalInventory) {
+    badges.push({ label: "Persönlich", tone: "amber" });
   }
 
   if (category.useInTruckDispatchSelection) {

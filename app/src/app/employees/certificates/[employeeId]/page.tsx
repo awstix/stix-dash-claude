@@ -88,6 +88,8 @@ function getInventoryStatusClass(status: string | null) {
 function getInventoryMovementLabel(eventType: string | null) {
   if (eventType === "ISSUE") return "Ausgabe";
   if (eventType === "RETURN") return "Rücknahme";
+  if (eventType === "PERSONAL_ISSUE") return "Persönliche Ausgabe";
+  if (eventType === "PERSONAL_RETURN") return "Persönliche Rücknahme";
   if (eventType === "ADJUSTMENT") return "Korrektur";
   if (eventType === "ASSIGNMENT") return "Zuordnung";
   if (eventType === "RETURN_TO_BASE") return "Rückgabe";
@@ -231,6 +233,16 @@ export default async function EmployeeCertificateDetailPage({
           },
           orderBy: [{ name: "asc" }],
         },
+        personalInventoryAssignments: {
+          include: {
+            item: {
+              include: {
+                category: { include: { parentCategory: true } },
+              },
+            },
+          },
+          orderBy: [{ status: "asc" }, { issuedAt: "desc" }],
+        },
         inventoryUsageHistory: {
           include: {
             item: {
@@ -264,8 +276,16 @@ export default async function EmployeeCertificateDetailPage({
                     useInEmployeeFile: true,
                   },
                   {
+                    isPersonalInventory: true,
+                  },
+                  {
                     parentCategory: {
                       useInEmployeeFile: true,
+                    },
+                  },
+                  {
+                    parentCategory: {
+                      isPersonalInventory: true,
                     },
                   },
                 ],
@@ -421,18 +441,38 @@ export default async function EmployeeCertificateDetailPage({
       title={`${employee.firstName} ${employee.lastName}`}
       description="Mitarbeiterakte mit Führerscheinen, Maschinenscheinen, Schulungen und zugeordnetem Inventar."
     >
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         <Link
           className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           href="/employees/certificates"
         >
           ← Zurück zur Mitarbeiterakte
         </Link>
+        <a
+          className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white"
+          href={`/employees/certificates/${employee.id}/pdf`}
+        >
+          Mitarbeiterakte als PDF
+        </a>
+        <Link
+          className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href="/employees/driver-licenses"
+        >
+          Führerscheinkontrolle öffnen
+        </Link>
+        <Link
+          className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/employees?firstName=${encodeURIComponent(
+            employee.firstName,
+          )}&lastName=${encodeURIComponent(employee.lastName)}`}
+        >
+          Verwaltung öffnen
+        </Link>
       </div>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-5 sm:flex-row">
+        <div>
+          <div className="flex min-w-0 flex-col gap-5 sm:flex-row">
             {employee.photoUrl ? (
               <img
                 alt={`${employee.firstName} ${employee.lastName}`}
@@ -445,19 +485,19 @@ export default async function EmployeeCertificateDetailPage({
                 {employee.lastName.slice(0, 1)}
               </div>
             )}
-            <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Mitarbeiterakte
-            </p>
-            <h2 className="mt-1 text-2xl font-bold text-gray-900">
-              {employee.lastName}, {employee.firstName}
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {[employee.companyLabel, employee.departmentLabel]
-                .filter(Boolean)
-                .join(" · ") || "Keine Firma/Abteilung hinterlegt"}
-            </p>
-              <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Mitarbeiterakte
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-gray-900">
+                {employee.lastName}, {employee.firstName}
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                {[employee.companyLabel, employee.departmentLabel]
+                  .filter(Boolean)
+                  .join(" · ") || "Keine Firma/Abteilung hinterlegt"}
+              </p>
+              <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <EmployeeInfo label="Status" value={employee.statusLabel ?? "—"} />
                 <EmployeeInfo label="Eintritt" value={formatDate(employee.entryDate)} />
                 <EmployeeInfo label="Austritt" value={formatDate(employee.exitDate)} />
@@ -485,23 +525,85 @@ export default async function EmployeeCertificateDetailPage({
               ) : null}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Link
-              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              href="/employees/driver-licenses"
-            >
-              Führerscheinkontrolle öffnen
-            </Link>
-            <Link
-              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              href={`/employees?firstName=${encodeURIComponent(
-                employee.firstName,
-              )}&lastName=${encodeURIComponent(employee.lastName)}`}
-            >
-              Verwaltung öffnen
-            </Link>
-          </div>
         </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Persönliches Inventar
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Quittierte Ausgaben und offene Rückgaben dieses Mitarbeiters.
+            </p>
+          </div>
+          <Link
+            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href="/inventory"
+          >
+            Inventar öffnen
+          </Link>
+        </div>
+        {employee.personalInventoryAssignments.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            Noch kein persönliches Inventar ausgegeben.
+          </p>
+        ) : (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="p-3">Gegenstand</th>
+                  <th className="p-3">Kategorie</th>
+                  <th className="p-3">Ausgabe</th>
+                  <th className="p-3">Menge</th>
+                  <th className="p-3">Rückgabe</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.personalInventoryAssignments.map((assignment) => {
+                  const open =
+                    assignment.quantity - assignment.returnedQuantity;
+                  return (
+                    <tr className="border-t border-gray-100" key={assignment.id}>
+                      <td className="p-3">
+                        <Link className="font-semibold text-gray-950 hover:underline" href={`/inventory/${assignment.item.id}`}>
+                          {assignment.item.name}
+                        </Link>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {[assignment.item.objectNumber, assignment.item.inventoryNumber, assignment.item.serialNumber]
+                            .filter(Boolean)
+                            .join(" · ") || "ohne Kennnummer"}
+                        </div>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {assignment.item.category?.parentCategory
+                          ? `${assignment.item.category.parentCategory.name} · ${assignment.item.category.name}`
+                          : assignment.item.category?.name ?? "—"}
+                      </td>
+                      <td className="p-3 text-gray-700">{formatDate(assignment.issuedAt)}</td>
+                      <td className="p-3 font-semibold text-gray-950">
+                        {formatStock(assignment.quantity, assignment.item.stockUnit)}
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {assignment.returnedAt ? formatDate(assignment.returnedAt) : "offen"}
+                      </td>
+                      <td className="p-3">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${open > 0 ? "bg-amber-100 text-amber-950" : "bg-green-100 text-green-900"}`}>
+                          {open > 0
+                            ? `${formatStock(open, assignment.item.stockUnit)} zurückzugeben`
+                            : "Zurückgegeben"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

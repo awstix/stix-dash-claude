@@ -927,6 +927,9 @@ export async function EmployeesManagementPage({
                             defaultFirstName={employee.firstName}
                             defaultLastName={employee.lastName}
                             defaultIsLeadership={employee.isLeadership}
+                            defaultCanManagePersonalInventory={
+                              employee.canManagePersonalInventory
+                            }
                             defaultBirthDate={formatDateInput(
                               employee.birthDate
                             )}
@@ -1064,6 +1067,7 @@ function EmployeeForm({
   defaultFirstName = "",
   defaultLastName = "",
   defaultIsLeadership = false,
+  defaultCanManagePersonalInventory = false,
   defaultBirthDate = "",
   defaultGenderValue = "",
   defaultMobilePhone = "",
@@ -1090,6 +1094,7 @@ function EmployeeForm({
   defaultFirstName?: string;
   defaultLastName?: string;
   defaultIsLeadership?: boolean;
+  defaultCanManagePersonalInventory?: boolean;
   defaultBirthDate?: string;
   defaultGenderValue?: string;
   defaultMobilePhone?: string;
@@ -1295,6 +1300,9 @@ function EmployeeForm({
         options={positionOptions}
         defaultValues={defaultPositionValues}
         defaultIsLeadership={defaultIsLeadership}
+        defaultCanManagePersonalInventory={
+          defaultCanManagePersonalInventory
+        }
       />
 
       <label className="block text-sm font-medium text-gray-800">

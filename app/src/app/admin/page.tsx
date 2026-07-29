@@ -83,6 +83,12 @@ const adminSections: AdminSection[] = [
         href: "/admin/inventory-categories",
       },
       {
+        title: "Inventarverantwortliche (persönlich)",
+        description:
+          "Personen auswählen, die persönliches Inventar ausgeben, zurücknehmen und quittieren dürfen.",
+        href: "/admin/personal-inventory-managers",
+      },
+      {
         title: "Inventar importieren",
         description:
           "Materialien, Fahrzeuge, Sonderfahrzeuge, Maschinen und Lagerobjekte über eine zentrale Vorlage importieren.",

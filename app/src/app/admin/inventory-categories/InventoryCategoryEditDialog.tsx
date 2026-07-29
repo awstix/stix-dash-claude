@@ -15,6 +15,7 @@ type InventoryCategoryForDialog = {
   description: string | null;
   id: string;
   isActive: boolean;
+  isPersonalInventory: boolean;
   name: string;
   nextObjectNumber: number | null;
   objectNumberEnd: number | null;

@@ -25,6 +25,7 @@ import { InventoryContainerManager } from "../InventoryContainerManager";
 import { InventoryIdlePeriodsDialog } from "../InventoryIdlePeriodsDialog";
 import { InventoryPhotoPreviewPanel } from "../InventoryPhotoGallery";
 import { InventoryStockMovementForm } from "../InventoryStockMovementForm";
+import { PersonalInventoryPanel } from "../PersonalInventoryPanel";
 import { InventoryWorkshopFormDialog } from "../InventoryWorkshopFormDialog";
 import {
   returnInventoryItemToBaseLocation,
@@ -237,6 +238,8 @@ function getHistoryEventLabel(eventType: string) {
   if (eventType === "ASSIGNMENT") return "Zuordnung";
   if (eventType === "ISSUE") return "Ausgabe";
   if (eventType === "RETURN") return "Rücknahme";
+  if (eventType === "PERSONAL_ISSUE") return "Persönliche Ausgabe";
+  if (eventType === "PERSONAL_RETURN") return "Persönliche Rücknahme";
   if (eventType === "ADJUSTMENT") return "Bestandskorrektur";
   if (eventType === "DEFECT") return "Defekt";
   if (eventType === "WORKSHOP_FORM") return "Werkstattformular";
@@ -247,6 +250,8 @@ function getHistoryEventLabel(eventType: string) {
 function getHistoryEventClass(eventType: string) {
   if (eventType === "ISSUE") return "bg-red-100 text-red-900";
   if (eventType === "RETURN") return "bg-green-100 text-green-900";
+  if (eventType === "PERSONAL_ISSUE") return "bg-amber-100 text-amber-950";
+  if (eventType === "PERSONAL_RETURN") return "bg-emerald-100 text-emerald-900";
   if (eventType === "ADJUSTMENT") return "bg-amber-100 text-amber-950";
   if (eventType === "ASSIGNMENT") return "bg-blue-100 text-blue-900";
   if (eventType === "DEFECT") return "bg-red-100 text-red-900";
@@ -281,6 +286,7 @@ export default async function InventoryDetailPage({
           parentCategory: {
             select: {
               id: true,
+              isPersonalInventory: true,
               name: true,
             },
           },
@@ -330,6 +336,10 @@ export default async function InventoryDetailPage({
       parentItem: true,
       photos: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+      },
+      personalAssignments: {
+        include: { employee: true },
+        orderBy: { issuedAt: "desc" },
       },
       responsibleCrew: true,
       responsibleEmployee: true,
@@ -403,8 +413,10 @@ export default async function InventoryDetailPage({
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
+        canManagePersonalInventory: true,
         firstName: true,
         id: true,
+        isLeadership: true,
         lastName: true,
       },
     }),
@@ -436,6 +448,9 @@ export default async function InventoryDetailPage({
   const repairTemplate =
     workshopTemplates.find((template) => template.id === WORKSHOP_REPAIR_TEMPLATE_ID) ??
     null;
+  const inventoryManagers = allEmployees.filter(
+    (employee) => employee.canManagePersonalInventory,
+  );
   const repairTemplateFields = parseProjectFormFields(repairTemplate?.fieldsJson);
   const workshopFormTemplates = [
     ...BUILT_IN_WORKSHOP_FORMS,
@@ -1036,6 +1051,27 @@ export default async function InventoryDetailPage({
         </section>
       ) : null}
 
+      {item.category?.isPersonalInventory ||
+      item.category?.parentCategory?.isPersonalInventory ? (
+        <PersonalInventoryPanel
+          assignments={item.personalAssignments
+            .filter((assignment) => assignment.status === "ISSUED")
+            .map((assignment) => ({
+              employeeName: `${assignment.employee.lastName}, ${assignment.employee.firstName}`,
+              id: assignment.id,
+              issuedAt: formatDate(assignment.issuedAt),
+              quantity: assignment.quantity,
+              returnedQuantity: assignment.returnedQuantity,
+            }))}
+          currentStock={item.currentStock}
+          employees={allEmployees}
+          inventoryManagers={inventoryManagers}
+          isStockManaged={item.isStockManaged}
+          itemId={item.id}
+          stockUnit={item.stockUnit}
+        />
+      ) : null}
+
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -1155,7 +1191,9 @@ export default async function InventoryDetailPage({
         </form>
       </section>
 
-      {item.isStockManaged ? (
+      {item.isStockManaged &&
+      !item.category?.isPersonalInventory &&
+      !item.category?.parentCategory?.isPersonalInventory ? (
         <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">
             Lagerbewegung

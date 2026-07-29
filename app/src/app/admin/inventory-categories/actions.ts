@@ -116,6 +116,7 @@ type SubcategoryPayload = ObjectNumberRange & {
   dailyReportMachineLabel: string | null;
   id: string | null;
   isActive: boolean;
+  isPersonalInventory: boolean;
   name: string;
   sortOrder: number | null;
   useInSpecialVehicleDisposition: boolean;
@@ -246,6 +247,9 @@ function getSubcategoryPayloads(formData: FormData) {
   const employeeFileValues = formData.getAll(
     "subcategoryUseInEmployeeFile",
   );
+  const personalInventoryValues = formData.getAll(
+    "subcategoryIsPersonalInventory",
+  );
   const truckDispatchSelectionValues = formData.getAll(
     "subcategoryUseInTruckDispatchSelection",
   );
@@ -311,6 +315,8 @@ function getSubcategoryPayloads(formData: FormData) {
       ),
       id,
       isActive: String(activeValues[index] ?? "0") === "1",
+      isPersonalInventory:
+        String(personalInventoryValues[index] ?? "0") === "1",
       name,
       objectNumberEnd,
       objectNumberStart,
@@ -573,6 +579,7 @@ async function syncInlineSubcategories({
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
     useInEmployeeFile: boolean;
+    isPersonalInventory: boolean;
     asphaltDispositionUsage: string;
   };
   db: Prisma.TransactionClient;
@@ -615,6 +622,7 @@ async function syncInlineSubcategories({
       asphaltDispositionUsage: subcategory.asphaltDispositionUsage,
       dailyReportMachineLabel: subcategory.dailyReportMachineLabel,
       isActive: subcategory.isActive,
+      isPersonalInventory: subcategory.isPersonalInventory,
       name: subcategory.name,
       nextObjectNumber: subcategory.nextObjectNumber,
       objectNumberEnd: subcategory.objectNumberEnd,
@@ -698,6 +706,7 @@ async function createInventoryCategoryInternal(formData: FormData) {
       formData.get("useInSpecialVehicleDisposition") === "on",
     useInTeamManagement: formData.get("useInTeamManagement") === "on",
     useInEmployeeFile: formData.get("useInEmployeeFile") === "on",
+    isPersonalInventory: formData.get("isPersonalInventory") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,
@@ -786,6 +795,7 @@ async function updateInventoryCategoryInternal(formData: FormData) {
       formData.get("useInSpecialVehicleDisposition") === "on",
     useInTeamManagement: formData.get("useInTeamManagement") === "on",
     useInEmployeeFile: formData.get("useInEmployeeFile") === "on",
+    isPersonalInventory: formData.get("isPersonalInventory") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
     useInInventory: true,

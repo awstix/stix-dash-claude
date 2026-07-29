@@ -1093,6 +1093,7 @@ model Employee {
   lastName  String
 
   isLeadership Boolean @default(false)
+  canManagePersonalInventory Boolean @default(false)
 
   birthDate   DateTime?
   genderValue String?
@@ -1122,6 +1123,7 @@ model Employee {
   inventoryItemAssignments        InventoryItemEmployeeAssignment[]
   inventoryUsageHistory           InventoryUsageHistory[]           @relation("InventoryUsageEmployee")
   inventoryTransportHistory       InventoryUsageHistory[]           @relation("InventoryUsageTransporter")
+  personalInventoryAssignments    InventoryPersonalAssignment[]
   controllingHourEntries          ControllingHourEntry[]
   controllingRates                ControllingEmployeeRate[]
   safetyAccidentReports           SafetyAccidentReport[]
@@ -1140,6 +1142,7 @@ model Employee {
   @@index([departmentValue])
   @@index([lastName])
   @@index([driverId])
+  @@index([canManagePersonalInventory])
 }
 
 model EmployeeDispositionEntry {
@@ -1593,6 +1596,7 @@ model InventoryCategory {
   useInSpecialVehicleDisposition Boolean             @default(false)
   useInTeamManagement            Boolean             @default(false)
   useInEmployeeFile              Boolean             @default(false)
+  isPersonalInventory            Boolean             @default(false)
   asphaltDispositionUsage        String              @default("NONE")
   useInDailyReports              Boolean             @default(false)
   useInInventory                 Boolean             @default(true)
@@ -1613,6 +1617,7 @@ model InventoryCategory {
   @@index([useInSpecialVehicleDisposition])
   @@index([useInTeamManagement])
   @@index([useInEmployeeFile])
+  @@index([isPersonalInventory])
   @@index([useInTruckDispatchSelection])
   @@index([asphaltDispositionUsage])
   @@index([dailyReportMachineLabel])
@@ -1717,6 +1722,7 @@ model InventoryItem {
   crewPlanningAssignmentVehicles     CrewPlanningAssignmentVehicle[]
   controllingDetailEntries           ControllingDetailEntry[]
   controllingRates                   ControllingInventoryItemRate[]
+  personalAssignments                InventoryPersonalAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1762,6 +1768,41 @@ model InventoryItemEmployeeAssignment {
   @@unique([itemId, employeeId])
   @@index([employeeId])
   @@index([itemId])
+}
+
+model InventoryPersonalAssignment {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  quantity         Float @default(1)
+  returnedQuantity Float @default(0)
+  status           String @default("ISSUED")
+
+  issuedAt             DateTime @default(now())
+  issuedCondition      String?
+  issueNotes           String?
+  issueSignatureDataUrl String
+  issuedByName         String?
+
+  returnedAt              DateTime?
+  returnedCondition       String?
+  returnNotes             String?
+  returnSignatureDataUrl  String?
+  returnedByName          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([issuedAt])
+  @@index([returnedAt])
 }
 
 model InventoryIdlePeriod {
