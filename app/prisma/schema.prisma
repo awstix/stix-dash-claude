@@ -1100,6 +1100,10 @@ model Employee {
   genderLabel String?
 
   mobilePhone    String?
+  homePhone      String?
+  email          String?
+  emergencyFirstName String?
+  emergencyLastName  String?
   emergencyPhone String?
 
   street     String?
@@ -1169,6 +1173,58 @@ model EmployeeDispositionEntry {
   @@index([startDate])
   @@index([endDate])
   @@index([typeValue])
+}
+
+model DispositionDayOff {
+  id String @id @default(cuid())
+
+  date DateTime
+  endDate DateTime?
+  name String
+  kind String @default("COMPANY")
+  scopeLabel String?
+  sourceLabel String?
+  sourceUrl String?
+  sourceCheckedAt DateTime?
+  isAutomatic Boolean @default(false)
+  isDayOff Boolean @default(false)
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, name])
+  @@index([date])
+  @@index([isDayOff])
+}
+
+model InventoryInitialTest {
+  id String @id @default(cuid())
+
+  productCode String?
+  productName String
+  category String?
+  validFrom DateTime?
+  validUntil DateTime?
+  testNumber String?
+  densityTonPerCubicMeter Float?
+  description String?
+  notes String?
+  pdfFileName String?
+  pdfOriginalName String?
+  pdfUrl String?
+  pdfMimeType String?
+  pdfSizeBytes Int?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productCode])
+  @@index([productName])
+  @@index([category])
+  @@index([validUntil])
+  @@index([isActive])
 }
 
 model EmployeePositionAssignment {

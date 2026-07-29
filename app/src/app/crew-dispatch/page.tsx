@@ -7,6 +7,7 @@ import {
   inventoryVehicleBridgeInclude,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
 import {
   createCrewPlanningRow,
   deletePlanningTimelineSource,
@@ -3512,6 +3513,11 @@ export default async function CrewDispatchPage({
   const unitCount = timelineUnits.length;
   const periodStart = timelineFromDate;
   const periodEndExclusive = addDays(timelineToDate, 1);
+  const daysOffByDate = new Map(
+    (await activeDispositionDaysOff(periodStart, addDays(periodEndExclusive, -1))).map(
+      (item) => [dateKey(item.date), item],
+    ),
+  );
 
   const previousRange = shiftDateRange({
     fromDate,
@@ -5367,7 +5373,12 @@ export default async function CrewDispatchPage({
                   <div
                     key={unit.key}
                     data-timeline-date={unit.defaultStartDate}
-                    className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 text-center last:border-r-0 ${getHeaderPaddingClass(
+                    title={daysOffByDate.get(unit.defaultStartDate)?.name}
+                    className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 text-center last:border-r-0 ${
+                      daysOffByDate.has(unit.defaultStartDate)
+                        ? "bg-slate-300"
+                        : "bg-gray-50"
+                    } ${getHeaderPaddingClass(
                       unitCount,
                     )}`}
                   >
@@ -5387,6 +5398,9 @@ export default async function CrewDispatchPage({
                     >
                       {unit.subLabel}
                     </div>
+                    {daysOffByDate.has(unit.defaultStartDate) ? (
+                      <div className="truncate text-[9px] font-black uppercase text-gray-800">arbeitsfrei</div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -5485,7 +5499,11 @@ export default async function CrewDispatchPage({
                       {timelineUnits.map((unit) => (
                         <div
                           key={`${row.id}-${unit.key}`}
-                          className={`min-w-0 border-r border-gray-100 last:border-r-0 ${getCellPaddingClass(
+                          className={`min-w-0 border-r border-gray-100 last:border-r-0 ${
+                            daysOffByDate.has(unit.defaultStartDate)
+                              ? "bg-slate-200/80"
+                              : ""
+                          } ${getCellPaddingClass(
                             unitCount,
                           )}`}
                           style={{
@@ -5824,7 +5842,11 @@ export default async function CrewDispatchPage({
                     {timelineUnits.map((unit) => (
                       <div
                         key={`${crew.id}-${unit.key}`}
-                        className={`min-w-0 border-r border-gray-100 last:border-r-0 ${getCellPaddingClass(
+                        className={`min-w-0 border-r border-gray-100 last:border-r-0 ${
+                          daysOffByDate.has(unit.defaultStartDate)
+                            ? "bg-slate-200/80"
+                            : ""
+                        } ${getCellPaddingClass(
                           unitCount,
                         )}`}
                         style={{

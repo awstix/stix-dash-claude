@@ -29,6 +29,7 @@ const workshopNavigation = [
 
 const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
+  { name: "Feiertage & arbeitsfreie Tage", href: "/disposition/holidays" },
   { name: "Gerätedisposition", href: "/equipment-dispatch" },
   { name: "Planung", href: "/crew-dispatch" },
   { name: "LKW-Einteilung", href: "/truck-dispatch" },
@@ -39,6 +40,7 @@ const dispositionNavigation = [
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const inventoryNavigation = [
+  { name: "Erstprüfungen", href: "/inventory/initial-tests" },
   { name: "Inventarverwaltung", href: "/inventory" },
   { name: "Objekt anlegen", href: "/inventory/new" },
   { name: "Inventar importieren", href: "/inventory/imports" },

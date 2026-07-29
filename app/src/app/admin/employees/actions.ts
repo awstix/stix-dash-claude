@@ -57,6 +57,16 @@ async function storeEmployeePhoto(file: FormDataEntryValue | null) {
   return `/uploads/employee-photos/${fileName}`;
 }
 
+function employeePhotoFromFormData(formData: FormData) {
+  const cameraPhoto = formData.get("photoCamera");
+
+  if (cameraPhoto instanceof File && cameraPhoto.size > 0) {
+    return cameraPhoto;
+  }
+
+  return formData.get("photo");
+}
+
 async function getOptionLabel(groupKey: string, value: string | null) {
   if (!value) {
     return null;
@@ -212,6 +222,10 @@ function getEmployeePayload(formData: FormData) {
     birthDate: optionalDate(formData.get("birthDate")),
     genderValue: optionalString(formData.get("genderValue")),
     mobilePhone: optionalString(formData.get("mobilePhone")),
+    homePhone: optionalString(formData.get("homePhone")),
+    email: optionalString(formData.get("email")),
+    emergencyFirstName: optionalString(formData.get("emergencyFirstName")),
+    emergencyLastName: optionalString(formData.get("emergencyLastName")),
     emergencyPhone: optionalString(formData.get("emergencyPhone")),
     street: optionalString(formData.get("street")),
     postalCode: optionalString(formData.get("postalCode")),
@@ -225,7 +239,7 @@ function getEmployeePayload(formData: FormData) {
 
 export async function createEmployee(formData: FormData) {
   const payload = getEmployeePayload(formData);
-  const photoUrl = await storeEmployeePhoto(formData.get("photo"));
+  const photoUrl = await storeEmployeePhoto(employeePhotoFromFormData(formData));
 
   const [
     statusLabel,
@@ -260,6 +274,10 @@ export async function createEmployee(formData: FormData) {
         genderValue: payload.genderValue,
         genderLabel,
         mobilePhone: payload.mobilePhone,
+        homePhone: payload.homePhone,
+        email: payload.email,
+        emergencyFirstName: payload.emergencyFirstName,
+        emergencyLastName: payload.emergencyLastName,
         emergencyPhone: payload.emergencyPhone,
         street: payload.street,
         postalCode: payload.postalCode,
@@ -307,7 +325,7 @@ export async function updateEmployee(formData: FormData) {
   }
 
   const payload = getEmployeePayload(formData);
-  const photoUrl = await storeEmployeePhoto(formData.get("photo"));
+  const photoUrl = await storeEmployeePhoto(employeePhotoFromFormData(formData));
 
   const [
     statusLabel,
@@ -345,6 +363,10 @@ export async function updateEmployee(formData: FormData) {
         genderValue: payload.genderValue,
         genderLabel,
         mobilePhone: payload.mobilePhone,
+        homePhone: payload.homePhone,
+        email: payload.email,
+        emergencyFirstName: payload.emergencyFirstName,
+        emergencyLastName: payload.emergencyLastName,
         emergencyPhone: payload.emergencyPhone,
         street: payload.street,
         postalCode: payload.postalCode,

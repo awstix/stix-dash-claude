@@ -142,6 +142,8 @@ type EmployeeSearchParams = {
   ageMax?: string;
   gender?: string;
   mobilePhone?: string;
+  homePhone?: string;
+  email?: string;
   emergencyPhone?: string;
   street?: string;
   postalCode?: string;
@@ -215,6 +217,8 @@ export async function EmployeesManagementPage({
     ageMax: String(params.ageMax ?? "").trim(),
     gender: String(params.gender ?? "").trim(),
     mobilePhone: String(params.mobilePhone ?? "").trim(),
+    homePhone: String(params.homePhone ?? "").trim(),
+    email: String(params.email ?? "").trim(),
     emergencyPhone: String(params.emergencyPhone ?? "").trim(),
     street: String(params.street ?? "").trim(),
     postalCode: String(params.postalCode ?? "").trim(),
@@ -372,11 +376,29 @@ export async function EmployeesManagementPage({
     });
   }
 
+  if (filters.homePhone) {
+    filterConditions.push({
+      homePhone: {
+        contains: filters.homePhone,
+      },
+    });
+  }
+
+  if (filters.email) {
+    filterConditions.push({
+      email: {
+        contains: filters.email,
+      },
+    });
+  }
+
   if (filters.emergencyPhone) {
     filterConditions.push({
-      emergencyPhone: {
-        contains: filters.emergencyPhone,
-      },
+      OR: [
+        { emergencyFirstName: { contains: filters.emergencyPhone } },
+        { emergencyLastName: { contains: filters.emergencyPhone } },
+        { emergencyPhone: { contains: filters.emergencyPhone } },
+      ],
     });
   }
 
@@ -813,7 +835,32 @@ export async function EmployeesManagementPage({
                     value={filters.emergencyPhone}
                     filters={filters}
                     exclude={["emergencyPhone"]}
-                    placeholder="Notfallkontakt enthält..."
+                    placeholder="Name oder Telefonnummer..."
+                  />
+                </FilterTh>
+
+                <FilterTh
+                  title="Telefon (Haus)"
+                  active={Boolean(filters.homePhone)}
+                >
+                  <TextFilter
+                    actionPath={basePath}
+                    name="homePhone"
+                    value={filters.homePhone}
+                    filters={filters}
+                    exclude={["homePhone"]}
+                    placeholder="Telefonnummer enthält..."
+                  />
+                </FilterTh>
+
+                <FilterTh title="E-Mail" active={Boolean(filters.email)}>
+                  <TextFilter
+                    actionPath={basePath}
+                    name="email"
+                    value={filters.email}
+                    filters={filters}
+                    exclude={["email"]}
+                    placeholder="E-Mail enthält..."
                   />
                 </FilterTh>
 
@@ -866,7 +913,7 @@ export async function EmployeesManagementPage({
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="p-8 text-center text-gray-500">
+                  <td colSpan={22} className="p-8 text-center text-gray-500">
                     Keine Mitarbeiter für die aktuelle Filterauswahl gefunden.
                   </td>
                 </tr>
@@ -935,6 +982,14 @@ export async function EmployeesManagementPage({
                             )}
                             defaultGenderValue={employee.genderValue ?? ""}
                             defaultMobilePhone={employee.mobilePhone ?? ""}
+                            defaultHomePhone={employee.homePhone ?? ""}
+                            defaultEmail={employee.email ?? ""}
+                            defaultEmergencyFirstName={
+                              employee.emergencyFirstName ?? ""
+                            }
+                            defaultEmergencyLastName={
+                              employee.emergencyLastName ?? ""
+                            }
                             defaultEmergencyPhone={
                               employee.emergencyPhone ?? ""
                             }
@@ -1030,7 +1085,18 @@ export async function EmployeesManagementPage({
                     <Td>{calculateAge(employee.birthDate)}</Td>
                     <Td>{employee.genderLabel ?? "-"}</Td>
                     <Td>{employee.mobilePhone ?? "-"}</Td>
-                    <Td>{employee.emergencyPhone ?? "-"}</Td>
+                    <Td>
+                      {[
+                        [employee.emergencyFirstName, employee.emergencyLastName]
+                          .filter(Boolean)
+                          .join(" "),
+                        employee.emergencyPhone,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "-"}
+                    </Td>
+                    <Td>{employee.homePhone ?? "-"}</Td>
+                    <Td>{employee.email ?? "-"}</Td>
                     <Td>{employee.street ?? "-"}</Td>
                     <Td>{employee.postalCode ?? "-"}</Td>
                     <Td>{employee.city ?? "-"}</Td>
@@ -1071,6 +1137,10 @@ function EmployeeForm({
   defaultBirthDate = "",
   defaultGenderValue = "",
   defaultMobilePhone = "",
+  defaultHomePhone = "",
+  defaultEmail = "",
+  defaultEmergencyFirstName = "",
+  defaultEmergencyLastName = "",
   defaultEmergencyPhone = "",
   defaultStreet = "",
   defaultPostalCode = "",
@@ -1098,6 +1168,10 @@ function EmployeeForm({
   defaultBirthDate?: string;
   defaultGenderValue?: string;
   defaultMobilePhone?: string;
+  defaultHomePhone?: string;
+  defaultEmail?: string;
+  defaultEmergencyFirstName?: string;
+  defaultEmergencyLastName?: string;
   defaultEmergencyPhone?: string;
   defaultStreet?: string;
   defaultPostalCode?: string;
@@ -1234,9 +1308,48 @@ function EmployeeForm({
         </label>
 
         <label className="text-sm font-medium text-gray-800">
-          Notfallkontakt Handy
+          Telefonnummer (Haus)
+          <input
+            name="homePhone"
+            type="tel"
+            defaultValue={defaultHomePhone}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          E-Mail-Adresse
+          <input
+            name="email"
+            type="email"
+            defaultValue={defaultEmail}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Notfallkontakt Vorname
+          <input
+            name="emergencyFirstName"
+            defaultValue={defaultEmergencyFirstName}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Notfallkontakt Nachname
+          <input
+            name="emergencyLastName"
+            defaultValue={defaultEmergencyLastName}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Notfallkontakt Telefonnummer
           <input
             name="emergencyPhone"
+            type="tel"
             defaultValue={defaultEmergencyPhone}
             className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
           />
@@ -1269,14 +1382,31 @@ function EmployeeForm({
           />
         </label>
 
-        <label className="text-sm font-medium text-gray-800">
-          Mitarbeiterfoto
+        <div className="text-sm font-medium text-gray-800">
+          <div>Mitarbeiterfoto</div>
+          <label className="mt-2 block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              Foto auswählen
+            </span>
           <input
             name="photo"
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
           />
+          </label>
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              Kamera öffnen
+            </span>
+            <input
+              name="photoCamera"
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="w-full rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
           {defaultPhotoUrl ? (
             <span className="mt-2 flex items-center gap-2 text-xs font-medium text-gray-500">
               <Image
@@ -1290,10 +1420,11 @@ function EmployeeForm({
             </span>
           ) : (
             <span className="mt-2 block text-xs font-medium text-gray-500">
-              JPG, PNG oder WebP.
+              JPG, PNG oder WebP. Auf Handy und Tablet öffnet „Kamera“ direkt
+              die Frontkamera.
             </span>
           )}
-        </label>
+        </div>
       </div>
 
       <PositionPicker

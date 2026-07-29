@@ -287,7 +287,19 @@ export async function GET(
   row("Geburtsdatum", date(employee.birthDate));
   row("Geschlecht", employee.genderLabel ?? "-");
   row("Mobiltelefon", employee.mobilePhone ?? "-");
-  row("Notfallkontakt", employee.emergencyPhone ?? "-");
+  row("Telefon (Haus)", employee.homePhone ?? "-");
+  row("E-Mail", employee.email ?? "-");
+  row(
+    "Notfallkontakt",
+    [
+      [employee.emergencyFirstName, employee.emergencyLastName]
+        .filter(Boolean)
+        .join(" "),
+      employee.emergencyPhone,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "-",
+  );
   row(
     "Adresse",
     [

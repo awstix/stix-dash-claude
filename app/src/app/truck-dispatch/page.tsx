@@ -12,6 +12,7 @@ import {
   vehicleIsSelectableInTruckDispatch,
 } from "@/lib/truck-dispatch-selection";
 import { prisma } from "@/lib/prisma";
+import { activeDispositionDaysOff } from "@/lib/disposition-days-off";
 import {
   getAsphaltAllocationsForDay,
   getAsphaltOpenPositions,
@@ -288,6 +289,9 @@ export default async function TruckDispatchPage({
   const nextDay = formatDateInput(addDays(selectedDate, 1));
   const selectedDateInput = formatDateInput(selectedDate);
   const selectedWeek = formatDateInput(startOfWeek(selectedDate));
+  const selectedDayOff = (
+    await activeDispositionDaysOff(selectedDate, selectedDate)
+  )[0];
 
   const [
     allDrivers,
@@ -830,6 +834,12 @@ export default async function TruckDispatchPage({
       title="LKW-Einteilung"
       description="Zentrale Übersicht für Langstrecke, Kurzstrecke und Tagesauslastung."
     >
+      {selectedDayOff ? (
+        <div className="mb-4 rounded-2xl border border-slate-400 bg-slate-200 px-5 py-4 text-sm font-bold text-gray-900">
+          Arbeitsfreier Tag: {selectedDayOff.name}. Einteilungen bitte nur
+          bewusst für Sonderbetrieb vornehmen.
+        </div>
+      ) : null}
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>

@@ -506,8 +506,25 @@ export default async function EmployeeCertificateDetailPage({
                 <EmployeeInfo label="Geschlecht" value={employee.genderLabel ?? "—"} />
                 <EmployeeInfo label="Mobil" value={employee.mobilePhone ?? "—"} />
                 <EmployeeInfo
+                  label="Telefon (Haus)"
+                  value={employee.homePhone ?? "—"}
+                />
+                <EmployeeInfo label="E-Mail" value={employee.email ?? "—"} />
+                <EmployeeInfo
                   label="Notfallkontakt"
-                  value={employee.emergencyPhone ?? "—"}
+                  value={
+                    [
+                      [
+                        employee.emergencyFirstName,
+                        employee.emergencyLastName,
+                      ]
+                        .filter(Boolean)
+                        .join(" "),
+                      employee.emergencyPhone,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"
+                  }
                 />
                 <EmployeeInfo label="Adresse" value={formatAddress(employee)} />
                 <EmployeeInfo

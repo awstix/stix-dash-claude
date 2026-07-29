@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
 import {
   getAsphaltOpenPositions,
   hasAsphaltQuantity,
@@ -264,6 +265,11 @@ export default async function AsphaltDispatchPage({
     label,
     date: addDays(weekStart, index),
   }));
+  const daysOffByDate = new Map(
+    (await activeDispositionDaysOff(weekStart, addDays(weekEnd, -1))).map(
+      (item) => [dateKey(item.date), item],
+    ),
+  );
 
   const previousWeek = formatDateInput(addDays(weekStart, -7));
   const currentWeek = formatDateInput(startOfWeek(new Date()));
@@ -841,7 +847,12 @@ export default async function AsphaltDispatchPage({
           {days.map((day) => (
             <div
               key={day.label}
-              className="flex min-h-[64px] min-w-0 flex-col justify-center border-r border-b border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
+              title={daysOffByDate.get(dateKey(day.date))?.name}
+              className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-b border-gray-200 px-2 py-2 text-center last:border-r-0 ${
+                daysOffByDate.has(dateKey(day.date))
+                  ? "bg-slate-300"
+                  : "bg-gray-50"
+              }`}
             >
               <div className="truncate text-xs font-bold text-gray-900">
                 {day.label}
@@ -849,6 +860,11 @@ export default async function AsphaltDispatchPage({
               <div className="mt-1 text-xs text-gray-500">
                 {formatGermanDate(day.date)}
               </div>
+              {daysOffByDate.has(dateKey(day.date)) ? (
+                <div className="mt-1 truncate text-[9px] font-black uppercase text-gray-800">
+                  arbeitsfrei
+                </div>
+              ) : null}
             </div>
           ))}
 

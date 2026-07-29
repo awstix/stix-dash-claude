@@ -8,6 +8,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
 import {
   formatLiters,
   getTackCoatOpenPositionsForRange,
@@ -688,6 +689,11 @@ export default async function SpecialVehicleDispatchPage({
   const periodStart = timelineUnits[0]?.startDate ?? fromDate;
   const periodEndExclusive =
     timelineUnits[timelineUnits.length - 1]?.endDateExclusive ?? addDays(toDate, 1);
+  const daysOffByDate = new Map(
+    (await activeDispositionDaysOff(periodStart, addDays(periodEndExclusive, -1))).map(
+      (item) => [dateKey(item.date), item],
+    ),
+  );
   const gridColumns = getTimelineGridColumns(view, unitCount);
   const timelineMinWidth = getTimelineMinWidth(view, unitCount);
   const timelineContentMinWidth = timelineMinWidth || undefined;
@@ -1495,9 +1501,17 @@ export default async function SpecialVehicleDispatchPage({
                 style={{ gridTemplateColumns: gridColumns, minWidth: timelineMinWidth || undefined }}
               >
                 {timelineUnits.map((unit) => (
-                  <div key={unit.key} data-timeline-date={unit.defaultStartDate} className="flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 px-3 py-3 text-center last:border-r-0">
+                  <div
+                    key={unit.key}
+                    data-timeline-date={unit.defaultStartDate}
+                    title={daysOffByDate.get(unit.defaultStartDate)?.name}
+                    className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 px-3 py-3 text-center last:border-r-0 ${
+                      daysOffByDate.has(unit.defaultStartDate) ? "bg-slate-300" : "bg-gray-50"
+                    }`}
+                  >
                     <div className="truncate text-sm font-bold text-gray-900" title={unit.label}>{unit.label}</div>
                     <div className="mt-1 truncate text-xs font-medium text-gray-500" title={unit.subLabel}>{unit.subLabel}</div>
+                    {daysOffByDate.has(unit.defaultStartDate) ? <div className="mt-1 truncate text-[9px] font-black uppercase text-gray-800">arbeitsfrei</div> : null}
                   </div>
                 ))}
               </div>
@@ -1660,7 +1674,11 @@ export default async function SpecialVehicleDispatchPage({
                           return (
                             <div
                               key={`${vehicle.id}-${unit.key}`}
-                              className="border-r border-gray-100 p-2 last:border-r-0"
+                              className={`border-r border-gray-100 p-2 last:border-r-0 ${
+                                daysOffByDate.has(unit.defaultStartDate)
+                                  ? "bg-slate-200/80"
+                                  : ""
+                              }`}
                               style={{
                                 height: `${rowHeight}px`,
                                 minHeight: `${rowHeight}px`,

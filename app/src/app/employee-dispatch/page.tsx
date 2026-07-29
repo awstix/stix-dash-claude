@@ -2,6 +2,10 @@ import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import {
+  activeDispositionDaysOff,
+  dateKey,
+} from "@/lib/disposition-days-off";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
@@ -287,6 +291,10 @@ export default async function EmployeeDispatchPage({
     : parseDateParam(params.to, addDays(fromDate, 13));
   const toDate = parsedToDate < fromDate ? addDays(fromDate, 13) : parsedToDate;
   const days = buildDays(fromDate, toDate);
+  const activeDaysOff = await activeDispositionDaysOff(fromDate, toDate);
+  const daysOffByDate = new Map(
+    activeDaysOff.map((item) => [dateKey(item.date), item]),
+  );
   const timelineUnitsForClient = days.map((day) => {
     const dateInput = formatDateInput(day);
 
@@ -1522,23 +1530,34 @@ export default async function EmployeeDispatchPage({
               className="min-w-0 overflow-hidden border-b border-gray-200 bg-gray-50"
             >
               <div className="grid" style={{ gridTemplateColumns }}>
-                {days.map((day) => (
-                  <div
-                    key={day.toISOString()}
-                    className={
-                      isWeekend(day)
-                        ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-100 px-2 py-2 text-center last:border-r-0"
-                        : "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
-                    }
-                  >
-                    <div className="truncate text-xs font-bold text-gray-900">
-                      {formatWeekdayShort(day)}
+                {days.map((day) => {
+                  const dayOff = daysOffByDate.get(dateKey(day));
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      title={dayOff ? `Arbeitsfrei: ${dayOff.name}` : undefined}
+                      className={
+                        dayOff
+                          ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-300 bg-slate-300 px-2 py-2 text-center last:border-r-0"
+                          : isWeekend(day)
+                            ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-100 px-2 py-2 text-center last:border-r-0"
+                            : "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
+                      }
+                    >
+                      <div className="truncate text-xs font-bold text-gray-900">
+                        {formatWeekdayShort(day)}
+                      </div>
+                      <div className="mt-1 truncate text-[11px] font-medium text-gray-600">
+                        {formatDayMonth(day)}
+                      </div>
+                      {dayOff ? (
+                        <div className="mt-1 truncate text-[9px] font-black uppercase text-gray-800">
+                          arbeitsfrei
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="mt-1 truncate text-[11px] font-medium text-gray-500">
-                      {formatDayMonth(day)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1618,7 +1637,9 @@ export default async function EmployeeDispatchPage({
                       <div
                         key={day.toISOString()}
                         className={
-                          isWeekend(day)
+                          daysOffByDate.has(dateKey(day))
+                            ? "min-w-0 border-r border-gray-200 bg-slate-200/80"
+                            : isWeekend(day)
                             ? "min-w-0 border-r border-gray-100 bg-gray-50"
                             : "min-w-0 border-r border-gray-100 bg-white"
                         }

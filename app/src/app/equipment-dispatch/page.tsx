@@ -8,6 +8,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import {
@@ -1426,6 +1427,11 @@ export default async function EquipmentDispatchPage({
   const periodEndExclusive =
     timelineUnits[timelineUnits.length - 1]?.endDateExclusive ??
     addDays(timelineToDate, 1);
+  const daysOffByDate = new Map(
+    (await activeDispositionDaysOff(periodStart, addDays(periodEndExclusive, -1))).map(
+      (item) => [dateKey(item.date), item],
+    ),
+  );
 
   const previousRange = shiftDateRange({
     fromDate,
@@ -2683,7 +2689,12 @@ export default async function EquipmentDispatchPage({
                   <div
                     key={unit.key}
                     data-timeline-date={unit.defaultStartDate}
-                    className="flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
+                    title={daysOffByDate.get(unit.defaultStartDate)?.name}
+                    className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 px-2 py-2 text-center last:border-r-0 ${
+                      daysOffByDate.has(unit.defaultStartDate)
+                        ? "bg-slate-300"
+                        : "bg-gray-50"
+                    }`}
                   >
                     <div
                       className="truncate text-xs font-bold text-gray-900"
@@ -2697,6 +2708,9 @@ export default async function EquipmentDispatchPage({
                     >
                       {unit.subLabel}
                     </div>
+                    {daysOffByDate.has(unit.defaultStartDate) ? (
+                      <div className="mt-1 truncate text-[9px] font-black uppercase text-gray-800">arbeitsfrei</div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -2858,7 +2872,11 @@ export default async function EquipmentDispatchPage({
                     {timelineUnits.map((unit) => (
                       <div
                         key={`${vehicle.id}-${unit.key}`}
-                        className="min-w-0 border-r border-gray-100 p-1 last:border-r-0"
+                        className={`min-w-0 border-r border-gray-100 p-1 last:border-r-0 ${
+                          daysOffByDate.has(unit.defaultStartDate)
+                            ? "bg-slate-200/80"
+                            : ""
+                        }`}
                         style={{
                           height: `${rowHeight}px`,
                           minHeight: `${rowHeight}px`,
