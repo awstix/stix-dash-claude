@@ -96,6 +96,7 @@ model Project {
   safetyInstructionRecords          SafetyInstructionRecord[]
   projectStartChecklists            ProjectStartChecklist[]
   generalRiskAssessments            GeneralRiskAssessment[]
+  userAccesses                      UserProjectAccess[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -338,16 +339,16 @@ model ProjectDocument {
 }
 
 model ProjectFormTemplate {
-  id               String  @id @default(cuid())
-  name             String
-  category         String?
-  description      String?
-  fieldsJson       String
+  id                  String  @id @default(cuid())
+  name                String
+  category            String?
+  description         String?
+  fieldsJson          String
   emailRecipientsJson String?
-  isActive         Boolean @default(true)
-  sortOrder        Int     @default(0)
-  paperSize        String  @default("A4")
-  paperOrientation String  @default("PORTRAIT")
+  isActive            Boolean @default(true)
+  sortOrder           Int     @default(0)
+  paperSize           String  @default("A4")
+  paperOrientation    String  @default("PORTRAIT")
 
   submissions ProjectFormSubmission[]
 
@@ -485,16 +486,16 @@ model WorkshopRepairOrder {
 }
 
 model WorkshopFormTemplate {
-  id               String  @id @default(cuid())
-  name             String
-  category         String?
-  description      String?
-  fieldsJson       String
+  id                  String  @id @default(cuid())
+  name                String
+  category            String?
+  description         String?
+  fieldsJson          String
   emailRecipientsJson String?
-  isActive         Boolean @default(true)
-  sortOrder        Int     @default(0)
-  paperSize        String  @default("A4")
-  paperOrientation String  @default("PORTRAIT")
+  isActive            Boolean @default(true)
+  sortOrder           Int     @default(0)
+  paperSize           String  @default("A4")
+  paperOrientation    String  @default("PORTRAIT")
 
   submissions WorkshopFormSubmission[]
 
@@ -1092,19 +1093,19 @@ model Employee {
   firstName String
   lastName  String
 
-  isLeadership Boolean @default(false)
+  isLeadership               Boolean @default(false)
   canManagePersonalInventory Boolean @default(false)
 
   birthDate   DateTime?
   genderValue String?
   genderLabel String?
 
-  mobilePhone    String?
-  homePhone      String?
-  email          String?
+  mobilePhone        String?
+  homePhone          String?
+  email              String?
   emergencyFirstName String?
   emergencyLastName  String?
-  emergencyPhone String?
+  emergencyPhone     String?
 
   street     String?
   postalCode String?
@@ -1120,21 +1121,23 @@ model Employee {
   trainingRecords         EmployeeTrainingRecord[]
   trainingRecordDocuments EmployeeTrainingRecordDocument[]
 
-  crewMemberships                 CrewMember[]
-  crewPlanningAssignmentEmployees CrewPlanningAssignmentEmployee[]
-  dispositionEntries              EmployeeDispositionEntry[]
-  inventoryAssignments            InventoryItem[]                   @relation("InventoryResponsibleEmployee")
-  inventoryItemAssignments        InventoryItemEmployeeAssignment[]
-  inventoryUsageHistory           InventoryUsageHistory[]           @relation("InventoryUsageEmployee")
-  inventoryTransportHistory       InventoryUsageHistory[]           @relation("InventoryUsageTransporter")
-  personalInventoryAssignments    InventoryPersonalAssignment[]
-  controllingHourEntries          ControllingHourEntry[]
-  controllingRates                ControllingEmployeeRate[]
-  safetyAccidentReports           SafetyAccidentReport[]
-  safetyInstructionSignatures     SafetyInstructionSignature[]
+  crewMemberships                   CrewMember[]
+  crewPlanningAssignmentEmployees   CrewPlanningAssignmentEmployee[]
+  dispositionEntries                EmployeeDispositionEntry[]
+  inventoryAssignments              InventoryItem[]                    @relation("InventoryResponsibleEmployee")
+  inventoryItemAssignments          InventoryItemEmployeeAssignment[]
+  inventoryUsageHistory             InventoryUsageHistory[]            @relation("InventoryUsageEmployee")
+  inventoryTransportHistory         InventoryUsageHistory[]            @relation("InventoryUsageTransporter")
+  personalInventoryAssignments      InventoryPersonalAssignment[]
+  controllingHourEntries            ControllingHourEntry[]
+  controllingRates                  ControllingEmployeeRate[]
+  safetyAccidentReports             SafetyAccidentReport[]
+  safetyInstructionSignatures       SafetyInstructionSignature[]
   projectStartChecklistParticipants ProjectStartChecklistParticipant[]
-  assessedGeneralRiskAssessments  GeneralRiskAssessment[]
+  assessedGeneralRiskAssessments    GeneralRiskAssessment[]
   generalRiskAssessmentParticipants GeneralRiskAssessmentParticipant[]
+  portalUser                        User?
+  leaveRequests                     LeaveRequest[]
 
   notes String?
 
@@ -1147,6 +1150,134 @@ model Employee {
   @@index([lastName])
   @@index([driverId])
   @@index([canManagePersonalInventory])
+}
+
+model User {
+  id                      String    @id
+  name                    String
+  email                   String    @unique
+  emailVerified           Boolean   @default(false)
+  image                   String?
+  username                String?   @unique
+  displayUsername         String?
+  role                    String?   @default("user")
+  banned                  Boolean?  @default(false)
+  banReason               String?
+  banExpires              DateTime?
+  employeeId              String?   @unique
+  canApproveLeaveRequests Boolean   @default(false)
+  employee                Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  sessions               Session[]
+  accounts               Account[]
+  dashboardPreferences   DashboardWidgetPreference[]
+  submittedLeaveRequests LeaveRequest[]              @relation("LeaveRequestSubmitter")
+  decidedLeaveRequests   LeaveRequest[]              @relation("LeaveRequestDecider")
+  projectAccesses        UserProjectAccess[]
+  featureAccesses        UserFeatureAccess[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([role])
+}
+
+model UserProjectAccess {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  canViewProjectData      Boolean @default(true)
+  canApproveLeaveRequests Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model UserFeatureAccess {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  featureKey String
+  canView    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, featureKey])
+  @@index([userId])
+  @@index([featureKey])
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model DashboardWidgetPreference {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  widgetKey String
+  sortOrder Int     @default(0)
+  size      String  @default("NORMAL")
+  width     Int     @default(2)
+  height    Int     @default(2)
+  isVisible Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, widgetKey])
+  @@index([userId, sortOrder])
 }
 
 model EmployeeDispositionEntry {
@@ -1175,20 +1306,58 @@ model EmployeeDispositionEntry {
   @@index([typeValue])
 }
 
+model LeaveRequest {
+  id String @id @default(cuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  requesterUserId String
+  requesterUser   User   @relation("LeaveRequestSubmitter", fields: [requesterUserId], references: [id], onDelete: Cascade)
+
+  startDate   DateTime
+  endDate     DateTime
+  dayPortion  String   @default("FULL")
+  absenceType String   @default("VACATION")
+  timeHours   Float?
+  reason      String?
+  status      String   @default("PENDING")
+  requestType String   @default("NEW")
+
+  originalRequestId String?
+  originalRequest   LeaveRequest?  @relation("LeaveRequestChanges", fields: [originalRequestId], references: [id], onDelete: SetNull)
+  changeRequests    LeaveRequest[] @relation("LeaveRequestChanges")
+
+  decidedByUserId    String?
+  decidedByUser      User?     @relation("LeaveRequestDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  decidedAt          DateTime?
+  decisionNote       String?
+  dispositionEntryId String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, startDate, endDate])
+  @@index([status, createdAt])
+  @@index([requesterUserId])
+  @@index([decidedByUserId])
+  @@index([originalRequestId])
+}
+
 model DispositionDayOff {
   id String @id @default(cuid())
 
-  date DateTime
-  endDate DateTime?
-  name String
-  kind String @default("COMPANY")
-  scopeLabel String?
-  sourceLabel String?
-  sourceUrl String?
+  date            DateTime
+  endDate         DateTime?
+  name            String
+  kind            String    @default("COMPANY")
+  scopeLabel      String?
+  sourceLabel     String?
+  sourceUrl       String?
   sourceCheckedAt DateTime?
-  isAutomatic Boolean @default(false)
-  isDayOff Boolean @default(false)
-  notes String?
+  isAutomatic     Boolean   @default(false)
+  isDayOff        Boolean   @default(false)
+  notes           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1201,21 +1370,21 @@ model DispositionDayOff {
 model InventoryInitialTest {
   id String @id @default(cuid())
 
-  productCode String?
-  productName String
-  category String?
-  validFrom DateTime?
-  validUntil DateTime?
-  testNumber String?
+  productCode             String?
+  productName             String
+  category                String?
+  validFrom               DateTime?
+  validUntil              DateTime?
+  testNumber              String?
   densityTonPerCubicMeter Float?
-  description String?
-  notes String?
-  pdfFileName String?
-  pdfOriginalName String?
-  pdfUrl String?
-  pdfMimeType String?
-  pdfSizeBytes Int?
-  isActive Boolean @default(true)
+  description             String?
+  notes                   String?
+  pdfFileName             String?
+  pdfOriginalName         String?
+  pdfUrl                  String?
+  pdfMimeType             String?
+  pdfSizeBytes            Int?
+  isActive                Boolean   @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1363,7 +1532,7 @@ model EmployeeTrainingRecord {
   validityMonths        Int?
   validUntil            DateTime?
   notes                 String?
-  safetySourceKey       String? @unique
+  safetySourceKey       String?                          @unique
   documents             EmployeeTrainingRecordDocument[]
 
   createdAt DateTime @default(now())
@@ -1835,21 +2004,21 @@ model InventoryPersonalAssignment {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
-  quantity         Float @default(1)
-  returnedQuantity Float @default(0)
+  quantity         Float  @default(1)
+  returnedQuantity Float  @default(0)
   status           String @default("ISSUED")
 
-  issuedAt             DateTime @default(now())
-  issuedCondition      String?
-  issueNotes           String?
+  issuedAt              DateTime @default(now())
+  issuedCondition       String?
+  issueNotes            String?
   issueSignatureDataUrl String
-  issuedByName         String?
+  issuedByName          String?
 
-  returnedAt              DateTime?
-  returnedCondition       String?
-  returnNotes             String?
-  returnSignatureDataUrl  String?
-  returnedByName          String?
+  returnedAt             DateTime?
+  returnedCondition      String?
+  returnNotes            String?
+  returnSignatureDataUrl String?
+  returnedByName         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2491,11 +2660,11 @@ model SafetyInstructionTemplate {
   folderId String?
   folder   SafetyTemplateFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
-  type         String
-  title        String
-  description  String?
-  content      String?
-  sectionsJson String  @default("[]")
+  type           String
+  title          String
+  description    String?
+  content        String?
+  sectionsJson   String  @default("[]")
   sourcePdfPath  String?
   sourceDocxPath String?
 
@@ -2516,11 +2685,11 @@ model SafetyInstructionTemplate {
 model SafetyTemplateFolder {
   id String @id @default(cuid())
 
-  area      String
-  name      String
-  systemKey String? @unique
-  isDeleted Boolean @default(false)
-  sortOrder Int    @default(0)
+  area                  String
+  name                  String
+  systemKey             String? @unique
+  isDeleted             Boolean @default(false)
+  sortOrder             Int     @default(0)
   defaultValidityMonths Int?
 
   parentId String?
@@ -2546,14 +2715,14 @@ model SafetyInstructionRecord {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  instructionDate     DateTime @default(now())
+  instructionDate     DateTime  @default(now())
   instructedByName    String?
   projectSnapshot     String?
-  checkedSectionsJson String   @default("[]")
+  checkedSectionsJson String    @default("[]")
   notes               String?
-  status              String   @default("DRAFT")
+  status              String    @default("DRAFT")
   archivedAt          DateTime?
-  validityMonths      Int      @default(12)
+  validityMonths      Int       @default(12)
   validUntil          DateTime?
 
   previousVersionId String?
@@ -2598,35 +2767,35 @@ model SafetyInstructionSignature {
 model SafetyHazardousSubstance {
   id String @id @default(cuid())
 
-  templateRowId      String?  @unique
-  name               String
-  manufacturer       String?
-  category           String?
-  registerSection    String   @default("HAZARDOUS")
-  sequentialNumber   String?
-  substanceType      String?
-  safetyDataSheetPresent Boolean @default(false)
-  safetyDataSheetDate DateTime?
-  operatingInstructionPresent Boolean @default(false)
+  templateRowId                   String?   @unique
+  name                            String
+  manufacturer                    String?
+  category                        String?
+  registerSection                 String    @default("HAZARDOUS")
+  sequentialNumber                String?
+  substanceType                   String?
+  safetyDataSheetPresent          Boolean   @default(false)
+  safetyDataSheetDate             DateTime?
+  operatingInstructionPresent     Boolean   @default(false)
   operatingInstructionTemplateIds String?
-  packageUnit        String?
-  quantity           Float?
-  repeatYears        Int?
-  repeatMonths       Int?
-  repeatDays         Int?
-  nextReviewDate     DateTime?
-  usageArea          String?
-  storagePlace       String?
-  signalWord         String?
-  hazardSymbols      String?
-  hStatements        String?
-  pStatements        String?
-  protectiveMeasures String?
-  firstAidMeasures   String?
-  disposalNotes      String?
-  responsibleName    String?
-  isActive           Boolean @default(true)
-  notes              String?
+  packageUnit                     String?
+  quantity                        Float?
+  repeatYears                     Int?
+  repeatMonths                    Int?
+  repeatDays                      Int?
+  nextReviewDate                  DateTime?
+  usageArea                       String?
+  storagePlace                    String?
+  signalWord                      String?
+  hazardSymbols                   String?
+  hStatements                     String?
+  pStatements                     String?
+  protectiveMeasures              String?
+  firstAidMeasures                String?
+  disposalNotes                   String?
+  responsibleName                 String?
+  isActive                        Boolean   @default(true)
+  notes                           String?
 
   safetyDataSheets SafetyDataSheet[]
 
@@ -2661,26 +2830,26 @@ model ProjectStartChecklist {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  templateCode     String @default("A-30-30-001")
-  templateRevision String @default("00")
-  status           String @default("DRAFT")
-  checklistDate    DateTime @default(now())
-  validityMonths   Int      @default(12)
-  validUntil       DateTime?
-  startDate        DateTime?
-  endDate          DateTime?
-  siteStreet       String?
-  sitePostalCity   String?
-  responsibleManager String?
-  responsiblePhone   String?
-  responsibleMobile  String?
-  presenterName      String?
+  templateCode              String    @default("A-30-30-001")
+  templateRevision          String    @default("00")
+  status                    String    @default("DRAFT")
+  checklistDate             DateTime  @default(now())
+  validityMonths            Int       @default(12)
+  validUntil                DateTime?
+  startDate                 DateTime?
+  endDate                   DateTime?
+  siteStreet                String?
+  sitePostalCity            String?
+  responsibleManager        String?
+  responsiblePhone          String?
+  responsibleMobile         String?
+  presenterName             String?
   presenterSignatureDataUrl String?
-  activitiesJson     String @default("[]")
-  otherActivities    String?
-  assessmentsJson    String @default("{}")
-  instructionTopics  String?
-  createdByName      String?
+  activitiesJson            String    @default("[]")
+  otherActivities           String?
+  assessmentsJson           String    @default("{}")
+  instructionTopics         String?
+  createdByName             String?
 
   participants ProjectStartChecklistParticipant[]
 
@@ -2735,19 +2904,19 @@ model GeneralRiskAssessment {
   assessedEmployeeId String?
   assessedEmployee   Employee? @relation(fields: [assessedEmployeeId], references: [id], onDelete: SetNull)
 
-  status             String   @default("DRAFT")
-  assessmentDate     DateTime @default(now())
-  validityMonths     Int      @default(12)
-  validUntil         DateTime?
-  location           String?
-  responsibleName    String?
+  status                      String    @default("DRAFT")
+  assessmentDate              DateTime  @default(now())
+  validityMonths              Int       @default(12)
+  validUntil                  DateTime?
+  location                    String?
+  responsibleName             String?
   responsibleSignatureDataUrl String?
-  presenterName      String?
-  presenterSignatureDataUrl String?
-  instructionTopics  String?
-  notes              String?
-  answersJson        String   @default("{}")
-  createdByName      String?
+  presenterName               String?
+  presenterSignatureDataUrl   String?
+  instructionTopics           String?
+  notes                       String?
+  answersJson                 String    @default("{}")
+  createdByName               String?
 
   participants GeneralRiskAssessmentParticipant[]
 
@@ -2802,7 +2971,7 @@ model SafetyDataSheet {
   publicUrl        String
   storagePath      String
   mimeType         String?
-  documentType     String @default("SDB")
+  documentType     String    @default("SDB")
   fileSizeBytes    Int?
   uploadedByName   String?
 

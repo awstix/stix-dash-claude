@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { AppHeader } from "./AppHeader";
 import { GlobalFormFeedback } from "./GlobalFormFeedback";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const primaryNavigation = [
@@ -70,6 +73,7 @@ const employeeNavigation = [
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
   { name: "Mitarbeiterakte", href: "/employees/certificates" },
   { name: "Mitarbeiterverwaltung", href: "/employees" },
+  { name: "Urlaubsanträge", href: "/leave-requests" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 export async function AppShell({
@@ -81,19 +85,24 @@ export async function AppShell({
   description?: string;
   children: React.ReactNode;
 }) {
-  const company = await prisma.companyInfo.findUnique({
-    select: {
-      companyName: true,
-      logoPublicUrl: true,
-    },
-    where: { id: "default" },
-  });
+  const [session, company] = await Promise.all([
+    auth.api.getSession({ headers: await headers() }),
+    prisma.companyInfo.findUnique({
+      select: {
+        companyName: true,
+        logoPublicUrl: true,
+      },
+      where: { id: "default" },
+    }),
+  ]);
+  if (!session) redirect("/login");
 
   return (
     <main className="min-h-screen bg-gray-100">
       <AppHeader
         companyLogoUrl={company?.logoPublicUrl ?? null}
         companyName={company?.companyName ?? "Stix"}
+        currentUserName={session.user.name}
         controllingNavigation={controllingNavigation}
         dispositionNavigation={dispositionNavigation}
         employeeNavigation={employeeNavigation}

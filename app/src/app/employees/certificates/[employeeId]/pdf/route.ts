@@ -13,7 +13,7 @@ const A4: [number, number] = [595.28, 841.89];
 const margin = 38;
 const width = A4[0] - margin * 2;
 const black = rgb(0.08, 0.1, 0.13);
-const gray = rgb(0.38, 0.42, 0.47);
+const gray = black;
 const light = rgb(0.95, 0.96, 0.97);
 const amber = rgb(1, 0.97, 0.88);
 
@@ -169,6 +169,10 @@ export async function GET(
       safetyInstructionSignatures: {
         include: { record: { include: { template: true } } },
         orderBy: { signedAt: "desc" },
+      },
+      leaveRequests: {
+        include: { decidedByUser: { select: { name: true } } },
+        orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
       },
       trainingRecords: { orderBy: { trainingDate: "desc" } },
     },
@@ -378,6 +382,65 @@ export async function GET(
       { text: record.title, width: 340 },
       { text: date(record.date), width: 90 },
       { text: record.status, width: width - 430 },
+    ]);
+  }
+
+  y -= 14;
+  heading("Urlaubsanträge");
+  listRow(
+    [
+      { text: "Zeitraum", width: 150 },
+      { text: "Vorgang", width: 90 },
+      { text: "Art", width: 90 },
+      { text: "Status", width: 90 },
+      { text: "Freigabe / Bemerkung", width: width - 420 },
+    ],
+    true,
+  );
+  if (!employee.leaveRequests.length) row("Urlaub", "Keine Einträge");
+  for (const request of employee.leaveRequests) {
+    const operation =
+      request.requestType === "CHANGE"
+        ? "Änderung"
+        : request.requestType === "CANCEL"
+          ? "Rücknahme"
+          : "Antrag";
+    const status =
+      request.status === "PENDING"
+        ? "offen"
+        : request.status === "APPROVED"
+          ? "genehmigt"
+          : request.status === "REJECTED"
+            ? "abgelehnt"
+            : request.status === "CANCELED"
+              ? "zurückgenommen"
+              : request.status === "SUPERSEDED"
+                ? "ersetzt"
+                : request.status;
+    listRow([
+      {
+        text: `${date(request.startDate)} - ${date(request.endDate)}`,
+        width: 150,
+      },
+      { text: operation, width: 90 },
+      {
+        text:
+          request.absenceType === "TIME_ACCOUNT"
+            ? `Zeitkonto ${request.timeHours ?? "-"} Std.`
+            : "Urlaub",
+        width: 90,
+      },
+      { text: status, width: 90 },
+      {
+        text:
+          [
+            request.decidedByUser?.name,
+            request.decisionNote ?? request.reason,
+          ]
+            .filter(Boolean)
+            .join(" / ") || "-",
+        width: width - 420,
+      },
     ]);
   }
 

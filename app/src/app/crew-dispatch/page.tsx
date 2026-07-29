@@ -139,7 +139,13 @@ type PlanningAxisBar = {
   subtitle?: string;
   startDate: Date;
   endDate: Date;
-  tone: "project" | "employee" | "equipment" | "special";
+  tone:
+    | "project"
+    | "employee"
+    | "leaveApproved"
+    | "leavePending"
+    | "equipment"
+    | "special";
   editSource?: TimelineSourceEdit | null;
 };
 
@@ -889,6 +895,10 @@ function getPlanningAxisBarClass(tone: PlanningAxisBar["tone"], unitCount: numbe
   const toneClass =
     tone === "project"
       ? "border-blue-300 bg-blue-600 text-white"
+      : tone === "leaveApproved"
+        ? "border-sky-900 bg-sky-700 text-white"
+        : tone === "leavePending"
+          ? "border-2 border-dashed border-sky-700 bg-sky-100 text-sky-950"
       : tone === "employee"
         ? "border-sky-300 bg-sky-600 text-white"
         : tone === "special"
@@ -3548,6 +3558,7 @@ export default async function CrewDispatchPage({
     asphaltLoadAllocations,
     specialVehicleDispatchAssignments,
     equipmentDispatchAssignments,
+    leaveRequests,
   ] = await Promise.all([
       prisma.crewPlanningRow.findMany({
         include: {
@@ -3892,6 +3903,18 @@ export default async function CrewDispatchPage({
                   name: true,
                 },
               },
+            },
+            orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
+          })
+        : Promise.resolve([]),
+
+      planningAxis === "employees"
+        ? prisma.leaveRequest.findMany({
+            where: {
+              endDate: { gte: periodStart },
+              startDate: { lt: periodEndExclusive },
+              status: { in: ["PENDING", "APPROVED"] },
+              requestType: { not: "CANCEL" },
             },
             orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
           })
@@ -4345,6 +4368,38 @@ export default async function CrewDispatchPage({
           endDate: assignment.endDate,
           tone: "employee",
         });
+      });
+    }
+
+    for (const request of leaveRequests) {
+      const approved = request.status === "APPROVED";
+      const timeAccount = request.absenceType === "TIME_ACCOUNT";
+      const pendingChange =
+        request.status === "PENDING" && request.requestType === "CHANGE";
+      const portion =
+        request.dayPortion === "FIRST_HALF"
+          ? "Erste Tageshälfte"
+          : request.dayPortion === "SECOND_HALF"
+            ? "Zweite Tageshälfte"
+            : undefined;
+
+      addPlanningAxisBar({
+        id: `leave-${request.id}`,
+        rowId: request.employeeId,
+        title: approved
+          ? timeAccount
+            ? "Zeitausgleich genehmigt"
+            : "Urlaub genehmigt"
+          : pendingChange
+            ? "Urlaubsänderung beantragt"
+            : "Urlaub beantragt",
+        subtitle:
+          timeAccount && request.timeHours
+            ? `${request.timeHours.toLocaleString("de-DE")} Std.`
+            : portion ?? request.reason ?? undefined,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        tone: approved ? "leaveApproved" : "leavePending",
       });
     }
 

@@ -24,6 +24,17 @@ import {
 } from "./disposition-types";
 
 const dayWidthPx = 48;
+const employeeDispositionViewTypes = [
+  ...employeeDispositionTypes,
+  {
+    value: "urlaub_beantragt",
+    label: "Urlaub beantragt",
+    barClass:
+      "border-2 border-dashed border-sky-700 bg-sky-100 text-sky-950",
+    badgeClass:
+      "border-2 border-dashed border-sky-700 bg-sky-100 text-sky-950",
+  },
+];
 
 type SortMode = "name" | "project" | "type";
 
@@ -36,6 +47,7 @@ type TimelineBar = {
     | "lkw_allocation"
     | "lkw_long"
     | "lkw_short"
+    | "leave_request"
     | "manual"
     | "special_vehicle";
   sourceLabel: string;
@@ -325,6 +337,7 @@ export default async function EmployeeDispatchPage({
     specialVehicleAssignments,
     asphaltLoadAllocations,
     tackCoatLoadAllocations,
+    leaveRequests,
   ] = await Promise.all([
     prisma.employee.findMany({
       include: {
@@ -490,6 +503,17 @@ export default async function EmployeeDispatchPage({
       },
       orderBy: [{ workDate: "asc" }, { startTime: "asc" }],
     }),
+
+    prisma.leaveRequest.findMany({
+      include: { employee: true },
+      orderBy: [{ startDate: "asc" }, { employee: { lastName: "asc" } }],
+      where: {
+        endDate: { gte: fromDate },
+        startDate: { lte: toDate },
+        status: { in: ["PENDING", "APPROVED"] },
+        requestType: { not: "CANCEL" },
+      },
+    }),
   ]);
 
   const activeEmployees = employees.filter(
@@ -502,8 +526,16 @@ export default async function EmployeeDispatchPage({
       .map((employee) => [employee.driverId as string, employee]),
   );
   const barsByEmployeeId = new Map<string, TimelineBar[]>();
+  const leaveDispositionEntryIds = new Set(
+    leaveRequests
+      .map((request) => request.dispositionEntryId)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   for (const entry of manualEntries) {
+    if (leaveDispositionEntryIds.has(entry.id)) {
+      continue;
+    }
     const type = getEmployeeDispositionType(entry.typeValue);
 
     const bar: TimelineBar = {
@@ -538,6 +570,61 @@ export default async function EmployeeDispatchPage({
 
     barsByEmployeeId.set(entry.employeeId, [
       ...(barsByEmployeeId.get(entry.employeeId) ?? []),
+      bar,
+    ]);
+  }
+
+  for (const request of leaveRequests) {
+    const approved = request.status === "APPROVED";
+    const timeAccount = request.absenceType === "TIME_ACCOUNT";
+    const pendingChange =
+      request.status === "PENDING" && request.requestType === "CHANGE";
+    const portion =
+      request.dayPortion === "FIRST_HALF"
+        ? "Erste Tageshälfte"
+        : request.dayPortion === "SECOND_HALF"
+          ? "Zweite Tageshälfte"
+          : "Ganzer Tag";
+    const bar: TimelineBar = {
+      barClass: approved
+        ? "border-2 border-sky-900 bg-sky-700 text-white"
+        : "border-2 border-dashed border-sky-700 bg-sky-100 text-sky-950",
+      employeeId: request.employeeId,
+      endDate: request.endDate,
+      endTime: request.dayPortion === "FIRST_HALF" ? "12:00" : "17:00",
+      id: `leave-${request.id}`,
+      notes: request.reason,
+      projectText: null,
+      source: "leave_request",
+      sourceLabel: approved
+        ? timeAccount
+          ? "Zeitausgleich genehmigt"
+          : "Urlaub genehmigt"
+        : pendingChange
+          ? "Urlaubsänderung beantragt"
+          : "Urlaub beantragt",
+      startDate: request.startDate,
+      startTime: request.dayPortion === "SECOND_HALF" ? "12:00" : "06:30",
+      subtitle:
+        timeAccount && request.timeHours
+          ? `${request.timeHours.toLocaleString("de-DE")} Std.`
+          : portion,
+      title: approved
+        ? timeAccount
+          ? "Zeitausgleich genehmigt"
+          : "Urlaub genehmigt"
+        : pendingChange
+          ? "Urlaubsänderung beantragt"
+          : "Urlaub beantragt",
+      typeLabel: approved
+        ? "Urlaub genehmigt"
+        : pendingChange
+          ? "Urlaubsänderung beantragt"
+          : "Urlaub beantragt",
+      typeValue: approved ? "urlaub" : "urlaub_beantragt",
+    };
+    barsByEmployeeId.set(request.employeeId, [
+      ...(barsByEmployeeId.get(request.employeeId) ?? []),
       bar,
     ]);
   }
@@ -1260,7 +1347,7 @@ export default async function EmployeeDispatchPage({
             label,
             value,
           }))}
-          typeOptions={employeeDispositionTypes.map((type) => ({
+          typeOptions={employeeDispositionViewTypes.map((type) => ({
             label: type.label,
             value: type.value,
           }))}
@@ -1432,7 +1519,7 @@ export default async function EmployeeDispatchPage({
                           className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                         >
                           <option value="">Alle Arten</option>
-                          {employeeDispositionTypes.map((type) => (
+                          {employeeDispositionViewTypes.map((type) => (
                             <option key={type.value} value={type.value}>
                               {type.label}
                             </option>
@@ -1500,7 +1587,7 @@ export default async function EmployeeDispatchPage({
                     </form>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {employeeDispositionTypes.map((type) => (
+                      {employeeDispositionViewTypes.map((type) => (
                         <span
                           key={type.value}
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${type.badgeClass}`}

@@ -39,6 +39,12 @@ const adminSections: AdminSection[] = [
       "Arbeitszeiten, Berufsgruppen, Kolonnen und mitarbeiterbezogene Zusatzdaten.",
     items: [
       {
+        title: "Portalbenutzer",
+        description:
+          "Benutzerkonten anlegen, mit Mitarbeiterakten verbinden und Administratorrollen vergeben.",
+        href: "/admin/users",
+      },
+      {
         title: "Kolonnen",
         description:
           "Kolonnen aus Mitarbeitern anhand Berufsgruppen erstellen, Standardpersonen und spätere Gerätezuordnungen verwalten.",

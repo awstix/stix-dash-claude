@@ -16,6 +16,24 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+function leaveRequestStatus(request: { requestType: string; status: string }) {
+  if (request.status === "PENDING" && request.requestType === "CHANGE") {
+    return "Änderung offen";
+  }
+  if (request.status === "PENDING" && request.requestType === "CANCEL") {
+    return "Rücknahme offen";
+  }
+  if (request.status === "APPROVED" && request.requestType === "CANCEL") {
+    return "Rücknahme genehmigt";
+  }
+  if (request.status === "APPROVED") return "Genehmigt";
+  if (request.status === "PENDING") return "Beantragt";
+  if (request.status === "REJECTED") return "Abgelehnt";
+  if (request.status === "CANCELED") return "Zurückgenommen";
+  if (request.status === "SUPERSEDED") return "Durch Änderung ersetzt";
+  return request.status;
+}
+
 function safetyValidity(date: Date | null) {
   if (!date) return { className: "bg-gray-100 text-gray-700", label: "—" };
   const today = new Date();
@@ -293,6 +311,15 @@ export default async function EmployeeCertificateDetailPage({
             },
           },
         },
+        leaveRequests: {
+          include: {
+            decidedByUser: { select: { name: true } },
+            originalRequest: {
+              select: { endDate: true, startDate: true },
+            },
+          },
+          orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+        },
       },
     }),
     prisma.employeeTrainingType.findMany({
@@ -439,8 +466,26 @@ export default async function EmployeeCertificateDetailPage({
   return (
     <AppShell
       title={`${employee.firstName} ${employee.lastName}`}
-      description="Mitarbeiterakte mit Führerscheinen, Maschinenscheinen, Schulungen und zugeordnetem Inventar."
+      description="Mitarbeiterakte mit Urlaub, Führerscheinen, Maschinenscheinen, Schulungen und zugeordnetem Inventar."
     >
+      <style>{`
+        .employee-file-content,
+        .employee-file-content table,
+        .employee-file-content thead,
+        .employee-file-content tbody,
+        .employee-file-content tr,
+        .employee-file-content th,
+        .employee-file-content td {
+          color: rgb(3 7 18);
+        }
+        .text-gray-400,
+        .text-gray-500,
+        .text-gray-600,
+        .text-gray-700 {
+          color: rgb(17 24 39) !important;
+        }
+      `}</style>
+      <div className="employee-file-content contents text-gray-950">
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <Link
           className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -1052,6 +1097,66 @@ export default async function EmployeeCertificateDetailPage({
       </section>
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900">Urlaubsanträge</h2>
+        <p className="mt-1 text-sm font-medium text-gray-700">
+          Anträge, Genehmigungen sowie Änderungs- und Rücknahmeverlauf.
+        </p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-400">
+                <th className="p-3">Zeitraum</th>
+                <th className="p-3">Umfang</th>
+                <th className="p-3">Art</th>
+                <th className="p-3">Vorgang</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Freigegeben durch</th>
+                <th className="p-3">Bemerkung</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employee.leaveRequests.map((request) => (
+                <tr className="border-b border-gray-300" key={request.id}>
+                  <td className="whitespace-nowrap p-3 font-bold">
+                    {formatDate(request.startDate)} – {formatDate(request.endDate)}
+                  </td>
+                  <td className="p-3 font-black">
+                    {request.absenceType === "TIME_ACCOUNT"
+                      ? `Zeitkonto · ${request.timeHours?.toLocaleString("de-DE") ?? "—"} Std.`
+                      : "Urlaub"}
+                  </td>
+                  <td className="p-3">
+                    {request.dayPortion === "FIRST_HALF"
+                      ? "Erste Tageshälfte"
+                      : request.dayPortion === "SECOND_HALF"
+                        ? "Zweite Tageshälfte"
+                        : "Ganzer Tag"}
+                  </td>
+                  <td className="p-3">
+                    {request.requestType === "CHANGE"
+                      ? "Änderung"
+                      : request.requestType === "CANCEL"
+                        ? "Rücknahme"
+                        : "Antrag"}
+                  </td>
+                  <td className="p-3 font-black">{leaveRequestStatus(request)}</td>
+                  <td className="p-3">{request.decidedByUser?.name ?? "—"}</td>
+                  <td className="p-3">{request.decisionNote ?? request.reason ?? "—"}</td>
+                </tr>
+              ))}
+              {employee.leaveRequests.length === 0 ? (
+                <tr>
+                  <td className="p-6 text-center font-medium text-gray-950" colSpan={7}>
+                    Keine Urlaubsanträge vorhanden.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-900">
           Führerscheine / Maschinenscheine
         </h2>
@@ -1211,6 +1316,7 @@ export default async function EmployeeCertificateDetailPage({
           </table>
         </div>
       </section>
+      </div>
     </AppShell>
   );
 }

@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { requireSession } from "@/lib/auth-access";
+import {
+  dashboardWidgets,
+  defaultDashboardWidgetKeys,
+} from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
+import { DashboardGrid } from "./DashboardGrid";
 
 export default async function DashboardPage() {
-  const [activeProjectCount, inventoryLocationAlertCount, qualifications] =
+  const session = await requireSession();
+  const [
+    activeProjectCount,
+    inventoryLocationAlertCount,
+    qualifications,
+    widgetPreferences,
+    currentUser,
+  ] =
     await Promise.all([
     prisma.project.count({
       where: {
@@ -41,7 +54,45 @@ export default async function DashboardPage() {
         },
       ],
     }),
+    prisma.dashboardWidgetPreference.findMany({
+      orderBy: { sortOrder: "asc" },
+      where: { userId: session.user.id, isVisible: true },
+    }),
+    prisma.user.findUnique({
+      include: { featureAccesses: { where: { canView: true } } },
+      where: { id: session.user.id },
+    }),
   ]);
+  const admin = String(currentUser?.role ?? "").split(",").includes("admin");
+  const availableWidgets = admin
+    ? [...dashboardWidgets]
+    : dashboardWidgets.filter((widget) =>
+        currentUser?.featureAccesses.some((access) => access.featureKey === widget.key),
+      );
+  const availableKeySet = new Set(availableWidgets.map((widget) => widget.key));
+  const selectedWidgetKeys =
+    widgetPreferences.length > 0
+      ? widgetPreferences.map((preference) => preference.widgetKey).filter((key) => availableKeySet.has(key as never))
+      : [...defaultDashboardWidgetKeys].filter((key) => availableKeySet.has(key as never));
+  const selectedKeySet = new Set(selectedWidgetKeys);
+  const pinnedWidgets = selectedWidgetKeys
+    .map((key) => availableWidgets.find((widget) => widget.key === key))
+    .filter((widget): widget is (typeof dashboardWidgets)[number] => Boolean(widget));
+  const dashboardValues: Record<string, string> = {
+    projects: `${activeProjectCount}`,
+    inventory: `${inventoryLocationAlertCount} Meldungen`,
+  };
+  const dashboardTiles = pinnedWidgets.map((widget) => {
+    const preference = widgetPreferences.find(
+      (entry) => entry.widgetKey === widget.key,
+    );
+    return {
+      ...widget,
+      height: preference?.height ?? 2,
+      value: dashboardValues[widget.key],
+      width: preference?.width ?? 2,
+    };
+  });
   const dueQualifications = qualifications
     .map((qualification) => {
       const dueDate = qualification.lastReviewedAt
@@ -72,6 +123,7 @@ export default async function DashboardPage() {
       title="Dashboard"
       description="Rollenbasierte Übersicht über Projekte, Dispositionen und offene Aufgaben."
     >
+      <DashboardGrid available={availableWidgets} initial={dashboardTiles} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         <InfoCard title="Aktive Projekte" value={`${activeProjectCount}`} />
         <Link

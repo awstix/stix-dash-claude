@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { authClient } from "@/lib/auth-client";
 
 type NavigationItem = {
   href: string;
@@ -21,6 +23,7 @@ export function AppHeader({
   workshopNavigation,
   companyLogoUrl,
   companyName,
+  currentUserName,
 }: {
   controllingNavigation: NavigationItem[];
   dispositionNavigation: NavigationItem[];
@@ -33,7 +36,9 @@ export function AppHeader({
   workshopNavigation: NavigationItem[];
   companyLogoUrl: string | null;
   companyName: string;
+  currentUserName: string;
 }) {
+  const router = useRouter();
   const [openMenu, setOpenMenu] = useState<
     | "projects"
     | "disposition"
@@ -239,6 +244,22 @@ export function AppHeader({
               onNavigate={() => setOpenMenu(null)}
             />
           ))}
+          <div className="ml-2 flex items-center gap-2 border-l border-gray-300 pl-3">
+            <span className="max-w-40 truncate font-bold text-gray-900" title={currentUserName}>
+              {currentUserName}
+            </span>
+            <button
+              className="rounded-lg border border-gray-400 bg-white px-3 py-2 font-bold text-gray-950 hover:bg-gray-100"
+              onClick={async () => {
+                await authClient.signOut();
+                router.push("/login");
+                router.refresh();
+              }}
+              type="button"
+            >
+              Abmelden
+            </button>
+          </div>
         </nav>
       </div>
       {mobileMenuOpen ? (
@@ -293,6 +314,21 @@ export function AppHeader({
                 onNavigate={() => setMobileMenuOpen(false)}
               />
             ))}
+            <div className="rounded-xl border border-gray-300 bg-gray-50 p-4">
+              <p className="truncate font-black">{currentUserName}</p>
+              <button
+                className="mt-3 w-full rounded-lg border border-gray-500 bg-white px-3 py-2 font-bold text-gray-950"
+                onClick={async () => {
+                  await authClient.signOut();
+                  setMobileMenuOpen(false);
+                  router.push("/login");
+                  router.refresh();
+                }}
+                type="button"
+              >
+                Abmelden
+              </button>
+            </div>
           </div>
         </nav>
       ) : null}

@@ -1,0 +1,2 @@
+ALTER TABLE "LeaveRequest" ADD COLUMN "absenceType" TEXT NOT NULL DEFAULT 'VACATION';
+ALTER TABLE "LeaveRequest" ADD COLUMN "timeHours" REAL;

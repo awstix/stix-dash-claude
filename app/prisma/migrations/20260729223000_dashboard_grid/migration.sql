@@ -1,0 +1,2 @@
+ALTER TABLE "DashboardWidgetPreference" ADD COLUMN "width" INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE "DashboardWidgetPreference" ADD COLUMN "height" INTEGER NOT NULL DEFAULT 2;
