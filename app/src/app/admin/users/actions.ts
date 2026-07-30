@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
+import { portalRoleKeys } from "@/lib/portal-roles";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -37,7 +38,11 @@ export async function createPortalUser(formData: FormData) {
   await requireAdmin();
   const employeeId = text(formData, "employeeId");
   const password = text(formData, "password");
-  const role = text(formData, "role") === "admin" ? "admin" : "user";
+  const roles = formData
+    .getAll("role")
+    .map(String)
+    .filter((role) => portalRoleKeys.has(role));
+  const role = roles.length ? roles.join(",") : "employee";
   const canApproveLeaveRequests =
     formData.get("canApproveLeaveRequests") === "on";
   if (password.length < 10) {
@@ -59,7 +64,7 @@ export async function createPortalUser(formData: FormData) {
       email,
       name: `${employee.firstName} ${employee.lastName}`,
       password,
-      role,
+      role: roles.includes("admin") ? "admin" : "user",
     },
   });
   await prisma.user.update({
@@ -82,6 +87,19 @@ export async function updateLeaveApprovalPermission(formData: FormData) {
     data: {
       canApproveLeaveRequests:
         formData.get("canApproveLeaveRequests") === "on",
+    },
+    where: { id },
+  });
+  revalidatePath("/admin/users");
+}
+
+export async function approvePortalUser(formData: FormData) {
+  await requireAdmin();
+  const id = text(formData, "id");
+  await prisma.user.update({
+    data: {
+      banReason: null,
+      banned: false,
     },
     where: { id },
   });

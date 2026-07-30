@@ -10,6 +10,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 import {
   CloseDetailsButton,
   DismissibleDetails,
@@ -60,6 +61,13 @@ export default async function ProjectDetailPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
+  const accessibleProjectIds = await getAccessibleProjectIds();
+  if (
+    accessibleProjectIds !== null &&
+    !accessibleProjectIds.includes(projectId)
+  ) {
+    notFound();
+  }
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const project = await prisma.project.findUnique({

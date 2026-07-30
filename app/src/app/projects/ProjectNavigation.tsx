@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 export const projectAreaNavigation = [
   { key: "overview", label: "Übersicht", href: "/projects" },
@@ -16,10 +18,20 @@ export const projectAreaNavigation = [
 
 export type ProjectAreaKey = (typeof projectAreaNavigation)[number]["key"];
 
-export function ProjectNavigation({ active }: { active: ProjectAreaKey }) {
+export async function ProjectNavigation({ active }: { active: ProjectAreaKey }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const roles = new Set(
+    String(session?.user.role ?? "")
+      .split(",")
+      .map((role) => role.trim()),
+  );
+  const navigation =
+    roles.has("foreman") && !roles.has("admin")
+      ? projectAreaNavigation.filter((item) => item.key !== "performance")
+      : projectAreaNavigation;
   return (
     <div className="mb-6 flex flex-wrap gap-2">
-      {projectAreaNavigation.map((item) => (
+      {navigation.map((item) => (
         <Link
           key={item.key}
           href={item.href}

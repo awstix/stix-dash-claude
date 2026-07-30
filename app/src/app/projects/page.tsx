@@ -7,6 +7,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
 import { ProjectMap } from "./ProjectMap";
@@ -25,8 +26,13 @@ export default async function ProjectsPage({
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
   const sortOption = getProjectSortOption(params.sort);
+  const accessibleProjectIds = await getAccessibleProjectIds();
 
   const projects = await prisma.project.findMany({
+    where:
+      accessibleProjectIds === null
+        ? undefined
+        : { id: { in: accessibleProjectIds } },
     include: {
       asphaltDispatchEntries: true,
       crewPlanningRows: {

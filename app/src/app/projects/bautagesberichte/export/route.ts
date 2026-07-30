@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import sharp from "sharp";
 import { getDefaultWorkTime } from "@/lib/work-time";
+import { requireProjectAccess } from "@/lib/auth-access";
 import { ensureProjectWeatherForDate } from "../../actions";
 import {
   addDailyReportDays,
@@ -87,6 +88,7 @@ const continuationLinesPerPage = 40;
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
+  await requireProjectAccess(projectId);
   const dateKey = request.nextUrl.searchParams.get("date") ?? "";
   const sheetNumber = request.nextUrl.searchParams.get("blattnr") ?? "1";
 

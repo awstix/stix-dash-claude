@@ -6,6 +6,7 @@ import {
   parseProjectFormSnapshotSettings,
   parseProjectFormValues,
 } from "../../../projectFormTypes";
+import { requireProjectAccess } from "@/lib/auth-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +37,7 @@ export async function GET(
   if (!submission) {
     return new Response("Formular nicht gefunden.", { status: 404 });
   }
+  await requireProjectAccess(submission.projectId);
 
   const fallbackFields = parseProjectFormFields(submission.template?.fieldsJson);
   const fields = parseProjectFormSnapshotFields(

@@ -54,6 +54,10 @@ export type DailyReportContext = {
   approvedAt: Date | null;
   approvedByName: string;
   approvedFields: string[];
+  break1From: string;
+  break1To: string;
+  break2From: string;
+  break2To: string;
   composition: DailyReportComposition;
   dateKey: string;
   dateLabel: string;
@@ -91,6 +95,10 @@ export type DailyReportContext = {
 };
 
 export type DailyReportSuggestionValues = {
+  break1From: string;
+  break1To: string;
+  break2From: string;
+  break2To: string;
   laborRows: DailyReportCountRow[];
   groupedMachineRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
@@ -583,9 +591,21 @@ export async function getDailyReportSourceProject(
           },
         })
       : [];
+  const crewTimeEntries = await prisma.crewTimeEntry.findMany({
+    include: { employees: true },
+    where: {
+      projectId,
+      status: "APPROVED",
+      workDate: {
+        gte: reportDate,
+        lt: nextDate,
+      },
+    },
+  });
 
   return {
     ...project,
+    crewTimeEntries,
     dailyReportAsphaltCrews,
     dailyReportInventoryItems,
   };
@@ -628,16 +648,49 @@ export function buildDailyReportContext(
   const reportWorkHours =
     getNetWorkHoursForDay(reportWorkDay) ||
     durationHours(reportWorkDay.startTime, reportWorkDay.endTime);
+  const capturedEmployeeIds = new Set(
+    project.crewTimeEntries.flatMap((entry) =>
+      entry.employees
+        .filter((employee) => employee.isPresent)
+        .map((employee) => employee.employeeId),
+    ),
+  );
+  const hasApprovedCrewTimes = project.crewTimeEntries.some(
+    (entry) => entry.status === "APPROVED",
+  );
+  for (const entry of project.crewTimeEntries) {
+    workTimes.push({
+      end: entry.defaultEndTime,
+      start: entry.defaultStartTime,
+    });
+    for (const employee of entry.employees) {
+      if (!employee.isPresent) continue;
+      const category = mapLaborCategory([employee.roleLabel]);
+      addCountHours(labor, category, 1, employee.netHours);
+      addCompositionLine(composition.labor, {
+        detail: `${category} · ${employee.startTime}–${employee.endTime} Uhr`,
+        label: employee.employeeName,
+        quantity: `${formatDecimal(employee.netHours)} Std.`,
+        source:
+          entry.status === "APPROVED"
+            ? `Freigegebene Zeiterfassung · ${entry.crewName}`
+            : `Eingereichte Zeiterfassung · ${entry.crewName}`,
+      });
+    }
+  }
 
   for (const row of project.crewPlanningRows) {
     for (const assignment of row.assignments) {
-      workTimes.push({
-        end: assignment.endTime,
-        start: assignment.startTime,
-      });
+      if (!hasApprovedCrewTimes) {
+        workTimes.push({
+          end: assignment.endTime,
+          start: assignment.startTime,
+        });
+      }
       const hours = durationHours(assignment.startTime, assignment.endTime);
 
       for (const member of assignment.crew?.members ?? []) {
+        if (capturedEmployeeIds.has(member.employeeId)) continue;
         crewLaborEmployeeIds.add(member.employeeId);
         const category = mapLaborCategory([
           member.roleText,
@@ -654,6 +707,7 @@ export function buildDailyReportContext(
       }
 
       for (const extraEmployee of assignment.extraEmployees) {
+        if (capturedEmployeeIds.has(extraEmployee.employeeId)) continue;
         crewLaborEmployeeIds.add(extraEmployee.employeeId);
         const category = mapLaborCategory([
           ...extraEmployee.employee.positions.map(
@@ -1275,6 +1329,13 @@ export function buildDailyReportContext(
     dailyReportPerformanceLineLimit,
   );
   const suggestedWeekday = formatWeekday(dateKey);
+  const approvedTimeEntry = project.crewTimeEntries.find(
+    (entry) => entry.status === "APPROVED",
+  );
+  const suggestedBreak1From = approvedTimeEntry?.defaultBreak1From ?? "";
+  const suggestedBreak1To = approvedTimeEntry?.defaultBreak1To ?? "";
+  const suggestedBreak2From = approvedTimeEntry?.defaultBreak2From ?? "";
+  const suggestedBreak2To = approvedTimeEntry?.defaultBreak2To ?? "";
   const suggestedMachineRows = showRealMachineNames
     ? suggestedRealMachineRows
     : suggestedGroupedMachineRows;
@@ -1299,6 +1360,10 @@ export function buildDailyReportContext(
     approvedAt: dailyReport?.approvedAt ?? null,
     approvedByName: dailyReport?.approvedByName ?? "",
     approvedFields,
+    break1From: dailyReport?.break1From || suggestedBreak1From,
+    break1To: dailyReport?.break1To || suggestedBreak1To,
+    break2From: dailyReport?.break2From || suggestedBreak2From,
+    break2To: dailyReport?.break2To || suggestedBreak2To,
     composition,
     dateKey,
     dateLabel: formatDateLabel(dateKey),
@@ -1354,6 +1419,10 @@ export function buildDailyReportContext(
       ? dailyReport?.status ?? "DRAFT"
       : "DRAFT",
     suggestions: {
+      break1From: suggestedBreak1From,
+      break1To: suggestedBreak1To,
+      break2From: suggestedBreak2From,
+      break2To: suggestedBreak2To,
       groupedMachineRows: suggestedGroupedMachineRows,
       laborRows: suggestedLaborRows,
       materialRows: suggestedMaterialRows,

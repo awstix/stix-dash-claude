@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-access";
 import { dashboardWidgets } from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
+import { portalRoleKeys } from "@/lib/portal-roles";
 
 export async function saveUserAccess(formData: FormData) {
   await requireAdmin();
@@ -26,12 +27,17 @@ export async function saveUserAccess(formData: FormData) {
     .getAll("projectId")
     .map(String)
     .filter((id) => validProjects.has(id));
+  const roles = formData
+    .getAll("role")
+    .map(String)
+    .filter((role) => portalRoleKeys.has(role));
 
   await prisma.$transaction([
     prisma.user.update({
       data: {
         canApproveLeaveRequests:
           formData.get("canApproveLeaveRequests") === "on",
+        role: roles.length ? roles.join(",") : "employee",
       },
       where: { id: userId },
     }),

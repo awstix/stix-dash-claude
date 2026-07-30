@@ -2,7 +2,9 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
+import { portalRoleLabels, portalRoles } from "@/lib/portal-roles";
 import {
+  approvePortalUser,
   createPortalUser,
   updateLeaveApprovalPermission,
 } from "./actions";
@@ -55,13 +57,23 @@ export default async function PortalUsersPage() {
               />
               Darf Urlaubsanträge freigeben
             </label>
-            <label className="text-sm font-bold">
-              Rolle
-              <select className={inputClass} name="role">
-                <option value="user">Benutzer</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </label>
+            <fieldset className="md:col-span-2">
+              <legend className="text-sm font-bold">Rollen (kombinierbar)</legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {portalRoles.map((role) => (
+                  <label className="flex items-center gap-2 rounded-xl border border-gray-400 p-3 font-bold text-gray-950" key={role.key}>
+                    <input
+                      className="h-5 w-5 accent-gray-950"
+                      defaultChecked={role.key === "employee"}
+                      name="role"
+                      type="checkbox"
+                      value={role.key}
+                    />
+                    {role.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <label className="text-sm font-bold">
               E-Mail (optional)
               <input className={inputClass} name="email" type="email" />
@@ -92,6 +104,7 @@ export default async function PortalUsersPage() {
               <th className="p-3">Mitarbeiterakte</th>
               <th className="p-3">Urlaubsfreigabe</th>
               <th className="p-3">Zugriffe</th>
+              <th className="p-3">Kontostatus</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +120,9 @@ export default async function PortalUsersPage() {
                     Verwalten
                   </Link>
                 </td>
-                <td className="p-3">{user.role === "admin" ? "Administrator" : "Benutzer"}</td>
+                <td className="p-3 font-bold">
+                  {portalRoleLabels(user.role).join(", ") || "Mitarbeiter"}
+                </td>
                 <td className="p-3">
                   {user.employee
                     ? `${user.employee.lastName}, ${user.employee.firstName}`
@@ -129,6 +144,23 @@ export default async function PortalUsersPage() {
                       Speichern
                     </button>
                   </form>
+                </td>
+                <td className="p-3">
+                  {user.banned && user.banReason === "REGISTRATION_PENDING" ? (
+                    <form action={approvePortalUser}>
+                      <input name="id" type="hidden" value={user.id} />
+                      <div className="font-bold text-amber-950">
+                        Freigabe ausstehend
+                      </div>
+                      <button className="mt-2 rounded-lg bg-green-700 px-3 py-2 text-xs font-bold text-white">
+                        Konto freigeben
+                      </button>
+                    </form>
+                  ) : user.banned ? (
+                    <span className="font-bold text-red-800">Gesperrt</span>
+                  ) : (
+                    <span className="font-bold text-green-800">Freigegeben</span>
+                  )}
                 </td>
               </tr>
             ))}

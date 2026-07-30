@@ -24,6 +24,12 @@ type ProjectMapProps = {
   heightClass?: string;
   latitude?: number | null;
   longitude?: number | null;
+  markers?: Array<{
+    employees?: string[];
+    label: string;
+    latitude: number;
+    longitude: number;
+  }>;
   onBoundaryChange?: (value: string) => void;
   onViewChange?: (view: MapView) => void;
   zoom?: number | null;
@@ -37,6 +43,7 @@ export function ProjectMap({
   heightClass = "h-72",
   latitude,
   longitude,
+  markers = [],
   onBoundaryChange,
   onViewChange,
   zoom,
@@ -50,6 +57,7 @@ export function ProjectMap({
     height: DEFAULT_MAP_HEIGHT,
     width: DEFAULT_MAP_WIDTH,
   });
+  const [selectedMarkerIndex, setSelectedMarkerIndex] = useState<number | null>(null);
   const boundaryRef = useRef(boundaryGeoJson ?? "");
   const dragRef = useRef<{
     pointerId: number;
@@ -137,10 +145,19 @@ export function ProjectMap({
     const editPoints = boundary.editPoints.map((point) =>
       lngLatToMapPoint(point, normalizedZoom, origin),
     );
+    const markerPoints = markers.map((marker) => ({
+      ...marker,
+      point: lngLatToMapPoint(
+        [marker.longitude, marker.latitude],
+        normalizedZoom,
+        origin,
+      ),
+    }));
 
     return {
       editPoints,
       lines,
+      markerPoints,
       origin,
       rings,
       tiles,
@@ -153,6 +170,7 @@ export function ProjectMap({
     mapSize.height,
     mapSize.width,
     normalizedZoom,
+    markers,
   ]);
 
   function handleMapClick(event: MouseEvent<SVGSVGElement>) {
@@ -184,6 +202,12 @@ export function ProjectMap({
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
     if (!editable || !onViewChange || lat === null || lng === null) return;
     if (event.button !== 0) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-map-marker='true']")
+    ) {
+      return;
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = {
@@ -353,9 +377,106 @@ export function ProjectMap({
                 />
               ))
             : null}
+          {mapData.markerPoints.map((marker, index) => (
+            <g
+              className="cursor-pointer"
+              data-map-marker="true"
+              key={`${marker.label}-${index}`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setSelectedMarkerIndex(index);
+              }}
+              pointerEvents="auto"
+            >
+              <circle
+                cx={marker.point.x}
+                cy={marker.point.y}
+                fill="#047857"
+                r={8}
+                stroke="white"
+                strokeWidth={3}
+              />
+              <text
+                fill="#111827"
+                fontSize={11}
+                fontWeight={800}
+                x={marker.point.x + 11}
+                y={marker.point.y + 4}
+              >
+                {marker.label.slice(0, 28)}
+              </text>
+            </g>
+          ))}
         </svg>
 
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-gray-900 shadow" />
+        {selectedMarkerIndex !== null && mapData.markerPoints[selectedMarkerIndex] ? (
+          <div
+            className="absolute z-20 w-72 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl border border-gray-400 bg-white p-3 text-gray-950 shadow-xl"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            style={{
+              bottom:
+                mapData.markerPoints[selectedMarkerIndex].point.y > mapSize.height / 2
+                  ? Math.max(
+                      12,
+                      mapSize.height -
+                        mapData.markerPoints[selectedMarkerIndex].point.y +
+                        14,
+                    )
+                  : undefined,
+              left: Math.min(
+                mapSize.width - 150,
+                Math.max(150, mapData.markerPoints[selectedMarkerIndex].point.x),
+              ),
+              top:
+                mapData.markerPoints[selectedMarkerIndex].point.y <= mapSize.height / 2
+                  ? mapData.markerPoints[selectedMarkerIndex].point.y + 14
+                  : undefined,
+            }}
+          >
+            <button
+              aria-label="Popup schließen"
+              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border border-gray-400 bg-white text-base font-black text-gray-950 hover:bg-gray-200"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setSelectedMarkerIndex(null);
+              }}
+              type="button"
+            >
+              ×
+            </button>
+            <p className="pr-8 text-sm font-black text-gray-950">
+              {mapData.markerPoints[selectedMarkerIndex].label}
+            </p>
+            <p className="mt-3 text-xs font-black uppercase tracking-wide text-gray-950">
+              Personal heute
+            </p>
+            {mapData.markerPoints[selectedMarkerIndex].employees?.length ? (
+              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                {mapData.markerPoints[selectedMarkerIndex].employees?.map((employee) => (
+                  <li
+                    className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-sm font-bold text-gray-950"
+                    key={employee}
+                  >
+                    {employee}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm font-bold text-gray-950">
+                Heute ist noch kein Personal eingeplant.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {markers.length === 0 ? (
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-gray-900 shadow" />
+        ) : null}
 
         {editable && onViewChange ? (
           <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
@@ -390,14 +511,11 @@ export function ProjectMap({
           </div>
         ) : null}
 
-        <a
+        <span
           className="absolute bottom-2 right-2 rounded bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-600 shadow-sm"
-          href="https://www.openstreetmap.org/copyright"
-          rel="noreferrer"
-          target="_blank"
         >
           © OpenStreetMap-Mitwirkende
-        </a>
+        </span>
       </div>
 
       {editable ? (

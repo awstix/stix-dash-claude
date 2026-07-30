@@ -6,6 +6,7 @@ import {
   updateProjectNote,
 } from "../actions";
 import { ProjectNavigation } from "../ProjectNavigation";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 
 const categoryOptions = [
   { label: "Allgemein", value: "GENERAL" },
@@ -27,7 +28,12 @@ export default async function ProjectNotesPage({
   searchParams: Promise<{ projectId?: string }>;
 }) {
   const { projectId: selectedProjectId = "" } = await searchParams;
+  const accessibleProjectIds = await getAccessibleProjectIds();
   const projects = await prisma.project.findMany({
+    where:
+      accessibleProjectIds === null
+        ? undefined
+        : { id: { in: accessibleProjectIds } },
     include: {
       projectNotes: {
         orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
@@ -105,9 +111,11 @@ export default async function ProjectNotesPage({
                     <h3 className="mt-3 text-lg font-semibold text-gray-900">
                       {note.title || "Ohne Titel"}
                     </h3>
-                    <p className="mt-1 text-xs font-semibold text-gray-500">
+                    <p className="mt-1 text-xs font-bold text-gray-950">
                       {formatNoteDateRange(note.noteDate, note.noteEndDate)}
-                      {note.createdByName ? ` · ${note.createdByName}` : ""}
+                      {note.createdByName
+                        ? ` · Erfasst von ${note.createdByName}`
+                        : " · Verfasser unbekannt"}
                     </p>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
                       {note.content}
@@ -288,15 +296,6 @@ function ProjectNoteForm({
           placeholder="Optional, z.B. Zufahrt gesperrt"
         />
       </label>
-      <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
-        Erfasst von
-        <input
-          className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          defaultValue={note?.createdByName ?? ""}
-          name="createdByName"
-          placeholder="Name"
-        />
-      </label>
       <label className="text-xs font-semibold text-gray-700 lg:col-span-6">
         Notiz
         <textarea
@@ -322,7 +321,6 @@ function noteInputFromFormData(formData: FormData) {
   return {
     category: text(formData.get("category")),
     content: text(formData.get("content")),
-    createdByName: text(formData.get("createdByName")),
     id: text(formData.get("id")) || undefined,
     includeInDailyReport: formData.get("includeInDailyReport") === "1",
     noteDate: text(formData.get("noteDate")),

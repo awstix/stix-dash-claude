@@ -9,6 +9,11 @@ import { ProjectStatus } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import {
+  requireProjectAccess,
+  requireProjectContentDeleteOwnership,
+  requireSession,
+} from "@/lib/auth-access";
+import {
   getProjectFormPresetOptions,
   PROJECT_FORM_FIELD_TYPES,
   parseProjectFormFields,
@@ -65,6 +70,10 @@ export type ProjectDailyReportWeatherInput = {
 export type ProjectDailyReportSaveInput = {
   approvedByName: string;
   approvedFields: string[];
+  break1From: string;
+  break1To: string;
+  break2From: string;
+  break2To: string;
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   materialRows: DailyReportMaterialRow[];
@@ -109,7 +118,6 @@ export type ProjectPhotoUpdateInput = {
 export type ProjectNoteInput = {
   category: string;
   content: string;
-  createdByName: string;
   id?: string;
   includeInDailyReport: boolean;
   noteDate: string;
@@ -303,8 +311,6 @@ function cleanProjectNoteInput(input: ProjectNoteInput) {
   return {
     category: cleanProjectNoteCategory(input.category),
     content,
-    createdByName:
-      cleanProjectFormText(input.createdByName, 120) || null,
     includeInDailyReport: Boolean(input.includeInDailyReport),
     noteDate,
     noteEndDate,
@@ -372,6 +378,7 @@ function revalidateProjectViews(projectId?: string) {
 
 function revalidateProjectPhotoViews(projectId?: string) {
   revalidateProjectViews(projectId);
+  revalidatePath("/dashboard");
   revalidatePath("/projects/fotos");
   revalidatePath("/projects/bautagesberichte");
 }
@@ -474,9 +481,30 @@ export async function updateProjectMap(input: ProjectMapInput) {
 
 export async function createProjectNote(input: ProjectNoteInput) {
   const data = cleanProjectNoteInput(input);
+  await requireProjectAccess(data.projectId);
+  const session = await requireSession();
+  const author = await prisma.user.findUnique({
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      name: true,
+    },
+    where: { id: session.user.id },
+  });
+  const authorName = author?.employee
+    ? `${author.employee.firstName} ${author.employee.lastName}`
+    : author?.name || session.user.name || session.user.email;
 
   await prisma.projectNote.create({
-    data,
+    data: {
+      ...data,
+      createdByUserId: session.user.id,
+      createdByName: authorName,
+    },
   });
 
   revalidateProjectViews(data.projectId);
@@ -488,6 +516,7 @@ export async function updateProjectNote(input: ProjectNoteInput) {
   }
 
   const data = cleanProjectNoteInput(input);
+  await requireProjectAccess(data.projectId);
 
   await prisma.projectNote.update({
     where: {
@@ -496,7 +525,6 @@ export async function updateProjectNote(input: ProjectNoteInput) {
     data: {
       category: data.category,
       content: data.content,
-      createdByName: data.createdByName,
       includeInDailyReport: data.includeInDailyReport,
       noteDate: data.noteDate,
       noteEndDate: data.noteEndDate,
@@ -512,6 +540,13 @@ export async function deleteProjectNote(input: ProjectNoteDeleteInput) {
   if (!input.id) {
     throw new Error("Notiz fehlt.");
   }
+  const existingNote = await prisma.projectNote.findUnique({
+    select: { createdByUserId: true, projectId: true },
+    where: { id: input.id },
+  });
+  if (!existingNote) return;
+  await requireProjectAccess(existingNote.projectId);
+  await requireProjectContentDeleteOwnership(existingNote.createdByUserId);
 
   await prisma.projectNote.delete({
     where: {
@@ -888,6 +923,8 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
   if (!projectId || !/^\d{4}-\d{2}-\d{2}$/.test(reportDateKey)) {
     throw new Error("Projekt und Berichtdatum sind Pflichtfelder.");
   }
+  await requireProjectAccess(projectId);
+  const actor = await getProjectActor();
 
   const project = await prisma.project.findUnique({
     where: {
@@ -913,6 +950,8 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     },
     select: {
       approvedAt: true,
+      createdByName: true,
+      createdByUserId: true,
     },
   });
   const approvedAt =
@@ -942,6 +981,10 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     approvedAt,
     approvedByName,
     approvedFieldsJson,
+    break1From: cleanDailyReportTime(input.break1From),
+    break1To: cleanDailyReportTime(input.break1To),
+    break2From: cleanDailyReportTime(input.break2From),
+    break2To: cleanDailyReportTime(input.break2To),
     laborJson,
     machinesJson,
     materialJson,
@@ -1013,10 +1056,16 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
       },
       create: {
         ...data,
+        createdByName: actor.name,
+        createdByUserId: actor.userId,
         projectId,
         reportDate,
       },
-      update: data,
+      update: {
+        ...data,
+        createdByName: existingReport?.createdByName ?? actor.name,
+        createdByUserId: existingReport?.createdByUserId ?? actor.userId,
+      },
     });
 
     await transaction.projectDailyReportPhoto.deleteMany({
@@ -1058,6 +1107,7 @@ export async function deleteProjectDailyReport(
       id: reportId,
     },
     select: {
+      createdByUserId: true,
       projectId: true,
     },
   });
@@ -1067,6 +1117,8 @@ export async function deleteProjectDailyReport(
       deleted: false,
     };
   }
+  await requireProjectAccess(report.projectId);
+  await requireProjectContentDeleteOwnership(report.createdByUserId);
 
   await prisma.projectDailyReport.delete({
     where: {
@@ -1296,7 +1348,7 @@ export async function uploadProjectPhotos(formData: FormData) {
   const uploadedByName = cleanUploadText(
     cleanFormString(formData.get("uploadedByName")),
   );
-  const uploadedByUserId = cleanFormString(formData.get("uploadedByUserId"));
+  const actor = await getProjectActor();
   const takeMetadata = formData.get("takeMetadata") === "on";
   const compressPhotos = formData.get("compressPhotos") === "on";
   const availableForDailyReports =
@@ -1308,6 +1360,7 @@ export async function uploadProjectPhotos(formData: FormData) {
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
   }
+  await requireProjectAccess(projectId);
 
   if (files.length === 0) {
     throw new Error("Bitte mindestens ein Foto auswählen.");
@@ -1417,8 +1470,8 @@ export async function uploadProjectPhotos(formData: FormData) {
           ...getPhotoGpsAddressData(gpsAddress),
           metadataJson: metadata.metadataJson ?? null,
           availableForDailyReports,
-          uploadedByName: uploadedByName || null,
-          uploadedByUserId: uploadedByUserId || null,
+          uploadedByName: actor.name,
+          uploadedByUserId: actor.userId,
         },
       });
       uploadedPublicUrls.push(publicUrl);
@@ -1437,6 +1490,12 @@ export async function updateProjectPhoto(input: ProjectPhotoUpdateInput) {
     throw new Error("Foto-ID fehlt.");
   }
 
+  const existingPhoto = await prisma.projectPhoto.findUnique({
+    select: { projectId: true },
+    where: { id: input.id },
+  });
+  if (!existingPhoto) throw new Error("Foto wurde nicht gefunden.");
+  await requireProjectAccess(existingPhoto.projectId);
   const photo = await prisma.projectPhoto.update({
     where: {
       id: input.id,
@@ -1521,12 +1580,15 @@ export async function deleteProjectPhoto(id: string) {
     select: {
       projectId: true,
       storagePath: true,
+      uploadedByUserId: true,
     },
   });
 
   if (!photo) {
     return;
   }
+  await requireProjectAccess(photo.projectId);
+  await requireProjectContentDeleteOwnership(photo.uploadedByUserId);
 
   await prisma.projectPhoto.delete({
     where: {
@@ -1559,11 +1621,16 @@ export async function deleteProjectPhotos(photoIds: string[]) {
     select: {
       projectId: true,
       storagePath: true,
+      uploadedByUserId: true,
     },
   });
 
   if (photos.length === 0) {
     return;
+  }
+  for (const photo of photos) {
+    await requireProjectAccess(photo.projectId);
+    await requireProjectContentDeleteOwnership(photo.uploadedByUserId);
   }
 
   await prisma.projectPhoto.deleteMany({
@@ -1698,6 +1765,7 @@ export async function createProjectDocumentFolder(
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
   }
+  await requireProjectAccess(projectId);
 
   if (!name) {
     throw new Error("Bitte einen Ordnernamen eintragen.");
@@ -1832,7 +1900,7 @@ export async function uploadProjectDocuments(formData: FormData) {
   const uploadedByName = cleanUploadText(
     cleanFormString(formData.get("uploadedByName")),
   );
-  const uploadedByUserId = cleanFormString(formData.get("uploadedByUserId"));
+  const actor = await getProjectActor();
   const files = formData
     .getAll("documents")
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
@@ -1840,6 +1908,7 @@ export async function uploadProjectDocuments(formData: FormData) {
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
   }
+  await requireProjectAccess(projectId);
 
   if (files.length === 0) {
     throw new Error("Bitte mindestens ein Dokument auswählen.");
@@ -1911,8 +1980,8 @@ export async function uploadProjectDocuments(formData: FormData) {
           storagePath,
           mimeType: file.type || "application/octet-stream",
           fileSizeBytes: file.size,
-          uploadedByName: uploadedByName || null,
-          uploadedByUserId: uploadedByUserId || null,
+          uploadedByName: actor.name,
+          uploadedByUserId: actor.userId,
         },
       });
     } catch (error) {
@@ -1934,6 +2003,12 @@ export async function updateProjectDocument(input: ProjectDocumentUpdateInput) {
   if (!displayName) {
     throw new Error("Name darf nicht leer sein.");
   }
+  const existingDocument = await prisma.projectDocument.findUnique({
+    select: { projectId: true },
+    where: { id: input.id },
+  });
+  if (!existingDocument) throw new Error("Dokument wurde nicht gefunden.");
+  await requireProjectAccess(existingDocument.projectId);
 
   const document = await prisma.projectDocument.update({
     where: {
@@ -1962,12 +2037,15 @@ export async function deleteProjectDocument(id: string) {
     select: {
       projectId: true,
       storagePath: true,
+      uploadedByUserId: true,
     },
   });
 
   if (!document) {
     return;
   }
+  await requireProjectAccess(document.projectId);
+  await requireProjectContentDeleteOwnership(document.uploadedByUserId);
 
   await prisma.projectDocument.delete({
     where: {
@@ -2000,11 +2078,16 @@ export async function deleteProjectDocuments(documentIds: string[]) {
     select: {
       projectId: true,
       storagePath: true,
+      uploadedByUserId: true,
     },
   });
 
   if (documents.length === 0) {
     return;
+  }
+  for (const document of documents) {
+    await requireProjectAccess(document.projectId);
+    await requireProjectContentDeleteOwnership(document.uploadedByUserId);
   }
 
   await prisma.projectDocument.deleteMany({
@@ -2276,6 +2359,8 @@ export async function saveProjectFormSubmission(
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
   }
+  await requireProjectAccess(projectId);
+  const actor = await getProjectActor();
 
   if (!templateId) {
     throw new Error("Bitte eine Formularvorlage auswählen.");
@@ -2319,7 +2404,8 @@ export async function saveProjectFormSubmission(
     `${template.name}${input.formDate ? ` ${input.formDate}` : ""}`;
 
   const data = {
-    createdByName: cleanProjectFormText(input.createdByName, 120) || null,
+    createdByName: actor.name,
+    createdByUserId: actor.userId,
     formDate,
     projectId,
     status: "SAVED",
@@ -2346,6 +2432,8 @@ export async function saveProjectFormSubmission(
         id: submissionId,
       },
       select: {
+        createdByName: true,
+        createdByUserId: true,
         id: true,
         projectId: true,
       },
@@ -2359,7 +2447,11 @@ export async function saveProjectFormSubmission(
       where: {
         id: submissionId,
       },
-      data,
+      data: {
+        ...data,
+        createdByName: existingSubmission.createdByName ?? actor.name,
+        createdByUserId: existingSubmission.createdByUserId ?? actor.userId,
+      },
     });
 
     if (existingSubmission.projectId !== projectId) {
@@ -2388,6 +2480,7 @@ export async function deleteProjectFormSubmission(
       id: submissionId,
     },
     select: {
+      createdByUserId: true,
       projectId: true,
     },
   });
@@ -2395,6 +2488,8 @@ export async function deleteProjectFormSubmission(
   if (!submission) {
     return;
   }
+  await requireProjectAccess(submission.projectId);
+  await requireProjectContentDeleteOwnership(submission.createdByUserId);
 
   await prisma.projectFormSubmission.delete({
     where: {
@@ -2965,6 +3060,28 @@ async function getNextProjectDocumentFolderSortOrder(projectId: string) {
   });
 
   return (result._max.sortOrder ?? 0) + 10;
+}
+
+async function getProjectActor() {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      name: true,
+    },
+    where: { id: session.user.id },
+  });
+  return {
+    name: user?.employee
+      ? `${user.employee.firstName} ${user.employee.lastName}`
+      : user?.name || session.user.name || session.user.email,
+    userId: session.user.id,
+  };
 }
 
 async function getAvailableMovedPhotoFileName(

@@ -35,6 +35,7 @@ const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
   { name: "Feiertage & arbeitsfreie Tage", href: "/disposition/holidays" },
   { name: "Gerätedisposition", href: "/equipment-dispatch" },
+  { name: "Kolonnen-Zeiterfassung", href: "/crew-timekeeping" },
   { name: "Planung", href: "/crew-dispatch" },
   { name: "LKW-Einteilung", href: "/truck-dispatch" },
   { name: "LKW-Einteilung Kurzstrecke", href: "/truck-dispatch/short-haul" },
@@ -96,6 +97,29 @@ export async function AppShell({
     }),
   ]);
   if (!session) redirect("/login");
+  const roles = new Set(
+    String(session.user.role ?? "")
+      .split(",")
+      .map((role) => role.trim()),
+  );
+  const admin = roles.has("admin");
+  const foreman = roles.has("foreman") && !admin;
+  const visibleProjectNavigation = foreman
+    ? projectNavigation.filter(
+        (item) =>
+          item.href !== "/projects/performance" &&
+          !item.href.startsWith("/form-builder"),
+      )
+    : projectNavigation;
+  const visibleWorkshopNavigation = foreman
+    ? workshopNavigation.filter((item) => !item.href.startsWith("/form-builder"))
+    : workshopNavigation;
+  const visibleSafetyNavigation = foreman
+    ? safetyNavigation.filter((item) => !item.href.startsWith("/form-builder"))
+    : safetyNavigation;
+  const visibleSecondaryNavigation = secondaryNavigation.filter(
+    (item) => item.href !== "/admin" || admin,
+  );
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -108,10 +132,10 @@ export async function AppShell({
         employeeNavigation={employeeNavigation}
         inventoryNavigation={inventoryNavigation}
         primaryNavigation={primaryNavigation}
-        projectNavigation={projectNavigation}
-        safetyNavigation={safetyNavigation}
-        secondaryNavigation={secondaryNavigation}
-        workshopNavigation={workshopNavigation}
+        projectNavigation={visibleProjectNavigation}
+        safetyNavigation={visibleSafetyNavigation}
+        secondaryNavigation={visibleSecondaryNavigation}
+        workshopNavigation={visibleWorkshopNavigation}
       />
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">

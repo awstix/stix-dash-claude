@@ -17,6 +17,10 @@ import type {
 type ReportFormState = {
   approvedByName: string;
   approvedFields: string[];
+  break1From: string;
+  break1To: string;
+  break2From: string;
+  break2To: string;
   laborRows: DailyReportCountRow[];
   machineRows: DailyReportCountRow[];
   machineRowsBeforeRealNames: DailyReportCountRow[] | null;
@@ -545,7 +549,7 @@ export function ProjectDailyReportEditor({
           onToggle={toggleApproval}
           title="Arbeitszeit"
         />
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <LabeledInput
             label="Arbeitszeit von"
             onChange={(value) => updateValue("workStart", value)}
@@ -559,6 +563,34 @@ export function ProjectDailyReportEditor({
             suggestion={context.suggestions.workEnd}
             type="time"
             value={form.workEnd}
+          />
+          <LabeledInput
+            label="Pause 1 von"
+            onChange={(value) => updateValue("break1From", value)}
+            suggestion={context.suggestions.break1From}
+            type="time"
+            value={form.break1From}
+          />
+          <LabeledInput
+            label="Pause 1 bis"
+            onChange={(value) => updateValue("break1To", value)}
+            suggestion={context.suggestions.break1To}
+            type="time"
+            value={form.break1To}
+          />
+          <LabeledInput
+            label="Pause 2 von"
+            onChange={(value) => updateValue("break2From", value)}
+            suggestion={context.suggestions.break2From}
+            type="time"
+            value={form.break2From}
+          />
+          <LabeledInput
+            label="Pause 2 bis"
+            onChange={(value) => updateValue("break2To", value)}
+            suggestion={context.suggestions.break2To}
+            type="time"
+            value={form.break2To}
           />
         </div>
       </section>
@@ -847,6 +879,10 @@ function createInitialState(context: DailyReportContext): ReportFormState {
   return {
     approvedByName: context.approvedByName,
     approvedFields: [...context.approvedFields],
+    break1From: context.break1From,
+    break1To: context.break1To,
+    break2From: context.break2From,
+    break2To: context.break2To,
     laborRows: cloneRows(context.laborRows),
     machineRows: cloneRows(context.machineRows),
     machineRowsBeforeRealNames: null,

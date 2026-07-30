@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { dashboardWidgets } from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
+import { parsePortalRoles, portalRoles } from "@/lib/portal-roles";
 import { saveUserAccess } from "./actions";
 
 export default async function UserAccessPage({
@@ -28,6 +29,7 @@ export default async function UserAccessPage({
     user.featureAccesses.filter((entry) => entry.canView).map((entry) => entry.featureKey),
   );
   const assignedProjects = new Set(user.projectAccesses.map((entry) => entry.projectId));
+  const assignedRoles = new Set(parsePortalRoles(user.role));
 
   return (
     <AppShell
@@ -36,6 +38,27 @@ export default async function UserAccessPage({
     >
       <form action={saveUserAccess} className="space-y-6">
         <input name="userId" type="hidden" value={user.id} />
+        <section className="rounded-2xl border border-gray-300 bg-white p-6 text-gray-950 shadow-sm">
+          <h2 className="text-xl font-black">Funktionsrollen</h2>
+          <p className="mt-1 font-semibold text-gray-950">
+            Mehrere Rollen können kombiniert werden. Die einzelnen Bereiche
+            und Baustellen werden darunter weiterhin exakt festgelegt.
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {portalRoles.map((role) => (
+              <label className="flex items-center gap-3 rounded-xl border border-gray-400 p-4 font-black" key={role.key}>
+                <input
+                  className="h-5 w-5 accent-gray-950"
+                  defaultChecked={assignedRoles.has(role.key)}
+                  name="role"
+                  type="checkbox"
+                  value={role.key}
+                />
+                {role.label}
+              </label>
+            ))}
+          </div>
+        </section>
         <section className="rounded-2xl border border-gray-300 bg-white p-6 text-gray-950 shadow-sm">
           <h2 className="text-xl font-black">Kacheln und Bereiche</h2>
           <p className="mt-1 font-medium text-gray-700">

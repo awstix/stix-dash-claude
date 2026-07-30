@@ -619,7 +619,7 @@ function PhotoCardHeader({ photo }: { photo: ProjectPhotoGalleryItem }) {
   );
 }
 
-function PhotoDetailModal({
+export function PhotoDetailModal({
   currentIndex,
   hasMultiplePhotos,
   isDeleting,
@@ -737,8 +737,9 @@ function PhotoDetailModal({
         className="grid max-h-[92vh] w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-[1.4fr_0.8fr]"
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="group relative min-h-[320px] overflow-hidden bg-black lg:min-h-[640px]">
         <div
-          className={`group relative min-h-[320px] overflow-auto bg-black lg:min-h-[640px] ${
+          className={`relative h-full min-h-[320px] overflow-auto lg:min-h-[640px] ${
             zoom > minimumPhotoZoom
               ? isDraggingPhoto
                 ? "cursor-grabbing select-none"
@@ -817,12 +818,13 @@ function PhotoDetailModal({
             Mausrad oder Doppelklick zum Zoomen
             {zoom > minimumPhotoZoom ? " · Bild anfassen und ziehen" : ""}
           </div>
+        </div>
 
           {hasMultiplePhotos ? (
-            <>
+            <div className="pointer-events-none absolute inset-0 z-50">
               <button
                 aria-label="Vorheriges Foto"
-                className="absolute left-3 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 opacity-0 shadow transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100"
+                className="pointer-events-auto absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-950 opacity-100 shadow-xl hover:bg-gray-100"
                 onClick={onPrevious}
                 title="Vorheriges Foto"
                 type="button"
@@ -831,14 +833,14 @@ function PhotoDetailModal({
               </button>
               <button
                 aria-label="Nächstes Foto"
-                className="absolute right-3 top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 opacity-0 shadow transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100"
+                className="pointer-events-auto absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-950 opacity-100 shadow-xl hover:bg-gray-100"
                 onClick={onNext}
                 title="Nächstes Foto"
                 type="button"
               >
                 <ChevronRightIcon />
               </button>
-            </>
+            </div>
           ) : null}
         </div>
 

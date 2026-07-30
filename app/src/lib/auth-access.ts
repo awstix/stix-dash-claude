@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -15,5 +16,54 @@ export async function requireAdmin() {
     .split(",")
     .map((role) => role.trim());
   if (!roles.includes("admin")) redirect("/dashboard");
+  return session;
+}
+
+export async function denyRoleUnlessAdmin(role: string) {
+  const session = await requireSession();
+  const roles = String(session.user.role ?? "")
+    .split(",")
+    .map((entry) => entry.trim());
+  if (roles.includes(role) && !roles.includes("admin")) redirect("/dashboard");
+  return session;
+}
+
+export async function getAccessibleProjectIds() {
+  const session = await requireSession();
+  const roles = String(session.user.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  if (roles.includes("admin")) return null;
+  const accesses = await prisma.userProjectAccess.findMany({
+    select: { projectId: true },
+    where: {
+      canViewProjectData: true,
+      userId: session.user.id,
+    },
+  });
+  return accesses.map((access) => access.projectId);
+}
+
+export async function requireProjectAccess(projectId: string) {
+  const ids = await getAccessibleProjectIds();
+  if (ids !== null && !ids.includes(projectId)) {
+    throw new Error("Kein Zugriff auf dieses Projekt.");
+  }
+}
+
+export async function requireProjectContentDeleteOwnership(
+  ownerUserId: string | null | undefined,
+) {
+  const session = await requireSession();
+  const roles = String(session.user.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  if (
+    roles.includes("foreman") &&
+    !roles.includes("admin") &&
+    ownerUserId !== session.user.id
+  ) {
+    throw new Error("Poliere dürfen nur selbst hinzugefügte Inhalte löschen.");
+  }
   return session;
 }

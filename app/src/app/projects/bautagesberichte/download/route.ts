@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { createZipArchive } from "@/lib/zip";
 import { generateDailyReportPdf } from "../export/route";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
         ),
       )
     : [];
+  const accessibleProjectIds = await getAccessibleProjectIds();
 
   if (input.all !== true && reportIds.length === 0) {
     return new Response("Keine Bautagesberichte ausgewählt.", {
@@ -37,7 +39,12 @@ export async function POST(request: Request) {
   }
 
   const reports = await prisma.projectDailyReport.findMany({
-    where: input.all === true ? undefined : { id: { in: reportIds } },
+    where: {
+      ...(input.all === true ? {} : { id: { in: reportIds } }),
+      ...(accessibleProjectIds === null
+        ? {}
+        : { projectId: { in: accessibleProjectIds } }),
+    },
     include: {
       project: {
         select: {

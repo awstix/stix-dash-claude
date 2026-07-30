@@ -2,6 +2,7 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectPhotoManager } from "../ProjectPhotoManager";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 
 export default async function ProjectPhotosPage({
   searchParams,
@@ -9,8 +10,16 @@ export default async function ProjectPhotosPage({
   searchParams?: Promise<{ projectId?: string }>;
 }) {
   const initialProjectId = (await searchParams)?.projectId ?? "";
+  const accessibleProjectIds = await getAccessibleProjectIds();
+  const projectWhere =
+    accessibleProjectIds === null ? undefined : { id: { in: accessibleProjectIds } };
+  const contentWhere =
+    accessibleProjectIds === null
+      ? undefined
+      : { projectId: { in: accessibleProjectIds } };
   const [projects, photos] = await Promise.all([
     prisma.project.findMany({
+      where: projectWhere,
       orderBy: [{ projectNumber: "asc" }],
       select: {
         id: true,
@@ -19,6 +28,7 @@ export default async function ProjectPhotosPage({
       },
     }),
     prisma.projectPhoto.findMany({
+      where: contentWhere,
       include: {
         project: {
           select: {

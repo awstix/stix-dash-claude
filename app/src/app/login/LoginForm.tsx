@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -72,6 +73,12 @@ export function LoginForm() {
       >
         {pending ? "Anmeldung läuft …" : "Anmelden"}
       </button>
+      <Link
+        className="block text-center font-bold text-gray-950 underline"
+        href="/register"
+      >
+        Noch kein Konto? Jetzt anlegen
+      </Link>
     </form>
   );
 }

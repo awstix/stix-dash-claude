@@ -311,6 +311,7 @@ type ProjectMaterialReference = {
 type CrewDispatchProjectNote = {
   category: string;
   content: string;
+  createdByName: string | null;
   noteDate: Date;
   noteEndDate: Date | null;
   title: string | null;
@@ -1768,6 +1769,7 @@ function formatProjectNoteForCrewDispatch(note: CrewDispatchProjectNote) {
     getCrewDispatchNoteCategoryLabel(note.category),
     note.title,
     note.content,
+    note.createdByName ? `Erfasst von ${note.createdByName}` : "Verfasser unbekannt",
   ]
     .filter(Boolean)
     .join(" · ");

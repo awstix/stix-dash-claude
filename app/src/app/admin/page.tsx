@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { requireAdmin } from "@/lib/auth-access";
 
 type AdminItem = {
   title: string;
@@ -116,7 +117,8 @@ const adminSections: AdminSection[] = [
   },
 ];
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requireAdmin();
   return (
     <AppShell
       title="Admin"

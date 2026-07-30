@@ -14,12 +14,23 @@ export async function saveDashboardWidgets(formData: FormData) {
   });
   const admin = String(user?.role ?? "").split(",").includes("admin");
   const granted = new Set(user?.featureAccesses.map((access) => access.featureKey));
+  const inheritedWidgetAccess: Record<string, string> = {
+    "project-crews-today": "crew-dispatch",
+    "project-machines-today": "crew-dispatch",
+    "project-materials-today": "truck-dispatch",
+    "project-trucks-today": "truck-dispatch",
+  };
   const allowed = new Set(
     dashboardWidgets
-      .filter((widget) => admin || granted.has(widget.key))
+      .filter(
+        (widget) =>
+          admin ||
+          granted.has(widget.key) ||
+          granted.has(inheritedWidgetAccess[widget.key]),
+      )
       .map((widget) => widget.key),
   );
-  let layout: Array<{ key: string; width?: number; height?: number }> = [];
+  let layout: Array<{ key: string; width?: number; height?: number; gridX?: number; gridY?: number }> = [];
   try {
     layout = JSON.parse(String(formData.get("widgetLayout") ?? "[]"));
   } catch {
@@ -35,6 +46,8 @@ export async function saveDashboardWidgets(formData: FormData) {
       prisma.dashboardWidgetPreference.create({
         data: {
           height: Math.min(6, Math.max(1, Number(item.height) || 2)),
+          gridX: Math.min(7, Math.max(0, Number(item.gridX) || 0)),
+          gridY: Math.max(0, Number(item.gridY) || 0),
           sortOrder,
           userId: session.user.id,
           widgetKey: item.key,

@@ -116,6 +116,7 @@ model ProjectNote {
 
   visibility           String  @default("INTERNAL")
   includeInDailyReport Boolean @default(true)
+  createdByUserId      String?
   createdByName        String?
 
   createdAt DateTime @default(now())
@@ -127,6 +128,7 @@ model ProjectNote {
   @@index([category])
   @@index([includeInDailyReport])
   @@index([visibility])
+  @@index([createdByUserId])
 }
 
 model ProjectWeatherLog {
@@ -190,6 +192,10 @@ model ProjectDailyReport {
   weatherNotes                 String?
   workStart                    String?
   workEnd                      String?
+  break1From                   String?
+  break1To                     String?
+  break2From                   String?
+  break2To                     String?
   trafficSafetyFirstCheckTime  String?
   trafficSafetySecondCheckTime String?
   laborJson                    String?
@@ -208,6 +214,8 @@ model ProjectDailyReport {
   approvedFieldsJson           String?
   approvedAt                   DateTime?
   approvedByName               String?
+  createdByUserId              String?
+  createdByName                String?
   photos                       ProjectDailyReportPhoto[]
 
   createdAt DateTime @default(now())
@@ -218,6 +226,7 @@ model ProjectDailyReport {
   @@index([reportDate])
   @@index([reportNumber])
   @@index([status])
+  @@index([createdByUserId])
 }
 
 model ProjectPhoto {
@@ -1271,6 +1280,8 @@ model DashboardWidgetPreference {
   size      String  @default("NORMAL")
   width     Int     @default(2)
   height    Int     @default(2)
+  gridX     Int?
+  gridY     Int?
   isVisible Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -1587,6 +1598,91 @@ model WorkTimePreset {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model CrewTimeEntry {
+  id String @id @default(cuid())
+
+  projectId String
+  crewId    String
+  workDate  DateTime
+
+  projectNumber String @default("")
+  projectName   String @default("")
+  crewName      String @default("")
+
+  defaultStartTime  String  @default("07:00")
+  defaultEndTime    String  @default("17:00")
+  defaultBreak1From String?
+  defaultBreak1To   String?
+  defaultBreak2From String?
+  defaultBreak2To   String?
+
+  status String @default("DRAFT")
+
+  recordedByUserId String?
+  recordedByName   String?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  approvedByUserId String?
+  approvedByName   String?
+  notes            String?
+
+  employees CrewTimeEmployee[]
+  revisions CrewTimeEntryRevision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, crewId, workDate])
+  @@index([projectId, workDate])
+  @@index([crewId, workDate])
+  @@index([status])
+}
+
+model CrewTimeEmployee {
+  id String @id @default(cuid())
+
+  entryId String
+  entry   CrewTimeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  employeeId   String
+  employeeName String
+  roleLabel    String?
+
+  startTime        String
+  endTime          String
+  break1From       String?
+  break1To         String?
+  break2From       String?
+  break2To         String?
+  netHours         Float   @default(0)
+  isPresent        Boolean @default(true)
+  attendanceStatus String  @default("NOT_CHECKED_IN")
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entryId, employeeId])
+  @@index([entryId])
+  @@index([employeeId])
+}
+
+model CrewTimeEntryRevision {
+  id String @id @default(cuid())
+
+  entryId String
+  entry   CrewTimeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  version         Int
+  snapshotJson    String
+  changedByUserId String?
+  changedByName   String?
+  createdAt       DateTime @default(now())
+
+  @@unique([entryId, version])
+  @@index([entryId])
 }
 
 model Crew {

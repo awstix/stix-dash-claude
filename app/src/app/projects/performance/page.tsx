@@ -3,8 +3,10 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectManager } from "../ProjectManager";
+import { denyRoleUnlessAdmin } from "@/lib/auth-access";
 
 export default async function ProjectPerformancePage() {
+  await denyRoleUnlessAdmin("foreman");
   const [projects, constructionManagerEmployees] = await Promise.all([
     prisma.project.findMany({
       orderBy: {

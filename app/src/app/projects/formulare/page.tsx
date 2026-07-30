@@ -9,6 +9,7 @@ import {
   parseProjectFormSnapshotSettings,
   parseProjectFormValues,
 } from "../projectFormTypes";
+import { getAccessibleProjectIds } from "@/lib/auth-access";
 
 export default async function ProjectFormsPage({
   searchParams,
@@ -16,8 +17,16 @@ export default async function ProjectFormsPage({
   searchParams?: Promise<{ projectId?: string }>;
 }) {
   const initialProjectId = (await searchParams)?.projectId ?? "";
+  const accessibleProjectIds = await getAccessibleProjectIds();
+  const projectWhere =
+    accessibleProjectIds === null ? undefined : { id: { in: accessibleProjectIds } };
+  const contentWhere =
+    accessibleProjectIds === null
+      ? undefined
+      : { projectId: { in: accessibleProjectIds } };
   const [projects, templates, submissions, companyInfo] = await Promise.all([
     prisma.project.findMany({
+      where: projectWhere,
       orderBy: [{ projectNumber: "asc" }],
       select: {
         id: true,
@@ -29,6 +38,7 @@ export default async function ProjectFormsPage({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.projectFormSubmission.findMany({
+      where: contentWhere,
       include: {
         project: {
           select: {
