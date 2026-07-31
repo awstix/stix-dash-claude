@@ -39,7 +39,7 @@ export function HazardousSubstanceArchiveDialog({
       {open ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1300] flex items-center justify-center bg-gray-950/60 p-4"
+          className="fixed inset-0 z-[var(--z-modal-nested)] flex items-center justify-center bg-gray-950/60 p-4"
           onClick={() => setOpen(false)}
           role="dialog"
         >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 import { HAZARD_SYMBOLS } from "@/lib/hazard-register-constants";
 
@@ -95,7 +96,7 @@ export function HazardousSubstanceModal({
       {open ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1200] overflow-y-auto bg-gray-950/55 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[var(--z-modal)] overflow-y-auto bg-gray-950/55 p-4 backdrop-blur-sm"
           role="dialog"
           style={{ color: "#000000" }}
         >
@@ -115,7 +116,7 @@ export function HazardousSubstanceModal({
                 onClick={() => setOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

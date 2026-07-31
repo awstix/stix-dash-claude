@@ -17,28 +17,10 @@ function getSubmitterText(submitter: HTMLElement | null) {
 
 function getFeedbackTexts(form: HTMLFormElement, submitter: HTMLElement | null) {
   const submitterText = getSubmitterText(submitter).toLowerCase();
-  const method = String(form.getAttribute("method") ?? form.method ?? "get")
-    .toLowerCase()
-    .trim();
   const action = String(form.getAttribute("action") ?? "").toLowerCase();
 
-  if (
-    method === "get" &&
-    !submitterText.includes("speicher") &&
-    !submitterText.includes("lösch") &&
-    !submitterText.includes("loesch")
-  ) {
-    return null;
-  }
-
-  if (
-    submitterText.includes("filter") ||
-    submitterText.includes("export") ||
-    submitterText.includes("anzeigen") ||
-    submitterText.includes("öffnen") ||
-    submitterText.includes("oeffnen") ||
-    action.includes("/export")
-  ) {
+  // Datei-Downloads haben ihre eigene Browser-Rückmeldung, keine zusätzliche Meldung nötig.
+  if (action.includes("/export")) {
     return null;
   }
 
@@ -63,14 +45,25 @@ function getFeedbackTexts(form: HTMLFormElement, submitter: HTMLElement | null) 
     };
   }
 
-  if (method === "post") {
+  if (submitterText.includes("zurücksetzen") || submitterText.includes("zuruecksetzen")) {
     return {
-      done: "Aktion wurde ausgeführt.",
-      pending: "Aktion wird ausgeführt...",
+      done: "Zurückgesetzt.",
+      pending: "Wird zurückgesetzt...",
     };
   }
 
-  return null;
+  if (submitterText.includes("filter") || submitterText.includes("anwenden")) {
+    return {
+      done: "Filter angewendet.",
+      pending: "Filter wird angewendet...",
+    };
+  }
+
+  // Alles andere bekommt trotzdem eine Rückmeldung, statt stillschweigend zu wirken.
+  return {
+    done: "Aktualisiert.",
+    pending: "Wird aktualisiert...",
+  };
 }
 
 export function GlobalFormFeedback() {
@@ -159,7 +152,7 @@ export function GlobalFormFeedback() {
 
   return (
     <div
-      className={`fixed bottom-5 right-5 z-[2000] max-w-sm rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
+      className={`fixed bottom-5 right-5 z-[var(--z-toast)] max-w-sm rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
         feedback.tone === "pending"
           ? "border-blue-200 bg-blue-50 text-blue-950"
           : "border-green-200 bg-green-50 text-green-950"

@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/auth-access";
 import {
   cleanupLegacyMasterData,
   resetDashboardData,
 } from "@/lib/data-maintenance";
 
 export async function resetDashboardDataAction(formData: FormData) {
+  await requireAdmin();
   const confirmation = String(formData.get("confirmation") ?? "").trim();
 
   if (confirmation !== "RESET") {
@@ -33,6 +35,7 @@ export async function resetDashboardDataAction(formData: FormData) {
 }
 
 export async function cleanupLegacyMasterDataAction() {
+  await requireAdmin();
   const result = cleanupLegacyMasterData();
   const params = new URLSearchParams({
     backup: result.backupPath,

@@ -109,7 +109,7 @@ export function AppHeader({
 
   return (
     <header
-      className="sticky top-0 z-[100] border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+      className="sticky top-0 z-[var(--z-header)] border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur"
       ref={headerRef}
     >
       <div className="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8 2xl:px-10">
@@ -433,7 +433,7 @@ function NavigationMenu({
       {isOpen ? (
         <div
           aria-label={label}
-          className="absolute left-0 top-11 z-[110] min-w-[260px] rounded-xl border border-gray-200 bg-white p-2 shadow-xl"
+          className="absolute left-0 top-11 z-[var(--z-header-dropdown)] min-w-[260px] rounded-xl border border-gray-200 bg-white p-2 shadow-xl"
           role="menu"
         >
           {items.map((item) => (

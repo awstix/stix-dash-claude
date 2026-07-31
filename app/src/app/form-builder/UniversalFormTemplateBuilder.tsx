@@ -374,7 +374,7 @@ export function UniversalFormTemplateBuilder({
       </section>
 
       {editing ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/45 p-4">
           <form
             onSubmit={submit}
             className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white text-gray-950 shadow-2xl"
@@ -390,7 +390,7 @@ export function UniversalFormTemplateBuilder({
                 onClick={() => setEditing(null)}
                 className="text-3xl text-gray-500"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
             <div className="grid gap-6 p-6 lg:grid-cols-[300px_1fr]">

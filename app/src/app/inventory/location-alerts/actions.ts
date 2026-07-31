@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -15,6 +16,7 @@ function revalidateInventoryLocationAlerts() {
 }
 
 export async function assignInventoryLocationAlert(formData: FormData) {
+  await requireSession();
   const alertId = optionalString(formData.get("alertId"));
   const projectId = optionalString(formData.get("projectId"));
   const assignedByName =
@@ -77,6 +79,7 @@ export async function assignInventoryLocationAlert(formData: FormData) {
 }
 
 export async function dismissInventoryLocationAlert(formData: FormData) {
+  await requireSession();
   const alertId = optionalString(formData.get("alertId"));
   const resolvedByName =
     optionalString(formData.get("resolvedByName")) ??

@@ -8,6 +8,7 @@ import {
   type GeneralRiskAssessmentAnswer,
 } from "@/lib/general-risk-assessments";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key)?.toString().trim();
@@ -34,6 +35,7 @@ function validityMonthsValue(formData: FormData) {
 }
 
 export async function saveGeneralRiskAssessment(formData: FormData) {
+  await requireSession();
   const id = text(formData, "id");
   const templateKey = text(formData, "templateKey");
   const template = templateKey

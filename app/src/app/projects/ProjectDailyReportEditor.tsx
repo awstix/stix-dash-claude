@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import type { PointerEvent, ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -996,7 +997,7 @@ function DailyReportPhotoGallery({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div
@@ -1354,7 +1355,7 @@ function CompositionButton({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-950/45 p-4"
+          className="fixed inset-0 z-[var(--z-modal-nested)] flex items-center justify-center bg-gray-950/45 p-4"
           onClick={() => setIsOpen(false)}
           role="presentation"
         >
@@ -1381,7 +1382,7 @@ function CompositionButton({
                 type="button"
                 aria-label="Schließen"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

@@ -3,6 +3,19 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /*
+   * Einheitliche Stacking-Skala für alles, was über dem normalen
+   * Seiteninhalt schwebt. Bitte für neue Overlays diese Variablen nutzen
+   * (z.B. z-[var(--z-modal)]) statt neue Zahlen zu erfinden.
+   */
+  --z-header: 200;
+  --z-header-dropdown: 210;
+  --z-popover: 500;
+  --z-modal: 1000;
+  --z-modal-nested: 1100;
+  --z-drag-indicator: 9000;
+  --z-toast: 9999;
 }
 
 @theme inline {

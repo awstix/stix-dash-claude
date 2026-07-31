@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 export async function updatePersonalInventoryManagers(formData: FormData) {
+  await requireAdmin();
   const employeeIds = Array.from(
     new Set(
       formData

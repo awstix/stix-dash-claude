@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionIcon } from "@/components/ActionIcon";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
@@ -1062,10 +1063,10 @@ export default async function AsphaltDispatchPage({
                           <label
                             htmlFor={overlayId}
                             aria-label="Asphalt-Eintrag schließen"
-                            className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+                            className="fixed inset-0 z-[var(--z-modal)] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
                           />
 
-                          <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+                          <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[var(--z-modal)] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
                             <div className="mb-4 flex items-start justify-between gap-4">
                               <div>
                                 <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1080,7 +1081,7 @@ export default async function AsphaltDispatchPage({
                                 className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
                                 aria-label="Asphalt-Eintrag schließen"
                               >
-                                ×
+                                <ActionIcon name="close" className="h-4 w-4" />
                               </label>
                             </div>
 
@@ -1221,10 +1222,10 @@ export default async function AsphaltDispatchPage({
                       <label
                         htmlFor={createOverlayId}
                         aria-label="Asphalt-Maßnahme schließen"
-                        className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+                        className="fixed inset-0 z-[var(--z-modal)] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
                       />
 
-                      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+                      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[var(--z-modal)] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
                         <div className="mb-4 flex items-start justify-between gap-4">
                           <div>
                             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1239,7 +1240,7 @@ export default async function AsphaltDispatchPage({
                             className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
                             aria-label="Asphalt-Maßnahme schließen"
                           >
-                            ×
+                            <ActionIcon name="close" className="h-4 w-4" />
                           </label>
                         </div>
 

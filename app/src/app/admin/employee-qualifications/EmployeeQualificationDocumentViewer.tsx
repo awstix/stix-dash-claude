@@ -227,7 +227,7 @@ export function EmployeeQualificationDocumentViewer({
 
   return (
     <div
-      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/75 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/75 p-4"
       onClick={onClose}
     >
       <div

@@ -283,7 +283,7 @@ export default async function ProjectsPage({
                 ) : null}
               </summary>
 
-              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+              <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                 <div className="text-sm font-bold text-gray-900">
                   Projekte filtern
                 </div>

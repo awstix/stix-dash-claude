@@ -55,7 +55,7 @@ export function InventoryCategoryEditDialog({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/55 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/55 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -77,7 +77,7 @@ export function InventoryCategoryEditDialog({
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

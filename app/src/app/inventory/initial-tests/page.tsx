@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -166,7 +167,7 @@ export default async function InitialTestsPage({
                       <div className="flex flex-nowrap gap-1">
                         <details className="group">
                           <summary aria-label="Bearbeiten" className="inline-flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-gray-500 bg-white text-base font-black text-gray-950 hover:bg-gray-100" title="Bearbeiten">✎</summary>
-                          <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 p-4">
+                          <div className="fixed inset-0 z-[var(--z-modal)] overflow-y-auto bg-black/60 p-4">
                             <div className="mx-auto my-6 max-w-6xl rounded-2xl bg-white p-6 text-gray-950 shadow-2xl">
                               <div className="flex items-center justify-between gap-4">
                                 <h2 className="text-xl font-bold">Erstprüfung bearbeiten</h2>
@@ -176,7 +177,7 @@ export default async function InitialTestsPage({
                                   href="/inventory/initial-tests"
                                   title="Schließen"
                                 >
-                                  ×
+                                  <ActionIcon name="close" className="h-4 w-4" />
                                 </a>
                               </div>
                               <InitialTestForm action={updateInitialTest} initial={test} submitLabel="Änderungen speichern" />

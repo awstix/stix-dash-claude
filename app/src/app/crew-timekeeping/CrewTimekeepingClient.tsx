@@ -30,6 +30,14 @@ type Entry = {
 
 const inputClass = "rounded-lg border border-gray-500 bg-white px-2 py-2 text-sm font-bold text-gray-950";
 
+type StampField =
+  | "startTime"
+  | "endTime"
+  | "break1From"
+  | "break1To"
+  | "break2From"
+  | "break2To";
+
 export function CrewTimekeepingClient({
   canApprove,
   entries: initialEntries,
@@ -109,6 +117,26 @@ export function CrewTimekeepingClient({
       index === employeeIndex ? { ...employee, ...patch } : employee,
     );
     patchEntry(entryIndex, { employees });
+  }
+
+  const stampFieldStatus: Record<
+    StampField,
+    CrewTimeEmployeeInput["attendanceStatus"]
+  > = {
+    break1From: "BREAK",
+    break1To: "CHECKED_IN",
+    break2From: "BREAK",
+    break2To: "CHECKED_IN",
+    endTime: "CHECKED_OUT",
+    startTime: "CHECKED_IN",
+  };
+
+  function stampNow(entryIndex: number, employeeIndex: number, field: StampField) {
+    patchEmployee(entryIndex, employeeIndex, {
+      [field]: currentTime(),
+      attendanceStatus: stampFieldStatus[field],
+      isPresent: true,
+    });
   }
 
   function save(index: number, status: "DRAFT" | "SUBMITTED") {
@@ -210,12 +238,79 @@ export function CrewTimekeepingClient({
             <button className="rounded-lg bg-green-800 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-gray-500" disabled={locked} onClick={() => setAllAttendance(entryIndex, "CHECKED_OUT")} type="button">Alle Feierabend</button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
+          <div className="divide-y divide-gray-300 lg:hidden">
+            {entry.employees.map((employee, employeeIndex) => (
+              <div className="p-4" key={employee.employeeId}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-black">{employee.employeeName}</div>
+                    <div className="text-xs font-bold text-gray-600">{employee.roleLabel}</div>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${attendanceStatusClass(employee.attendanceStatus)}`}>
+                    {attendanceStatusLabel(employee.attendanceStatus)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <StampButton disabled={locked} label="Kommt" time={employee.startTime} onClick={() => stampNow(entryIndex, employeeIndex, "startTime")} />
+                  <StampButton disabled={locked} label="Feierabend" time={employee.endTime} onClick={() => stampNow(entryIndex, employeeIndex, "endTime")} />
+                  <StampButton disabled={locked} label="Pause 1 Beginn" time={employee.break1From} onClick={() => stampNow(entryIndex, employeeIndex, "break1From")} />
+                  <StampButton disabled={locked} label="Pause 1 Ende" time={employee.break1To} onClick={() => stampNow(entryIndex, employeeIndex, "break1To")} />
+                  <StampButton disabled={locked} label="Pause 2 Beginn" time={employee.break2From} onClick={() => stampNow(entryIndex, employeeIndex, "break2From")} />
+                  <StampButton disabled={locked} label="Pause 2 Ende" time={employee.break2To} onClick={() => stampNow(entryIndex, employeeIndex, "break2To")} />
+                </div>
+
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-black text-gray-600">
+                    Zeiten manuell anpassen
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <TimeField disabled={locked} label="Beginn" value={employee.startTime} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { startTime: value })} />
+                    <TimeField disabled={locked} label="Ende" value={employee.endTime} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { endTime: value })} />
+                    <TimeField disabled={locked} label="Pause 1 von" value={employee.break1From} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break1From: value })} />
+                    <TimeField disabled={locked} label="Pause 1 bis" value={employee.break1To} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break1To: value })} />
+                    <TimeField disabled={locked} label="Pause 2 von" value={employee.break2From} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break2From: value })} />
+                    <TimeField disabled={locked} label="Pause 2 bis" value={employee.break2To} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break2To: value })} />
+                    <label className="col-span-2 text-sm font-black">
+                      Status
+                      <select
+                        disabled={locked}
+                        className={`${inputClass} mt-1 w-full`}
+                        onChange={(event) => {
+                          const attendanceStatus = event.target.value as CrewTimeEmployeeInput["attendanceStatus"];
+                          patchEmployee(entryIndex, employeeIndex, {
+                            attendanceStatus,
+                            endTime:
+                              attendanceStatus === "CHECKED_OUT"
+                                ? currentTime()
+                                : employee.endTime,
+                            isPresent: attendanceStatus !== "NOT_CHECKED_IN",
+                          });
+                        }}
+                        value={employee.attendanceStatus}
+                      >
+                        <option value="NOT_CHECKED_IN">Nicht angemeldet</option>
+                        <option value="CHECKED_IN">Angemeldet</option>
+                        <option value="BREAK">Pause</option>
+                        <option value="CHECKED_OUT">Feierabend</option>
+                      </select>
+                    </label>
+                    <label className="col-span-2 text-sm font-black">
+                      Bemerkung
+                      <input className={`${inputClass} mt-1 w-full`} disabled={locked} value={employee.notes} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { notes: event.target.value })} />
+                    </label>
+                  </div>
+                </details>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="bg-gray-950 text-white">
                 <tr>
-                  <th className="p-3">Status</th><th className="p-3">Mitarbeiter</th><th className="p-3">Beginn</th><th className="p-3">Ende</th>
-                  <th className="p-3">Pause 1</th><th className="p-3">Pause 2</th><th className="p-3">Bemerkung</th>
+                  <th className="w-24 p-2">Status</th><th className="p-2">Mitarbeiter</th><th className="w-28 p-2">Beginn</th><th className="w-28 p-2">Ende</th>
+                  <th className="w-28 p-2">Pause 1</th><th className="w-28 p-2">Pause 2</th><th className="p-2">Bemerkung</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,7 +319,7 @@ export function CrewTimekeepingClient({
                     <td className="p-2">
                       <select
                         disabled={locked}
-                        className={`${inputClass} w-full min-w-36`}
+                        className={`${inputClass} w-full px-1 py-1.5 text-xs`}
                         onChange={(event) => {
                           const attendanceStatus = event.target.value as CrewTimeEmployeeInput["attendanceStatus"];
                           patchEmployee(entryIndex, employeeIndex, {
@@ -244,12 +339,26 @@ export function CrewTimekeepingClient({
                         <option value="CHECKED_OUT">Feierabend</option>
                       </select>
                     </td>
-                    <td className="p-3 font-black">{employee.employeeName}<div className="text-xs font-bold">{employee.roleLabel}</div></td>
-                    <td className="p-2"><input className={inputClass} disabled={locked} type="time" value={employee.startTime} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { startTime: event.target.value })} /></td>
-                    <td className="p-2"><input className={inputClass} disabled={locked} type="time" value={employee.endTime} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { endTime: event.target.value })} /></td>
-                    <td className="p-2"><div className="flex gap-1"><input className={inputClass} disabled={locked} type="time" value={employee.break1From} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { break1From: event.target.value })} /><input className={inputClass} disabled={locked} type="time" value={employee.break1To} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { break1To: event.target.value })} /></div></td>
-                    <td className="p-2"><div className="flex gap-1"><input className={inputClass} disabled={locked} type="time" value={employee.break2From} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { break2From: event.target.value })} /><input className={inputClass} disabled={locked} type="time" value={employee.break2To} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { break2To: event.target.value })} /></div></td>
-                    <td className="p-2"><input className={`${inputClass} w-full`} disabled={locked} value={employee.notes} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { notes: event.target.value })} /></td>
+                    <td className="p-2 font-black">{employee.employeeName}<div className="text-xs font-bold">{employee.roleLabel}</div></td>
+                    <td className="p-2">
+                      <StampedTimeInput disabled={locked} value={employee.startTime} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { startTime: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "startTime")} />
+                    </td>
+                    <td className="p-2">
+                      <StampedTimeInput disabled={locked} value={employee.endTime} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { endTime: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "endTime")} />
+                    </td>
+                    <td className="p-2">
+                      <div className="flex flex-col gap-1">
+                        <StampedTimeInput disabled={locked} value={employee.break1From} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break1From: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "break1From")} />
+                        <StampedTimeInput disabled={locked} value={employee.break1To} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break1To: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "break1To")} />
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <div className="flex flex-col gap-1">
+                        <StampedTimeInput disabled={locked} value={employee.break2From} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break2From: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "break2From")} />
+                        <StampedTimeInput disabled={locked} value={employee.break2To} onChange={(value) => patchEmployee(entryIndex, employeeIndex, { break2To: value })} onStamp={() => stampNow(entryIndex, employeeIndex, "break2To")} />
+                      </div>
+                    </td>
+                    <td className="p-2"><input className={`${inputClass} w-full px-2 py-1.5 text-xs`} disabled={locked} value={employee.notes} onChange={(event) => patchEmployee(entryIndex, employeeIndex, { notes: event.target.value })} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -294,6 +403,77 @@ export function CrewTimekeepingClient({
 
 function TimeField({ disabled = false, label, onChange, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; value: string }) {
   return <label className="text-sm font-black">{label}<input className={`${inputClass} mt-1 w-full`} disabled={disabled} onChange={(event) => onChange(event.target.value)} type="time" value={value} /></label>;
+}
+
+function StampedTimeInput({
+  disabled = false,
+  onChange,
+  onStamp,
+  value,
+}: {
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  onStamp: () => void;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        className={`${inputClass} w-[4.6rem] px-1 py-1.5 text-xs`}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        type="time"
+        value={value}
+      />
+      <button
+        className="shrink-0 rounded-lg border border-gray-500 bg-gray-100 px-1.5 py-1.5 text-sm text-gray-950 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        onClick={onStamp}
+        title="Jetzt stempeln"
+        type="button"
+      >
+        ⏱
+      </button>
+    </div>
+  );
+}
+
+function StampButton({
+  disabled = false,
+  label,
+  onClick,
+  time,
+}: {
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+  time: string;
+}) {
+  return (
+    <button
+      className="rounded-xl border border-gray-500 bg-gray-100 px-3 py-3 text-left font-black text-gray-950 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-600">{label}</div>
+      <div className="text-lg">{time}</div>
+    </button>
+  );
+}
+
+function attendanceStatusLabel(status: CrewTimeEmployeeInput["attendanceStatus"]) {
+  if (status === "CHECKED_IN") return "Angemeldet";
+  if (status === "BREAK") return "Pause";
+  if (status === "CHECKED_OUT") return "Feierabend";
+  return "Nicht angemeldet";
+}
+
+function attendanceStatusClass(status: CrewTimeEmployeeInput["attendanceStatus"]) {
+  if (status === "CHECKED_IN") return "bg-blue-900 text-white";
+  if (status === "BREAK") return "bg-amber-500 text-gray-950";
+  if (status === "CHECKED_OUT") return "bg-green-800 text-white";
+  return "bg-gray-300 text-gray-800";
 }
 
 function statusLabel(status: string) {

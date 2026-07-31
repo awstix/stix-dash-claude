@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -25,6 +26,7 @@ function refresh() {
 }
 
 export async function setAutomaticHolidayState(formData: FormData) {
+  await requireSession();
   const date = dateValue(value(formData, "date"));
   const name = value(formData, "name");
   if (!name) throw new Error("Bezeichnung fehlt.");
@@ -55,6 +57,7 @@ export async function setAutomaticHolidayState(formData: FormData) {
 }
 
 export async function createManualDayOff(formData: FormData) {
+  await requireSession();
   const date = dateValue(value(formData, "date"));
   const endDateRaw = value(formData, "endDate");
   const endDate = endDateRaw ? dateValue(endDateRaw) : date;
@@ -81,6 +84,7 @@ export async function createManualDayOff(formData: FormData) {
 }
 
 export async function updateManualDayOff(formData: FormData) {
+  await requireSession();
   const id = value(formData, "id");
   if (!id) throw new Error("Eintrag fehlt.");
 
@@ -108,6 +112,7 @@ export async function updateManualDayOff(formData: FormData) {
 }
 
 export async function deleteManualDayOff(formData: FormData) {
+  await requireSession();
   const id = value(formData, "id");
   if (!id) throw new Error("Eintrag fehlt.");
   await prisma.dispositionDayOff.delete({ where: { id } });

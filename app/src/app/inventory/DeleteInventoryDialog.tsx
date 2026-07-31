@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { deleteCompleteInventory } from "./actions";
 
 export function DeleteInventoryDialog({
@@ -24,7 +25,7 @@ export function DeleteInventoryDialog({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[180] flex items-center justify-center bg-gray-950/60 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/60 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -48,7 +49,7 @@ export function DeleteInventoryDialog({
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

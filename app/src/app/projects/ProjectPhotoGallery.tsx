@@ -730,7 +730,7 @@ export function PhotoDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div
@@ -1202,7 +1202,7 @@ function getCameraLabel(photo: ProjectPhotoGalleryItem) {
   return [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ") || "-";
 }
 
-function getUploaderLabel(photo: ProjectPhotoGalleryItem) {
+export function getUploaderLabel(photo: ProjectPhotoGalleryItem) {
   return photo.uploadedByName || "Unbekannt";
 }
 
@@ -1333,7 +1333,7 @@ function getPhotoDownloadFileName(photo: ProjectPhotoGalleryItem) {
   return urlParts.at(-1) || `projektfoto-${photo.id}`;
 }
 
-function formatDateTime(value: string) {
+export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     hour: "2-digit",

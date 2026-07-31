@@ -30,7 +30,7 @@ export function ArchiveInventoryItemDialog({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[190] flex items-center justify-center bg-gray-950/60 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/60 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -55,7 +55,7 @@ export function ArchiveInventoryItemDialog({
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

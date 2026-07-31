@@ -921,7 +921,7 @@ export function GeneralRiskAssessmentForm({
       {missingItems ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1500] flex items-center justify-center bg-gray-950/65 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/65 p-4"
           role="dialog"
         >
           <div className="w-full max-w-lg border border-black bg-white p-6 text-black shadow-2xl">

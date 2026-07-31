@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 type ExcelRow = Record<string, unknown>;
 type ImportErrorRow = {
@@ -409,6 +410,7 @@ function revalidateTrainingViews(employeeIds: string[] = []) {
 }
 
 export async function createEmployeeTrainingType(formData: FormData) {
+  await requireSession();
   const payload = getTrainingPayload(formData);
 
   if (!payload.topic) {
@@ -431,6 +433,7 @@ export async function createEmployeeTrainingType(formData: FormData) {
 }
 
 export async function updateEmployeeTrainingType(formData: FormData) {
+  await requireSession();
   const trainingTypeId = optionalString(formData.get("trainingTypeId"));
   const oldTopic = optionalString(formData.get("oldTopic"));
   const payload = getTrainingPayload(formData);
@@ -541,6 +544,7 @@ export async function updateEmployeeTrainingType(formData: FormData) {
 }
 
 export async function deleteEmployeeTrainingType(formData: FormData) {
+  await requireSession();
   const trainingTypeId = optionalString(formData.get("trainingTypeId"));
   const rawTopic = optionalString(formData.get("topic"));
 
@@ -652,6 +656,7 @@ async function resolveTrainingTypeSelection(trainingTypeId: string | null) {
 }
 
 export async function createEmployeeTrainingRecord(formData: FormData) {
+  await requireSession();
   const employeeId = optionalString(formData.get("employeeId"));
 
   if (!employeeId) {
@@ -720,6 +725,7 @@ export async function createEmployeeTrainingRecord(formData: FormData) {
 export async function createEmployeeTrainingRecordsForParticipants(
   formData: FormData,
 ) {
+  await requireSession();
   const employeeIds = formData
     .getAll("employeeIds")
     .map((value) => String(value).trim())
@@ -769,6 +775,7 @@ export async function createEmployeeTrainingRecordsForParticipants(
 }
 
 export async function updateEmployeeTrainingRecord(formData: FormData) {
+  await requireSession();
   const id = optionalString(formData.get("id"));
   const employeeId = optionalString(formData.get("employeeId"));
 
@@ -855,6 +862,7 @@ export async function updateEmployeeTrainingRecord(formData: FormData) {
 }
 
 export async function uploadEmployeeTrainingRecordDocument(formData: FormData) {
+  await requireSession();
   const trainingRecordId = optionalString(formData.get("trainingRecordId"));
   const employeeId = optionalString(formData.get("employeeId"));
   const uploadedByName =
@@ -938,6 +946,7 @@ export async function uploadEmployeeTrainingRecordDocument(formData: FormData) {
 }
 
 export async function deleteEmployeeTrainingRecordDocument(formData: FormData) {
+  await requireSession();
   const documentId = optionalString(formData.get("documentId"));
   const employeeId = optionalString(formData.get("employeeId"));
 
@@ -1047,6 +1056,7 @@ async function readExcelRows(file: File) {
 }
 
 export async function importEmployeeTrainingsFromExcel(formData: FormData) {
+  await requireSession();
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -1327,6 +1337,7 @@ export async function importEmployeeTrainingsFromExcel(formData: FormData) {
 }
 
 export async function deleteEmployeeTrainingRecord(formData: FormData) {
+  await requireSession();
   const id = optionalString(formData.get("id"));
   const employeeId = optionalString(formData.get("employeeId"));
 

@@ -8,6 +8,7 @@ import {
   normalizePrimaryAssignmentForDriver,
 } from "@/lib/driver-vehicle-inventory-sync";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -218,6 +219,7 @@ async function resolveInventoryVehicleAssignmentInput(
 }
 
 export async function createDriverVehicleAssignment(formData: FormData) {
+  await requireAdmin();
   const personInput = getPersonInput(formData);
   const inventoryItemId = getInventoryItemInput(formData);
   const isPrimary = formData.get("isPrimary") === "on";
@@ -286,6 +288,7 @@ export async function createDriverVehicleAssignment(formData: FormData) {
 }
 
 export async function updateDriverVehicleAssignment(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
   const personInput = getPersonInput(formData);
   const inventoryItemId = getInventoryItemInput(formData);
@@ -388,6 +391,7 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
 }
 
 export async function deleteDriverVehicleAssignment(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -422,6 +426,7 @@ export async function deleteDriverVehicleAssignment(formData: FormData) {
 }
 
 export async function normalizeDriverVehicleAssignments(formData: FormData) {
+  await requireAdmin();
   await prisma.$transaction(async (tx) => {
     const duplicateDrivers = await tx.driverVehicleAssignment.groupBy({
       by: ["driverId"],

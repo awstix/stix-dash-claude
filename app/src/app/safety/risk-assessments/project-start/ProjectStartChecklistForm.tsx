@@ -282,7 +282,7 @@ export function ProjectStartChecklistForm({
     {missingAssessments > 0 ? (
       <div
         aria-modal="true"
-        className="fixed inset-0 z-[1500] flex items-center justify-center bg-gray-950/65 p-4"
+        className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/65 p-4"
         onClick={() => setMissingAssessments(0)}
         role="dialog"
       >

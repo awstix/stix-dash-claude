@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 const LKW_DRIVER_POSITION_VALUE = "lkw_fahrer_in";
 const employeePhotoUploadDirectory = path.join(
@@ -238,6 +239,7 @@ function getEmployeePayload(formData: FormData) {
 }
 
 export async function createEmployee(formData: FormData) {
+  await requireAdmin();
   const payload = getEmployeePayload(formData);
   const photoUrl = await storeEmployeePhoto(employeePhotoFromFormData(formData));
 
@@ -308,6 +310,7 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function updateEmployee(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -407,6 +410,7 @@ export async function updateEmployee(formData: FormData) {
 }
 
 export async function deleteEmployee(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

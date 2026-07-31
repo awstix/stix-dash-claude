@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 type ImportType =
   | "employees"
@@ -1282,6 +1283,7 @@ async function importOptions(rows: ExcelRow[]): Promise<ImportResult> {
 }
 
 export async function importExcel(formData: FormData) {
+  await requireAdmin();
   const importType = String(formData.get("importType") ?? "") as ImportType;
   const file = formData.get("file");
   const returnPath = getReturnPath(formData);

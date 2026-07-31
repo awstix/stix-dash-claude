@@ -315,7 +315,7 @@ function TrainingRecordEditModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-gray-950/70 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/70 p-4"
       onClick={onClose}
     >
       <div
@@ -528,7 +528,7 @@ function TrainingDocumentViewer({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/80 p-3"
+      className="fixed inset-0 z-[var(--z-modal-nested)] flex items-center justify-center bg-gray-950/80 p-3"
       onClick={onClose}
     >
       <div

@@ -603,7 +603,7 @@ export default async function InventoryDetailPage({
           <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100 [&::-webkit-details-marker]:hidden">
             Rückgabe
           </summary>
-          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+          <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
@@ -672,7 +672,7 @@ export default async function InventoryDetailPage({
           <summary className="inline-flex cursor-pointer list-none items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 [&::-webkit-details-marker]:hidden">
             Umdisponieren
           </summary>
-          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+          <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">

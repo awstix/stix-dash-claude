@@ -8,6 +8,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveWorkshopFormSubmission } from "./form-actions";
@@ -174,14 +175,14 @@ export function WorkshopFormCenter({
       </div>
 
       {showRepairOrder ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/45 p-4">
           <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 text-gray-950 shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 pb-4">
               <div>
                 <h2 className="text-xl font-semibold">{repairOrderTitle}</h2>
                 <p className="text-sm text-gray-500">Neuen Werkstattauftrag erfassen</p>
               </div>
-              <button type="button" onClick={() => setShowRepairOrder(false)} className="text-3xl leading-none text-gray-500">×</button>
+              <button type="button" onClick={() => setShowRepairOrder(false)} className="text-3xl leading-none text-gray-500"><ActionIcon name="close" className="h-4 w-4" /></button>
             </div>
             {repairOrderForm}
           </div>
@@ -189,14 +190,14 @@ export function WorkshopFormCenter({
       ) : null}
 
       {activeTemplate ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4">
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/45 p-4">
           <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white text-gray-950 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">{activeTemplate.name}</h2>
                 <p className="text-sm text-gray-500">Werkstattformular ausfüllen</p>
               </div>
-              <button type="button" onClick={close} className="text-3xl leading-none text-gray-500">×</button>
+              <button type="button" onClick={close} className="text-3xl leading-none text-gray-500"><ActionIcon name="close" className="h-4 w-4" /></button>
             </div>
             <form id="workshop-form-dialog" action={submit} className="p-6 text-gray-950">
               <div className="grid gap-4 md:grid-cols-4">

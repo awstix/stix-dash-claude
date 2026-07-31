@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { createPortal } from "react-dom";
 import { updateCrewPlanningAssignmentDates } from "./actions";
 
@@ -279,7 +280,7 @@ function renderChildrenWithCloseButton({
       aria-label="Fenster schließen"
       title="Fenster schließen"
     >
-      ×
+      <ActionIcon name="close" className="h-4 w-4" />
     </button>
   );
 
@@ -744,7 +745,7 @@ export function CrewAssignmentBar({
       ) : null}
 
       {errorMessage ? (
-        <div className="absolute left-0 top-full z-[100002] mt-1 max-w-[360px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 shadow-lg">
+        <div className="absolute left-0 top-full z-[var(--z-drag-indicator)] mt-1 max-w-[360px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 shadow-lg">
           {errorMessage}
         </div>
       ) : null}

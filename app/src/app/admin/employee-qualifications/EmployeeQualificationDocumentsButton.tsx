@@ -47,7 +47,7 @@ export function EmployeeQualificationDocumentsButton({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div

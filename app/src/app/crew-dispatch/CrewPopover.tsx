@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { createPortal } from "react-dom";
 
 type CrewPopoverProps = {
@@ -278,7 +279,7 @@ export function CrewPopover({
   }, [isOpen]);
 
   const panel = isOpen ? (
-    <div className="absolute left-0 top-0 z-[1200]">
+    <div className="absolute left-0 top-0 z-[var(--z-popover)]">
       <div
         ref={panelRef}
         className={`${panelClassName} pr-8`}
@@ -299,7 +300,7 @@ export function CrewPopover({
           aria-label="Fenster schließen"
           title="Fenster schließen"
         >
-          ×
+          <ActionIcon name="close" className="h-4 w-4" />
         </button>
 
         {children}

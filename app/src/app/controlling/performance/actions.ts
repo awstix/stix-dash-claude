@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 type ExcelRow = Record<string, unknown>;
 
@@ -216,6 +217,7 @@ async function resolvePerformanceRateSet(rateSetId: string | null, periodEnd: Da
 }
 
 export async function createPerformanceReport(formData: FormData) {
+  await requireSession();
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const periodStart = requiredDate(formData.get("periodStart"), "Zeitraum von");
   const periodEnd = requiredDate(formData.get("periodEnd"), "Zeitraum bis");
@@ -263,6 +265,7 @@ export async function createPerformanceReport(formData: FormData) {
 }
 
 export async function updatePerformanceReport(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const periodStart = requiredDate(formData.get("periodStart"), "Zeitraum von");
@@ -307,6 +310,7 @@ export async function updatePerformanceReport(formData: FormData) {
 }
 
 export async function deletePerformanceReport(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
 
@@ -321,6 +325,7 @@ export async function deletePerformanceReport(formData: FormData) {
 }
 
 export async function addControllingDetailEntry(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const quantity = numberValue(formData.get("quantity"), "Menge");
@@ -357,6 +362,7 @@ export async function addControllingDetailEntry(formData: FormData) {
 }
 
 export async function addControllingHourEntry(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const labelType = text(formData.get("labelType")) || "CREW";
@@ -412,6 +418,7 @@ export async function addControllingHourEntry(formData: FormData) {
 }
 
 export async function addControllingInvoiceItem(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const billedQuantity = numberValue(formData.get("billedQuantity"), "RE-Menge");
@@ -452,6 +459,7 @@ export async function addControllingInvoiceItem(formData: FormData) {
 }
 
 export async function importItwoInvoiceItems(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const file = formData.get("itwoFile");
@@ -588,6 +596,7 @@ export async function importItwoInvoiceItems(formData: FormData) {
 }
 
 export async function importDetailEntriesFromExcel(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const file = formData.get("detailFile");
@@ -685,6 +694,7 @@ export async function importDetailEntriesFromExcel(formData: FormData) {
 }
 
 export async function importDispositionIntoPerformanceReport(formData: FormData) {
+  await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const report = await prisma.controllingPerformanceReport.findUniqueOrThrow({
@@ -1607,6 +1617,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
 }
 
 export async function saveEmployeeGroupRates(formData: FormData) {
+  await requireSession();
   const names = formData.getAll("rateName").map((value) => requiredText(value, "Gruppe"));
   const descriptions = formData.getAll("rateDescription");
   const realRates = formData.getAll("rateReal");

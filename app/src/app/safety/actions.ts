@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { requireAdmin, requireSession } from "@/lib/auth-access";
 import {
   nextHazardSequentialNumber,
   readHazardRegisterTemplate,
@@ -191,6 +192,7 @@ async function replaceTemplatePdf(file: File, fileName: string) {
 }
 
 export async function replaceSafetyPdfTemplate(formData: FormData) {
+  await requireSession();
   const templateKey = requiredString(formData.get("templateKey"), "Vorlage");
   const file = formData.get("templateFile");
 
@@ -210,6 +212,7 @@ export async function replaceSafetyPdfTemplate(formData: FormData) {
 }
 
 export async function saveSafetyFormTemplate(input: SafetyFormTemplateInput) {
+  await requireSession();
   const name = cleanSafetyFormText(input.name, 120);
   const fields = cleanSafetyFormFields(input.fields);
 
@@ -276,6 +279,7 @@ export async function saveSafetyFormTemplate(input: SafetyFormTemplateInput) {
 }
 
 export async function deleteSafetyFormTemplate(id: string) {
+  await requireSession();
   const templateId = cleanSafetyFormText(id, 100);
   if (!templateId) return;
 
@@ -428,6 +432,7 @@ async function createAccidentNotificationRows(accidentReportId: string) {
 }
 
 export async function createSafetyAccidentOfficer(formData: FormData) {
+  await requireSession();
   await prisma.safetyAccidentOfficer.upsert({
     create: {
       email: requiredString(formData.get("email"), "E-Mail"),
@@ -545,6 +550,7 @@ async function accidentReportData(formData: FormData) {
 }
 
 export async function createSafetyAccidentReport(formData: FormData) {
+  await requireSession();
   const data = await accidentReportData(formData);
   const { employeeRelation, projectRelation, ...reportData } = data;
 
@@ -574,6 +580,7 @@ export async function updateSafetyAccidentReport(
   reportId: string,
   formData: FormData,
 ) {
+  await requireSession();
   const data = await accidentReportData(formData);
   const { employeeRelation, projectRelation, ...reportData } = data;
 
@@ -601,6 +608,7 @@ export async function updateSafetyAccidentReport(
 }
 
 export async function deleteSafetyAccidentReport(formData: FormData) {
+  await requireSession();
   const reportId = requiredString(formData.get("reportId"), "Unfallmeldung");
 
   await prisma.safetyAccidentReport.delete({
@@ -718,6 +726,7 @@ function hazardousSubstanceData(
 }
 
 export async function createHazardousSubstance(formData: FormData) {
+  await requireSession();
   const files = formData
     .getAll("safetyDataSheets")
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
@@ -761,6 +770,7 @@ export async function createHazardousSubstance(formData: FormData) {
 }
 
 export async function updateHazardousSubstance(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Gefahrstoff");
   const existing = await prisma.safetyHazardousSubstance.findUnique({
     where: { id },
@@ -806,6 +816,7 @@ export async function updateHazardousSubstance(formData: FormData) {
 }
 
 export async function archiveHazardousSubstance(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Gefahrstoff");
   await prisma.safetyHazardousSubstance.update({
     data: { isActive: false },
@@ -816,6 +827,7 @@ export async function archiveHazardousSubstance(formData: FormData) {
 }
 
 export async function archiveTemplateHazardousSubstance(formData: FormData) {
+  await requireSession();
   const templateRowId = requiredString(
     formData.get("templateRowId"),
     "Excel-Zeile",
@@ -856,6 +868,7 @@ export async function archiveTemplateHazardousSubstance(formData: FormData) {
 }
 
 export async function restoreHazardousSubstance(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Gefahrstoff");
   await prisma.safetyHazardousSubstance.update({
     data: { isActive: true },
@@ -866,6 +879,7 @@ export async function restoreHazardousSubstance(formData: FormData) {
 }
 
 export async function deleteHazardousSubstancePermanently(formData: FormData) {
+  await requireAdmin();
   const id = requiredString(formData.get("id"), "Gefahrstoff");
   const substance = await prisma.safetyHazardousSubstance.findUnique({
     select: { isActive: true },
@@ -884,6 +898,7 @@ export async function deleteHazardousSubstancePermanently(formData: FormData) {
 }
 
 export async function deleteSafetyDataSheet(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Sicherheitsdatenblatt");
   const document = await prisma.safetyDataSheet.findUnique({
     select: {
@@ -940,6 +955,7 @@ export async function deleteSafetyDataSheet(formData: FormData) {
 }
 
 export async function createSafetyHazardRule(formData: FormData) {
+  await requireSession();
   await prisma.safetyHazardRule.create({
     data: {
       implementation: optionalString(formData.get("implementation")),
@@ -954,6 +970,7 @@ export async function createSafetyHazardRule(formData: FormData) {
 }
 
 export async function createSafetyInstructionTemplate(formData: FormData) {
+  await requireSession();
   const type = requiredString(formData.get("type"), "Art");
   const sections = String(formData.get("sections") ?? "")
     .split(/\r?\n/)
@@ -975,6 +992,7 @@ export async function createSafetyInstructionTemplate(formData: FormData) {
 }
 
 export async function createSafetyInstructionRecord(formData: FormData) {
+  await requireSession();
   const templateId = requiredString(formData.get("templateId"), "Vorlage");
   const employeeIds = formData
     .getAll("employeeIds")
@@ -1324,6 +1342,7 @@ async function safetyValidityMonths(folderId: string | null) {
 }
 
 export async function archiveSafetyInstructionRecord(formData: FormData) {
+  await requireSession();
   const recordId = requiredString(formData.get("recordId"), "Nachweis");
   await prisma.safetyInstructionRecord.update({
     data: { archivedAt: new Date() },
@@ -1334,6 +1353,7 @@ export async function archiveSafetyInstructionRecord(formData: FormData) {
 }
 
 export async function restoreSafetyInstructionRecord(formData: FormData) {
+  await requireSession();
   const recordId = requiredString(formData.get("recordId"), "Nachweis");
   await prisma.safetyInstructionRecord.update({
     data: { archivedAt: null },
@@ -1344,6 +1364,7 @@ export async function restoreSafetyInstructionRecord(formData: FormData) {
 }
 
 export async function permanentlyDeleteSafetyInstructionRecord(formData: FormData) {
+  await requireAdmin();
   const recordId = requiredString(formData.get("recordId"), "Nachweis");
   const record = await prisma.safetyInstructionRecord.findUnique({
     select: { archivedAt: true },
@@ -1361,6 +1382,7 @@ export async function saveSafetyInstructionSignature(
   signatureId: string,
   formData: FormData,
 ) {
+  await requireSession();
   const signatureDataUrl = requiredString(
     formData.get("signatureDataUrl"),
     "Unterschrift",
@@ -1401,6 +1423,7 @@ export async function addSafetyInstructionParticipants(
   recordId: string,
   formData: FormData,
 ) {
+  await requireSession();
   const employeeIds = Array.from(
     new Set(
       formData
@@ -1475,6 +1498,7 @@ function revalidateSafetyLibraries() {
 }
 
 export async function createSafetyTemplateFolder(formData: FormData) {
+  await requireSession();
   const area = safetyTemplateArea(formData.get("area"));
   const name = requiredString(formData.get("name"), "Ordnername");
   const parentId = optionalString(formData.get("parentId"));
@@ -1499,6 +1523,7 @@ export async function createSafetyTemplateFolder(formData: FormData) {
 }
 
 export async function updateSafetyTemplateFolderValidity(formData: FormData) {
+  await requireSession();
   const folderId = requiredString(formData.get("folderId"), "Ordner");
   await prisma.safetyTemplateFolder.update({
     data: {
@@ -1512,6 +1537,7 @@ export async function updateSafetyTemplateFolderValidity(formData: FormData) {
 }
 
 export async function renameSafetyTemplateFolder(formData: FormData) {
+  await requireSession();
   const folderId = requiredString(formData.get("folderId"), "Ordner");
   const name = requiredString(formData.get("name"), "Ordnername");
   await prisma.safetyTemplateFolder.update({
@@ -1522,6 +1548,7 @@ export async function renameSafetyTemplateFolder(formData: FormData) {
 }
 
 export async function moveSafetyTemplateFolder(formData: FormData) {
+  await requireSession();
   const folderId = requiredString(formData.get("folderId"), "Ordner");
   const parentId = optionalString(formData.get("parentId"));
   if (parentId === folderId) {
@@ -1563,6 +1590,7 @@ export async function moveSafetyTemplateFolder(formData: FormData) {
 }
 
 export async function deleteSafetyTemplateFolder(formData: FormData) {
+  await requireSession();
   const folderId = requiredString(formData.get("folderId"), "Ordner");
   const folder = await prisma.safetyTemplateFolder.findUniqueOrThrow({
     include: {
@@ -1589,6 +1617,7 @@ export async function deleteSafetyTemplateFolder(formData: FormData) {
 }
 
 export async function moveSafetyDocumentTemplate(formData: FormData) {
+  await requireSession();
   const templateId = requiredString(formData.get("templateId"), "Vorlage");
   const folderId = requiredString(formData.get("folderId"), "Zielordner");
   const [template, folder] = await Promise.all([
@@ -1612,6 +1641,7 @@ export async function moveSafetyDocumentTemplate(formData: FormData) {
 }
 
 export async function uploadSafetyDocumentTemplate(formData: FormData) {
+  await requireSession();
   const area = safetyTemplateArea(formData.get("area"));
   const title = requiredString(formData.get("title"), "Titel");
   const folderId = requiredString(formData.get("folderId"), "Ordner");

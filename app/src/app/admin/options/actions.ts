@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 const defaultOptions = [
   // Mitarbeiter-Status
@@ -772,6 +773,7 @@ function revalidateOptionConsumers() {
 }
 
 export async function seedDefaultOptions() {
+  await requireAdmin();
   for (const option of defaultOptions) {
     await prisma.adminOption.upsert({
       where: {
@@ -811,6 +813,7 @@ export async function seedDefaultOptions() {
 }
 
 export async function createAdminOption(formData: FormData) {
+  await requireAdmin();
   const groupKey = normalize(formData.get("groupKey"));
   const label = normalize(formData.get("label"));
   const valueInput = normalize(formData.get("value"));
@@ -842,6 +845,7 @@ export async function createAdminOption(formData: FormData) {
 }
 
 export async function updateAdminOption(formData: FormData) {
+  await requireAdmin();
   const id = normalize(formData.get("id"));
   const label = normalize(formData.get("label"));
 
@@ -863,6 +867,7 @@ export async function updateAdminOption(formData: FormData) {
 }
 
 export async function deleteAdminOption(formData: FormData) {
+  await requireAdmin();
   const id = normalize(formData.get("id"));
 
   if (!id) {
@@ -879,6 +884,7 @@ export async function deleteAdminOption(formData: FormData) {
 }
 
 export async function sortAdminOptionsAlphabetically(formData: FormData) {
+  await requireAdmin();
   const groupKey = normalize(formData.get("groupKey"));
 
   if (!groupKey) {
@@ -907,6 +913,7 @@ export async function sortAdminOptionsAlphabetically(formData: FormData) {
 }
 
 export async function sortAdminOptionsByPosition(formData: FormData) {
+  await requireAdmin();
   const groupKey = normalize(formData.get("groupKey"));
 
   if (!groupKey) {
@@ -935,6 +942,7 @@ export async function sortAdminOptionsByPosition(formData: FormData) {
 }
 
 export async function saveAdminOptionSortOrder(formData: FormData) {
+  await requireAdmin();
   const optionIds = formData.getAll("optionIds").map((value) => String(value));
 
   for (const id of optionIds) {

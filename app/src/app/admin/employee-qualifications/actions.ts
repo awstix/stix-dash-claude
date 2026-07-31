@@ -5,6 +5,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 const allowedCategories = new Set([
   "DRIVER_LICENSE",
@@ -38,6 +39,7 @@ function revalidateQualificationViews() {
 }
 
 export async function createQualificationType(formData: FormData) {
+  await requireAdmin();
   const name = text(formData.get("name"));
   const requestedCategory = text(formData.get("category"));
 
@@ -65,6 +67,7 @@ export async function createQualificationType(formData: FormData) {
 }
 
 export async function updateQualificationType(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
   const requestedCategory = text(formData.get("category"));
@@ -96,6 +99,7 @@ export async function updateQualificationType(formData: FormData) {
 }
 
 export async function saveEmployeeQualifications(formData: FormData) {
+  await requireAdmin();
   const employeeId = text(formData.get("employeeId"));
   const qualificationTypeIds = Array.from(
     new Set(
@@ -154,6 +158,7 @@ export async function saveEmployeeQualifications(formData: FormData) {
 }
 
 export async function confirmEmployeeQualificationReview(formData: FormData) {
+  await requireAdmin();
   const employeeId = text(formData.get("employeeId"));
 
   if (!employeeId) {
@@ -177,6 +182,7 @@ export async function confirmEmployeeQualificationReview(formData: FormData) {
 }
 
 export async function uploadEmployeeQualificationDocuments(formData: FormData) {
+  await requireAdmin();
   const employeeId = text(formData.get("employeeId"));
   const requestedDocumentType = text(formData.get("documentType"));
   const customDocumentType = text(formData.get("customDocumentType"));
@@ -266,6 +272,7 @@ export async function uploadEmployeeQualificationDocuments(formData: FormData) {
 }
 
 export async function deleteEmployeeQualificationDocument(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
 
   if (!id) {
@@ -301,6 +308,7 @@ export async function deleteEmployeeQualificationDocument(formData: FormData) {
 }
 
 export async function updateEmployeeQualificationDocument(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
   const requestedDocumentType = text(formData.get("documentType"));
   const documentType =

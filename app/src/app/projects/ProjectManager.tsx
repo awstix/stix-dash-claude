@@ -240,7 +240,7 @@ export function ProjectManager({
   return (
     <>
       {deleteCandidate ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/40 p-4">
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/40 p-4">
           <div className="w-full max-w-xl rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
             <div className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
               Projekt löschen

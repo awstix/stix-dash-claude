@@ -35,7 +35,7 @@ export function HazardousSubstanceDetailsDialog({
       {open ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1300] overflow-y-auto bg-gray-950/60 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] overflow-y-auto bg-gray-950/60 p-4"
           onClick={() => setOpen(false)}
           role="dialog"
         >
@@ -61,7 +61,7 @@ export function HazardousSubstanceDetailsDialog({
                 onClick={() => setOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 
@@ -194,7 +194,7 @@ export function HazardousSubstanceDetailsDialog({
       {deleteDocument ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1400] flex items-center justify-center bg-gray-950/70 p-4"
+          className="fixed inset-0 z-[var(--z-modal-nested)] flex items-center justify-center bg-gray-950/70 p-4"
           onClick={() => setDeleteDocumentId(null)}
           role="dialog"
         >

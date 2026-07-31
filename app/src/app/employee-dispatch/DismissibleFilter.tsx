@@ -41,7 +41,7 @@ export function DismissibleFilter({
   return (
     <details
       ref={containerRef}
-      className={`relative ${open ? "z-[200]" : ""}`}
+      className={`relative ${open ? "z-[var(--z-popover)]" : ""}`}
       open={open}
     >
       <summary
@@ -56,7 +56,7 @@ export function DismissibleFilter({
       </summary>
 
       {open ? (
-        <div className="absolute left-0 top-10 z-[210] w-[calc(100vw-4rem)] max-w-5xl rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+        <div className="absolute left-0 top-10 z-[var(--z-popover)] w-[calc(100vw-4rem)] max-w-5xl rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
           {children}
         </div>
       ) : null}

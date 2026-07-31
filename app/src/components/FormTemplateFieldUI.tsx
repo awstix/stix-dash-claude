@@ -159,7 +159,7 @@ export function FormTemplateFieldEditor({
   protectedType?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-[1100] flex items-end justify-center bg-gray-950/45 sm:items-center sm:p-5">
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-gray-950/45 sm:items-center sm:p-5">
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-4">
           <div>

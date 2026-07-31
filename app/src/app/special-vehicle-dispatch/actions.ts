@@ -7,6 +7,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 import { getTackCoatOpenPositions } from "@/lib/tack-coat-loads";
 
 function parseDate(value: FormDataEntryValue | null, fieldName: string) {
@@ -481,6 +482,7 @@ async function resolveSpecialVehicleMaterialName({
 }
 
 export async function createSpecialVehicleDispatchAssignment(formData: FormData) {
+  await requireSession();
   const input = getAssignmentInput(formData);
 
   const [vehicle, project, crew, transportVehicle, operatorDriver] = await Promise.all([
@@ -590,6 +592,7 @@ export async function createSpecialVehicleDispatchAssignment(formData: FormData)
 }
 
 export async function createSpecialVehicleDispatchTourAssignments(formData: FormData) {
+  await requireSession();
   const inventoryItemId = optionalString(formData.get("inventoryItemId"));
   const vehicleId = optionalString(formData.get("vehicleId"));
   const transportInventoryItemId = optionalString(
@@ -778,6 +781,7 @@ export async function createSpecialVehicleDispatchTourAssignments(formData: Form
 }
 
 export async function updateSpecialVehicleDispatchAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -897,6 +901,7 @@ export async function updateSpecialVehicleDispatchAssignment(formData: FormData)
 }
 
 export async function deleteSpecialVehicleDispatchAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

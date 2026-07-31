@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function parseDate(value: FormDataEntryValue | null, fieldName: string) {
   const text = String(value ?? "").trim();
@@ -224,6 +225,7 @@ async function getOrCreateCrewPlanningRow({
 }
 
 export async function createCrewPlanningRow(formData: FormData) {
+  await requireSession();
   const weekStart = parseDate(formData.get("weekStart"), "KW-Start");
   const projectId = String(formData.get("projectId") ?? "").trim();
 
@@ -249,6 +251,7 @@ export async function createCrewPlanningRow(formData: FormData) {
 }
 
 export async function updateCrewPlanningRow(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
 
@@ -280,6 +283,7 @@ export async function updateCrewPlanningRow(formData: FormData) {
 }
 
 export async function deleteCrewPlanningRow(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -296,6 +300,7 @@ export async function deleteCrewPlanningRow(formData: FormData) {
 }
 
 export async function createCrewPlanningAssignment(formData: FormData) {
+  await requireSession();
   const rowId = String(formData.get("rowId") ?? "").trim();
   const crewId = String(formData.get("crewId") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -342,6 +347,7 @@ export async function createCrewPlanningAssignment(formData: FormData) {
 export async function createCrewPlanningAssignmentFromProject(
   formData: FormData
 ) {
+  await requireSession();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = String(formData.get("crewId") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -393,6 +399,7 @@ export async function createCrewPlanningAssignmentFromProject(
 }
 
 export async function updateCrewPlanningAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const crewId = String(formData.get("crewId") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -440,6 +447,7 @@ export async function updateCrewPlanningAssignment(formData: FormData) {
 }
 
 export async function updateCrewPlanningAssignmentDates(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
@@ -488,6 +496,7 @@ export async function updateCrewPlanningAssignmentDates(formData: FormData) {
 }
 
 export async function deleteCrewPlanningAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -504,6 +513,7 @@ export async function deleteCrewPlanningAssignment(formData: FormData) {
 }
 
 export async function createCrewPlanningAssignmentForDay(formData: FormData) {
+  await requireSession();
   const weekStart = parseDate(formData.get("weekStart"), "KW-Start");
   await createCrewPlanningAssignment(formData);
 
@@ -512,6 +522,7 @@ export async function createCrewPlanningAssignmentForDay(formData: FormData) {
 }
 
 export async function updatePlanningTimelineSource(formData: FormData) {
+  await requireSession();
   const sourceType = String(formData.get("sourceType") ?? "").trim();
   const sourceId = String(formData.get("sourceId") ?? "").trim();
   const projectNumber = String(formData.get("projectNumber") ?? "").trim();
@@ -653,6 +664,7 @@ export async function updatePlanningTimelineSource(formData: FormData) {
 }
 
 export async function deletePlanningTimelineSource(formData: FormData) {
+  await requireSession();
   const sourceType = String(formData.get("sourceType") ?? "").trim();
   const sourceId = String(formData.get("sourceId") ?? "").trim();
 

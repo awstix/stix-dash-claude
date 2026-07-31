@@ -78,7 +78,7 @@ export function SafetyTemplateFolderActions({
       {editing ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1600] flex items-center justify-center bg-gray-950/65 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/65 p-4"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();

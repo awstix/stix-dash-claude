@@ -34,7 +34,7 @@ export function WorkshopEditDialog({
 
   const dialog = open ? (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/40 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/40 p-4"
       onMouseDown={(event) => {
         if (
           event.target instanceof Node &&

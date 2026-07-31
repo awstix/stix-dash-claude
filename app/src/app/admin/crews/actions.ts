@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 const SORT_ORDER_STEP = 5;
 
@@ -103,6 +104,7 @@ async function buildCrewMemberRoleText(formData: FormData) {
 }
 
 export async function createCrew(formData: FormData) {
+  await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
 
   if (!name) {
@@ -132,6 +134,7 @@ export async function createCrew(formData: FormData) {
 }
 
 export async function updateCrew(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
 
@@ -168,6 +171,7 @@ export async function updateCrew(formData: FormData) {
 }
 
 export async function deleteCrew(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -186,6 +190,7 @@ export async function deleteCrew(formData: FormData) {
 }
 
 export async function addCrewMember(formData: FormData) {
+  await requireAdmin();
   const crewId = String(formData.get("crewId") ?? "").trim();
   const employeeId = String(formData.get("employeeId") ?? "").trim();
 
@@ -228,6 +233,7 @@ export async function addCrewMember(formData: FormData) {
 }
 
 export async function removeCrewMember(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -246,6 +252,7 @@ export async function removeCrewMember(formData: FormData) {
 }
 
 export async function addCrewDefaultVehicle(formData: FormData) {
+  await requireAdmin();
   const crewId = String(formData.get("crewId") ?? "").trim();
   const inventoryItemId = String(formData.get("inventoryItemId") ?? "").trim();
 
@@ -396,6 +403,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
 }
 
 export async function removeCrewDefaultVehicle(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

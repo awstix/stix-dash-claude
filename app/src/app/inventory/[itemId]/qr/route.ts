@@ -22,7 +22,7 @@ function sanitizeFileName(value: string) {
 
 async function getOrigin() {
   const requestHeaders = await headers();
-  const host = requestHeaders.get("host") ?? "localhost:3000";
+  const host = requestHeaders.get("host") ?? "localhost:4000";
   const proto =
     requestHeaders.get("x-forwarded-proto") ??
     (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");

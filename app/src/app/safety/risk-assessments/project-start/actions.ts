@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 import { PROJECT_START_ASSESSMENT_SECTIONS } from "@/lib/project-start-checklist";
 
 function text(formData: FormData, name: string) {
@@ -31,6 +32,7 @@ function validityMonthsValue(formData: FormData) {
 }
 
 export async function saveProjectStartChecklist(formData: FormData) {
+  await requireSession();
   const id = text(formData, "id");
   const projectId = text(formData, "projectId");
   if (!projectId) throw new Error("Bitte ein Projekt auswählen.");

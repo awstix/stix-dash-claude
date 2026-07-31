@@ -747,16 +747,6 @@ export function ProjectDocumentManager({
                 />
               </label>
 
-              <label className="text-xs font-semibold uppercase text-gray-500">
-                Hochgeladen von
-                <input
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm normal-case text-gray-900 outline-none focus:border-gray-900"
-                  name="uploadedByName"
-                  placeholder="Name"
-                  type="text"
-                />
-              </label>
-
               <div className="flex justify-end md:col-span-2">
                 <button
                   className="h-10 w-full rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-60 sm:w-auto"
@@ -1389,7 +1379,7 @@ function DocumentDetailModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div

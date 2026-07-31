@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function text(value: FormDataEntryValue | null) {
   const result = String(value ?? "").trim();
@@ -132,6 +133,7 @@ function handleRateActionError(error: unknown, anchor?: string): never {
 }
 
 export async function saveEmployeeGroupRate(formData: FormData) {
+  await requireSession();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const id = text(formData.get("id"));
@@ -211,6 +213,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
 }
 
 export async function saveInventoryCategoryRate(formData: FormData) {
+  await requireSession();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const id = String(formData.get("id") ?? "");
@@ -274,6 +277,7 @@ export async function saveInventoryCategoryRate(formData: FormData) {
 }
 
 export async function saveInventoryItemRate(formData: FormData) {
+  await requireSession();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const id = String(formData.get("id") ?? "");
@@ -341,6 +345,7 @@ export async function saveInventoryItemRate(formData: FormData) {
 }
 
 export async function raiseRates(formData: FormData) {
+  await requireSession();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const targetType = String(formData.get("targetType") ?? "");
@@ -618,6 +623,7 @@ export async function raiseRates(formData: FormData) {
 }
 
 export async function revertRateChange(formData: FormData) {
+  await requireSession();
   try {
   const id = String(formData.get("id") ?? "");
   const log = await prisma.controllingRateChangeLog.findUniqueOrThrow({
@@ -694,6 +700,7 @@ export async function revertRateChange(formData: FormData) {
 }
 
 export async function revertRateChangeBatch(formData: FormData) {
+  await requireSession();
   try {
   const batchId = String(formData.get("batchId") ?? "");
   const logIds = String(formData.get("logIds") ?? "")
@@ -801,6 +808,7 @@ export async function revertRateChangeBatch(formData: FormData) {
 }
 
 export async function createRateSetFromPreviousYear(formData: FormData) {
+  await requireSession();
   try {
     const sourceYear = optionalYear(formData.get("sourceYear"));
     const targetYear = optionalYear(formData.get("targetYear"));
@@ -901,6 +909,7 @@ export async function createRateSetFromPreviousYear(formData: FormData) {
 }
 
 export async function deleteRateSet(formData: FormData) {
+  await requireSession();
   try {
     const rateSetId = text(formData.get("rateSetId"));
     const confirmation = text(formData.get("confirmation"));

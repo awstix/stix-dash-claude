@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 import { createSafetyHazardRule } from "../actions";
 
@@ -22,7 +23,7 @@ export function HazardRuleModal() {
       {open ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1200] overflow-y-auto bg-gray-950/55 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[var(--z-modal)] overflow-y-auto bg-gray-950/55 p-4 backdrop-blur-sm"
           role="dialog"
           style={{ color: "#000000" }}
         >
@@ -42,7 +43,7 @@ export function HazardRuleModal() {
                 onClick={() => setOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
             <form action={createSafetyHazardRule} className="space-y-4 p-6 text-black">

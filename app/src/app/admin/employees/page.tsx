@@ -932,7 +932,7 @@ export async function EmployeesManagementPage({
 
                         <CloseDetailsButton
                           aria-label="Bearbeiten schließen"
-                          className="fixed inset-0 z-40 cursor-default bg-black/20"
+                          className="fixed inset-0 z-[var(--z-modal)] cursor-default bg-black/20"
                         />
 
                         <div className="fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[min(980px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
@@ -950,7 +950,7 @@ export async function EmployeesManagementPage({
                               aria-label="Popup schließen"
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-xl leading-none text-gray-700 shadow-sm transition hover:bg-gray-50"
                             >
-                              ×
+                              <ActionIcon name="close" className="h-4 w-4" />
                             </CloseDetailsButton>
                           </div>
 
@@ -1491,10 +1491,10 @@ function EmployeePhotoAvatar({
 
       <CloseDetailsButton
         aria-label="Fotoansicht schließen"
-        className="fixed inset-0 z-[120] cursor-default bg-black/70"
+        className="fixed inset-0 z-[var(--z-modal)] cursor-default bg-black/70"
       />
 
-      <div className="pointer-events-none fixed inset-0 z-[121] flex items-center justify-center p-6">
+      <div className="pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6">
         <div className="pointer-events-auto relative max-h-[90vh] max-w-[90vw] rounded-2xl bg-white p-3 shadow-2xl">
           <Image
             src={photoUrl}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { useRouter } from "next/navigation";
 
 import { createProject, type ProjectFormInput } from "./actions";
@@ -104,7 +105,7 @@ export function ProjectCreateDialog({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/50 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/50 p-4"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               close();
@@ -129,7 +130,7 @@ export function ProjectCreateDialog({
                 onClick={close}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

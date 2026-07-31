@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
 import { prisma } from "@/lib/prisma";
 import {
   activeDispositionDaysOff,
@@ -9,7 +10,6 @@ import {
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
-import { EmployeeDispatchStickyOffset } from "./EmployeeDispatchStickyOffset";
 import { EmployeeTimelineBar } from "./EmployeeTimelineBar";
 import { EmployeeTimelineSyncedScroll } from "./EmployeeTimelineSyncedScroll";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
@@ -37,6 +37,18 @@ const employeeDispositionViewTypes = [
 ];
 
 type SortMode = "name" | "project" | "type";
+
+type TimelineView = "days" | "weeks" | "months";
+
+type TimelineUnit = {
+  key: string;
+  label: string;
+  subLabel: string;
+  startDate: Date;
+  endDateExclusive: Date;
+  defaultStartDate: string;
+  defaultEndDate: string;
+};
 
 type TimelineBar = {
   id: string;
@@ -117,6 +129,56 @@ function parseWeeksParam(value: string | undefined) {
   return number;
 }
 
+function getTimelineView(value: string | undefined): TimelineView {
+  if (value === "weeks" || value === "months") {
+    return value;
+  }
+
+  return "days";
+}
+
+function parseCountParam(value: string | undefined) {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < 1 || number > 52) {
+    return null;
+  }
+
+  return number;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function addMonths(date: Date, months: number) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1),
+  );
+}
+
+function endOfMonthInclusive(date: Date) {
+  return addDays(addMonths(startOfMonth(date), 1), -1);
+}
+
+function formatMonthShort(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    month: "short",
+  }).format(date);
+}
+
+function getCalendarWeek(date: Date) {
+  const target = dateOnly(date);
+  const dayNumber = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+
+  return Math.ceil(
+    ((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+}
+
 function parseSortMode(value: string | undefined): SortMode {
   if (value === "project" || value === "type") {
     return value;
@@ -152,16 +214,93 @@ function formatDayMonth(date: Date) {
   }).format(date);
 }
 
-function buildDays(fromDate: Date, toDate: Date) {
-  const days = [];
+function buildTimelineUnits({
+  view,
+  fromDate,
+  toDate,
+  hideWeekend,
+}: {
+  view: TimelineView;
+  fromDate: Date;
+  toDate: Date;
+  hideWeekend: boolean;
+}): TimelineUnit[] {
+  if (view === "months") {
+    const start = startOfMonth(fromDate);
+    const end = startOfMonth(toDate);
+    const units: TimelineUnit[] = [];
+    let current = start;
+
+    while (current <= end) {
+      const startDate = current;
+      const endDateExclusive = addMonths(current, 1);
+      const endDateInclusive = endOfMonthInclusive(startDate);
+
+      units.push({
+        key: formatDateInput(startDate),
+        label: formatMonthShort(startDate),
+        subLabel: String(startDate.getUTCFullYear()),
+        startDate,
+        endDateExclusive,
+        defaultStartDate: formatDateInput(startDate),
+        defaultEndDate: formatDateInput(endDateInclusive),
+      });
+
+      current = addMonths(current, 1);
+    }
+
+    return units;
+  }
+
+  if (view === "weeks") {
+    const start = startOfWeek(fromDate);
+    const end = startOfWeek(toDate);
+    const units: TimelineUnit[] = [];
+    let current = start;
+
+    while (current <= end) {
+      const startDate = current;
+      const endDateExclusive = addDays(current, 7);
+      const visibleEnd = addDays(current, hideWeekend ? 4 : 6);
+
+      units.push({
+        key: formatDateInput(startDate),
+        label: `KW ${getCalendarWeek(startDate)}`,
+        subLabel: `${formatDayMonth(startDate)} – ${formatDayMonth(visibleEnd)}`,
+        startDate,
+        endDateExclusive,
+        defaultStartDate: formatDateInput(startDate),
+        defaultEndDate: formatDateInput(visibleEnd),
+      });
+
+      current = addDays(current, 7);
+    }
+
+    return units;
+  }
+
+  const units: TimelineUnit[] = [];
   let current = dateOnly(fromDate);
 
   while (current <= toDate) {
-    days.push(current);
+    if (!hideWeekend || !isWeekend(current)) {
+      const dateInput = formatDateInput(current);
+
+      units.push({
+        key: dateInput,
+        label: formatWeekdayShort(current),
+        subLabel: formatDayMonth(current),
+        startDate: current,
+        endDateExclusive: addDays(current, 1),
+        defaultStartDate: dateInput,
+        defaultEndDate: dateInput,
+      });
+    }
+
     current = addDays(current, 1);
   }
 
-  return days;
+  return units;
 }
 
 function isWeekend(date: Date) {
@@ -285,40 +424,69 @@ export default async function EmployeeDispatchPage({
   searchParams: Promise<{
     from?: string;
     to?: string;
+    view?: string;
+    count?: string;
     q?: string;
     status?: string;
     type?: string;
     project?: string;
     onlyWithEntries?: string;
+    hideWeekend?: string;
     sort?: string;
     weeks?: string;
   }>;
 }) {
   const params = await searchParams;
-  const defaultFrom = startOfWeek(todayUtc());
-  const fromDate = parseDateParam(params.from, defaultFrom);
-  const weeksParam = parseWeeksParam(params.weeks);
-  const parsedToDate = weeksParam
-    ? addDays(fromDate, weeksParam * 7 - 1)
-    : parseDateParam(params.to, addDays(fromDate, 13));
-  const toDate = parsedToDate < fromDate ? addDays(fromDate, 13) : parsedToDate;
-  const days = buildDays(fromDate, toDate);
+  const view = getTimelineView(params.view);
+  const defaultCount = view === "months" ? 3 : view === "weeks" ? 2 : 14;
+  const defaultFrom =
+    view === "months" ? startOfMonth(todayUtc()) : startOfWeek(todayUtc());
+  const rawFromDate = parseDateParam(params.from, defaultFrom);
+  const fromDate =
+    view === "months"
+      ? startOfMonth(rawFromDate)
+      : view === "weeks"
+        ? startOfWeek(rawFromDate)
+        : rawFromDate;
+  const countToDate = (count: number) =>
+    view === "months"
+      ? addDays(addMonths(fromDate, count), -1)
+      : view === "weeks"
+        ? addDays(fromDate, count * 7 - 1)
+        : addDays(fromDate, count - 1);
+  const countParam = parseCountParam(params.count) ?? parseWeeksParam(params.weeks);
+  const parsedToDate = countParam
+    ? countToDate(countParam)
+    : parseDateParam(params.to, countToDate(defaultCount));
+  const toDate = parsedToDate < fromDate ? countToDate(defaultCount) : parsedToDate;
+  const hideWeekend = params.hideWeekend === "1";
+  const timelineUnits = buildTimelineUnits({ view, fromDate, toDate, hideWeekend });
   const activeDaysOff = await activeDispositionDaysOff(fromDate, toDate);
   const daysOffByDate = new Map(
     activeDaysOff.map((item) => [dateKey(item.date), item]),
   );
-  const timelineUnitsForClient = days.map((day) => {
-    const dateInput = formatDateInput(day);
-
-    return {
-      key: dateInput,
-      label: formatGermanDate(day),
-      defaultStartDate: dateInput,
-      defaultEndDate: dateInput,
-    };
-  });
-  const currentWeeks = Math.max(1, Math.ceil(days.length / 7));
-  const gridTemplateColumns = `repeat(${days.length}, minmax(${dayWidthPx}px, 1fr))`;
+  const timelineUnitsForClient = timelineUnits.map((unit) => ({
+    key: unit.key,
+    label: `${unit.label} ${unit.subLabel}`.trim(),
+    defaultStartDate: unit.defaultStartDate,
+    defaultEndDate: unit.defaultEndDate,
+  }));
+  const spanDays =
+    Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1;
+  const currentCount =
+    view === "months"
+      ? Math.max(
+          1,
+          (toDate.getUTCFullYear() - fromDate.getUTCFullYear()) * 12 +
+            (toDate.getUTCMonth() - fromDate.getUTCMonth()) +
+            1,
+        )
+      : view === "weeks"
+        ? Math.max(1, Math.round(spanDays / 7))
+        : spanDays;
+  const columnWidthPx =
+    view === "months" ? 96 : view === "weeks" ? 128 : dayWidthPx;
+  const gridTemplateColumns = `repeat(${timelineUnits.length}, minmax(${columnWidthPx}px, 1fr))`;
   const searchFilter = String(params.q ?? "").trim();
   const statusFilter = String(params.status ?? "").trim();
   const typeFilter = String(params.type ?? "").trim();
@@ -1261,18 +1429,26 @@ export default async function EmployeeDispatchPage({
     return true;
   });
 
-  const previousFrom = addDays(fromDate, -14);
-  const previousTo = addDays(toDate, -14);
-  const nextFrom = addDays(fromDate, 14);
-  const nextTo = addDays(toDate, 14);
+  const previousFrom =
+    view === "months" ? addMonths(fromDate, -currentCount) : addDays(fromDate, -spanDays);
+  const previousTo =
+    view === "months" ? addDays(fromDate, -1) : addDays(toDate, -spanDays);
+  const nextFrom =
+    view === "months" ? addMonths(fromDate, currentCount) : addDays(fromDate, spanDays);
+  const nextTo =
+    view === "months"
+      ? addDays(addMonths(nextFrom, currentCount), -1)
+      : addDays(toDate, spanDays);
   const currentQueryValues = {
     from: formatDateInput(fromDate),
     to: formatDateInput(toDate),
+    view: view === "days" ? "" : view,
     q: searchFilter,
     status: statusFilter,
     type: typeFilter,
     project: projectFilter,
     onlyWithEntries: onlyWithEntries ? "1" : "",
+    hideWeekend: hideWeekend ? "1" : "",
     sort: sortMode === "name" ? "" : sortMode,
   };
   const buildPageHref = (
@@ -1282,9 +1458,15 @@ export default async function EmployeeDispatchPage({
     from: formatDateInput(previousFrom),
     to: formatDateInput(previousTo),
   });
+  const defaultToDate =
+    view === "months"
+      ? addDays(addMonths(defaultFrom, defaultCount), -1)
+      : view === "weeks"
+        ? addDays(defaultFrom, defaultCount * 7 - 1)
+        : addDays(defaultFrom, defaultCount - 1);
   const todayHref = buildPageHref({
     from: formatDateInput(defaultFrom),
-    to: formatDateInput(addDays(defaultFrom, 13)),
+    to: formatDateInput(defaultToDate),
   });
   const nextHref = buildPageHref({
     from: formatDateInput(nextFrom),
@@ -1309,7 +1491,7 @@ export default async function EmployeeDispatchPage({
           <summary className="cursor-pointer rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
             + Eintrag hinzufügen
           </summary>
-          <div className="fixed left-4 right-4 top-24 z-[100] mx-auto max-h-[calc(100vh-7rem)] max-w-6xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
+          <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-6xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-gray-900">
                 Eintrag hinzufügen
@@ -1360,12 +1542,11 @@ export default async function EmployeeDispatchPage({
 
       <div
         data-employee-dispatch-root
-        className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+        className="sticky top-[var(--app-header-height,0px)] flex h-[calc(100dvh-var(--app-header-height,0px)-2rem)] flex-col rounded-2xl border border-gray-200 bg-white shadow-sm"
       >
-        <EmployeeDispatchStickyOffset />
         <div
           data-employee-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-gray-50 px-5 py-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="-mx-px -mt-px shrink-0 overflow-visible rounded-t-2xl border border-gray-200 bg-gray-50 px-5 py-4 shadow-sm"
         >
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1387,29 +1568,56 @@ export default async function EmployeeDispatchPage({
                   Heute
                 </Link>
 
-                {[1, 2, 5].map((weekCount) => (
-                  <Link
-                    key={weekCount}
-                    href={buildPageHref({
-                      weeks: String(weekCount),
-                      to: null,
-                    })}
-                    scroll={false}
-                    className={
-                      currentWeeks === weekCount
-                        ? "rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700"
-                        : "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                    }
-                  >
-                    {weekCount}W
-                  </Link>
-                ))}
+                <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+                  {(["days", "weeks", "months"] as TimelineView[]).map((item) => (
+                    <Link
+                      key={item}
+                      href={buildPageHref({
+                        view: item === "days" ? "" : item,
+                        count: null,
+                        from: null,
+                        to: null,
+                      })}
+                      scroll={false}
+                      className={
+                        view === item
+                          ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                          : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                      }
+                    >
+                      {item === "days" ? "Tage" : item === "weeks" ? "Wochen" : "Monate"}
+                    </Link>
+                  ))}
+                </div>
 
-                <form
+                <div className="flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1">
+                  {(view === "months" ? [3, 6, 12] : view === "weeks" ? [1, 2, 5] : [7, 14, 21]).map(
+                    (presetCount) => (
+                      <Link
+                        key={presetCount}
+                        href={buildPageHref({
+                          count: String(presetCount),
+                          to: null,
+                        })}
+                        scroll={false}
+                        className={
+                          currentCount === presetCount
+                            ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                            : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                        }
+                      >
+                        {view === "days" ? `${presetCount}T` : view === "weeks" ? `${presetCount}W` : `${presetCount}M`}
+                      </Link>
+                    ),
+                  )}
+                </div>
+
+                <ScrollPreservingForm
                   action="/employee-dispatch"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1"
                 >
                   <input type="hidden" name="from" value={formatDateInput(fromDate)} />
+                  <input type="hidden" name="view" value={view === "days" ? "" : view} />
                   <input
                     type="hidden"
                     name="sort"
@@ -1422,22 +1630,27 @@ export default async function EmployeeDispatchPage({
                   {onlyWithEntries ? (
                     <input type="hidden" name="onlyWithEntries" value="1" />
                   ) : null}
+                  {hideWeekend ? (
+                    <input type="hidden" name="hideWeekend" value="1" />
+                  ) : null}
                   <input
                     type="number"
-                    name="weeks"
+                    name="count"
                     min="1"
                     max="52"
-                    defaultValue={currentWeeks}
-                    className="h-9 w-16 rounded-lg border border-gray-300 px-2 text-xs font-semibold text-gray-900 outline-none focus:border-gray-900"
-                    aria-label="Wochenanzahl"
+                    defaultValue={currentCount}
+                    className="h-7 w-14 rounded-lg border-0 bg-white px-2 text-xs font-semibold text-gray-900 outline-none"
+                    aria-label="Eigene Anzahl"
+                    title="Eigene Anzahl"
                   />
                   <button
                     type="submit"
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                    title="Eigene Anzahl übernehmen"
                   >
-                    Wochen anzeigen
+                    Übernehmen
                   </button>
-                </form>
+                </ScrollPreservingForm>
 
                 <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
                   {visibleEmployees.length}/{activeEmployees.length} Mitarbeiter
@@ -1453,7 +1666,7 @@ export default async function EmployeeDispatchPage({
                     ) : null}
                   </summary>
 
-                  <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                  <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                     <div className="text-sm font-bold text-gray-900">
                       Mitarbeiter filtern
                     </div>
@@ -1461,130 +1674,149 @@ export default async function EmployeeDispatchPage({
                       Zeitraum, Person, Status, Art und Baustelle einschränken.
                     </p>
 
-                    <form
+                    <ScrollPreservingForm
                       action="/employee-dispatch"
-                      className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"
+                      className="mt-3 grid grid-cols-1 gap-2"
                     >
-                      <label className="text-sm font-medium text-gray-800">
-                        Von
-                        <input
-                          type="date"
-                          name="from"
-                          defaultValue={formatDateInput(fromDate)}
-                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        />
-                      </label>
+                      <input type="hidden" name="view" value={view === "days" ? "" : view} />
 
-                      <label className="text-sm font-medium text-gray-800">
-                        Bis
-                        <input
-                          type="date"
-                          name="to"
-                          defaultValue={formatDateInput(toDate)}
-                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        />
-                      </label>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <label className="text-xs font-medium text-gray-800">
+                          Von
+                          <input
+                            type="date"
+                            name="from"
+                            defaultValue={formatDateInput(fromDate)}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          />
+                        </label>
 
-                      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-                        Suche
-                        <input
-                          name="q"
-                          defaultValue={searchFilter}
-                          placeholder="Name, Berufsgruppe oder Baustelle"
-                          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        />
-                      </label>
+                        <label className="text-xs font-medium text-gray-800">
+                          Bis
+                          <input
+                            type="date"
+                            name="to"
+                            defaultValue={formatDateInput(toDate)}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          />
+                        </label>
 
-                      <label className="text-sm font-medium text-gray-800">
-                        Status
-                        <select
-                          name="status"
-                          defaultValue={statusFilter}
-                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        >
-                          <option value="">Alle Status</option>
-                          {statusOptions.map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="text-xs font-medium text-gray-800 sm:col-span-2">
+                          Suche
+                          <input
+                            name="q"
+                            defaultValue={searchFilter}
+                            placeholder="Name, Berufsgruppe oder Baustelle"
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          />
+                        </label>
 
-                      <label className="text-sm font-medium text-gray-800">
-                        Art
-                        <select
-                          name="type"
-                          defaultValue={typeFilter}
-                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        >
-                          <option value="">Alle Arten</option>
-                          {employeeDispositionViewTypes.map((type) => (
-                            <option key={type.value} value={type.value}>
-                              {type.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="text-xs font-medium text-gray-800">
+                          Status
+                          <select
+                            name="status"
+                            defaultValue={statusFilter}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          >
+                            <option value="">Alle Status</option>
+                            {statusOptions.map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
 
-                      <label className="text-sm font-medium text-gray-800 xl:col-span-2">
-                        Projekt / Baustelle
-                        <select
-                          name="project"
-                          defaultValue={projectFilter}
-                          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        >
-                          <option value="">Alle Projekte</option>
-                          {projectOptions.map((project) => (
-                            <option key={project} value={project}>
-                              {project}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="text-xs font-medium text-gray-800">
+                          Art
+                          <select
+                            name="type"
+                            defaultValue={typeFilter}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          >
+                            <option value="">Alle Arten</option>
+                            {employeeDispositionViewTypes.map((type) => (
+                              <option key={type.value} value={type.value}>
+                                {type.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
 
-                      <label className="text-sm font-medium text-gray-800">
-                        <span className="block">Sortierung</span>
-                        <select
-                          name="sort"
-                          defaultValue={sortMode}
-                          className="mt-2 block w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                        >
-                          <option value="name">Nach Nachname</option>
-                          <option value="project">Nach Projekt</option>
-                          <option value="type">Nach Art</option>
-                        </select>
-                      </label>
+                        <label className="text-xs font-medium text-gray-800">
+                          Sortierung
+                          <select
+                            name="sort"
+                            defaultValue={sortMode}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          >
+                            <option value="name">Nach Nachname</option>
+                            <option value="project">Nach Projekt</option>
+                            <option value="type">Nach Art</option>
+                          </select>
+                        </label>
 
-                      <label className="flex items-center gap-3 pt-7 text-sm font-semibold text-gray-800">
-                        <input
-                          type="checkbox"
-                          name="onlyWithEntries"
-                          value="1"
-                          defaultChecked={onlyWithEntries}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        Nur mit Einträgen
-                      </label>
-
-                      <div className="flex flex-wrap items-end gap-3 xl:col-span-2">
-                        <button
-                          type="submit"
-                          className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-                        >
-                          Filter anwenden
-                        </button>
-                        <Link
-                          href={`/employee-dispatch?from=${formatDateInput(
-                            fromDate,
-                          )}&to=${formatDateInput(toDate)}`}
-                          scroll={false}
-                          className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                        >
-                          Filter zurücksetzen
-                        </Link>
+                        <label className="text-xs font-medium text-gray-800">
+                          Projekt / Baustelle
+                          <select
+                            name="project"
+                            defaultValue={projectFilter}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-900"
+                          >
+                            <option value="">Alle Projekte</option>
+                            {projectOptions.map((project) => (
+                              <option key={project} value={project}>
+                                {project}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
-                    </form>
+
+                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-gray-800">
+                          <input
+                            type="checkbox"
+                            name="onlyWithEntries"
+                            value="1"
+                            defaultChecked={onlyWithEntries}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          Nur mit Einträgen
+                        </label>
+
+                        <label className="flex items-center gap-2 text-xs font-semibold text-gray-800">
+                          <input
+                            type="checkbox"
+                            name="hideWeekend"
+                            value="1"
+                            defaultChecked={hideWeekend}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          Sa/So ausblenden
+                        </label>
+
+                        <div className="ml-auto flex flex-wrap items-center gap-2">
+                          <button
+                            type="submit"
+                            className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                          >
+                            Filter anwenden
+                          </button>
+                          <Link
+                            href={`/employee-dispatch?from=${formatDateInput(
+                              fromDate,
+                            )}&to=${formatDateInput(toDate)}${
+                              view === "days" ? "" : `&view=${view}`
+                            }`}
+                            scroll={false}
+                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                          >
+                            Filter zurücksetzen
+                          </Link>
+                        </div>
+                      </div>
+                    </ScrollPreservingForm>
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       {employeeDispositionViewTypes.map((type) => (
@@ -1617,25 +1849,26 @@ export default async function EmployeeDispatchPage({
               className="min-w-0 overflow-hidden border-b border-gray-200 bg-gray-50"
             >
               <div className="grid" style={{ gridTemplateColumns }}>
-                {days.map((day) => {
-                  const dayOff = daysOffByDate.get(dateKey(day));
+                {timelineUnits.map((unit) => {
+                  const dayOff =
+                    view === "days" ? daysOffByDate.get(unit.key) : undefined;
                   return (
                     <div
-                      key={day.toISOString()}
+                      key={unit.key}
                       title={dayOff ? `Arbeitsfrei: ${dayOff.name}` : undefined}
                       className={
                         dayOff
                           ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-300 bg-slate-300 px-2 py-2 text-center last:border-r-0"
-                          : isWeekend(day)
+                          : view === "days" && isWeekend(unit.startDate)
                             ? "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-100 px-2 py-2 text-center last:border-r-0"
                             : "flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 bg-gray-50 px-2 py-2 text-center last:border-r-0"
                       }
                     >
                       <div className="truncate text-xs font-bold text-gray-900">
-                        {formatWeekdayShort(day)}
+                        {unit.label}
                       </div>
                       <div className="mt-1 truncate text-[11px] font-medium text-gray-600">
-                        {formatDayMonth(day)}
+                        {unit.subLabel}
                       </div>
                       {dayOff ? (
                         <div className="mt-1 truncate text-[9px] font-black uppercase text-gray-800">
@@ -1651,11 +1884,7 @@ export default async function EmployeeDispatchPage({
         </div>
 
         <div
-          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
-          style={{
-            maxHeight:
-              "max(590px, calc(100vh - var(--employee-dispatch-sticky-offset, 160px) - var(--app-header-height, 0px) - 1rem))",
-          }}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
         >
           <div className="grid w-full grid-cols-[300px_minmax(0,1fr)]">
             <div className="border-r border-gray-200 bg-white">
@@ -1714,19 +1943,19 @@ export default async function EmployeeDispatchPage({
                     key={employee.id}
                     className="relative grid min-w-0 border-b border-gray-100 bg-white"
                     style={{
-                      gridColumn: `1 / span ${days.length}`,
+                      gridColumn: `1 / span ${timelineUnits.length}`,
                       gridTemplateColumns,
                       height: `${rowHeight}px`,
                       minHeight: `${rowHeight}px`,
                     }}
                   >
-                    {days.map((day) => (
+                    {timelineUnits.map((unit) => (
                       <div
-                        key={day.toISOString()}
+                        key={unit.key}
                         className={
-                          daysOffByDate.has(dateKey(day))
+                          view === "days" && daysOffByDate.has(unit.key)
                             ? "min-w-0 border-r border-gray-200 bg-slate-200/80"
-                            : isWeekend(day)
+                            : view === "days" && isWeekend(unit.startDate)
                             ? "min-w-0 border-r border-gray-100 bg-gray-50"
                             : "min-w-0 border-r border-gray-100 bg-white"
                         }

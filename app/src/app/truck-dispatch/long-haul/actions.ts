@@ -8,6 +8,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 type LongHaulFormState = {
   error?: string | null;
@@ -970,6 +971,7 @@ async function createLongHaulAsphaltAllocation({
 }
 
 export async function createLongHaulEntry(formData: FormData) {
+  await requireSession();
   const workDate = parseWorkDate(formData.get("workDate"));
   const entryData = await resolveLongHaulEntryData(formData);
 
@@ -1019,6 +1021,7 @@ export async function createLongHaulEntryFormAction(
   _state: LongHaulFormState,
   formData: FormData,
 ): Promise<LongHaulFormState> {
+  await requireSession();
   try {
     await createLongHaulEntry(formData);
 
@@ -1035,6 +1038,7 @@ export async function createLongHaulEntryFormAction(
 }
 
 export async function updateLongHaulEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1057,6 +1061,7 @@ export async function updateLongHaulEntryFormAction(
   _state: LongHaulFormState,
   formData: FormData,
 ): Promise<LongHaulFormState> {
+  await requireSession();
   try {
     await updateLongHaulEntry(formData);
 
@@ -1073,6 +1078,7 @@ export async function updateLongHaulEntryFormAction(
 }
 
 export async function deleteLongHaulEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1089,6 +1095,7 @@ export async function deleteLongHaulEntry(formData: FormData) {
 }
 
 export async function createOwnTruckAssignment(formData: FormData) {
+  await requireSession();
   const entryId = String(formData.get("entryId") ?? "").trim();
   const driverId = String(formData.get("driverId") ?? "").trim();
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
@@ -1156,6 +1163,7 @@ export async function createOwnTruckAssignment(formData: FormData) {
 }
 
 export async function createSubcontractorTruckAssignment(formData: FormData) {
+  await requireSession();
   const entryId = String(formData.get("entryId") ?? "").trim();
   const vehicleCategory = String(formData.get("vehicleCategory") ?? "").trim();
   const selectedCompany = optionalString(formData.get("subcontractorName"));
@@ -1234,6 +1242,7 @@ export async function createSubcontractorTruckAssignment(formData: FormData) {
 }
 
 export async function deleteTruckAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

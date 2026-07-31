@@ -1345,9 +1345,6 @@ export async function uploadProjectPhotos(formData: FormData) {
   const photoNotes = formData
     .getAll("photoNotes")
     .map((value) => (typeof value === "string" ? value.trim() : ""));
-  const uploadedByName = cleanUploadText(
-    cleanFormString(formData.get("uploadedByName")),
-  );
   const actor = await getProjectActor();
   const takeMetadata = formData.get("takeMetadata") === "on";
   const compressPhotos = formData.get("compressPhotos") === "on";
@@ -1896,9 +1893,6 @@ export async function uploadProjectDocuments(formData: FormData) {
   const folderId = cleanFormString(formData.get("folderId"));
   const displayName = cleanUploadText(
     cleanFormString(formData.get("displayName")),
-  );
-  const uploadedByName = cleanUploadText(
-    cleanFormString(formData.get("uploadedByName")),
   );
   const actor = await getProjectActor();
   const files = formData

@@ -71,7 +71,7 @@ export function InventoryIdlePeriodsDialog({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[130] flex items-center justify-center bg-gray-950/55 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/55 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div

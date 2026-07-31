@@ -12,6 +12,7 @@ import {
   getNextInventoryObjectNumber,
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin, requireSession } from "@/lib/auth-access";
 
 const allowedInventoryPhotoTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -879,6 +880,7 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
 }
 
 export async function createInventoryItem(formData: FormData) {
+  await requireSession();
   const categoryId = optionalId(formData.get("categoryId"));
   const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
   if (!allowsAssignment) clearInventoryAssignmentFields(formData);
@@ -923,6 +925,7 @@ export async function createInventoryItem(formData: FormData) {
 }
 
 export async function updateInventoryItem(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -983,6 +986,7 @@ export async function updateInventoryItem(formData: FormData) {
 }
 
 export async function deleteInventoryItem(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1009,6 +1013,7 @@ export async function deleteInventoryItem(formData: FormData) {
 }
 
 export async function restoreInventoryItem(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1028,6 +1033,7 @@ export async function restoreInventoryItem(formData: FormData) {
 }
 
 export async function deleteInventoryItemPermanently(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1105,6 +1111,7 @@ export async function deleteInventoryItemPermanently(formData: FormData) {
 }
 
 export async function saveInventoryIdlePeriods(formData: FormData) {
+  await requireSession();
   const itemId = String(formData.get("itemId") ?? "").trim();
 
   if (!itemId) {
@@ -1159,6 +1166,7 @@ export async function saveInventoryIdlePeriods(formData: FormData) {
 }
 
 export async function assignInventoryItemToContainer(formData: FormData) {
+  await requireSession();
   const containerId = String(formData.get("containerId") ?? "").trim();
   const childItemId = String(formData.get("childItemId") ?? "").trim();
 
@@ -1201,6 +1209,7 @@ export async function assignInventoryItemToContainer(formData: FormData) {
 }
 
 export async function updateInventoryAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1282,6 +1291,7 @@ export async function updateInventoryAssignment(formData: FormData) {
 }
 
 export async function returnInventoryItemToBaseLocation(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const locationType = String(formData.get("locationType") ?? "").trim();
   const transportedByEmployeeId = optionalId(
@@ -1357,6 +1367,7 @@ export async function returnInventoryItemToBaseLocation(formData: FormData) {
 }
 
 export async function recordInventoryStockMovement(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const movementType = String(formData.get("movementType") ?? "").trim();
 
@@ -1448,6 +1459,7 @@ export async function recordInventoryStockMovement(formData: FormData) {
 }
 
 export async function issuePersonalInventory(formData: FormData) {
+  await requireSession();
   const itemId = requiredString(formData.get("itemId"), "Inventarobjekt");
   const employeeId = requiredString(formData.get("employeeId"), "Mitarbeiter");
   const quantity = requiredStock(formData.get("quantity"), "Menge");
@@ -1544,6 +1556,7 @@ export async function issuePersonalInventory(formData: FormData) {
 }
 
 export async function returnPersonalInventory(formData: FormData) {
+  await requireSession();
   const assignmentId = requiredString(formData.get("assignmentId"), "Ausgabe");
   const returnQuantity = requiredStock(formData.get("quantity"), "Rückgabemenge");
   const signatureDataUrl = requiredString(
@@ -1629,6 +1642,7 @@ export async function returnPersonalInventory(formData: FormData) {
 }
 
 export async function deleteInventoryPhoto(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1665,6 +1679,7 @@ export async function deleteInventoryPhoto(formData: FormData) {
 }
 
 export async function recordInventoryScan(formData: FormData) {
+  await requireSession();
   const itemId = optionalString(formData.get("itemId"));
 
   if (!itemId) {
@@ -1702,6 +1717,7 @@ export async function recordInventoryScan(formData: FormData) {
 }
 
 export async function deleteCompleteInventory(formData: FormData) {
+  await requireAdmin();
   const confirmation = String(formData.get("confirmation") ?? "")
     .trim()
     .toUpperCase();

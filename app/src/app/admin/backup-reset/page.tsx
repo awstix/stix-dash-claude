@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { requireAdmin } from "@/lib/auth-access";
 import { getResetPreview } from "@/lib/data-maintenance";
 import { resetDashboardDataAction } from "./actions";
 
@@ -76,6 +77,7 @@ export default async function BackupResetPage({
     uploads?: string;
   }>;
 }) {
+  await requireAdmin();
   const [params, preview] = await Promise.all([
     searchParams,
     Promise.resolve(getResetPreview()),

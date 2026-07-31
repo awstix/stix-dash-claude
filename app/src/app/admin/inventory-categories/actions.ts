@@ -3,6 +3,7 @@
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -881,6 +882,7 @@ export async function createInventoryCategory(
   _previousState: CategoryActionState,
   formData: FormData,
 ): Promise<CategoryActionState> {
+  await requireAdmin();
   try {
     await createInventoryCategoryInternal(formData);
     return {
@@ -903,6 +905,7 @@ export async function updateInventoryCategory(
   _previousState: CategoryActionState,
   formData: FormData,
 ): Promise<CategoryActionState> {
+  await requireAdmin();
   try {
     await updateInventoryCategoryInternal(formData);
     return {
@@ -922,6 +925,7 @@ export async function updateInventoryCategory(
 }
 
 export async function deleteInventoryCategory(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

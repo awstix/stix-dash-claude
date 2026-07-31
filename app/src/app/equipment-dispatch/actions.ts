@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function parseDate(value: FormDataEntryValue | null, fieldName: string) {
   const text = String(value ?? "").trim();
@@ -191,6 +192,7 @@ async function getCrewOrNull(crewId: string | null) {
 }
 
 export async function createEquipmentDispatchAssignment(formData: FormData) {
+  await requireSession();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -259,6 +261,7 @@ export async function createEquipmentDispatchAssignment(formData: FormData) {
 }
 
 export async function updateEquipmentDispatchAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
@@ -339,6 +342,7 @@ export async function updateEquipmentDispatchAssignment(formData: FormData) {
 export async function createEquipmentDispatchAssignmentFromDefaultDates(
   formData: FormData,
 ) {
+  await requireSession();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const crewId = optionalString(formData.get("crewId"));
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
@@ -409,6 +413,7 @@ export async function createEquipmentDispatchAssignmentFromDefaultDates(
 }
 
 export async function updateEquipmentDispatchAssignmentDates(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
@@ -453,6 +458,7 @@ export async function updateEquipmentDispatchAssignmentDates(formData: FormData)
 }
 
 export async function deleteEquipmentDispatchAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

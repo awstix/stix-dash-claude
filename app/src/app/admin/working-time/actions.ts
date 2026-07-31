@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 import {
   createWeeklySchedule,
   ensureDefaultWorkTimePresets,
@@ -119,11 +120,13 @@ function revalidateWorkingTimeConsumers() {
 }
 
 export async function seedWorkTimePresets() {
+  await requireAdmin();
   await ensureDefaultWorkTimePresets();
   revalidateWorkingTimeConsumers();
 }
 
 export async function createWorkTimePreset(formData: FormData) {
+  await requireAdmin();
   const name = text(formData.get("name"));
   const startTime = normalizeTime(text(formData.get("startTime")));
   const endTime = normalizeTime(text(formData.get("endTime")));
@@ -152,6 +155,7 @@ export async function createWorkTimePreset(formData: FormData) {
 }
 
 export async function updateWorkTimePreset(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
   const name = text(formData.get("name"));
   const startTime = normalizeTime(text(formData.get("startTime")));
@@ -183,6 +187,7 @@ export async function updateWorkTimePreset(formData: FormData) {
 }
 
 export async function setDefaultWorkTimePreset(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
 
   if (!id) {
@@ -210,6 +215,7 @@ export async function setDefaultWorkTimePreset(formData: FormData) {
 }
 
 export async function deleteWorkTimePreset(formData: FormData) {
+  await requireAdmin();
   const id = text(formData.get("id"));
 
   if (!id) {

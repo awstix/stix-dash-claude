@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 const uploadDirectory = path.join(
   process.cwd(),
@@ -76,6 +77,7 @@ function payload(formData: FormData) {
 }
 
 export async function createInitialTest(formData: FormData) {
+  await requireSession();
   const pdf = await storePdf(formData.get("pdf"));
   await prisma.inventoryInitialTest.create({
     data: { ...payload(formData), ...(pdf ?? {}) },
@@ -84,6 +86,7 @@ export async function createInitialTest(formData: FormData) {
 }
 
 export async function updateInitialTest(formData: FormData) {
+  await requireSession();
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
   const pdf = await storePdf(formData.get("pdf"));
@@ -95,6 +98,7 @@ export async function updateInitialTest(formData: FormData) {
 }
 
 export async function deleteInitialTest(formData: FormData) {
+  await requireSession();
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
   await prisma.inventoryInitialTest.delete({ where: { id } });

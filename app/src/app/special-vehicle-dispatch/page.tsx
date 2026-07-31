@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionIcon } from "@/components/ActionIcon";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -20,7 +21,6 @@ import {
 } from "./actions";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
-import { SpecialVehicleDispatchStickyOffset } from "./SpecialVehicleDispatchStickyOffset";
 import { SpecialVehicleTimelineScroll } from "./SpecialVehicleTimelineScroll";
 import { SpecialVehicleTourFormClient } from "./SpecialVehicleTourFormClient";
 
@@ -1202,7 +1202,7 @@ export default async function SpecialVehicleDispatchPage({
           href={closeCreateHref}
           scroll={false}
           aria-label="Sonderfahrzeug-Einsatz schließen"
-          className="fixed inset-0 z-[210] bg-gray-950/30 backdrop-blur-sm"
+          className="fixed inset-0 z-[var(--z-modal)] bg-gray-950/30 backdrop-blur-sm"
         />
       ) : null}
 
@@ -1211,7 +1211,7 @@ export default async function SpecialVehicleDispatchPage({
         open={shouldOpenCreateForm}
         className={
           shouldOpenCreateForm
-            ? "fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl scroll-mt-28 overflow-y-auto rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-2xl ring-2 ring-blue-100"
+            ? "fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[var(--z-modal)] mx-auto max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl scroll-mt-28 overflow-y-auto rounded-2xl border border-blue-300 bg-blue-50 p-5 shadow-2xl ring-2 ring-blue-100"
             : "mb-6 scroll-mt-28 rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm"
         }
       >
@@ -1222,7 +1222,7 @@ export default async function SpecialVehicleDispatchPage({
             className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-white text-lg font-bold text-blue-950 shadow-sm hover:bg-blue-50"
             aria-label="Sonderfahrzeug-Einsatz schließen"
           >
-            ×
+            <ActionIcon name="close" className="h-4 w-4" />
           </Link>
         ) : null}
         <summary className="cursor-pointer text-lg font-semibold text-blue-950">
@@ -1252,12 +1252,11 @@ export default async function SpecialVehicleDispatchPage({
 
       <div
         data-special-vehicle-dispatch-root
-        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+        className="sticky top-[var(--app-header-height,0px)] flex h-[calc(100dvh-var(--app-header-height,0px)-2rem)] max-w-full flex-col rounded-2xl border border-gray-200 bg-white shadow-sm"
       >
-        <SpecialVehicleDispatchStickyOffset />
         <div
           data-special-vehicle-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white/95 p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm backdrop-blur"
+          className="-mx-px -mt-px shrink-0 overflow-visible rounded-t-2xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur"
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1316,7 +1315,7 @@ export default async function SpecialVehicleDispatchPage({
                 ) : null}
               </summary>
 
-              <div className="fixed left-4 right-4 top-24 z-[140] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+              <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                 <div className="text-sm font-bold text-gray-900">
                   Sonderfahrzeuge filtern
                 </div>
@@ -1520,11 +1519,7 @@ export default async function SpecialVehicleDispatchPage({
         </div>
 
         <div
-          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
-          style={{
-            maxHeight:
-              "max(360px, calc(100vh - var(--special-vehicle-dispatch-sticky-offset, 220px) - var(--app-header-height, 0px) - 1rem))",
-          }}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
         >
           {filteredVehicles.length === 0 ? (
             <div className="p-8 text-center text-sm font-medium text-gray-500">
@@ -1802,10 +1797,10 @@ function SpecialVehicleAssignmentCard({
       <label
         htmlFor={overlayId}
         aria-label="Sonderfahrzeug-Einsatz schließen"
-        className="fixed inset-0 z-[210] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
+        className="fixed inset-0 z-[var(--z-modal)] hidden cursor-default bg-gray-950/30 backdrop-blur-sm peer-checked:block"
       />
 
-      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[230] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl overflow-y-auto rounded-2xl border border-purple-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
+      <div className="fixed left-4 right-4 top-[calc(var(--app-header-height,0px)+1rem)] z-[var(--z-modal)] mx-auto hidden max-h-[calc(100vh-var(--app-header-height,0px)-2rem)] max-w-6xl overflow-y-auto rounded-2xl border border-purple-200 bg-white p-5 text-gray-900 shadow-2xl peer-checked:block">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">
@@ -1820,7 +1815,7 @@ function SpecialVehicleAssignmentCard({
             className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-bold text-gray-900 shadow-sm hover:bg-gray-50"
             aria-label="Sonderfahrzeug-Einsatz schließen"
           >
-            ×
+            <ActionIcon name="close" className="h-4 w-4" />
           </label>
         </div>
 

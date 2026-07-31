@@ -7,6 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 export function DismissibleDetails({
   children,
@@ -92,7 +93,7 @@ export function DismissibleDetailsCloseButton({
       onClick={closeDetails}
       type="button"
     >
-      ×
+      <ActionIcon name="close" className="h-4 w-4" />
     </button>
   );
 }

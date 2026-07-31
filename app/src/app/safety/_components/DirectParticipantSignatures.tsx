@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 import { SignatureFormField } from "./SignatureFormField";
 
@@ -123,7 +124,7 @@ export function DirectParticipantSignatures({
                   }
                   type="button"
                 >
-                  ×
+                  <ActionIcon name="close" className="h-4 w-4" />
                 </button>
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-3">

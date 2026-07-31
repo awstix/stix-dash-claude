@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ActionIcon } from "@/components/ActionIcon";
 import { useEffect, useRef, useState } from "react";
 import { deleteInventoryPhoto } from "./actions";
 
@@ -434,7 +435,7 @@ function InventoryPhotoViewer({
 
   return (
     <div
-      className="fixed inset-0 z-[240] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -568,7 +569,7 @@ function InventoryPhotoViewer({
               onClick={onClose}
               type="button"
             >
-              ×
+              <ActionIcon name="close" className="h-4 w-4" />
             </button>
           </div>
 

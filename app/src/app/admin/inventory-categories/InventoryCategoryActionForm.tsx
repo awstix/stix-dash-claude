@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 type CategoryActionState = {
   error: string | null;
@@ -70,7 +71,7 @@ export function InventoryCategoryActionForm({
       {visibleError ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[180] flex items-center justify-center bg-gray-950/45 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/45 p-4"
           role="alertdialog"
         >
           <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-5 shadow-2xl">
@@ -89,7 +90,7 @@ export function InventoryCategoryActionForm({
                 onClick={() => setDismissedErrorKey(state.errorKey)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
             <button

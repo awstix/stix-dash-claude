@@ -12,6 +12,7 @@ import {
   type InventoryLabelBlock,
 } from "@/lib/inventory-labels";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function optionalString(value: FormDataEntryValue | null) {
   if (typeof value !== "string") return null;
@@ -159,6 +160,7 @@ async function clearDefaultIfNeeded(isDefault: boolean, currentId?: string) {
 }
 
 export async function createInventoryLabelTemplate(formData: FormData) {
+  await requireSession();
   const payload = getTemplatePayload(formData);
 
   await clearDefaultIfNeeded(payload.isDefault);
@@ -175,6 +177,7 @@ export async function updateInventoryLabelTemplate(
   templateId: string,
   formData: FormData,
 ) {
+  await requireSession();
   const payload = getTemplatePayload(formData);
 
   await clearDefaultIfNeeded(payload.isDefault, templateId);
@@ -191,6 +194,7 @@ export async function updateInventoryLabelTemplate(
 }
 
 export async function deleteInventoryLabelTemplate(templateId: string) {
+  await requireSession();
   await prisma.inventoryLabelTemplate.delete({
     where: {
       id: templateId,
@@ -202,6 +206,7 @@ export async function deleteInventoryLabelTemplate(templateId: string) {
 }
 
 export async function createDefaultInventoryLabelTemplates() {
+  await requireSession();
   const count = await prisma.inventoryLabelTemplate.count();
 
   if (count > 0) {

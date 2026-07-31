@@ -17,12 +17,12 @@ import {
 import { CrewAssignmentBar } from "./CrewAssignmentBar";
 import { CrewPlanningAssignmentFormClient } from "./CrewPlanningAssignmentFormClient";
 import { CrewPopover } from "./CrewPopover";
+import { CrewRowHoverDetails } from "./CrewRowHoverDetails";
 import { CrewTimelineFocusButton } from "./CrewTimelineFocusButton";
 import { CrewTimelineScroll } from "./CrewTimelineScroll";
 import { CrewTimelineMouseTooltip } from "./CrewTimelineMouseTooltip";
 import { CrewTimelineScrollButtons } from "./CrewTimelineScrollButtons";
 import { DismissibleDetails } from "./DismissibleDetails";
-import { CrewDispatchStickyOffset } from "./CrewDispatchStickyOffset";
 
 const dayNames = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
@@ -2422,6 +2422,9 @@ const CREW_TIMELINE_SUPPLEMENT_GAP_PX = 6;
 const CREW_TIMELINE_FIRST_SUPPLEMENT_GAP_PX = 12;
 const CREW_TIMELINE_BAR_VISUAL_HEIGHT_PX = 44;
 const CREW_TIMELINE_ROW_BOTTOM_PADDING_PX = 44;
+const CREW_TIMELINE_OVERVIEW_BAR_TOP_PX = 4;
+const CREW_TIMELINE_OVERVIEW_ROW_BOTTOM_PADDING_PX = 4;
+const CREW_TIMELINE_OVERVIEW_ROW_MIN_HEIGHT_PX = 40;
 
 function getSupplementLayerCount({
   showEquipment,
@@ -2501,9 +2504,11 @@ function buildCrewTimelineLaneLayout({
   asphaltTimelineBars,
   laneHeight,
   compactView,
+  crewOverview,
   getItemLayerCount,
 }: {
   compactView: boolean;
+  crewOverview: boolean;
   crewId: string;
   crewName: string;
   getItemLayerCount: (item: CrewTimelineLaneItem) => number;
@@ -2618,14 +2623,21 @@ function buildCrewTimelineLaneLayout({
   return {
     itemCount: items.length,
     laneCount,
-    rowHeight: compactView
+    rowHeight: crewOverview
       ? Math.max(
-          CREW_TIMELINE_COMPACT_ROW_MIN_HEIGHT_PX,
-          CREW_TIMELINE_BAR_TOP_PX +
+          CREW_TIMELINE_OVERVIEW_ROW_MIN_HEIGHT_PX,
+          CREW_TIMELINE_OVERVIEW_BAR_TOP_PX +
             Math.max(baseLaneHeight, runningOffset) +
-            CREW_TIMELINE_ROW_BOTTOM_PADDING_PX,
+            CREW_TIMELINE_OVERVIEW_ROW_BOTTOM_PADDING_PX,
         )
-      : getCrewTimelineRowHeight(laneCount, laneHeight),
+      : compactView
+        ? Math.max(
+            CREW_TIMELINE_COMPACT_ROW_MIN_HEIGHT_PX,
+            CREW_TIMELINE_BAR_TOP_PX +
+              Math.max(baseLaneHeight, runningOffset) +
+              CREW_TIMELINE_ROW_BOTTOM_PADDING_PX,
+          )
+        : getCrewTimelineRowHeight(laneCount, laneHeight),
     laneHeight,
     assignmentLanes,
     assignmentOffsets,
@@ -3398,6 +3410,7 @@ export default async function CrewDispatchPage({
     showMaterial?: string;
     showNotes?: string;
     compactView?: string;
+    crewOverview?: string;
     employeeSort?: string;
     employeeSearch?: string;
     employeeOnlyPlanned?: string;
@@ -3427,6 +3440,7 @@ export default async function CrewDispatchPage({
   const showMaterial = params.showMaterial === "1";
   const showNotes = params.showNotes === "1";
   const compactView = params.compactView === "1";
+  const crewOverview = params.crewOverview === "1";
   const employeeSort = getPlanningResourceSort(params.employeeSort);
   const employeeSearch = params.employeeSearch?.trim() ?? "";
   const employeeOnlyPlanned = params.employeeOnlyPlanned === "1";
@@ -4028,6 +4042,7 @@ export default async function CrewDispatchPage({
 
   const planningSettingsParams = {
     compactView,
+    crewOverview,
     hideWeekend,
     rangeMode: isCustomDateRange ? "dates" : "count",
     daysBufferBack: view === "days" ? bufferBack : viewBuffers.days.back,
@@ -4216,7 +4231,8 @@ export default async function CrewDispatchPage({
     crews.map((crew) => [
       crew.id,
       buildCrewTimelineLaneLayout({
-        compactView,
+        compactView: compactView || crewOverview,
+        crewOverview,
         crewId: crew.id,
         crewName: crew.name,
         getItemLayerCount: (item) =>
@@ -4850,13 +4866,12 @@ export default async function CrewDispatchPage({
 
       <div
         data-crew-dispatch-root
-        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+        className="sticky top-[var(--app-header-height,0px)] flex h-[calc(100dvh-var(--app-header-height,0px)-2rem)] max-w-full flex-col rounded-2xl border border-gray-200 bg-white shadow-sm"
       >
-        <CrewDispatchStickyOffset />
         <div
           data-crew-dispatch-sticky
           data-crew-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="-mx-px -mt-px shrink-0 overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -5081,7 +5096,7 @@ export default async function CrewDispatchPage({
                   <span className="text-blue-700">▾</span>
                 </summary>
 
-                <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
+                <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
                   <div className="text-sm font-bold text-gray-900">
                     Zeitraum einstellen
                   </div>
@@ -5272,6 +5287,8 @@ export default async function CrewDispatchPage({
                       showTrucks={showTrucks}
                       showWeekend={showWeekend}
                       compactView={compactView}
+                      crewOverview={crewOverview}
+                      planningAxis={planningAxis}
                       view={view}
                     />
 
@@ -5292,7 +5309,7 @@ export default async function CrewDispatchPage({
                     <span className="text-gray-500">▾</span>
                   </summary>
 
-                  <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                  <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                     <div className="text-sm font-bold text-gray-900">
                       {resourceFilterUi.title}
                     </div>
@@ -5335,6 +5352,7 @@ export default async function CrewDispatchPage({
                       {showMaterial ? <input type="hidden" name="showMaterial" value="1" /> : null}
                       {showNotes ? <input type="hidden" name="showNotes" value="1" /> : null}
                       {compactView ? <input type="hidden" name="compactView" value="1" /> : null}
+                      {crewOverview ? <input type="hidden" name="crewOverview" value="1" /> : null}
 
                       <label className="grid gap-1 text-xs font-semibold text-gray-800">
                         Suche
@@ -5468,12 +5486,7 @@ export default async function CrewDispatchPage({
 
         <div
           data-crew-dispatch-scroll-body
-          className="overflow-y-auto overflow-x-hidden rounded-b-2xl"
-          style={{
-            marginTop: "var(--crew-dispatch-body-safe-offset, 0px)",
-            maxHeight:
-              "max(360px, calc(100vh - var(--crew-dispatch-sticky-offset, 280px) - var(--crew-dispatch-body-safe-offset, 0px) - var(--app-header-height, 0px) - 1rem))",
-          }}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-2xl"
         >
         {planningAxis !== "teams" ? (
           <div
@@ -5711,144 +5724,152 @@ export default async function CrewDispatchPage({
                     data-crew-row-id={crew.id}
                     className={
                       isHighlighted
-                        ? "group relative z-0 overflow-visible border-b border-orange-200 bg-orange-50 p-3 hover:z-50"
-                        : "group relative z-0 overflow-visible border-b border-gray-200 bg-white p-3 hover:z-50"
+                        ? "overflow-visible border-b border-orange-200 bg-orange-50 p-3"
+                        : "overflow-visible border-b border-gray-200 bg-white p-3"
                     }
                     style={{
                       height: `${rowHeight}px`,
                       minHeight: `${rowHeight}px`,
                     }}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <CrewTimelineFocusButton
-                        focusDate={formatDateInput(crewFocusDate)}
-                        crewId={crew.id}
-                        fallbackHref={crewFocusHref}
-                        className="block min-w-0 flex-1 truncate text-left text-sm font-bold text-gray-900 hover:underline"
-                        title="Zur aktuellen oder nächsten Einteilung dieser Kolonne springen"
-                      >
-                        {crew.name}
-                      </CrewTimelineFocusButton>
-
-                      <Link
-                        href={`/admin/crews#crew-${crew.id}`}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm hover:bg-gray-50"
-                        title="Kolonne direkt bearbeiten"
-                      >
-                        ⚙
-                      </Link>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {crew.typeLabel ? (
-                        <span className="inline-flex max-w-full rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                          <span className="truncate">{crew.typeLabel}</span>
-                        </span>
-                      ) : null}
-
-                      {crew.isAsphaltDispatchCrew ? (
-                        <span className="inline-flex rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-900">
-                          Asphaltdisposition
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-2 text-xs text-gray-500">
-                      {crew.members.length} MA · {crew.defaultVehicles.length}{" "}
-                      Geräte
-                    </div>
-
-                    {crew.members.length ? (
-                      <div className="mt-2 line-clamp-2 text-xs text-gray-500">
-                        {crew.members
-                          .map(
-                            (member) =>
-                              `${member.employee.lastName}, ${member.employee.firstName}`,
-                          )
-                          .join(" · ")}
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-xs text-gray-400">
-                        Keine Mitarbeiter hinterlegt
-                      </div>
-                    )}
-
-                    <div className="pointer-events-none absolute left-3 top-12 z-[80] hidden w-[440px] max-w-[calc(100vw-3rem)] rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-2xl group-hover:block">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-bold text-gray-900">
-                            {crew.name}
-                          </div>
-
-                          <div className="mt-1 text-xs text-gray-500">
-                            {crew.members.length} MA ·{" "}
-                            {crew.defaultVehicles.length} Geräte
-                          </div>
-                        </div>
-
-                        <span className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-700">
-                          Details
-                        </span>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="rounded-xl bg-gray-50 p-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Mitarbeiter
-                          </div>
-
-                          <div className="mt-2 space-y-1 text-xs text-gray-700">
-                            {crew.members.length ? (
-                              crew.members.map((member) => (
-                                <div key={member.id}>
-                                  {member.employee.lastName},{" "}
-                                  {member.employee.firstName}
-                                  {member.roleText
-                                    ? ` · ${member.roleText}`
-                                    : ""}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-gray-400">
-                                Keine Mitarbeiter hinterlegt
+                    <CrewRowHoverDetails
+                      panel={
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-bold text-gray-900">
+                                {crew.name}
                               </div>
-                            )}
-                          </div>
-                        </div>
 
-                        <div className="rounded-xl bg-gray-50 p-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              <div className="mt-1 text-xs text-gray-500">
+                                {crew.members.length} MA ·{" "}
+                                {crew.defaultVehicles.length} Geräte
+                              </div>
+                            </div>
+
+                            <span className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-700">
+                              Details
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="rounded-xl bg-gray-50 p-3">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Mitarbeiter
+                              </div>
+
+                              <div className="mt-2 space-y-1 text-xs text-gray-700">
+                                {crew.members.length ? (
+                                  crew.members.map((member) => (
+                                    <div key={member.id}>
+                                      {member.employee.lastName},{" "}
+                                      {member.employee.firstName}
+                                      {member.roleText
+                                        ? ` · ${member.roleText}`
+                                        : ""}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-gray-400">
+                                    Keine Mitarbeiter hinterlegt
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-gray-50 p-3">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Geräte
+                              </div>
+
+                              <div className="mt-2 space-y-1 text-xs text-gray-700">
+                                {crew.defaultVehicles.length ? (
+                                  crew.defaultVehicles.map((item) => (
+                                    <div key={item.id}>
+                                      {getVehicleLabel(item.vehicle)}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-gray-400">
+                                    Keine Geräte hinterlegt
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {crew.notes ? (
+                            <div className="mt-3 rounded-xl bg-orange-50 p-3 text-xs text-orange-950">
+                              <div className="font-semibold">Bemerkung</div>
+                              <div className="mt-1">{crew.notes}</div>
+                            </div>
+                          ) : null}
+
+                          <div className="mt-3 text-xs font-semibold text-gray-500">
+                            Klick auf den Kolonnennamen fokussiert den Zeitstrahl.
+                            Das Zahnrad öffnet die Kolonnenverwaltung.
+                          </div>
+                        </>
+                      }
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <CrewTimelineFocusButton
+                          focusDate={formatDateInput(crewFocusDate)}
+                          crewId={crew.id}
+                          fallbackHref={crewFocusHref}
+                          className="block min-w-0 flex-1 truncate text-left text-sm font-bold text-gray-900 hover:underline"
+                          title="Zur aktuellen oder nächsten Einteilung dieser Kolonne springen"
+                        >
+                          {crew.name}
+                        </CrewTimelineFocusButton>
+
+                        <Link
+                          href={`/admin/crews#crew-${crew.id}`}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm hover:bg-gray-50"
+                          title="Kolonne direkt bearbeiten"
+                        >
+                          ⚙
+                        </Link>
+                      </div>
+
+                      {crewOverview ? null : (
+                        <>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {crew.typeLabel ? (
+                              <span className="inline-flex max-w-full rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                <span className="truncate">{crew.typeLabel}</span>
+                              </span>
+                            ) : null}
+
+                            {crew.isAsphaltDispatchCrew ? (
+                              <span className="inline-flex rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-900">
+                                Asphaltdisposition
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-2 text-xs text-gray-500">
+                            {crew.members.length} MA · {crew.defaultVehicles.length}{" "}
                             Geräte
                           </div>
 
-                          <div className="mt-2 space-y-1 text-xs text-gray-700">
-                            {crew.defaultVehicles.length ? (
-                              crew.defaultVehicles.map((item) => (
-                                <div key={item.id}>
-                                  {getVehicleLabel(item.vehicle)}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-gray-400">
-                                Keine Geräte hinterlegt
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {crew.notes ? (
-                        <div className="mt-3 rounded-xl bg-orange-50 p-3 text-xs text-orange-950">
-                          <div className="font-semibold">Bemerkung</div>
-                          <div className="mt-1">{crew.notes}</div>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-3 text-xs font-semibold text-gray-500">
-                        Klick auf den Kolonnennamen fokussiert den Zeitstrahl.
-                        Das Zahnrad öffnet die Kolonnenverwaltung.
-                      </div>
-                    </div>
+                          {crew.members.length ? (
+                            <div className="mt-2 line-clamp-2 text-xs text-gray-500">
+                              {crew.members
+                                .map(
+                                  (member) =>
+                                    `${member.employee.lastName}, ${member.employee.firstName}`,
+                                )
+                                .join(" · ")}
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-xs text-gray-400">
+                              Keine Mitarbeiter hinterlegt
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </CrewRowHoverDetails>
                   </div>
                 );
               })
@@ -5911,24 +5932,26 @@ export default async function CrewDispatchPage({
                           minHeight: `${rowHeight}px`,
                         }}
                       >
-                        <CrewPopover
-                          trigger="+"
-                          triggerClassName={getPlusButtonClass(unitCount)}
-                          panelClassName="relative z-50 w-[400px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
-                        >
-                          <CrewPlanningAssignmentFormClient
-                            mode="create"
-                            projects={projectOptions}
-                            weekStart={weekStartInput}
-                            crews={crews}
-                            fixedCrewId={crew.id}
-                            fixedCrewName={crew.name}
-                            defaultCrewId={crew.id}
-                            defaultStartDate={unit.defaultStartDate}
-                            defaultEndDate={unit.defaultEndDate}
-                            conflictAssignments={conflictAssignmentsForClient}
-                          />
-                        </CrewPopover>
+                        {crewOverview ? null : (
+                          <CrewPopover
+                            trigger="+"
+                            triggerClassName={getPlusButtonClass(unitCount)}
+                            panelClassName="relative z-50 w-[400px] max-w-[calc(100vw-3rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+                          >
+                            <CrewPlanningAssignmentFormClient
+                              mode="create"
+                              projects={projectOptions}
+                              weekStart={weekStartInput}
+                              crews={crews}
+                              fixedCrewId={crew.id}
+                              fixedCrewName={crew.name}
+                              defaultCrewId={crew.id}
+                              defaultStartDate={unit.defaultStartDate}
+                              defaultEndDate={unit.defaultEndDate}
+                              conflictAssignments={conflictAssignmentsForClient}
+                            />
+                          </CrewPopover>
+                        )}
                       </div>
                     ))}
 
@@ -5953,7 +5976,9 @@ export default async function CrewDispatchPage({
                             assignmentIndex;
 
                           const baseTopOffsetPx =
-                            CREW_TIMELINE_BAR_TOP_PX +
+                            (crewOverview
+                              ? CREW_TIMELINE_OVERVIEW_BAR_TOP_PX
+                              : CREW_TIMELINE_BAR_TOP_PX) +
                             (rowLayout?.assignmentOffsets.get(assignment.id) ??
                               laneIndex * crewTimelineLaneHeight);
 
@@ -6280,7 +6305,9 @@ export default async function CrewDispatchPage({
                           crewAssignments.length + asphaltIndex;
 
                         const baseTopOffsetPx =
-                          CREW_TIMELINE_BAR_TOP_PX +
+                          (crewOverview
+                            ? CREW_TIMELINE_OVERVIEW_BAR_TOP_PX
+                            : CREW_TIMELINE_BAR_TOP_PX) +
                           (rowLayout?.asphaltOffsets.get(bar.id) ??
                             laneIndex * crewTimelineLaneHeight);
 
@@ -6647,6 +6674,8 @@ function TimelineInlineSupplementStrip({
 
 function PlanningDisplayOptions({
   compactView,
+  crewOverview,
+  planningAxis,
   showAsphaltDispatchCrews,
   showEquipment,
   showMaterial,
@@ -6657,6 +6686,8 @@ function PlanningDisplayOptions({
   view,
 }: {
   compactView: boolean;
+  crewOverview: boolean;
+  planningAxis: PlanningAxis;
   showAsphaltDispatchCrews: boolean;
   showEquipment: boolean;
   showMaterial: boolean;
@@ -6683,6 +6714,16 @@ function PlanningDisplayOptions({
       defaultChecked: compactView,
       className: "border-gray-300 bg-white text-gray-800",
     },
+    ...(planningAxis === "teams"
+      ? [
+          {
+            name: "crewOverview",
+            label: "Kolonnen-Übersicht (ohne + anzeigen)",
+            defaultChecked: crewOverview,
+            className: "border-gray-300 bg-white text-gray-800",
+          },
+        ]
+      : []),
     {
       name: "showAsphaltDispatchCrews",
       label: "Asphalt-Dispo-Kolonnen anzeigen",

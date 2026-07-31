@@ -11,6 +11,7 @@ import {
   getNextInventoryObjectNumber,
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 
 type ExcelRow = Record<string, unknown>;
@@ -336,6 +337,7 @@ function getContact(row: ExcelRow) {
 }
 
 export async function importInventoryItems(formData: FormData) {
+  await requireSession();
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {

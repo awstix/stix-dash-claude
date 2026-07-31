@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function parseWorkDate(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -139,6 +140,7 @@ function revalidateAsphaltPlanningViews() {
 }
 
 export async function createAsphaltDispatchEntry(formData: FormData) {
+  await requireSession();
   const workDate = parseWorkDate(formData.get("workDate"));
   const crew = String(formData.get("crew") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
@@ -217,6 +219,7 @@ export async function createAsphaltDispatchEntry(formData: FormData) {
 }
 
 export async function updateAsphaltDispatchEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "").trim();
   const asphaltInventoryItemId = String(formData.get("asphaltMixTypeId") ?? "").trim();
@@ -304,6 +307,7 @@ export async function updateAsphaltDispatchEntry(formData: FormData) {
 }
 
 export async function copyAsphaltDispatchEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const targetWorkDate = parseWorkDate(formData.get("targetWorkDate"));
   const targetCrew = String(formData.get("targetCrew") ?? "").trim();
@@ -354,6 +358,7 @@ export async function copyAsphaltDispatchEntry(formData: FormData) {
 }
 
 export async function deleteAsphaltDispatchEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

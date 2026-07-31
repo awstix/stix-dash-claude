@@ -7,6 +7,8 @@ import {
   updateProjectPhoto,
 } from "@/app/projects/actions";
 import {
+  formatDateTime,
+  getUploaderLabel,
   PhotoDetailModal,
   type ProjectPhotoGalleryItem,
 } from "@/app/projects/ProjectPhotoGallery";
@@ -66,6 +68,9 @@ export function DashboardPhotoWidget({
           <div className="min-w-0">
             <h3 className="font-black">{title}</h3>
             <p className="truncate text-sm font-bold text-gray-950">{photo.projectLabel}</p>
+            <p className="truncate text-xs font-bold text-gray-600">
+              {getUploaderLabel(photo)} · {formatDateTime(photo.uploadedAt)}
+            </p>
           </div>
           <span className="shrink-0 rounded-lg bg-gray-950 px-2 py-1 text-xs font-black text-white">
             {index + 1}/{photos.length}

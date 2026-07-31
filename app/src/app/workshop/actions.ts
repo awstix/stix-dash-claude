@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 import { parseProjectFormFields } from "@/app/projects/projectFormTypes";
 import {
   WORKSHOP_REPAIR_SYSTEM_FIELD_IDS,
@@ -141,6 +142,7 @@ async function getInventoryWorkshopStatus(
 }
 
 export async function createWorkshopRepairOrder(formData: FormData) {
+  await requireSession();
   const vehicleId = optionalString(formData.get("vehicleId"));
   const inventoryItemId = optionalString(formData.get("inventoryItemId"));
   const vehicleSnapshot = await getVehicleSnapshot(vehicleId);
@@ -215,6 +217,7 @@ export async function createWorkshopRepairOrder(formData: FormData) {
 }
 
 export async function updateWorkshopRepairOrder(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Auftrags-ID");
   const vehicleId = optionalString(formData.get("vehicleId"));
   const inventoryItemId = formData.has("inventoryItemId")
@@ -302,6 +305,7 @@ export async function updateWorkshopRepairOrder(formData: FormData) {
 }
 
 export async function deleteWorkshopRepairOrder(formData: FormData) {
+  await requireSession();
   const id = requiredString(formData.get("id"), "Auftrags-ID");
 
   const inventoryItemId = await prisma.$transaction(async (tx) => {

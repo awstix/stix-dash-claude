@@ -7,6 +7,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { FreeTextCombobox } from "@/components/FreeTextCombobox";
@@ -119,7 +120,7 @@ export function InventoryWorkshopFormDialog({
 
   const dialog = open ? (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-950/45 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/45 p-4"
       onMouseDown={(event) => {
         if (
           event.target instanceof Node &&
@@ -157,7 +158,7 @@ export function InventoryWorkshopFormDialog({
             onClick={close}
             type="button"
           >
-            ×
+            <ActionIcon name="close" className="h-4 w-4" />
           </button>
         </div>
 

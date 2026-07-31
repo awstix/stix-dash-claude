@@ -6,6 +6,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 function text(formData: FormData, name: string, maxLength = 300) {
   const value = String(formData.get(name) ?? "")
@@ -19,6 +20,7 @@ function optional(value: string) {
 }
 
 export async function saveCompanyInfo(formData: FormData) {
+  await requireAdmin();
   const companyName = text(formData, "companyName", 160);
 
   if (!companyName) {

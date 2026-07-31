@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
+import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
 import {
   getVehicleInventoryItem,
   getVehicleInventoryLabel,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
-import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
+import { AnchoredPopover } from "@/components/AnchoredPopover";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import {
   createEquipmentDispatchAssignment,
@@ -17,7 +18,6 @@ import {
   updateEquipmentDispatchAssignment,
 } from "./actions";
 import { EquipmentAssignmentBar } from "./EquipmentAssignmentBar";
-import { EquipmentDispatchStickyOffset } from "./EquipmentDispatchStickyOffset";
 import { EquipmentTimelineScroll } from "./EquipmentTimelineScroll";
 
 type TimelineUnit = {
@@ -108,6 +108,10 @@ const EQUIPMENT_LEFT_ROW_MIN_HEIGHT_PX = 118;
 const TIMELINE_TOP_OFFSET_PX = 44;
 const TIMELINE_LANE_HEIGHT_PX = 68;
 const TIMELINE_BOTTOM_PADDING_PX = 28;
+const TIMELINE_OVERVIEW_TOP_OFFSET_PX = 4;
+const TIMELINE_OVERVIEW_BOTTOM_PADDING_PX = 4;
+const TIMELINE_OVERVIEW_ROW_MIN_HEIGHT_PX = 40;
+const EQUIPMENT_OVERVIEW_LEFT_ROW_MIN_HEIGHT_PX = 32;
 
 function parseDateParam(value: string | undefined) {
   if (!value) {
@@ -129,6 +133,31 @@ function addDays(date: Date, days: number) {
   const result = new Date(date);
   result.setUTCDate(result.getUTCDate() + days);
   return result;
+}
+
+function isWeekendDay(date: Date) {
+  const day = date.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+/**
+ * Findet das Enddatum, sodass zwischen `fromDate` und dem Ergebnis genau
+ * `count` sichtbare Tage liegen (Wochenende wird übersprungen, wenn
+ * `showWeekend` false ist) - damit "14T" auch wirklich 14 Spalten ergibt.
+ */
+function addVisibleDays(fromDate: Date, count: number, showWeekend: boolean) {
+  let current = fromDate;
+  let remaining = count;
+
+  while (remaining > 0) {
+    if (showWeekend || !isWeekendDay(current)) {
+      remaining -= 1;
+      if (remaining === 0) return current;
+    }
+    current = addDays(current, 1);
+  }
+
+  return current;
 }
 
 function addMonths(date: Date, months: number) {
@@ -230,7 +259,11 @@ function getSafeDateRange({
 }) {
   const today = parseDateParam(formatDateInput(new Date()));
   const fallbackStart =
-    view === "months" ? startOfMonth(today) : startOfWeek(today);
+    view === "months"
+      ? startOfMonth(today)
+      : view === "weeks"
+        ? startOfWeek(today)
+        : today;
   const fallbackEnd =
     view === "months"
       ? endOfMonthInclusive(addMonths(fallbackStart, 4))
@@ -377,19 +410,45 @@ function buildTimelineUnits({
 }
 
 function getTimelineColumnWidth(view: TimelineView, unitCount: number) {
-  if (view === "months") return 170;
-  if (view === "weeks") return 145;
+  if (view === "months") {
+    if (unitCount >= 12) return 100;
+    if (unitCount >= 8) return 130;
+    return 170;
+  }
+
+  if (view === "weeks") {
+    if (unitCount >= 9) return 92;
+    if (unitCount >= 6) return 112;
+    return 145;
+  }
+
   if (unitCount >= 30) return 74;
   if (unitCount >= 20) return 84;
   if (unitCount >= 12) return 96;
   return 112;
 }
 
+function fitsWithoutScroll(view: TimelineView, unitCount: number) {
+  return (
+    (view === "days" && unitCount <= 21) ||
+    (view === "weeks" && unitCount <= 9) ||
+    (view === "months" && unitCount <= 12)
+  );
+}
+
 function getTimelineGridColumns(view: TimelineView, unitCount: number) {
+  if (fitsWithoutScroll(view, unitCount)) {
+    return `repeat(${unitCount}, minmax(0, 1fr))`;
+  }
+
   return `repeat(${unitCount}, minmax(${getTimelineColumnWidth(view, unitCount)}px, 1fr))`;
 }
 
 function getTimelineMinWidth(view: TimelineView, unitCount: number) {
+  if (fitsWithoutScroll(view, unitCount)) {
+    return 0;
+  }
+
   return unitCount * getTimelineColumnWidth(view, unitCount);
 }
 
@@ -449,6 +508,7 @@ function buildEquipmentDispatchHref({
   toDate,
   view,
   showWeekend,
+  equipmentOverview,
   focusDate,
   filters,
 }: {
@@ -456,6 +516,7 @@ function buildEquipmentDispatchHref({
   toDate: Date;
   view: TimelineView;
   showWeekend: boolean;
+  equipmentOverview?: boolean;
   focusDate?: Date | string;
   filters?: EquipmentDispatchFilters;
 }) {
@@ -474,6 +535,10 @@ function buildEquipmentDispatchHref({
 
   if (showWeekend) {
     params.set("showWeekend", "1");
+  }
+
+  if (equipmentOverview) {
+    params.set("equipmentOverview", "1");
   }
 
   if (filters) {
@@ -505,6 +570,7 @@ function buildEquipmentQuickAddHref({
   toDate,
   view,
   showWeekend,
+  equipmentOverview,
   filters,
   vehicleId,
   startDate,
@@ -514,6 +580,7 @@ function buildEquipmentQuickAddHref({
   toDate: Date;
   view: TimelineView;
   showWeekend: boolean;
+  equipmentOverview?: boolean;
   filters: EquipmentDispatchFilters;
   vehicleId: string;
   startDate: Date;
@@ -524,6 +591,7 @@ function buildEquipmentQuickAddHref({
     toDate,
     view,
     showWeekend,
+    equipmentOverview,
     focusDate: startDate,
     filters,
   });
@@ -578,9 +646,16 @@ function getEquipmentVehicleSelectLabel(vehicle: {
     .join(" · ");
 }
 
-function getEquipmentListRowMinHeight(vehicle: {
-  notes: string | null;
-} & VehicleWithInventoryLink) {
+function getEquipmentListRowMinHeight(
+  vehicle: {
+    notes: string | null;
+  } & VehicleWithInventoryLink,
+  equipmentOverview: boolean,
+) {
+  if (equipmentOverview) {
+    return EQUIPMENT_OVERVIEW_LEFT_ROW_MIN_HEIGHT_PX;
+  }
+
   const inventoryItem = getVehicleInventoryItem(vehicle);
   let minHeight = EQUIPMENT_LEFT_ROW_MIN_HEIGHT_PX;
 
@@ -1115,7 +1190,7 @@ function getBarClass(source: EquipmentBarSource) {
   return "rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm";
 }
 
-function buildLaneLayout(bars: EquipmentRowBar[]) {
+function buildLaneLayout(bars: EquipmentRowBar[], equipmentOverview: boolean) {
   const lanes = new Map<string, number>();
   const laneEndDates: Date[] = [];
 
@@ -1150,12 +1225,19 @@ function buildLaneLayout(bars: EquipmentRowBar[]) {
 
   return {
     lanes,
-    rowHeight: Math.max(
-      TIMELINE_ROW_MIN_HEIGHT_PX,
-      TIMELINE_TOP_OFFSET_PX +
-        laneCount * TIMELINE_LANE_HEIGHT_PX +
-        TIMELINE_BOTTOM_PADDING_PX,
-    ),
+    rowHeight: equipmentOverview
+      ? Math.max(
+          TIMELINE_OVERVIEW_ROW_MIN_HEIGHT_PX,
+          TIMELINE_OVERVIEW_TOP_OFFSET_PX +
+            laneCount * TIMELINE_LANE_HEIGHT_PX +
+            TIMELINE_OVERVIEW_BOTTOM_PADDING_PX,
+        )
+      : Math.max(
+          TIMELINE_ROW_MIN_HEIGHT_PX,
+          TIMELINE_TOP_OFFSET_PX +
+            laneCount * TIMELINE_LANE_HEIGHT_PX +
+            TIMELINE_BOTTOM_PADDING_PX,
+        ),
   } satisfies LaneLayout;
 }
 
@@ -1346,6 +1428,7 @@ export default async function EquipmentDispatchPage({
     to?: string;
     view?: string;
     showWeekend?: string;
+    equipmentOverview?: string;
     focus?: string;
     q?: string;
     projectId?: string;
@@ -1368,6 +1451,7 @@ export default async function EquipmentDispatchPage({
   const params = await searchParams;
   const view = getTimelineView(params.view);
   const showWeekend = params.showWeekend === "1";
+  const equipmentOverview = params.equipmentOverview === "1";
   const selectedVehicleTypesFromParams = getFilterValues(
     params.visibleVehicleType,
   );
@@ -1440,14 +1524,21 @@ export default async function EquipmentDispatchPage({
     direction: -1,
   });
   const nextRange = shiftDateRange({ fromDate, toDate, view, direction: 1 });
-  const todayRange = {
-    fromDate:
-      view === "months" ? startOfMonth(new Date()) : startOfWeek(new Date()),
-    toDate:
-      view === "months"
-        ? endOfMonthInclusive(addMonths(startOfMonth(new Date()), 4))
-        : addDays(startOfWeek(new Date()), 13),
-  };
+  const todayRange =
+    view === "months"
+      ? {
+          fromDate: startOfMonth(new Date()),
+          toDate: endOfMonthInclusive(addMonths(startOfMonth(new Date()), 4)),
+        }
+      : view === "weeks"
+        ? {
+            fromDate: startOfWeek(new Date()),
+            toDate: addDays(startOfWeek(new Date()), 13),
+          }
+        : {
+            fromDate: parseDateParam(undefined),
+            toDate: addDays(parseDateParam(undefined), 13),
+          };
 
   const [
     inventoryVehicleItems,
@@ -1754,6 +1845,7 @@ export default async function EquipmentDispatchPage({
     toDate: previousRange.toDate,
     view,
     showWeekend,
+    equipmentOverview,
     filters,
   });
 
@@ -1762,6 +1854,7 @@ export default async function EquipmentDispatchPage({
     toDate: todayRange.toDate,
     view,
     showWeekend,
+    equipmentOverview,
     filters,
   });
 
@@ -1770,6 +1863,7 @@ export default async function EquipmentDispatchPage({
     toDate: nextRange.toDate,
     view,
     showWeekend,
+    equipmentOverview,
     filters,
   });
 
@@ -2171,35 +2265,34 @@ export default async function EquipmentDispatchPage({
   for (const vehicle of filteredVehicles) {
     rowLayouts.set(
       vehicle.id,
-      buildLaneLayout(barsByVehicle.get(vehicle.id) ?? []),
+      buildLaneLayout(barsByVehicle.get(vehicle.id) ?? [], equipmentOverview),
     );
   }
 
   const timelineGridColumns = getTimelineGridColumns(view, unitCount);
   const timelineMinWidth = getTimelineMinWidth(view, unitCount);
-  const timelineContentMinWidth = unitCount <= 14 ? "100%" : `${timelineMinWidth}px`;
-  const timelineRangePresets = [
-    {
-      label: "1W",
-      fromDate,
-      toDate: addDays(fromDate, showWeekend ? 6 : 4),
-    },
-    {
-      label: "2W",
-      fromDate,
-      toDate: addDays(fromDate, 13),
-    },
-    {
-      label: "5W",
-      fromDate,
-      toDate: addDays(fromDate, 34),
-    },
-    {
-      label: "5M",
-      fromDate: startOfMonth(fromDate),
-      toDate: endOfMonthInclusive(addMonths(startOfMonth(fromDate), 4)),
-    },
-  ];
+  const timelineContentMinWidth = `${timelineMinWidth}px`;
+  const timelineRangePresets =
+    view === "months"
+      ? [4, 8, 12].map((count) => ({
+          count,
+          label: `${count}M`,
+          fromDate: startOfMonth(fromDate),
+          toDate: endOfMonthInclusive(addMonths(startOfMonth(fromDate), count - 1)),
+        }))
+      : view === "weeks"
+        ? [3, 6, 9].map((count) => ({
+            count,
+            label: `${count}W`,
+            fromDate: startOfWeek(fromDate),
+            toDate: addDays(startOfWeek(fromDate), count * 7 - 1),
+          }))
+        : [7, 14, 21].map((count) => ({
+            count,
+            label: `${count}T`,
+            fromDate,
+            toDate: addVisibleDays(fromDate, count, showWeekend),
+          }));
 
   return (
     <AppShell
@@ -2291,12 +2384,11 @@ export default async function EquipmentDispatchPage({
 
       <div
         data-equipment-dispatch-root
-        className="max-w-full overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm"
+        className="sticky top-[var(--app-header-height,0px)] flex h-[calc(100dvh-var(--app-header-height,0px)-2rem)] max-w-full flex-col rounded-2xl border border-gray-200 bg-white shadow-sm"
       >
-        <EquipmentDispatchStickyOffset />
         <div
           data-equipment-dispatch-sticky-controls
-          className="sticky top-0 z-[90] -mx-px -mt-px overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 pt-[calc(var(--app-header-height,0px)+1rem)] shadow-sm"
+          className="-mx-px -mt-px shrink-0 overflow-visible rounded-t-2xl border border-gray-200 bg-white p-4 shadow-sm"
         >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -2338,6 +2430,7 @@ export default async function EquipmentDispatchPage({
                     toDate,
                     view: item,
                     showWeekend,
+                    equipmentOverview,
                     filters,
                   })}
                   scroll={false}
@@ -2363,17 +2456,17 @@ export default async function EquipmentDispatchPage({
                   href={buildEquipmentDispatchHref({
                     fromDate: preset.fromDate,
                     toDate: preset.toDate,
-                    view:
-                      preset.label === "5M"
-                        ? "months"
-                        : view === "months"
-                          ? "days"
-                          : view,
+                    view,
                     showWeekend,
+                    equipmentOverview,
                     filters,
                   })}
                   scroll={false}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                  className={
+                    unitCount === preset.count
+                      ? "rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+                      : "rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white"
+                  }
                 >
                   {preset.label}
                 </Link>
@@ -2384,23 +2477,28 @@ export default async function EquipmentDispatchPage({
               <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
                 {filteredVehicles.length}/{vehicles.length} Geräte
               </div>
-              <DismissibleDetails className="relative inline-block">
-                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
-                  🔎 Filter
-                  {activeFilterCount > 0 ? (
-                    <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
-                      {activeFilterCount}
-                    </span>
-                  ) : null}
-                </summary>
-
-                <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
-                  <div className="text-sm font-bold text-gray-900">Geräte filtern</div>
+              <AnchoredPopover
+                triggerClassName="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                trigger={
+                  <>
+                    🔎 Filter
+                    {activeFilterCount > 0 ? (
+                      <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs text-white">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </>
+                }
+                panelClassName="z-[var(--z-modal)] max-h-[88vh] w-[92vw] max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl"
+                variant="center"
+                panel={
+                  <>
+                    <div className="text-sm font-bold text-gray-900">Geräte filtern</div>
                   <p className="mt-1 text-xs text-gray-600">
                     Suche, Baustelle, Gerätedaten und Belegung einschränken.
                   </p>
 
-                  <form
+                  <ScrollPreservingForm
                     action="/equipment-dispatch"
                     className="mt-4 grid gap-4"
                   >
@@ -2498,12 +2596,14 @@ export default async function EquipmentDispatchPage({
                       </label>
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <details className="group rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <input type="hidden" name="vehicleTypesTouched" value="1" />
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Gerätetypen anzeigen
+                            <span className="ml-1 text-gray-400 group-open:hidden">▸</span>
+                            <span className="ml-1 hidden text-gray-400 group-open:inline">▾</span>
                           </div>
                           <div className="mt-1 text-xs font-medium text-gray-500">
                             Die Liste kommt aus den aktiven Fahrzeugtypen der Auswahllisten.
@@ -2512,10 +2612,10 @@ export default async function EquipmentDispatchPage({
                         <div className="text-xs font-semibold text-gray-600">
                           {filters.visibleVehicleTypes.length}/{vehicleTypeOptions.length} aktiv
                         </div>
-                      </div>
+                      </summary>
 
                       {vehicleTypeOptions.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-3 flex max-h-64 flex-wrap gap-2 overflow-y-auto">
                           {vehicleTypeOptions.map((option) => (
                             <label
                               key={option.value}
@@ -2539,7 +2639,7 @@ export default async function EquipmentDispatchPage({
                           Noch keine Fahrzeugtypen in den Auswahllisten oder im Fahrzeugstamm vorhanden.
                         </div>
                       )}
-                    </div>
+                    </details>
 
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -2554,6 +2654,7 @@ export default async function EquipmentDispatchPage({
                           toDate,
                           view,
                           showWeekend,
+                          equipmentOverview,
                         })}
                         scroll={false}
                         className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -2561,9 +2662,10 @@ export default async function EquipmentDispatchPage({
                         Filter zurücksetzen
                       </Link>
                     </div>
-                  </form>
-                </div>
-              </DismissibleDetails>
+                  </ScrollPreservingForm>
+                  </>
+                }
+              />
 
               {activeFilterCount > 0 ? (
                 <Link
@@ -2572,6 +2674,7 @@ export default async function EquipmentDispatchPage({
                     toDate,
                     view,
                     showWeekend,
+                    equipmentOverview,
                   })}
                   scroll={false}
                   className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -2580,21 +2683,25 @@ export default async function EquipmentDispatchPage({
                 </Link>
               ) : null}
 
-            <DismissibleDetails className="relative inline-block w-full sm:w-auto">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100">
-                ⚙ Einstellungen
-                <span className="text-blue-700">▾</span>
-              </summary>
-
-              <div className="fixed left-4 right-4 top-24 z-[80] mx-auto max-h-[calc(100vh-7rem)] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl">
-                <div className="text-sm font-bold text-gray-900">
-                  Gerätedisposition einstellen
-                </div>
+            <AnchoredPopover
+              triggerClassName="inline-flex w-full cursor-pointer list-none items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-950 hover:bg-blue-100 sm:w-auto"
+              trigger={
+                <>
+                  ⚙ Einstellungen
+                  <span className="text-blue-700">▾</span>
+                </>
+              }
+              panelClassName="z-[var(--z-modal)] max-h-[70vh] w-[92vw] max-w-xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl"
+              panel={
+                <>
+                  <div className="text-sm font-bold text-gray-900">
+                    Gerätedisposition einstellen
+                  </div>
                 <p className="mt-1 text-xs text-gray-600">
                   Sichtbaren Zeitraum und Anzeigeoptionen für den Dispoplan speichern.
                 </p>
 
-                <form
+                <ScrollPreservingForm
                   action="/equipment-dispatch"
                   className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
                 >
@@ -2648,6 +2755,17 @@ export default async function EquipmentDispatchPage({
                           <span>Sa/So anzeigen</span>
                         </label>
                       ) : null}
+
+                      <label className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800">
+                        <input
+                          type="checkbox"
+                          name="equipmentOverview"
+                          value="1"
+                          defaultChecked={equipmentOverview}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span>Geräte-Übersicht (ohne + anzeigen)</span>
+                      </label>
                     </div>
                   </fieldset>
 
@@ -2657,9 +2775,10 @@ export default async function EquipmentDispatchPage({
                   >
                     Einstellungen speichern
                   </button>
-                </form>
-              </div>
-            </DismissibleDetails>
+                </ScrollPreservingForm>
+                </>
+              }
+            />
           </div>
 
           <div
@@ -2719,11 +2838,7 @@ export default async function EquipmentDispatchPage({
         </div>
 
         <div
-          className="overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
-          style={{
-            maxHeight:
-              "max(360px, calc(100vh - var(--equipment-dispatch-sticky-offset, 280px) - var(--app-header-height, 0px) - 1rem))",
-          }}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-b-2xl"
         >
         <div
           className="grid w-full"
@@ -2741,7 +2856,7 @@ export default async function EquipmentDispatchPage({
                 const rowHeight = Math.max(
                   rowLayouts.get(vehicle.id)?.rowHeight ??
                     TIMELINE_ROW_MIN_HEIGHT_PX,
-                  getEquipmentListRowMinHeight(vehicle),
+                  getEquipmentListRowMinHeight(vehicle, equipmentOverview),
                 );
                 const inventoryItem = getVehicleInventoryItem(vehicle);
                 const inventoryLabel = getVehicleInventoryLabel(vehicle);
@@ -2771,7 +2886,11 @@ export default async function EquipmentDispatchPage({
                 return (
                   <div
                     key={vehicle.id}
-                    className="border-b border-gray-200 bg-white p-3"
+                    className={
+                      equipmentOverview
+                        ? "flex items-center border-b border-gray-200 bg-white px-3"
+                        : "border-b border-gray-200 bg-white p-3"
+                    }
                     style={{
                       height: `${rowHeight}px`,
                       minHeight: `${rowHeight}px`,
@@ -2780,61 +2899,65 @@ export default async function EquipmentDispatchPage({
                     <div className="truncate text-sm font-bold text-gray-900">
                       {primaryLabel}
                     </div>
-                    <div className="mt-1 text-xs font-semibold text-gray-600">
-                      {secondaryLabel}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {inventoryItem && inventoryLabel ? (
-                        <Link
-                          href={`/inventory/${inventoryItem.id}`}
-                          className="max-w-full truncate rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950 transition hover:bg-amber-200"
-                          title="Inventarobjekt öffnen"
-                        >
-                          Inventar: {inventoryLabel}
-                        </Link>
-                      ) : (
-                        <span className="rounded-full bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500">
-                          Kein Inventarobjekt
-                        </span>
-                      )}
-                      {vehicle.isSpecialVehicle ? (
-                        <span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-900">
-                          Sonderfahrzeug
-                        </span>
-                      ) : null}
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                        {(barsByVehicle.get(vehicle.id) ?? []).length} Balken
-                      </span>
-                    </div>
-                    {inventoryItem ? (
-                      <div className="mt-2 space-y-1 text-xs text-gray-500">
-                        {inventoryItem.status !== "ACTIVE" ? (
-                          <div>
-                            Status:{" "}
-                            <span className="font-semibold text-red-700">
-                              {inventoryItem.status === "DEFECT"
-                                ? "Defekt"
-                                : inventoryItem.status}
+                    {equipmentOverview ? null : (
+                      <>
+                        <div className="mt-1 text-xs font-semibold text-gray-600">
+                          {secondaryLabel}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {inventoryItem && inventoryLabel ? (
+                            <Link
+                              href={`/inventory/${inventoryItem.id}`}
+                              className="max-w-full truncate rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950 transition hover:bg-amber-200"
+                              title="Inventarobjekt öffnen"
+                            >
+                              Inventar: {inventoryLabel}
+                            </Link>
+                          ) : (
+                            <span className="rounded-full bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500">
+                              Kein Inventarobjekt
                             </span>
+                          )}
+                          {vehicle.isSpecialVehicle ? (
+                            <span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-900">
+                              Sonderfahrzeug
+                            </span>
+                          ) : null}
+                          <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                            {(barsByVehicle.get(vehicle.id) ?? []).length} Balken
+                          </span>
+                        </div>
+                        {inventoryItem ? (
+                          <div className="mt-2 space-y-1 text-xs text-gray-500">
+                            {inventoryItem.status !== "ACTIVE" ? (
+                              <div>
+                                Status:{" "}
+                                <span className="font-semibold text-red-700">
+                                  {inventoryItem.status === "DEFECT"
+                                    ? "Defekt"
+                                    : inventoryItem.status}
+                                </span>
+                              </div>
+                            ) : null}
+                            {inventoryItem.currentLocationLabel ? (
+                              <div className="truncate">
+                                Standort: {inventoryItem.currentLocationLabel}
+                              </div>
+                            ) : null}
+                            {inventoryResponsibleLabel ? (
+                              <div className="truncate">
+                                Zuweisung: {inventoryResponsibleLabel}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
-                        {inventoryItem.currentLocationLabel ? (
-                          <div className="truncate">
-                            Standort: {inventoryItem.currentLocationLabel}
+                        {vehicle.notes ? (
+                          <div className="mt-2 line-clamp-3 text-xs text-gray-500">
+                            {vehicle.notes}
                           </div>
                         ) : null}
-                        {inventoryResponsibleLabel ? (
-                          <div className="truncate">
-                            Zuweisung: {inventoryResponsibleLabel}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {vehicle.notes ? (
-                      <div className="mt-2 line-clamp-3 text-xs text-gray-500">
-                        {vehicle.notes}
-                      </div>
-                    ) : null}
+                      </>
+                    )}
                   </div>
                 );
               })
@@ -2854,7 +2977,7 @@ export default async function EquipmentDispatchPage({
                 const rowLayout = rowLayouts.get(vehicle.id);
                 const rowHeight = Math.max(
                   rowLayout?.rowHeight ?? TIMELINE_ROW_MIN_HEIGHT_PX,
-                  getEquipmentListRowMinHeight(vehicle),
+                  getEquipmentListRowMinHeight(vehicle, equipmentOverview),
                 );
 
                 return (
@@ -2882,24 +3005,27 @@ export default async function EquipmentDispatchPage({
                           minHeight: `${rowHeight}px`,
                         }}
                       >
-                        <Link
-                          href={buildEquipmentQuickAddHref({
-                            fromDate,
-                            toDate,
-                            view,
-                            showWeekend,
-                            filters,
-                            vehicleId: vehicle.id,
-                            startDate: unit.startDate,
-                            endDate: addDays(unit.endDateExclusive, -1),
-                          })}
-                          className={getPlusButtonClass(unitCount)}
-                          title={`+ Gerät disponieren: ${getVehicleLabel(
-                            vehicle,
-                          )} · ${unit.label} ${unit.subLabel}`}
-                        >
-                          +
-                        </Link>
+                        {equipmentOverview ? null : (
+                          <Link
+                            href={buildEquipmentQuickAddHref({
+                              fromDate,
+                              toDate,
+                              view,
+                              showWeekend,
+                              equipmentOverview,
+                              filters,
+                              vehicleId: vehicle.id,
+                              startDate: unit.startDate,
+                              endDate: addDays(unit.endDateExclusive, -1),
+                            })}
+                            className={getPlusButtonClass(unitCount)}
+                            title={`+ Gerät disponieren: ${getVehicleLabel(
+                              vehicle,
+                            )} · ${unit.label} ${unit.subLabel}`}
+                          >
+                            +
+                          </Link>
+                        )}
                       </div>
                     ))}
 
@@ -2910,7 +3036,9 @@ export default async function EquipmentDispatchPage({
                       {bars.map((bar) => {
                         const laneIndex = rowLayout?.lanes.get(bar.id) ?? 0;
                         const topOffsetPx =
-                          TIMELINE_TOP_OFFSET_PX +
+                          (equipmentOverview
+                            ? TIMELINE_OVERVIEW_TOP_OFFSET_PX
+                            : TIMELINE_TOP_OFFSET_PX) +
                           laneIndex * TIMELINE_LANE_HEIGHT_PX;
                         const title = `${bar.projectNumber} · ${bar.projectName}`;
 

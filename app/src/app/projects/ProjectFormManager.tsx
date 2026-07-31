@@ -700,7 +700,7 @@ export function ProjectFormManager({
         <div
           className={
             embedded
-              ? "fixed inset-0 z-[190] flex items-end justify-center bg-gray-950/50 p-0 sm:items-center sm:p-5"
+              ? "fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-gray-950/50 p-0 sm:items-center sm:p-5"
               : ""
           }
         >
@@ -1178,7 +1178,7 @@ function TemplateFieldEditor({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-[200] flex items-end justify-center bg-gray-950/45 p-0 sm:items-center sm:p-5"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-gray-950/45 p-0 sm:items-center sm:p-5"
       role="dialog"
     >
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">

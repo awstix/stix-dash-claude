@@ -1,5 +1,7 @@
 "use server";
 
+import { requireSession } from "@/lib/auth-access";
+
 import { revalidatePath } from "next/cache";
 
 import {
@@ -50,6 +52,7 @@ function revalidateUniversalBuilder() {
 export async function saveUniversalFormTemplate(
   input: UniversalFormTemplateInput,
 ) {
+  await requireSession();
   const scope = assertScope(input.scope);
 
   if (scope === "PROJECT") {
@@ -92,6 +95,7 @@ export async function deleteUniversalFormTemplate(
   scopeValue: UniversalFormScope,
   id: string,
 ) {
+  await requireSession();
   const scope = assertScope(scopeValue);
   const templateId = id.trim();
 

@@ -50,7 +50,7 @@ export function InventoryStockMovementDialog({
         ? createPortal(
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/45 p-4"
           onClick={() => setOpen(false)}
           role="dialog"
         >

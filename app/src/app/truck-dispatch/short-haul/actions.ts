@@ -7,6 +7,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 
 function parseWorkDate(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -813,6 +814,7 @@ async function resolveShortHaulData(formData: FormData, workDate: Date) {
 }
 
 export async function createShortHaulAssignment(formData: FormData) {
+  await requireSession();
   const workDate = parseWorkDate(formData.get("workDate"));
 
   const {
@@ -870,6 +872,7 @@ export async function createShortHaulAssignment(formData: FormData) {
 }
 
 export async function updateShortHaulAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -965,6 +968,7 @@ export async function updateShortHaulTourTimeFromTimeline({
   startTime: string;
   endTime: string;
 }) {
+  await requireSession();
   const safeTourId = String(tourId ?? "").trim();
   const safeStartTime = String(startTime ?? "").trim();
   const safeEndTime = String(endTime ?? "").trim();
@@ -1073,6 +1077,7 @@ export async function updateShortHaulTourTimeFromTimeline({
 }
 
 export async function deleteShortHaulAssignment(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
@@ -1091,6 +1096,7 @@ export async function deleteShortHaulAssignment(formData: FormData) {
 }
 
 export async function createSpecialVehicleTask(formData: FormData) {
+  await requireSession();
   const workDate = parseWorkDate(formData.get("workDate"));
   const vehicleId = optionalString(formData.get("vehicleId"));
   const vehicleNameInput = optionalString(formData.get("vehicleName"));
@@ -1136,6 +1142,7 @@ export async function createSpecialVehicleTask(formData: FormData) {
 }
 
 export async function updateSpecialVehicleTask(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const taskText = String(formData.get("taskText") ?? "").trim();
 
@@ -1157,6 +1164,7 @@ export async function updateSpecialVehicleTask(formData: FormData) {
 }
 
 export async function deleteSpecialVehicleTask(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

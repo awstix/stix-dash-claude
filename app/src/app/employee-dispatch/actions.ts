@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-access";
 import {
   employeeDispositionTypes,
   getEmployeeDispositionType,
@@ -29,6 +30,7 @@ function parseTime(value: FormDataEntryValue | null, fallback: string) {
 }
 
 export async function createEmployeeDispositionEntry(formData: FormData) {
+  await requireSession();
   const employeeId = String(formData.get("employeeId") ?? "").trim();
   const typeValues = Array.from(
     new Set(
@@ -98,6 +100,7 @@ export async function createEmployeeDispositionEntry(formData: FormData) {
 }
 
 export async function updateEmployeeDispositionEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const employeeId = String(formData.get("employeeId") ?? "").trim();
   const typeValue = String(formData.get("typeValue") ?? "").trim();
@@ -155,6 +158,7 @@ export async function updateEmployeeDispositionEntry(formData: FormData) {
 }
 
 export async function updateEmployeeDispositionEntryDates(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
   const startDate = parseDate(formData.get("startDate"), "Startdatum");
   const endDate = parseDate(formData.get("endDate"), "Enddatum");
@@ -181,6 +185,7 @@ export async function updateEmployeeDispositionEntryDates(formData: FormData) {
 }
 
 export async function deleteEmployeeDispositionEntry(formData: FormData) {
+  await requireSession();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {

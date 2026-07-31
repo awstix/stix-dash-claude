@@ -1881,10 +1881,10 @@ function ProjectActorAvatar({
 
       <CloseDetailsButton
         aria-label="Fotoansicht schließen"
-        className="fixed inset-0 z-[120] cursor-default bg-black/70"
+        className="fixed inset-0 z-[var(--z-modal)] cursor-default bg-black/70"
       />
 
-      <div className="pointer-events-none fixed inset-0 z-[121] flex items-center justify-center p-6">
+      <div className="pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6">
         <div className="pointer-events-auto relative max-h-[90vh] max-w-[90vw] rounded-2xl bg-white p-3 shadow-2xl">
           <Image
             src={photoUrl}

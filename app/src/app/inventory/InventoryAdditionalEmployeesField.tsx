@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 
 type EmployeeOption = {
   firstName: string;
@@ -96,7 +97,7 @@ export function InventoryAdditionalEmployeesField({
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-[180] flex items-center justify-center bg-gray-950/55 p-4"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/55 p-4"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -118,7 +119,7 @@ export function InventoryAdditionalEmployeesField({
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
             </div>
 

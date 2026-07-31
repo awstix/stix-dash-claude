@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-access";
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -14,6 +15,7 @@ function normalizeShortcut(value: FormDataEntryValue | null) {
 }
 
 export async function createDriver(formData: FormData) {
+  await requireAdmin();
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
   const shortcut = normalizeShortcut(formData.get("shortcut"));
@@ -48,6 +50,7 @@ export async function createDriver(formData: FormData) {
 }
 
 export async function updateDriver(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "");
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
@@ -90,6 +93,7 @@ export async function updateDriver(formData: FormData) {
 }
 
 export async function deleteDriver(formData: FormData) {
+  await requireAdmin();
   const id = String(formData.get("id") ?? "");
 
   if (!id) {

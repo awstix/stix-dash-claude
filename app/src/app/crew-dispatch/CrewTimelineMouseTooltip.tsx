@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { ActionIcon } from "@/components/ActionIcon";
 import { createPortal } from "react-dom";
 
 type TooltipPosition = {
@@ -399,7 +400,7 @@ export function CrewTimelineMouseTooltip({
                 aria-label="Infofenster schließen"
                 title="Schließen"
               >
-                ×
+                <ActionIcon name="close" className="h-4 w-4" />
               </button>
 
               <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">

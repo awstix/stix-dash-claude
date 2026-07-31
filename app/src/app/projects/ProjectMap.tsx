@@ -2,8 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, PointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { ActionIcon } from "@/components/ActionIcon";
+import { clampToViewport } from "@/lib/viewport-position";
 
 const TILE_SIZE = 256;
 const DEFAULT_MAP_WIDTH = 768;
@@ -58,6 +61,8 @@ export function ProjectMap({
     width: DEFAULT_MAP_WIDTH,
   });
   const [selectedMarkerIndex, setSelectedMarkerIndex] = useState<number | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [popupPlacement, setPopupPlacement] = useState<{ left: number; top: number } | null>(null);
   const boundaryRef = useRef(boundaryGeoJson ?? "");
   const dragRef = useRef<{
     pointerId: number;
@@ -95,6 +100,19 @@ export function ProjectMap({
 
     return () => observer.disconnect();
   }, [canRenderMap]);
+
+  useEffect(() => {
+    if (selectedMarkerIndex === null) return;
+
+    const closePopup = () => setSelectedMarkerIndex(null);
+    window.addEventListener("resize", closePopup);
+    window.addEventListener("scroll", closePopup, true);
+
+    return () => {
+      window.removeEventListener("resize", closePopup);
+      window.removeEventListener("scroll", closePopup, true);
+    };
+  }, [selectedMarkerIndex]);
 
   const mapData = useMemo(() => {
     if (!canRenderMap) {
@@ -173,6 +191,29 @@ export function ProjectMap({
     markers,
   ]);
 
+  const selectedMarker =
+    selectedMarkerIndex !== null
+      ? mapData?.markerPoints[selectedMarkerIndex] ?? null
+      : null;
+
+  useLayoutEffect(() => {
+    if (!selectedMarker) return;
+
+    const containerRect = mapContainerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    const anchor = {
+      x: containerRect.left + selectedMarker.point.x,
+      y: containerRect.top + selectedMarker.point.y,
+    };
+    const popupElement = popupRef.current;
+    const box = popupElement
+      ? { height: popupElement.offsetHeight, width: popupElement.offsetWidth }
+      : { height: 220, width: 288 };
+
+    setPopupPlacement(clampToViewport({ anchor, box }));
+  }, [selectedMarker]);
+
   function handleMapClick(event: MouseEvent<SVGSVGElement>) {
     if (!editable || !onBoundaryChange || !mapData) return;
     if (suppressClickRef.current) {
@@ -209,6 +250,7 @@ export function ProjectMap({
       return;
     }
 
+    setSelectedMarkerIndex(null);
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = {
       pointerId: event.pointerId,
@@ -261,6 +303,7 @@ export function ProjectMap({
   function changeZoom(delta: number) {
     if (!onViewChange || lat === null || lng === null) return;
 
+    setSelectedMarkerIndex(null);
     onViewChange({
       latitude: lat,
       longitude: lng,
@@ -410,70 +453,6 @@ export function ProjectMap({
           ))}
         </svg>
 
-        {selectedMarkerIndex !== null && mapData.markerPoints[selectedMarkerIndex] ? (
-          <div
-            className="absolute z-20 w-72 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl border border-gray-400 bg-white p-3 text-gray-950 shadow-xl"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            style={{
-              bottom:
-                mapData.markerPoints[selectedMarkerIndex].point.y > mapSize.height / 2
-                  ? Math.max(
-                      12,
-                      mapSize.height -
-                        mapData.markerPoints[selectedMarkerIndex].point.y +
-                        14,
-                    )
-                  : undefined,
-              left: Math.min(
-                mapSize.width - 150,
-                Math.max(150, mapData.markerPoints[selectedMarkerIndex].point.x),
-              ),
-              top:
-                mapData.markerPoints[selectedMarkerIndex].point.y <= mapSize.height / 2
-                  ? mapData.markerPoints[selectedMarkerIndex].point.y + 14
-                  : undefined,
-            }}
-          >
-            <button
-              aria-label="Popup schließen"
-              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border border-gray-400 bg-white text-base font-black text-gray-950 hover:bg-gray-200"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setSelectedMarkerIndex(null);
-              }}
-              type="button"
-            >
-              ×
-            </button>
-            <p className="pr-8 text-sm font-black text-gray-950">
-              {mapData.markerPoints[selectedMarkerIndex].label}
-            </p>
-            <p className="mt-3 text-xs font-black uppercase tracking-wide text-gray-950">
-              Personal heute
-            </p>
-            {mapData.markerPoints[selectedMarkerIndex].employees?.length ? (
-              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                {mapData.markerPoints[selectedMarkerIndex].employees?.map((employee) => (
-                  <li
-                    className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-sm font-bold text-gray-950"
-                    key={employee}
-                  >
-                    {employee}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm font-bold text-gray-950">
-                Heute ist noch kein Personal eingeplant.
-              </p>
-            )}
-          </div>
-        ) : null}
-
         {markers.length === 0 ? (
           <div className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-gray-900 shadow" />
         ) : null}
@@ -517,6 +496,64 @@ export function ProjectMap({
           © OpenStreetMap-Mitwirkende
         </span>
       </div>
+
+      {selectedMarker && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[var(--z-popover)] flex w-72 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] flex-col rounded-xl border border-gray-400 bg-white text-gray-950 shadow-xl"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              ref={popupRef}
+              style={{
+                left: popupPlacement?.left ?? -9999,
+                top: popupPlacement?.top ?? -9999,
+                visibility: popupPlacement ? "visible" : "hidden",
+              }}
+            >
+              <div className="flex items-start justify-between gap-2 p-3 pb-2">
+                <p className="text-sm font-black text-gray-950">
+                  {selectedMarker.label}
+                </p>
+                <button
+                  aria-label="Popup schließen"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-950 hover:bg-gray-200"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSelectedMarkerIndex(null);
+                  }}
+                  type="button"
+                >
+                  <ActionIcon name="close" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+                <p className="text-xs font-black uppercase tracking-wide text-gray-950">
+                  Personal heute
+                </p>
+                {selectedMarker.employees?.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {selectedMarker.employees.map((employee) => (
+                      <li
+                        className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-sm font-bold text-gray-950"
+                        key={employee}
+                      >
+                        {employee}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm font-bold text-gray-950">
+                    Heute ist noch kein Personal eingeplant.
+                  </p>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {editable ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
