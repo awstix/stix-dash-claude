@@ -125,6 +125,7 @@ export async function createCrew(formData: FormData) {
       sortOrder: parseSortOrder(formData.get("sortOrder"), fallbackSortOrder),
       isActive: formData.get("isActive") === "on",
       isAsphaltDispatchCrew: formData.get("isAsphaltDispatchCrew") === "on",
+      autoApproveTimeEntries: formData.get("autoApproveTimeEntries") === "on",
     },
   });
 
@@ -162,12 +163,14 @@ export async function updateCrew(formData: FormData) {
       sortOrder: parseSortOrder(formData.get("sortOrder")),
       isActive: formData.get("isActive") === "on",
       isAsphaltDispatchCrew: formData.get("isAsphaltDispatchCrew") === "on",
+      autoApproveTimeEntries: formData.get("autoApproveTimeEntries") === "on",
     },
   });
 
   revalidatePath("/admin/crews");
   revalidatePath("/crew-dispatch");
   revalidatePath("/asphalt-dispatch");
+  revalidatePath("/crew-timekeeping");
 }
 
 export async function deleteCrew(formData: FormData) {

@@ -139,7 +139,7 @@ export function CrewTimekeepingClient({
     });
   }
 
-  function save(index: number, status: "DRAFT" | "SUBMITTED") {
+  function save(index: number) {
     const entryKey = `${entries[index].projectId}:${entries[index].crewId}`;
     setMessage("");
     setActiveEntryKey(entryKey);
@@ -147,16 +147,20 @@ export function CrewTimekeepingClient({
     setEntryMessages((current) => ({ ...current, [entryKey]: "" }));
     startTransition(async () => {
       try {
-        const result = await saveCrewTimeEntry({ ...entries[index], status });
-        patchEntry(index, { id: result.id, status: result.status });
-        setEntryMessages((current) => ({
-          ...current,
-          [entryKey]:
-            status === "SUBMITTED"
+        const result = await saveCrewTimeEntry(entries[index]);
+        patchEntry(index, {
+          approvedByName: result.approvedByName,
+          id: result.id,
+          status: result.status,
+        });
+        const feedback =
+          result.status === "APPROVED"
+            ? "Gespeichert und automatisch freigegeben."
+            : result.status === "SUBMITTED"
               ? "Gespeichert und zur Freigabe eingereicht."
-              : "Entwurf wurde gespeichert.",
-        }));
-        setMessage(status === "SUBMITTED" ? "Zeiten zur Freigabe eingereicht." : "Entwurf gespeichert.");
+              : "Entwurf wurde gespeichert.";
+        setEntryMessages((current) => ({ ...current, [entryKey]: feedback }));
+        setMessage(feedback);
         router.refresh();
       } catch (error) {
         const errorMessage =
@@ -368,12 +372,12 @@ export function CrewTimekeepingClient({
             <label className="min-w-64 flex-1 text-sm font-black">Bemerkung zur Kolonne
               <input className={`${inputClass} mt-1 w-full`} disabled={locked} value={entry.notes} onChange={(event) => patchEntry(entryIndex, { notes: event.target.value })} />
             </label>
-            <button className="rounded-xl border border-gray-600 bg-white px-4 py-3 font-black text-gray-950 disabled:cursor-not-allowed disabled:opacity-70" disabled={pending || locked} onClick={() => save(entryIndex, "DRAFT")} type="button">
-              {pending && activeEntryKey === `${entry.projectId}:${entry.crewId}` ? "Wird gespeichert …" : "Entwurf speichern"}
+            <button className="rounded-xl bg-blue-900 px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-70" disabled={pending || locked} onClick={() => save(entryIndex)} type="button">
+              {pending && activeEntryKey === `${entry.projectId}:${entry.crewId}` ? "Wird gespeichert …" : "Speichern"}
             </button>
-            <button className="rounded-xl bg-blue-900 px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-70" disabled={pending || locked} onClick={() => save(entryIndex, "SUBMITTED")} type="button">
-              {pending && activeEntryKey === `${entry.projectId}:${entry.crewId}` ? "Wird eingereicht …" : "Zur Freigabe einreichen"}
-            </button>
+            <span className="text-xs font-bold text-gray-600">
+              Sobald alle anwesenden Mitarbeiter auf „Feierabend&quot; stehen, geht der Tag automatisch zur Freigabe (oder wird bei aktivierter Kolonnen-Einstellung direkt freigegeben).
+            </span>
             {canApprove && entry.id && entry.status === "SUBMITTED" ? (
               <button className="rounded-xl bg-green-800 px-4 py-3 font-black text-white disabled:cursor-wait disabled:opacity-70" disabled={pending} onClick={() => approve(entryIndex)} type="button">
                 {pending && activeEntryKey === `${entry.projectId}:${entry.crewId}` ? "Wird freigegeben …" : "Zeiten freigeben"}

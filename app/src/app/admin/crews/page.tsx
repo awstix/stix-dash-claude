@@ -460,6 +460,9 @@ export default async function CrewsAdminPage() {
                       defaultIsAsphaltDispatchCrew={
                         crew.isAsphaltDispatchCrew
                       }
+                      defaultAutoApproveTimeEntries={
+                        crew.autoApproveTimeEntries
+                      }
                     />
 
                     <form action={deleteCrew} className="mt-4">
@@ -832,6 +835,7 @@ function CrewForm({
   defaultSortOrder = "0",
   defaultIsActive = true,
   defaultIsAsphaltDispatchCrew = false,
+  defaultAutoApproveTimeEntries = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   id?: string;
@@ -843,6 +847,7 @@ function CrewForm({
   defaultSortOrder?: string;
   defaultIsActive?: boolean;
   defaultIsAsphaltDispatchCrew?: boolean;
+  defaultAutoApproveTimeEntries?: boolean;
 }) {
   return (
     <form action={action} className="mt-5 space-y-4">
@@ -929,6 +934,16 @@ function CrewForm({
             className="h-4 w-4"
           />
           In Asphaltdisposition verwenden
+        </label>
+
+        <label className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-950">
+          <input
+            type="checkbox"
+            name="autoApproveTimeEntries"
+            defaultChecked={defaultAutoApproveTimeEntries}
+            className="h-4 w-4"
+          />
+          Vom Polier erfasste Stunden automatisch freigeben (keine Bauleitungs-Freigabe nötig)
         </label>
       </div>
 

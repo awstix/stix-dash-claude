@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ProjectStatus } from "@prisma/client";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import {
@@ -10,6 +11,7 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
+import { parseConstructionManagersJson } from "@/lib/construction-managers";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
 import {
   CloseDetailsButton,
@@ -402,6 +404,13 @@ export default async function ProjectDetailPage({
   if (!project) {
     notFound();
   }
+
+  const parsedConstructionManagers = parseConstructionManagersJson(project.constructionManagersJson);
+  const constructionManagers = parsedConstructionManagers.length
+    ? parsedConstructionManagers
+    : project.constructionManager
+      ? [{ employeeId: null, name: project.constructionManager }]
+      : [];
 
   const prefillFromDate = addDays(today, -60);
   const prefillToDate = addDays(today, 60);
@@ -889,6 +898,13 @@ export default async function ProjectDetailPage({
         >
           Projekte Leistung
         </Link>
+        <Link
+          href={`/projects/performance?edit=${project.id}`}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+        >
+          <ActionIcon name="edit" className="h-4 w-4" />
+          Projekt bearbeiten
+        </Link>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -915,12 +931,41 @@ export default async function ProjectDetailPage({
                   Übersicht
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  {project.constructionManager || "Bauleiter offen"} ·{" "}
-                  {formatDate(project.plannedStart)} –{" "}
-                  {formatDate(project.plannedEnd)}
+                  {formatDate(project.plannedStart)} – {formatDate(project.plannedEnd)}
                 </p>
               </div>
               <StatusBadge status={project.status} />
+            </div>
+
+            <div className="mt-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Bauleiter
+              </div>
+              {constructionManagers.length ? (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {constructionManagers.map((manager, index) => (
+                    <span
+                      key={`${manager.name}-${index}`}
+                      className={`rounded-lg border px-2.5 py-1 text-sm font-semibold ${
+                        index === 0
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-300 bg-gray-50 text-gray-800"
+                      }`}
+                    >
+                      {manager.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-gray-600">Bauleiter offen</p>
+              )}
+              {constructionManagers.length > 1 ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  In Formularen, PDFs und Tabellen wird als Ansprechpartner nur{" "}
+                  <span className="font-semibold">{constructionManagers[0]?.name}</span> (erster in der
+                  Liste) verwendet.
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

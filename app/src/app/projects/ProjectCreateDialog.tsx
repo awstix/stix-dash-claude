@@ -5,6 +5,8 @@ import { ActionIcon } from "@/components/ActionIcon";
 import { useRouter } from "next/navigation";
 
 import { createProject, type ProjectFormInput } from "./actions";
+import { ConstructionManagersField } from "./ConstructionManagersField";
+import { TimeReminderFields } from "./TimeReminderFields";
 
 type ProjectStatus =
   | "NOT_STARTED"
@@ -24,8 +26,9 @@ const statusOptions: { value: ProjectStatus; label: string }[] = [
 const emptyProject: ProjectFormInput = {
   actualEnd: "",
   actualStart: "",
+  autoApproveTimeEntriesOverride: "inherit",
   changeOrdersNet: 0,
-  constructionManager: "",
+  constructionManagers: [],
   contractValueNet: 0,
   name: "",
   notes: "",
@@ -35,9 +38,14 @@ const emptyProject: ProjectFormInput = {
   progressPercent: 0,
   projectNumber: "",
   status: "NOT_STARTED",
+  timeReminderExtraRecipients: "",
+  timeReminderIntervalWeeks: 1,
+  timeReminderMode: "inherit",
+  timeReminderWeekdays: [],
 };
 
 export type ConstructionManagerOption = {
+  employeeId: string;
   label: string;
   positionsLabel: string;
   value: string;
@@ -145,11 +153,6 @@ export function ProjectCreateDialog({
                 onChange={(value) => updateForm("name", value)}
                 value={form.name}
               />
-              <ConstructionManagerField
-                onChange={(value) => updateForm("constructionManager", value)}
-                options={constructionManagerOptions}
-                value={form.constructionManager}
-              />
               <TextField
                 label="Baubeginn geplant"
                 onChange={(value) => updateForm("plannedStart", value)}
@@ -216,6 +219,14 @@ export function ProjectCreateDialog({
               />
             </div>
 
+            <div className="mt-4">
+              <ConstructionManagersField
+                onChange={(value) => updateForm("constructionManagers", value)}
+                options={constructionManagerOptions}
+                value={form.constructionManagers}
+              />
+            </div>
+
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <FormMetricCard
                 label="Schnellstand Auftrag inkl. Nachträge"
@@ -251,6 +262,42 @@ export function ProjectCreateDialog({
               />
             </div>
 
+            <div className="mt-4">
+              <label className="text-sm font-medium text-gray-700">
+                Zeiterfassung: Automatische Freigabe
+              </label>
+              <select
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                onChange={(event) =>
+                  updateForm(
+                    "autoApproveTimeEntriesOverride",
+                    event.target.value as "inherit" | "on" | "off",
+                  )
+                }
+                value={form.autoApproveTimeEntriesOverride}
+              >
+                <option value="inherit">Kolonnen-Einstellung übernehmen (Standard, siehe Admin &gt; Kolonnen)</option>
+                <option value="on">Immer automatisch freigeben (keine Bauleitungs-Freigabe nötig)</option>
+                <option value="off">Immer Bauleitungs-Freigabe verlangen (Stunden müssen bestätigt werden)</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Legt fest, ob vom Polier erfasste Kolonnen-Stunden auf dieser Baustelle automatisch
+                freigegeben werden oder eine Freigabe durch die Bauleitung benötigen. Überschreibt die
+                Standard-Einstellung der jeweiligen Kolonne.
+              </p>
+            </div>
+
+            <TimeReminderFields
+              extraRecipients={form.timeReminderExtraRecipients}
+              intervalWeeks={form.timeReminderIntervalWeeks}
+              mode={form.timeReminderMode}
+              onExtraRecipientsChange={(value) => updateForm("timeReminderExtraRecipients", value)}
+              onIntervalWeeksChange={(weeks) => updateForm("timeReminderIntervalWeeks", weeks)}
+              onModeChange={(mode) => updateForm("timeReminderMode", mode)}
+              onWeekdaysChange={(weekdays) => updateForm("timeReminderWeekdays", weekdays)}
+              weekdays={form.timeReminderWeekdays}
+            />
+
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
@@ -273,46 +320,6 @@ export function ProjectCreateDialog({
         </div>
       ) : null}
     </>
-  );
-}
-
-function ConstructionManagerField({
-  onChange,
-  options,
-  value,
-}: {
-  onChange: (value: string) => void;
-  options: ConstructionManagerOption[];
-  value: string;
-}) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-gray-700">Bauleiter</label>
-      <select
-        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        onChange={(event) => {
-          if (event.target.value) {
-            onChange(event.target.value);
-          }
-        }}
-        value={options.some((option) => option.value === value) ? value : ""}
-      >
-        <option value="">Bauleiter aus Personalakte wählen</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-            {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
-          </option>
-        ))}
-      </select>
-      <input
-        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Oder frei eintragen"
-        type="text"
-        value={value}
-      />
-    </div>
   );
 }
 

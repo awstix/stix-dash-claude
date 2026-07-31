@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
 import {
   cancelProject,
@@ -12,6 +12,8 @@ import {
   updateProject,
 } from "./actions";
 import type { ConstructionManagerOption } from "./ProjectCreateDialog";
+import { ConstructionManagersField } from "./ConstructionManagersField";
+import { TimeReminderFields } from "./TimeReminderFields";
 
 type ProjectStatus =
   | "NOT_STARTED"
@@ -21,6 +23,7 @@ type ProjectStatus =
   | "CANCELLED";
 
 type Project = ProjectFormInput & {
+  constructionManagerDisplay: string;
   controllingSummary: ProjectControllingSummary | null;
   id: string;
 };
@@ -52,7 +55,7 @@ const statusOptions: { value: ProjectStatus; label: string }[] = [
 const emptyProject: ProjectFormInput = {
   projectNumber: "",
   name: "",
-  constructionManager: "",
+  constructionManagers: [],
   plannedStart: "",
   plannedEnd: "",
   actualStart: "",
@@ -63,6 +66,11 @@ const emptyProject: ProjectFormInput = {
   progressPercent: 0,
   paymentsNet: 0,
   notes: "",
+  autoApproveTimeEntriesOverride: "inherit",
+  timeReminderExtraRecipients: "",
+  timeReminderMode: "inherit",
+  timeReminderWeekdays: [],
+  timeReminderIntervalWeeks: 1,
 };
 
 export function ProjectManager({
@@ -73,6 +81,7 @@ export function ProjectManager({
   projects: Project[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const formRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<ProjectFormInput>(emptyProject);
@@ -80,6 +89,17 @@ export function ProjectManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Project | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId) return;
+    const project = projects.find((candidate) => candidate.id === editId);
+    if (project) {
+      startEdit(project);
+    }
+    router.replace("/projects/performance", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const totals = useMemo(() => {
     return projects.reduce(
@@ -405,12 +425,6 @@ export function ProjectManager({
               value={form.name}
               onChange={(value) => updateForm("name", value)}
             />
-            <ConstructionManagerField
-              onChange={(value) => updateForm("constructionManager", value)}
-              options={constructionManagerOptions}
-              value={form.constructionManager}
-            />
-
             <TextField
               label="Baubeginn geplant"
               type="date"
@@ -477,6 +491,14 @@ export function ProjectManager({
             />
           </div>
 
+          <div className="mt-4">
+            <ConstructionManagersField
+              onChange={(value) => updateForm("constructionManagers", value)}
+              options={constructionManagerOptions}
+              value={form.constructionManagers}
+            />
+          </div>
+
           <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <FormMetricCard
               label="Schnellstand Auftrag inkl. Nachträge"
@@ -511,6 +533,42 @@ export function ProjectManager({
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
             />
           </div>
+
+          <div className="mt-4">
+            <label className="text-sm font-medium text-gray-700">
+              Zeiterfassung: Automatische Freigabe
+            </label>
+            <select
+              value={form.autoApproveTimeEntriesOverride}
+              onChange={(event) =>
+                updateForm(
+                  "autoApproveTimeEntriesOverride",
+                  event.target.value as "inherit" | "on" | "off",
+                )
+              }
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+            >
+              <option value="inherit">Kolonnen-Einstellung übernehmen (Standard, siehe Admin &gt; Kolonnen)</option>
+              <option value="on">Immer automatisch freigeben (keine Bauleitungs-Freigabe nötig)</option>
+              <option value="off">Immer Bauleitungs-Freigabe verlangen (Stunden müssen bestätigt werden)</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Legt fest, ob vom Polier erfasste Kolonnen-Stunden auf dieser Baustelle automatisch
+              freigegeben werden oder eine Freigabe durch die Bauleitung benötigen. Überschreibt die
+              Standard-Einstellung der jeweiligen Kolonne.
+            </p>
+          </div>
+
+          <TimeReminderFields
+            extraRecipients={form.timeReminderExtraRecipients}
+            intervalWeeks={form.timeReminderIntervalWeeks}
+            mode={form.timeReminderMode}
+            onExtraRecipientsChange={(value) => updateForm("timeReminderExtraRecipients", value)}
+            onIntervalWeeksChange={(weeks) => updateForm("timeReminderIntervalWeeks", weeks)}
+            onModeChange={(mode) => updateForm("timeReminderMode", mode)}
+            onWeekdaysChange={(weekdays) => updateForm("timeReminderWeekdays", weekdays)}
+            weekdays={form.timeReminderWeekdays}
+          />
 
           <div className="mt-6 flex justify-end gap-3">
             <button
@@ -613,8 +671,8 @@ export function ProjectManager({
                         </div>
                       </td>
 
-                      <td className="max-w-36 truncate p-3 align-top text-gray-700" title={project.constructionManager || undefined}>
-                        {project.constructionManager || "-"}
+                      <td className="max-w-36 truncate p-3 align-top text-gray-700" title={project.constructionManagerDisplay || undefined}>
+                        {project.constructionManagerDisplay || "-"}
                       </td>
 
                       <td className="p-3 align-top">
@@ -877,46 +935,6 @@ function TextField({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-      />
-    </div>
-  );
-}
-
-function ConstructionManagerField({
-  onChange,
-  options,
-  value,
-}: {
-  onChange: (value: string) => void;
-  options: ConstructionManagerOption[];
-  value: string;
-}) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-gray-700">Bauleiter</label>
-      <select
-        className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        onChange={(event) => {
-          if (event.target.value) {
-            onChange(event.target.value);
-          }
-        }}
-        value={options.some((option) => option.value === value) ? value : ""}
-      >
-        <option value="">Bauleiter aus Personalakte wählen</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-            {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
-          </option>
-        ))}
-      </select>
-      <input
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Oder frei eintragen"
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
       />
     </div>

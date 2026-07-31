@@ -14,6 +14,10 @@ import {
   requireSession,
 } from "@/lib/auth-access";
 import {
+  primaryConstructionManagerName,
+  type ConstructionManagerEntry,
+} from "@/lib/construction-managers";
+import {
   getProjectFormPresetOptions,
   PROJECT_FORM_FIELD_TYPES,
   parseProjectFormFields,
@@ -36,7 +40,7 @@ export type ProjectFormInput = {
   id?: string;
   projectNumber: string;
   name: string;
-  constructionManager: string;
+  constructionManagers: ConstructionManagerEntry[];
   plannedStart: string;
   plannedEnd: string;
   actualStart: string;
@@ -47,7 +51,65 @@ export type ProjectFormInput = {
   progressPercent: number;
   paymentsNet: number;
   notes: string;
+  autoApproveTimeEntriesOverride: "inherit" | "on" | "off";
+  timeReminderExtraRecipients: string;
+  timeReminderMode: "inherit" | "custom" | "off";
+  timeReminderWeekdays: string[];
+  timeReminderIntervalWeeks: number;
 };
+
+function parseExtraRecipients(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,;\n]/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.includes("@")),
+    ),
+  );
+}
+
+function constructionManagerData(input: ProjectFormInput) {
+  const entries = input.constructionManagers.filter((entry) => entry.name.trim());
+  return {
+    constructionManager: primaryConstructionManagerName(entries) || null,
+    constructionManagersJson: JSON.stringify(entries),
+  };
+}
+
+function parseTriStateOverride(value: "inherit" | "on" | "off") {
+  if (value === "on") return true;
+  if (value === "off") return false;
+  return null;
+}
+
+function timeReminderOverrideData(input: ProjectFormInput) {
+  const extraRecipientsJson = JSON.stringify(parseExtraRecipients(input.timeReminderExtraRecipients));
+  if (input.timeReminderMode === "custom") {
+    return {
+      timeReminderEnabledOverride: true,
+      timeReminderExtraRecipientsJson: extraRecipientsJson,
+      timeReminderIntervalWeeks: [1, 2, 3, 4].includes(input.timeReminderIntervalWeeks)
+        ? input.timeReminderIntervalWeeks
+        : 1,
+      timeReminderWeekdaysJson: JSON.stringify(input.timeReminderWeekdays),
+    };
+  }
+  if (input.timeReminderMode === "off") {
+    return {
+      timeReminderEnabledOverride: false,
+      timeReminderExtraRecipientsJson: extraRecipientsJson,
+      timeReminderIntervalWeeks: null,
+      timeReminderWeekdaysJson: null,
+    };
+  }
+  return {
+    timeReminderEnabledOverride: null,
+    timeReminderExtraRecipientsJson: extraRecipientsJson,
+    timeReminderIntervalWeeks: null,
+    timeReminderWeekdaysJson: null,
+  };
+}
 
 export type ProjectMapInput = {
   id: string;
@@ -408,7 +470,7 @@ export async function createProject(input: ProjectFormInput) {
     data: {
       projectNumber: input.projectNumber,
       name: input.name,
-      constructionManager: input.constructionManager || null,
+      ...constructionManagerData(input),
       plannedStart: parseDate(input.plannedStart),
       plannedEnd: parseDate(input.plannedEnd),
       actualStart: parseDate(input.actualStart),
@@ -419,6 +481,10 @@ export async function createProject(input: ProjectFormInput) {
       progressPercent: cleanNumber(input.progressPercent),
       paymentsNet: cleanNumber(input.paymentsNet),
       notes: input.notes || null,
+      autoApproveTimeEntriesOverride: parseTriStateOverride(
+        input.autoApproveTimeEntriesOverride,
+      ),
+      ...timeReminderOverrideData(input),
     },
   });
 
@@ -441,7 +507,7 @@ export async function updateProject(input: ProjectFormInput) {
     data: {
       projectNumber: input.projectNumber,
       name: input.name,
-      constructionManager: input.constructionManager || null,
+      ...constructionManagerData(input),
       plannedStart: parseDate(input.plannedStart),
       plannedEnd: parseDate(input.plannedEnd),
       actualStart: parseDate(input.actualStart),
@@ -452,10 +518,16 @@ export async function updateProject(input: ProjectFormInput) {
       progressPercent: cleanNumber(input.progressPercent),
       paymentsNet: cleanNumber(input.paymentsNet),
       notes: input.notes || null,
+      autoApproveTimeEntriesOverride: parseTriStateOverride(
+        input.autoApproveTimeEntriesOverride,
+      ),
+      ...timeReminderOverrideData(input),
     },
   });
 
   revalidateProjectViews(input.id);
+  revalidatePath("/crew-timekeeping");
+  revalidatePath("/admin/time-tracking");
 }
 
 export async function updateProjectMap(input: ProjectMapInput) {

@@ -33,16 +33,25 @@ export type CrewTimeEntryInput = {
   projectId: string;
   projectName: string;
   projectNumber: string;
-  status: "DRAFT" | "SUBMITTED";
   workDate: string;
 };
+
+const AUTO_APPROVED_LABEL = "Automatisch freigegeben (Kolonnen-Einstellung)";
 
 export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
   const session = await requireSession();
   await assertProjectAccess(session.user.id, input.projectId);
-  const actor = await prisma.user.findUnique({
-    where: { id: session.user.id },
-  });
+  const [actor, crew, project] = await Promise.all([
+    prisma.user.findUnique({ where: { id: session.user.id } }),
+    prisma.crew.findUnique({
+      select: { autoApproveTimeEntries: true },
+      where: { id: input.crewId },
+    }),
+    prisma.project.findUnique({
+      select: { autoApproveTimeEntriesOverride: true },
+      where: { id: input.projectId },
+    }),
+  ]);
   const actorRoles = String(actor?.role ?? "")
     .split(",")
     .map((role) => role.trim());
@@ -69,6 +78,18 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
     startTime: requiredTime(employee.startTime, "Arbeitsbeginn"),
   }));
 
+  const autoApprove =
+    project?.autoApproveTimeEntriesOverride ?? crew?.autoApproveTimeEntries ?? false;
+  const presentEmployees = employees.filter((employee) => employee.isPresent);
+  const dayComplete =
+    presentEmployees.length > 0 &&
+    presentEmployees.every((employee) => employee.attendanceStatus === "CHECKED_OUT");
+  const resolvedStatus: "DRAFT" | "SUBMITTED" | "APPROVED" = !dayComplete
+    ? "DRAFT"
+    : autoApprove
+      ? "APPROVED"
+      : "SUBMITTED";
+
   const savedEntry = await prisma.$transaction(async (tx) => {
     const existing = await tx.crewTimeEntry.findUnique({
       include: { employees: true },
@@ -85,12 +106,22 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
         "Freigegebene Arbeitszeiten sind gesperrt und können nur durch Bauleitung oder Admin korrigiert werden.",
       );
     }
-    const entry = existing
-      ? await tx.crewTimeEntry.update({
-          data: {
+    const approvalData =
+      resolvedStatus === "APPROVED"
+        ? {
+            approvedAt: new Date(),
+            approvedByName: AUTO_APPROVED_LABEL,
+            approvedByUserId: null,
+          }
+        : {
             approvedAt: null,
             approvedByName: null,
             approvedByUserId: null,
+          };
+    const entry = existing
+      ? await tx.crewTimeEntry.update({
+          data: {
+            ...approvalData,
             crewName: input.crewName,
             defaultBreak1From: optionalTime(input.defaultBreak1From),
             defaultBreak1To: optionalTime(input.defaultBreak1To),
@@ -103,13 +134,14 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
             projectNumber: input.projectNumber,
             recordedByName: actorName,
             recordedByUserId: session.user.id,
-            status: input.status,
-            submittedAt: input.status === "SUBMITTED" ? new Date() : null,
+            status: resolvedStatus,
+            submittedAt: resolvedStatus !== "DRAFT" ? new Date() : null,
           },
           where: { id: existing.id },
         })
       : await tx.crewTimeEntry.create({
           data: {
+            ...approvalData,
             crewId: input.crewId,
             crewName: input.crewName,
             defaultBreak1From: optionalTime(input.defaultBreak1From),
@@ -124,8 +156,8 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
             projectNumber: input.projectNumber,
             recordedByName: actorName,
             recordedByUserId: session.user.id,
-            status: input.status,
-            submittedAt: input.status === "SUBMITTED" ? new Date() : null,
+            status: resolvedStatus,
+            submittedAt: resolvedStatus !== "DRAFT" ? new Date() : null,
             workDate,
           },
         });
@@ -143,7 +175,7 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
         changedByName: actorName,
         changedByUserId: session.user.id,
         entryId: entry.id,
-        snapshotJson: JSON.stringify({ ...input, employees }),
+        snapshotJson: JSON.stringify({ ...input, employees, status: resolvedStatus }),
         version: version + 1,
       },
     });
@@ -151,6 +183,7 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
   });
   revalidateCrewTimes();
   return {
+    approvedByName: savedEntry.approvedByName ?? "",
     id: savedEntry.id,
     status: savedEntry.status,
   };

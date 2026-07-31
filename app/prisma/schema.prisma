@@ -44,16 +44,29 @@ model CompanyInfo {
   updatedAt DateTime @updatedAt
 }
 
+model TimeTrackingSettings {
+  id String @id @default("default")
+
+  reminderEnabled       Boolean   @default(false)
+  reminderWeekdaysJson  String    @default("[]")
+  reminderIntervalWeeks Int       @default(1)
+  lastReminderRunAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Project {
-  id                  String        @id @default(cuid())
-  projectNumber       String        @unique
-  name                String
-  constructionManager String?
-  plannedStart        DateTime?
-  plannedEnd          DateTime?
-  actualStart         DateTime?
-  actualEnd           DateTime?
-  status              ProjectStatus @default(NOT_STARTED)
+  id                       String        @id @default(cuid())
+  projectNumber            String        @unique
+  name                     String
+  constructionManager      String?
+  constructionManagersJson String?
+  plannedStart             DateTime?
+  plannedEnd               DateTime?
+  actualStart              DateTime?
+  actualEnd                DateTime?
+  status                   ProjectStatus @default(NOT_STARTED)
 
   contractValueNet Int   @default(0)
   changeOrdersNet  Int   @default(0)
@@ -67,6 +80,12 @@ model Project {
   siteBoundaryGeoJson String?
 
   notes String?
+
+  autoApproveTimeEntriesOverride  Boolean?
+  timeReminderEnabledOverride     Boolean?
+  timeReminderWeekdaysJson        String?
+  timeReminderIntervalWeeks       Int?
+  timeReminderExtraRecipientsJson String?
 
   asphaltDispatchEntries            AsphaltDispatchEntry[]
   truckLongHaulEntries              TruckLongHaulEntry[]
@@ -1699,6 +1718,8 @@ model Crew {
   isActive              Boolean @default(true)
   sortOrder             Int     @default(0)
   isAsphaltDispatchCrew Boolean @default(false)
+
+  autoApproveTimeEntries Boolean @default(false)
 
   members                           CrewMember[]
   defaultVehicles                   CrewDefaultVehicle[]

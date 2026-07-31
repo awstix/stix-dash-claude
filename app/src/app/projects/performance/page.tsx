@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { parseConstructionManagersJson } from "@/lib/construction-managers";
+import { parseRecipientsJson, parseWeekdaysJson } from "@/lib/time-tracking-reminder";
 import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectManager } from "../ProjectManager";
 import { denyRoleUnlessAdmin } from "@/lib/auth-access";
@@ -60,6 +62,7 @@ export default async function ProjectPerformancePage() {
       }
 
       return [{
+        employeeId: employee.id,
         label: `${employee.firstName} ${employee.lastName}`,
         positionsLabel,
         value: `${employee.firstName} ${employee.lastName}`,
@@ -98,7 +101,8 @@ export default async function ProjectPerformancePage() {
       id: project.id,
       projectNumber: project.projectNumber,
       name: project.name,
-      constructionManager: project.constructionManager ?? "",
+      constructionManagerDisplay: project.constructionManager ?? "",
+      constructionManagers: parseConstructionManagersJson(project.constructionManagersJson),
       plannedStart: project.plannedStart?.toISOString().slice(0, 10) ?? "",
       plannedEnd: project.plannedEnd?.toISOString().slice(0, 10) ?? "",
       actualStart: project.actualStart?.toISOString().slice(0, 10) ?? "",
@@ -109,6 +113,19 @@ export default async function ProjectPerformancePage() {
       progressPercent: project.progressPercent,
       paymentsNet: project.paymentsNet,
       notes: project.notes ?? "",
+      autoApproveTimeEntriesOverride: (project.autoApproveTimeEntriesOverride === true
+        ? "on"
+        : project.autoApproveTimeEntriesOverride === false
+          ? "off"
+          : "inherit") as "inherit" | "on" | "off",
+      timeReminderExtraRecipients: parseRecipientsJson(project.timeReminderExtraRecipientsJson).join(", "),
+      timeReminderIntervalWeeks: project.timeReminderIntervalWeeks ?? 1,
+      timeReminderMode: (project.timeReminderEnabledOverride === true
+        ? "custom"
+        : project.timeReminderEnabledOverride === false
+          ? "off"
+          : "inherit") as "inherit" | "custom" | "off",
+      timeReminderWeekdays: parseWeekdaysJson(project.timeReminderWeekdaysJson),
       controllingSummary: latestReport
         ? {
             actualCostsNet: actualCostsCents / 100,

@@ -57,6 +57,12 @@ const adminSections: AdminSection[] = [
           "Sommer-/Winter-Arbeitszeiten und Standard-Arbeitszeit für LKW- und Kolonnen-Zeitstrahlen verwalten.",
         href: "/admin/working-time",
       },
+      {
+        title: "Zeiterfassung",
+        description:
+          "Standard für automatische Stundenfreigabe und Erinnerungsmails an die Bauleitung bei offenen Freigaben.",
+        href: "/admin/time-tracking",
+      },
     ],
   },
   {

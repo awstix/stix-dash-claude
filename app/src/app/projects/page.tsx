@@ -122,6 +122,7 @@ export default async function ProjectsPage({
       }
 
       return [{
+        employeeId: employee.id,
         label: `${employee.firstName} ${employee.lastName}`,
         positionsLabel,
         value: `${employee.firstName} ${employee.lastName}`,

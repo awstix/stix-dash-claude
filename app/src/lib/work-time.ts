@@ -1,13 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import {
+  workTimeDayKeys,
+  workTimeDayLabels,
+  type WorkTimeDayKey,
+} from "@/lib/work-time-constants";
 
-export type WorkTimeDayKey =
-  | "monday"
-  | "tuesday"
-  | "wednesday"
-  | "thursday"
-  | "friday"
-  | "saturday"
-  | "sunday";
+export { workTimeDayKeys, workTimeDayLabels, type WorkTimeDayKey };
 
 export type WorkTimeDaySettings = {
   breakfastEnd: string;
@@ -23,26 +21,6 @@ export type WorkTimeSettings = {
   name: string;
   startTime: string;
   weeklySchedule: Record<WorkTimeDayKey, WorkTimeDaySettings>;
-};
-
-export const workTimeDayKeys: WorkTimeDayKey[] = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-];
-
-export const workTimeDayLabels: Record<WorkTimeDayKey, string> = {
-  friday: "Fr",
-  monday: "Mo",
-  saturday: "Sa",
-  sunday: "So",
-  thursday: "Do",
-  tuesday: "Di",
-  wednesday: "Mi",
 };
 
 export function createWeeklySchedule(
