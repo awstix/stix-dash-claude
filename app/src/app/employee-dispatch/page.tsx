@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
+import { AnchoredPopover } from "@/components/AnchoredPopover";
 import { AppShell } from "@/components/AppShell";
 import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
 import { prisma } from "@/lib/prisma";
@@ -1487,25 +1488,28 @@ export default async function EmployeeDispatchPage({
       description="Mitarbeiter zeilenweise verfolgen: Baustellen aus Disposition und Einteilungen plus Urlaub, Krank, Schulung, Werkstatt, Mischanlagen, Schule und Innung."
     >
       <div className="mb-6 flex flex-wrap gap-3">
-        <details className="relative">
-          <summary className="cursor-pointer rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">
-            + Eintrag hinzufügen
-          </summary>
-          <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 max-h-[70vh] w-[92vw] max-w-6xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Eintrag hinzufügen
-              </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Urlaub, Krank, Schulung oder sonstige Mitarbeiterdispo eintragen.
-              </p>
-            </div>
-            <NewEmployeeDispositionEntryForm
-              employees={activeEmployees}
-              defaultDate={formatDateInput(fromDate)}
-            />
-          </div>
-        </details>
+        <AnchoredPopover
+          align="start"
+          triggerClassName="cursor-pointer rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+          trigger={<>+ Eintrag hinzufügen</>}
+          panelClassName="z-[var(--z-modal)] max-h-[70vh] w-[92vw] max-w-6xl overflow-y-auto rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl"
+          panel={
+            <>
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Eintrag hinzufügen
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Urlaub, Krank, Schulung oder sonstige Mitarbeiterdispo eintragen.
+                </p>
+              </div>
+              <NewEmployeeDispositionEntryForm
+                employees={activeEmployees}
+                defaultDate={formatDateInput(fromDate)}
+              />
+            </>
+          }
+        />
 
         <Link
           href="/crew-dispatch"

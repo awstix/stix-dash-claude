@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
 import {
-  createWeeklySchedule,
   ensureDefaultWorkTimePresets,
   workTimeDayKeys,
   type WorkTimeDaySettings,
@@ -67,14 +66,32 @@ function validateOptionalBreakRange(
   validateTimeRange(startTime, endTime);
 }
 
-function getWeeklySchedulePayload(
-  formData: FormData,
-  startTime: string,
-  endTime: string,
-) {
-  const fallbackSchedule = createWeeklySchedule(startTime, endTime);
+function getWeeklySchedulePayload(formData: FormData) {
   const schedule = Object.fromEntries(
     workTimeDayKeys.map((dayKey) => {
+      const noWorkday = formData.get(`${dayKey}NoWorkday`) === "on";
+      const startTime = noWorkday ? "" : normalizeOptionalTime(text(formData.get(`${dayKey}StartTime`)));
+      const endTime = noWorkday ? "" : normalizeOptionalTime(text(formData.get(`${dayKey}EndTime`)));
+
+      if (!startTime && !endTime) {
+        // Beginn und Ende leer = kein Arbeitstag, zählt nicht in der Stundenberechnung.
+        const emptyDay: WorkTimeDaySettings = {
+          breakfastEnd: "",
+          breakfastStart: "",
+          endTime: "",
+          lunchEnd: "",
+          lunchStart: "",
+          startTime: "",
+        };
+        return [dayKey, emptyDay];
+      }
+
+      if (!startTime || !endTime) {
+        throw new Error(
+          `${dayKey}: Beginn und Ende müssen beide ausgefüllt sein, oder beide leer bleiben (kein Arbeitstag).`,
+        );
+      }
+
       const day: WorkTimeDaySettings = {
         breakfastEnd: normalizeOptionalTime(
           text(formData.get(`${dayKey}BreakfastEnd`)),
@@ -82,13 +99,10 @@ function getWeeklySchedulePayload(
         breakfastStart: normalizeOptionalTime(
           text(formData.get(`${dayKey}BreakfastStart`)),
         ),
-        endTime: normalizeOptionalTime(text(formData.get(`${dayKey}EndTime`))) ||
-          fallbackSchedule[dayKey].endTime,
+        endTime,
         lunchEnd: normalizeOptionalTime(text(formData.get(`${dayKey}LunchEnd`))),
         lunchStart: normalizeOptionalTime(text(formData.get(`${dayKey}LunchStart`))),
-        startTime:
-          normalizeOptionalTime(text(formData.get(`${dayKey}StartTime`))) ||
-          fallbackSchedule[dayKey].startTime,
+        startTime,
       };
 
       validateTimeRange(day.startTime, day.endTime);
@@ -108,6 +122,16 @@ function getWeeklySchedulePayload(
   );
 
   return JSON.stringify(schedule);
+}
+
+function readManualMonthlyHours(formData: FormData) {
+  if (formData.get("useManualMonthlyHours") !== "on") return null;
+  const raw = text(formData.get("manualMonthlyHours")).replace(",", ".");
+  const value = Number(raw);
+  if (!raw || !Number.isFinite(value) || value < 0) {
+    throw new Error("Manuelle Monatsstunden müssen eine gültige Zahl sein.");
+  }
+  return value;
 }
 
 function revalidateWorkingTimeConsumers() {
@@ -137,7 +161,8 @@ export async function createWorkTimePreset(formData: FormData) {
   }
 
   validateTimeRange(startTime, endTime);
-  const weeklyScheduleJson = getWeeklySchedulePayload(formData, startTime, endTime);
+  const weeklyScheduleJson = getWeeklySchedulePayload(formData);
+  const manualMonthlyHours = readManualMonthlyHours(formData);
 
   await prisma.workTimePreset.create({
     data: {
@@ -145,6 +170,7 @@ export async function createWorkTimePreset(formData: FormData) {
       startTime,
       endTime,
       weeklyScheduleJson,
+      manualMonthlyHours,
       sortOrder: Number.isNaN(sortOrder) ? 9999 : sortOrder,
       isActive: true,
       isDefault: false,
@@ -167,7 +193,8 @@ export async function updateWorkTimePreset(formData: FormData) {
   }
 
   validateTimeRange(startTime, endTime);
-  const weeklyScheduleJson = getWeeklySchedulePayload(formData, startTime, endTime);
+  const weeklyScheduleJson = getWeeklySchedulePayload(formData);
+  const manualMonthlyHours = readManualMonthlyHours(formData);
 
   await prisma.workTimePreset.update({
     where: {
@@ -178,6 +205,7 @@ export async function updateWorkTimePreset(formData: FormData) {
       startTime,
       endTime,
       weeklyScheduleJson,
+      manualMonthlyHours,
       sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
       isActive: formData.get("isActive") === "on",
     },

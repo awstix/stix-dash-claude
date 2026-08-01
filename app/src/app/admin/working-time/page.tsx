@@ -1,13 +1,17 @@
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
 import { prisma } from "@/lib/prisma";
+import { getHolidayDateSet } from "@/lib/time-accounts";
 import {
   createWeeklySchedule,
   ensureDefaultWorkTimePresets,
+  getNetWorkHoursForDay,
+  getWorkTimeForDate,
   parseWeeklySchedule,
   workTimeDayKeys,
-  workTimeDayLabels,
   type WorkTimeDaySettings,
+  type WorkTimeSettings,
 } from "@/lib/work-time";
 import {
   createWorkTimePreset,
@@ -16,13 +20,54 @@ import {
   setDefaultWorkTimePreset,
   updateWorkTimePreset,
 } from "./actions";
+import { WorkTimeDayRow } from "./WorkTimeDayRow";
 
-export default async function WorkingTimePage() {
+function parseMonthParam(value: string | undefined) {
+  if (value && /^\d{4}-\d{2}(-\d{2})?$/.test(value)) {
+    const [year, month] = value.split("-").map(Number);
+    return { month, year };
+  }
+  const now = new Date();
+  return { month: now.getUTCMonth() + 1, year: now.getUTCFullYear() };
+}
+
+function calculateMonthHours(settings: WorkTimeSettings, year: number, month: number, holidaySet: Set<string>) {
+  const fromDate = new Date(Date.UTC(year, month - 1, 1));
+  const toDate = new Date(Date.UTC(year, month, 0));
+  let total = 0;
+  for (let d = new Date(fromDate); d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10);
+    if (holidaySet.has(iso)) continue;
+    total += getNetWorkHoursForDay(getWorkTimeForDate(settings, d));
+  }
+  return Math.round(total * 100) / 100;
+}
+
+function calculateWeeklyHours(schedule: Record<string, WorkTimeDaySettings>) {
+  return (
+    Math.round(
+      workTimeDayKeys.reduce((sum, dayKey) => sum + getNetWorkHoursForDay(schedule[dayKey]), 0) * 100,
+    ) / 100
+  );
+}
+
+export default async function WorkingTimePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ previewMonth?: string }>;
+}) {
   await ensureDefaultWorkTimePresets();
 
-  const presets = await prisma.workTimePreset.findMany({
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
+  const params = await searchParams;
+  const { month: previewMonth, year: previewYear } = parseMonthParam(params.previewMonth);
+  const previewMonthValue = `${previewYear}-${String(previewMonth).padStart(2, "0")}`;
+
+  const [presets, holidaySet] = await Promise.all([
+    prisma.workTimePreset.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    getHolidayDateSet(),
+  ]);
 
   const defaultPreset = presets.find((preset) => preset.isDefault);
 
@@ -68,10 +113,28 @@ export default async function WorkingTimePage() {
       </div>
 
       <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Arbeitszeit-Vorlagen
           </h2>
+
+          <ScrollPreservingForm action="/admin/working-time" className="flex items-end gap-2">
+            <label className="text-xs font-semibold text-gray-700">
+              Monatsvorschau
+              <input
+                className="mt-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900"
+                defaultValue={`${previewMonthValue}-01`}
+                name="previewMonth"
+                type="date"
+              />
+            </label>
+            <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              type="submit"
+            >
+              Anzeigen
+            </button>
+          </ScrollPreservingForm>
         </div>
 
         <div className="divide-y divide-gray-100">
@@ -81,6 +144,13 @@ export default async function WorkingTimePage() {
               preset.weeklyScheduleJson,
               preset.startTime,
               preset.endTime,
+            );
+            const weeklyHours = calculateWeeklyHours(schedule);
+            const calculatedMonthlyHours = calculateMonthHours(
+              { endTime: preset.endTime, name: preset.name, startTime: preset.startTime, weeklySchedule: schedule },
+              previewYear,
+              previewMonth,
+              holidaySet,
             );
 
             return (
@@ -180,7 +250,14 @@ export default async function WorkingTimePage() {
                     aktiv
                   </label>
                 </div>
-                <WorkTimeScheduleFields formId={formId} schedule={schedule} />
+                <WorkTimeScheduleFields
+                  calculatedMonthlyHours={calculatedMonthlyHours}
+                  defaultManualMonthlyHours={preset.manualMonthlyHours}
+                  formId={formId}
+                  previewMonthLabel={previewMonthValue}
+                  schedule={schedule}
+                  weeklyHours={weeklyHours}
+                />
               </div>
             );
           })}
@@ -255,12 +332,22 @@ export default async function WorkingTimePage() {
 }
 
 function WorkTimeScheduleFields({
+  calculatedMonthlyHours,
+  defaultManualMonthlyHours,
   formId,
+  previewMonthLabel,
   schedule,
+  weeklyHours,
 }: {
+  calculatedMonthlyHours?: number;
+  defaultManualMonthlyHours?: number | null;
   formId?: string;
+  previewMonthLabel?: string;
   schedule: Record<string, WorkTimeDaySettings>;
+  weeklyHours?: number;
 }) {
+  const hasManualOverride = defaultManualMonthlyHours != null;
+
   return (
     <details className="group mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
       <summary className="cursor-pointer list-none">
@@ -268,6 +355,15 @@ function WorkTimeScheduleFields({
           <div>
             <h3 className="text-sm font-semibold text-gray-950">
               Wochen-Arbeitszeiten bearbeiten
+              {weeklyHours !== undefined ? (
+                <span className="ml-2 font-normal text-gray-600">
+                  ({weeklyHours.toLocaleString("de-DE")} Std./Woche
+                  {calculatedMonthlyHours !== undefined
+                    ? ` · ${calculatedMonthlyHours.toLocaleString("de-DE")} Std. in ${previewMonthLabel}`
+                    : ""}
+                  )
+                </span>
+              ) : null}
             </h3>
             <p className="mt-1 text-xs text-gray-600">
               Mo–So mit Beginn, Ende, Frühstücks- und Mittagspause.
@@ -292,73 +388,58 @@ function WorkTimeScheduleFields({
         </div>
       </summary>
 
+      {weeklyHours !== undefined ? (
+        <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
+          <div className="text-xs font-semibold text-gray-700">
+            Monatsstunden: {calculatedMonthlyHours?.toLocaleString("de-DE")} Std. errechnet (Basis:{" "}
+            {previewMonthLabel}, ohne Feiertage)
+          </div>
+          <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-gray-800">
+            <input
+              className="h-4 w-4"
+              defaultChecked={hasManualOverride}
+              form={formId}
+              name="useManualMonthlyHours"
+              type="checkbox"
+            />
+            Stattdessen feste Monatsstunden verwenden (unabhängig vom Monat)
+          </label>
+          <input
+            className="mt-2 w-40 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900"
+            defaultValue={defaultManualMonthlyHours ?? ""}
+            form={formId}
+            name="manualMonthlyHours"
+            placeholder="z.B. 173,33"
+            type="text"
+          />
+        </div>
+      ) : null}
+
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-white text-xs uppercase text-gray-500">
             <tr>
               <th className="px-3 py-2 font-semibold">Tag</th>
+              <th className="px-3 py-2 font-semibold">Kein Arbeitstag</th>
               <th className="px-3 py-2 font-semibold">Beginn</th>
               <th className="px-3 py-2 font-semibold">Ende</th>
               <th className="px-3 py-2 font-semibold">Frühstück von</th>
               <th className="px-3 py-2 font-semibold">Frühstück bis</th>
               <th className="px-3 py-2 font-semibold">Mittag von</th>
               <th className="px-3 py-2 font-semibold">Mittag bis</th>
+              <th className="px-3 py-2 font-semibold">Tagesstunden</th>
             </tr>
           </thead>
           <tbody>
-            {workTimeDayKeys.map((dayKey) => {
-              const day = schedule[dayKey];
-
-              return (
-                <tr className="border-t border-gray-200" key={dayKey}>
-                  <td className="px-3 py-2 font-semibold text-gray-900">
-                    {workTimeDayLabels[dayKey]}
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}StartTime`}
-                      value={day.startTime}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}EndTime`}
-                      value={day.endTime}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}BreakfastStart`}
-                      value={day.breakfastStart}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}BreakfastEnd`}
-                      value={day.breakfastEnd}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}LunchStart`}
-                      value={day.lunchStart}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScheduleTimeInput
-                      formId={formId}
-                      name={`${dayKey}LunchEnd`}
-                      value={day.lunchEnd}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
+            {workTimeDayKeys.map((dayKey) => (
+              <WorkTimeDayRow
+                day={schedule[dayKey]}
+                dayHours={getNetWorkHoursForDay(schedule[dayKey])}
+                dayKey={dayKey}
+                formId={formId}
+                key={dayKey}
+              />
+            ))}
           </tbody>
         </table>
       </div>
@@ -366,22 +447,3 @@ function WorkTimeScheduleFields({
   );
 }
 
-function ScheduleTimeInput({
-  formId,
-  name,
-  value,
-}: {
-  formId?: string;
-  name: string;
-  value: string;
-}) {
-  return (
-    <input
-      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-      defaultValue={value}
-      name={name}
-      type="time"
-      {...(formId ? { form: formId } : {})}
-    />
-  );
-}

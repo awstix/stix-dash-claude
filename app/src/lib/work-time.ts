@@ -65,17 +65,21 @@ export function parseWeeklySchedule(
 
     return Object.fromEntries(
       workTimeDayKeys.map((dayKey) => {
-        const day = parsed[dayKey] ?? {};
+        const day = parsed[dayKey];
+        // Fehlt der Tag komplett im gespeicherten JSON (alte Datenformate), auf die
+        // Vorlagen-Standardzeit zurückfallen. Ist der Tag vorhanden, aber mit leeren
+        // Zeiten gespeichert, ist das bewusst "kein Arbeitstag" und bleibt leer.
+        const hasStoredDay = day !== undefined;
 
         return [
           dayKey,
           {
-            breakfastEnd: day.breakfastEnd || "",
-            breakfastStart: day.breakfastStart || "",
-            endTime: day.endTime || endTime,
-            lunchEnd: day.lunchEnd || "",
-            lunchStart: day.lunchStart || "",
-            startTime: day.startTime || startTime,
+            breakfastEnd: day?.breakfastEnd ?? "",
+            breakfastStart: day?.breakfastStart ?? "",
+            endTime: hasStoredDay ? (day?.endTime ?? "") : endTime,
+            lunchEnd: day?.lunchEnd ?? "",
+            lunchStart: day?.lunchStart ?? "",
+            startTime: hasStoredDay ? (day?.startTime ?? "") : startTime,
           },
         ];
       }),

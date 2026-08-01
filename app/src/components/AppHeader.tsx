@@ -228,7 +228,7 @@ export function AppHeader({
           <NavigationMenu
             isOpen={openMenu === "employees"}
             items={employeeNavigation}
-            label="Mitarbeiter"
+            label="Personal"
             onNavigate={() => setOpenMenu(null)}
             onToggle={() =>
               setOpenMenu((current) =>
@@ -304,7 +304,7 @@ export function AppHeader({
             />
             <MobileNavigationSection
               items={employeeNavigation}
-              label="Mitarbeiter"
+              label="Personal"
               onNavigate={() => setMobileMenuOpen(false)}
             />
             {secondaryNavigation.map((item) => (

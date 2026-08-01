@@ -209,6 +209,12 @@ function getEmployeePayload(formData: FormData) {
     throw new Error("Nachname fehlt.");
   }
 
+  const annualVacationDaysRaw = Number(formData.get("annualVacationDays"));
+  const annualVacationDays =
+    Number.isFinite(annualVacationDaysRaw) && annualVacationDaysRaw >= 0
+      ? Math.round(annualVacationDaysRaw)
+      : 30;
+
   return {
     statusValue: String(formData.get("statusValue") ?? "active"),
     entryDate: optionalDate(formData.get("entryDate")),
@@ -217,6 +223,7 @@ function getEmployeePayload(formData: FormData) {
     departmentValue: optionalString(formData.get("departmentValue")),
     firstName,
     lastName,
+    annualVacationDays,
     isLeadership: formData.get("isLeadership") === "on",
     canManagePersonalInventory:
       formData.get("canManagePersonalInventory") === "on",
@@ -270,6 +277,7 @@ export async function createEmployee(formData: FormData) {
         departmentLabel,
         firstName: payload.firstName,
         lastName: payload.lastName,
+        annualVacationDays: payload.annualVacationDays,
         isLeadership: payload.isLeadership,
         canManagePersonalInventory: payload.canManagePersonalInventory,
         birthDate: payload.birthDate,
@@ -360,6 +368,7 @@ export async function updateEmployee(formData: FormData) {
         departmentLabel,
         firstName: payload.firstName,
         lastName: payload.lastName,
+        annualVacationDays: payload.annualVacationDays,
         isLeadership: payload.isLeadership,
         canManagePersonalInventory: payload.canManagePersonalInventory,
         birthDate: payload.birthDate,

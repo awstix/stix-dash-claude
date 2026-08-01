@@ -973,6 +973,7 @@ export async function EmployeesManagementPage({
                             }
                             defaultFirstName={employee.firstName}
                             defaultLastName={employee.lastName}
+                            defaultAnnualVacationDays={employee.annualVacationDays}
                             defaultIsLeadership={employee.isLeadership}
                             defaultCanManagePersonalInventory={
                               employee.canManagePersonalInventory
@@ -1132,6 +1133,7 @@ function EmployeeForm({
   defaultDepartmentValue = "",
   defaultFirstName = "",
   defaultLastName = "",
+  defaultAnnualVacationDays = 30,
   defaultIsLeadership = false,
   defaultCanManagePersonalInventory = false,
   defaultBirthDate = "",
@@ -1163,6 +1165,7 @@ function EmployeeForm({
   defaultDepartmentValue?: string;
   defaultFirstName?: string;
   defaultLastName?: string;
+  defaultAnnualVacationDays?: number;
   defaultIsLeadership?: boolean;
   defaultCanManagePersonalInventory?: boolean;
   defaultBirthDate?: string;
@@ -1268,6 +1271,18 @@ function EmployeeForm({
             name="lastName"
             required
             defaultValue={defaultLastName}
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+        </label>
+
+        <label className="text-sm font-medium text-gray-800">
+          Urlaubsanspruch (Tage/Jahr)
+          <input
+            name="annualVacationDays"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={defaultAnnualVacationDays}
             className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
           />
         </label>

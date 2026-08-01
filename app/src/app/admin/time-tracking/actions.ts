@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
+import { employeeDispositionTypes } from "@/app/employee-dispatch/disposition-types";
 import { workTimeDayKeys, type WorkTimeDayKey } from "@/lib/work-time";
 import { collectDueApprovalReminders } from "@/lib/time-tracking-reminder";
 
@@ -35,6 +36,31 @@ export async function updateTimeTrackingSettings(formData: FormData) {
   });
 
   revalidatePath("/admin/time-tracking");
+}
+
+export async function updateDispositionCategoryCredits(formData: FormData) {
+  await requireAdmin();
+
+  await Promise.all(
+    employeeDispositionTypes.map((type) => {
+      const raw = String(formData.get(`credit_${type.value}`) ?? "").trim().replace(",", ".");
+      const creditedHours = raw === "" ? null : Number(raw);
+      const validHours =
+        creditedHours !== null && Number.isFinite(creditedHours) && creditedHours >= 0
+          ? creditedHours
+          : null;
+      return prisma.dispositionCategoryCredit.upsert({
+        create: { creditedHours: validHours, typeValue: type.value },
+        update: { creditedHours: validHours },
+        where: { typeValue: type.value },
+      });
+    }),
+  );
+
+  revalidatePath("/admin/time-tracking");
+  revalidatePath("/personal/monatskalender");
+  revalidatePath("/personal/jahreskalender");
+  revalidatePath("/personal/konten");
 }
 
 export type ReminderPreviewResult = {

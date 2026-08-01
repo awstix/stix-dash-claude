@@ -1,12 +1,20 @@
 import { AppShell } from "@/components/AppShell";
+import { employeeDispositionTypes } from "@/app/employee-dispatch/disposition-types";
+import { prisma } from "@/lib/prisma";
 import { getGlobalTimeTrackingSettings, parseWeekdaysJson } from "@/lib/time-tracking-reminder";
 import { workTimeDayKeys, workTimeDayLabels } from "@/lib/work-time";
-import { updateTimeTrackingSettings } from "./actions";
+import { updateDispositionCategoryCredits, updateTimeTrackingSettings } from "./actions";
 import { ReminderCheckButton } from "./ReminderCheckButton";
 
 export default async function TimeTrackingSettingsPage() {
-  const settings = await getGlobalTimeTrackingSettings();
+  const [settings, categoryCredits] = await Promise.all([
+    getGlobalTimeTrackingSettings(),
+    prisma.dispositionCategoryCredit.findMany(),
+  ]);
   const activeWeekdays = new Set(parseWeekdaysJson(settings.reminderWeekdaysJson));
+  const creditedHoursByTypeValue = new Map(
+    categoryCredits.map((credit) => [credit.typeValue, credit.creditedHours]),
+  );
 
   return (
     <AppShell
@@ -99,6 +107,47 @@ export default async function TimeTrackingSettingsPage() {
           <div className="mt-6 border-t border-gray-200 pt-5">
             <ReminderCheckButton />
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Anrechnung Dispo-Kategorien</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Legt fest, wie viele Stunden pro Tag Krank/Schule/Innung/Schulung/Werkstatt/Mischanlage/
+            Baustelle-Einträge aus der Mitarbeiterdisposition für die Zeitkonten-Berechnung (Monats-/
+            Jahreskalender, Zeitkonten) zählen, sofern an dem Tag keine echten Ist-Stunden erfasst
+            wurden. Leer lassen = zählt als volle Tages-Soll-Zeit (verändert den Saldo nicht).
+          </p>
+
+          <form action={updateDispositionCategoryCredits} className="mt-5 space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {employeeDispositionTypes.map((type) => (
+                <label
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-semibold text-gray-800"
+                  key={type.value}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`h-3 w-3 rounded ${type.barClass}`} />
+                    {type.label}
+                  </span>
+                  <input
+                    className="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                    defaultValue={creditedHoursByTypeValue.get(type.value) ?? ""}
+                    inputMode="decimal"
+                    name={`credit_${type.value}`}
+                    placeholder="Std./Tag"
+                    type="text"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <button
+              className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+              type="submit"
+            >
+              Speichern
+            </button>
+          </form>
         </section>
       </div>
     </AppShell>

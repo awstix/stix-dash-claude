@@ -71,11 +71,18 @@ const safetyNavigation = [
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const employeeNavigation = [
+  { name: "Personal-Übersicht", href: "/personal" },
+  { name: "Personalzeiten", href: "/personal/zeiten" },
+  { name: "Zeitkonten", href: "/personal/konten" },
+  { name: "Monatskalender", href: "/personal/monatskalender" },
+  { name: "Jahreskalender", href: "/personal/jahreskalender" },
+  { name: "Skills", href: "/personal/skills" },
+  { name: "Arbeitszeit", href: "/admin/working-time" },
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
   { name: "Mitarbeiterakte", href: "/employees/certificates" },
   { name: "Mitarbeiterverwaltung", href: "/employees" },
   { name: "Urlaubsanträge", href: "/leave-requests" },
-].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+];
 
 export async function AppShell({
   title,
