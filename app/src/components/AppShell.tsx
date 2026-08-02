@@ -56,7 +56,10 @@ const inventoryNavigation = [
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const controllingNavigation = [
+  { name: "Aufträge", href: "/controlling/auftraege" },
+  { name: "Ausstehende Schlussrechnungen", href: "/controlling/ausstehende-schlussrechnungen" },
   { name: "Bauleiterliste", href: "/controlling/bauleiterliste" },
+  { name: "Beendete Baustellen", href: "/controlling/beendete-baustellen" },
   { name: "Leistungsmeldung", href: "/controlling/performance" },
   { name: "Verrechnungssätze", href: "/controlling/rates" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));

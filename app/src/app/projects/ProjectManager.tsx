@@ -56,11 +56,13 @@ const statusOptions: { value: ProjectStatus; label: string }[] = [
 const emptyProject: ProjectFormInput = {
   projectNumber: "",
   name: "",
+  client: "",
   constructionManagers: [],
   plannedStart: "",
   plannedEnd: "",
   actualStart: "",
   actualEnd: "",
+  remainingConstructionTime: "",
   status: "NOT_STARTED",
   dvgw: false,
   guetezeichenKanalbau: false,
@@ -69,6 +71,9 @@ const emptyProject: ProjectFormInput = {
   changeOrdersNet: 0,
   progressPercent: 0,
   paymentsNet: 0,
+  finalInvoiceCreated: false,
+  finalInvoiceNumber: "",
+  finalInvoiceNet: 0,
   notes: "",
   autoApproveTimeEntriesOverride: "inherit",
   timeReminderExtraRecipients: "",
@@ -293,6 +298,9 @@ export function ProjectManager({
     formPerformanceValue > 0
       ? (formDifference / formPerformanceValue) * 100
       : 0;
+  const formInvoiceDifference = form.finalInvoiceNet - formTotalContract;
+  const formInvoiceQuotePercent =
+    formTotalContract > 0 ? (form.finalInvoiceNet / formTotalContract) * 100 : 0;
 
   return (
     <>
@@ -480,6 +488,11 @@ export function ProjectManager({
               onChange={(value) => updateForm("name", value)}
             />
             <TextField
+              label="Auftraggeber"
+              value={form.client}
+              onChange={(value) => updateForm("client", value)}
+            />
+            <TextField
               label="Baubeginn geplant"
               type="date"
               value={form.plannedStart}
@@ -502,6 +515,11 @@ export function ProjectManager({
               type="date"
               value={form.actualEnd}
               onChange={(value) => updateForm("actualEnd", value)}
+            />
+            <TextField
+              label="Restliche Bauzeit"
+              value={form.remainingConstructionTime}
+              onChange={(value) => updateForm("remainingConstructionTime", value)}
             />
 
             <div>
@@ -591,6 +609,45 @@ export function ProjectManager({
               value={formatPercent(formCoveragePercent)}
               tone={formCoveragePercent >= 0 ? "positive" : "negative"}
             />
+          </div>
+
+          <h4 className="mt-6 border-t border-gray-200 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Schlussrechnung
+          </h4>
+
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+              <input
+                checked={form.finalInvoiceCreated}
+                className="h-4 w-4 rounded border-gray-300"
+                onChange={(event) => updateForm("finalInvoiceCreated", event.target.checked)}
+                type="checkbox"
+              />
+              SR erstellt
+            </label>
+            <TextField
+              label="SR-Nr."
+              value={form.finalInvoiceNumber}
+              onChange={(value) => updateForm("finalInvoiceNumber", value)}
+            />
+            <NumberField
+              label="SR Summe (netto)"
+              value={form.finalInvoiceNet}
+              onChange={(value) => updateForm("finalInvoiceNet", value)}
+            />
+            {form.finalInvoiceCreated ? (
+              <>
+                <FormMetricCard
+                  label="Delta Auftragssumme vs. SR (netto)"
+                  value={formatEuro(formInvoiceDifference)}
+                  tone={formInvoiceDifference >= 0 ? "positive" : "negative"}
+                />
+                <FormMetricCard
+                  label="Quote Auftragssumme vs. SR Summe"
+                  value={formatPercent(formInvoiceQuotePercent)}
+                />
+              </>
+            ) : null}
           </div>
 
           <div className="mt-4">

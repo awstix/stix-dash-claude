@@ -29,13 +29,18 @@ const emptyProject: ProjectFormInput = {
   actualStart: "",
   autoApproveTimeEntriesOverride: "inherit",
   changeOrdersNet: 0,
+  client: "",
   constructionManagers: [],
   contractValueNet: 0,
+  finalInvoiceCreated: false,
+  finalInvoiceNet: 0,
+  finalInvoiceNumber: "",
   name: "",
   notes: "",
   paymentsNet: 0,
   plannedEnd: "",
   plannedStart: "",
+  remainingConstructionTime: "",
   dvgw: false,
   guetezeichenKanalbau: false,
   lieferscheine: false,
@@ -104,6 +109,9 @@ export function ProjectCreateDialog({
     formPerformanceValue > 0
       ? (formDifference / formPerformanceValue) * 100
       : 0;
+  const formInvoiceDifference = form.finalInvoiceNet - formTotalContract;
+  const formInvoiceQuotePercent =
+    formTotalContract > 0 ? (form.finalInvoiceNet / formTotalContract) * 100 : 0;
 
   return (
     <>
@@ -158,6 +166,11 @@ export function ProjectCreateDialog({
                 value={form.name}
               />
               <TextField
+                label="Auftraggeber"
+                onChange={(value) => updateForm("client", value)}
+                value={form.client}
+              />
+              <TextField
                 label="Baubeginn geplant"
                 onChange={(value) => updateForm("plannedStart", value)}
                 type="date"
@@ -180,6 +193,11 @@ export function ProjectCreateDialog({
                 onChange={(value) => updateForm("actualEnd", value)}
                 type="date"
                 value={form.actualEnd}
+              />
+              <TextField
+                label="Restliche Bauzeit"
+                onChange={(value) => updateForm("remainingConstructionTime", value)}
+                value={form.remainingConstructionTime}
               />
 
               <div>
@@ -269,6 +287,45 @@ export function ProjectCreateDialog({
                 tone={formCoveragePercent >= 0 ? "positive" : "negative"}
                 value={formatPercent(formCoveragePercent)}
               />
+            </div>
+
+            <h4 className="mt-6 border-t border-gray-200 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Schlussrechnung
+            </h4>
+
+            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                <input
+                  checked={form.finalInvoiceCreated}
+                  className="h-4 w-4 rounded border-gray-300"
+                  onChange={(event) => updateForm("finalInvoiceCreated", event.target.checked)}
+                  type="checkbox"
+                />
+                SR erstellt
+              </label>
+              <TextField
+                label="SR-Nr."
+                onChange={(value) => updateForm("finalInvoiceNumber", value)}
+                value={form.finalInvoiceNumber}
+              />
+              <NumberField
+                label="SR Summe (netto)"
+                onChange={(value) => updateForm("finalInvoiceNet", value)}
+                value={form.finalInvoiceNet}
+              />
+              {form.finalInvoiceCreated ? (
+                <>
+                  <FormMetricCard
+                    label="Delta Auftragssumme vs. SR (netto)"
+                    tone={formInvoiceDifference >= 0 ? "positive" : "negative"}
+                    value={formatEuro(formInvoiceDifference)}
+                  />
+                  <FormMetricCard
+                    label="Quote Auftragssumme vs. SR Summe"
+                    value={formatPercent(formInvoiceQuotePercent)}
+                  />
+                </>
+              ) : null}
             </div>
 
             <div className="mt-4">

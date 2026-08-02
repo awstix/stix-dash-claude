@@ -40,11 +40,13 @@ export type ProjectFormInput = {
   id?: string;
   projectNumber: string;
   name: string;
+  client: string;
   constructionManagers: ConstructionManagerEntry[];
   plannedStart: string;
   plannedEnd: string;
   actualStart: string;
   actualEnd: string;
+  remainingConstructionTime: string;
   status: ProjectStatus;
   dvgw: boolean;
   guetezeichenKanalbau: boolean;
@@ -53,6 +55,9 @@ export type ProjectFormInput = {
   changeOrdersNet: number;
   progressPercent: number;
   paymentsNet: number;
+  finalInvoiceCreated: boolean;
+  finalInvoiceNumber: string;
+  finalInvoiceNet: number;
   notes: string;
   autoApproveTimeEntriesOverride: "inherit" | "on" | "off";
   timeReminderExtraRecipients: string;
@@ -473,11 +478,13 @@ export async function createProject(input: ProjectFormInput) {
     data: {
       projectNumber: input.projectNumber,
       name: input.name,
+      client: input.client || null,
       ...constructionManagerData(input),
       plannedStart: parseDate(input.plannedStart),
       plannedEnd: parseDate(input.plannedEnd),
       actualStart: parseDate(input.actualStart),
       actualEnd: parseDate(input.actualEnd),
+      remainingConstructionTime: input.remainingConstructionTime || null,
       status: input.status,
       dvgw: input.dvgw,
       guetezeichenKanalbau: input.guetezeichenKanalbau,
@@ -486,6 +493,9 @@ export async function createProject(input: ProjectFormInput) {
       changeOrdersNet: cleanNumber(input.changeOrdersNet),
       progressPercent: cleanNumber(input.progressPercent),
       paymentsNet: cleanNumber(input.paymentsNet),
+      finalInvoiceCreated: input.finalInvoiceCreated,
+      finalInvoiceNumber: input.finalInvoiceNumber || null,
+      finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
       notes: input.notes || null,
       autoApproveTimeEntriesOverride: parseTriStateOverride(
         input.autoApproveTimeEntriesOverride,
@@ -513,11 +523,13 @@ export async function updateProject(input: ProjectFormInput) {
     data: {
       projectNumber: input.projectNumber,
       name: input.name,
+      client: input.client || null,
       ...constructionManagerData(input),
       plannedStart: parseDate(input.plannedStart),
       plannedEnd: parseDate(input.plannedEnd),
       actualStart: parseDate(input.actualStart),
       actualEnd: parseDate(input.actualEnd),
+      remainingConstructionTime: input.remainingConstructionTime || null,
       status: input.status,
       dvgw: input.dvgw,
       guetezeichenKanalbau: input.guetezeichenKanalbau,
@@ -526,6 +538,9 @@ export async function updateProject(input: ProjectFormInput) {
       changeOrdersNet: cleanNumber(input.changeOrdersNet),
       progressPercent: cleanNumber(input.progressPercent),
       paymentsNet: cleanNumber(input.paymentsNet),
+      finalInvoiceCreated: input.finalInvoiceCreated,
+      finalInvoiceNumber: input.finalInvoiceNumber || null,
+      finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
       notes: input.notes || null,
       autoApproveTimeEntriesOverride: parseTriStateOverride(
         input.autoApproveTimeEntriesOverride,

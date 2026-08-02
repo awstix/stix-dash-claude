@@ -67,16 +67,18 @@ model DispositionCategoryCredit {
 }
 
 model Project {
-  id                       String        @id @default(cuid())
-  projectNumber            String        @unique
-  name                     String
-  constructionManager      String?
-  constructionManagersJson String?
-  plannedStart             DateTime?
-  plannedEnd               DateTime?
-  actualStart              DateTime?
-  actualEnd                DateTime?
-  status                   ProjectStatus @default(NOT_STARTED)
+  id                        String        @id @default(cuid())
+  projectNumber             String        @unique
+  name                      String
+  client                    String?
+  constructionManager       String?
+  constructionManagersJson  String?
+  plannedStart              DateTime?
+  plannedEnd                DateTime?
+  actualStart               DateTime?
+  actualEnd                 DateTime?
+  remainingConstructionTime String?
+  status                    ProjectStatus @default(NOT_STARTED)
 
   dvgw                 Boolean @default(false)
   guetezeichenKanalbau Boolean @default(false)
@@ -86,6 +88,10 @@ model Project {
   changeOrdersNet  Int   @default(0)
   progressPercent  Float @default(0)
   paymentsNet      Int   @default(0)
+
+  finalInvoiceCreated Boolean @default(false)
+  finalInvoiceNumber  String?
+  finalInvoiceNet     Int?
 
   siteAddress         String?
   mapLatitude         Float?
