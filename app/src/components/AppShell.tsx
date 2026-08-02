@@ -73,6 +73,7 @@ const safetyNavigation = [
 const employeeNavigation = [
   { name: "Personal-Übersicht", href: "/personal" },
   { name: "Personalzeiten", href: "/personal/zeiten" },
+  { name: "Abwesenheiten", href: "/personal/abwesenheiten" },
   { name: "Zeitkonten", href: "/personal/konten" },
   { name: "Monatskalender", href: "/personal/monatskalender" },
   { name: "Jahreskalender", href: "/personal/jahreskalender" },

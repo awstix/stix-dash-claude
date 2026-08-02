@@ -9,6 +9,7 @@ import {
   dateKey,
 } from "@/lib/disposition-days-off";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
+import { DispositionHoursFields } from "./DispositionHoursFields";
 import { EmployeeExportDialog } from "./EmployeeExportDialog";
 import { EmployeeQuickEntryButton } from "./EmployeeQuickEntryButton";
 import { EmployeeTimelineBar } from "./EmployeeTimelineBar";
@@ -83,6 +84,7 @@ type TimelineBar = {
     endDate: Date;
     startTime: string;
     endTime: string;
+    hours: number | null;
     notes: string | null;
   };
 };
@@ -733,6 +735,7 @@ export default async function EmployeeDispatchPage({
         endDate: entry.endDate,
         startTime: entry.startTime,
         endTime: entry.endTime,
+        hours: entry.hours,
         notes: entry.notes,
       },
     };
@@ -2162,6 +2165,7 @@ function EmployeeDispositionEntryForm({
     endDate: Date;
     startTime: string;
     endTime: string;
+    hours: number | null;
     notes: string | null;
   };
 }) {
@@ -2224,25 +2228,12 @@ function EmployeeDispositionEntryForm({
         />
       </label>
 
-      <label className="text-xs font-semibold text-gray-700">
-        Beginn
-        <input
-          type="time"
-          name="startTime"
-          defaultValue={entry.startTime}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <label className="text-xs font-semibold text-gray-700">
-        Ende
-        <input
-          type="time"
-          name="endTime"
-          defaultValue={entry.endTime}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
-        />
-      </label>
+      <DispositionHoursFields
+        compact
+        defaultEndTime={entry.endTime}
+        defaultStartTime={entry.startTime}
+        defaultWholeDay={entry.hours === null}
+      />
 
       <label className="text-xs font-semibold text-gray-700 md:col-span-2">
         Bemerkung
@@ -2340,25 +2331,7 @@ function NewEmployeeDispositionEntryForm({
         />
       </label>
 
-      <label className="text-sm font-medium text-gray-800">
-        Beginn
-        <input
-          type="time"
-          name="startTime"
-          defaultValue="06:30"
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        />
-      </label>
-
-      <label className="text-sm font-medium text-gray-800">
-        Ende
-        <input
-          type="time"
-          name="endTime"
-          defaultValue="17:00"
-          className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        />
-      </label>
+      <DispositionHoursFields defaultEndTime="17:00" defaultStartTime="06:30" defaultWholeDay />
 
       <label className="text-sm font-medium text-gray-800 xl:col-span-2">
         Bemerkung

@@ -1334,6 +1334,10 @@ model EmployeeDispositionEntry {
   startTime String @default("06:30")
   endTime   String @default("17:00")
 
+  /// Stundenweise Anrechnung statt ganzer Tag (z.B. 3 Std. Sonderurlaub). Nur bei
+  /// eintägigen Einträgen gesetzt; überschreibt dann die Kategorie-Anrechnung.
+  hours Float?
+
   typeValue String
   typeLabel String
 

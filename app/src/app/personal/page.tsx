@@ -53,6 +53,11 @@ const personalSections: PersonalSection[] = [
     description: "Urlaub, Krankheit und sonstige Anträge.",
     items: [
       {
+        title: "Abwesenheiten",
+        description: "Alle Abwesenheiten (Urlaub, Krank, Schule, Innung u.a.) im Überblick.",
+        href: "/personal/abwesenheiten",
+      },
+      {
         title: "Urlaubsanträge",
         description: "Urlaubs- und Abwesenheitsanträge stellen und freigeben.",
         href: "/leave-requests",

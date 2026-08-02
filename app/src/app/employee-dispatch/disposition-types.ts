@@ -18,6 +18,18 @@ export const employeeDispositionTypes = [
     badgeClass: "bg-red-100 text-red-900",
   },
   {
+    value: "krank_ab_6_wochen",
+    label: "Krank ab 6 Wochen (Krankengeld)",
+    barClass: "bg-rose-800 text-white",
+    badgeClass: "bg-rose-100 text-rose-900",
+  },
+  {
+    value: "krankstunden_schlechtwetter",
+    label: "Krankstunden Schlechtwetter",
+    barClass: "bg-pink-700 text-white",
+    badgeClass: "bg-pink-100 text-pink-900",
+  },
+  {
     value: "mischanlage_niedernberg",
     label: "Mischanlage Niedernberg",
     barClass: "bg-orange-700 text-white",
@@ -40,6 +52,24 @@ export const employeeDispositionTypes = [
     label: "Schule",
     barClass: "bg-cyan-700 text-white",
     badgeClass: "bg-cyan-100 text-cyan-900",
+  },
+  {
+    value: "schlechtwetter",
+    label: "Schlechtwetter",
+    barClass: "bg-slate-600 text-white",
+    badgeClass: "bg-slate-100 text-slate-900",
+  },
+  {
+    value: "sonderurlaub_stunden",
+    label: "Sonderurlaub Stunden",
+    barClass: "bg-violet-700 text-white",
+    badgeClass: "bg-violet-100 text-violet-900",
+  },
+  {
+    value: "unbezahlter_urlaub",
+    label: "Unbezahlter Urlaub",
+    barClass: "bg-stone-600 text-white",
+    badgeClass: "bg-stone-100 text-stone-900",
   },
   {
     value: "urlaub",

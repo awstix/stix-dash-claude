@@ -68,10 +68,11 @@ export type FlexTimeBalance = {
   sollHours: number;
 };
 
-/** Ist (tatsächlich erfasste Stunden) minus Soll (Standard-Arbeitszeit an Werktagen,
- * abzüglich genehmigter Abwesenheiten und Feiertage) für alle übergebenen Mitarbeiter
- * im angegebenen Zeitraum. Nutzt die zentrale Standard-Arbeitszeit (Admin > Arbeitszeit)
- * als Soll-Grundlage — individuelle Teilzeitverträge werden aktuell nicht abgebildet. */
+/** Ist (tatsächlich erfasste Stunden plus angerechnete Dispo-Kategorien wie Krank/
+ * Schule/Innung/Sonderurlaub Stunden) minus Soll (Standard-Arbeitszeit an Werktagen,
+ * abzüglich genehmigter Urlaub/Zeitausgleich und Feiertage) für alle übergebenen
+ * Mitarbeiter im angegebenen Zeitraum. Nutzt dieselbe Tagesberechnung wie der Monats-/
+ * Jahreskalender (getEmployeeDayDetails), damit die Salden konsistent sind. */
 export async function calculateFlexTimeBalances({
   employeeIds,
   fromDate,
@@ -83,69 +84,21 @@ export async function calculateFlexTimeBalances({
 }): Promise<Map<string, FlexTimeBalance>> {
   if (!employeeIds.length) return new Map();
 
-  const [workTime, holidaySet, istByEmployee, approvedLeave] = await Promise.all([
-    getDefaultWorkTime(),
-    getHolidayDateSet(),
-    prisma.crewTimeEmployee.groupBy({
-      _sum: { netHours: true },
-      by: ["employeeId"],
-      where: {
-        employeeId: { in: employeeIds },
-        isPresent: true,
-        entry: { workDate: { gte: fromDate, lte: toDate } },
-      },
+  const entries = await Promise.all(
+    employeeIds.map(async (employeeId) => {
+      const days = await getEmployeeDayDetails({ employeeId, fromDate, toDate });
+      const istHours = days.reduce((sum, day) => sum + day.istHours, 0);
+      const sollHours = days.reduce((sum, day) => sum + day.sollHours, 0);
+      const balance: FlexTimeBalance = {
+        balanceHours: Math.round((istHours - sollHours) * 100) / 100,
+        istHours: Math.round(istHours * 100) / 100,
+        sollHours: Math.round(sollHours * 100) / 100,
+      };
+      return [employeeId, balance] as const;
     }),
-    prisma.leaveRequest.findMany({
-      select: { dayPortion: true, employeeId: true, endDate: true, startDate: true },
-      where: {
-        employeeId: { in: employeeIds },
-        endDate: { gte: fromDate },
-        startDate: { lte: toDate },
-        status: "APPROVED",
-      },
-    }),
-  ]);
+  );
 
-  const istByEmployeeId = new Map(istByEmployee.map((row) => [row.employeeId, row._sum.netHours ?? 0]));
-
-  const leaveFractionByEmployeeAndDate = new Map<string, number>();
-  for (const leave of approvedLeave) {
-    const start = leave.startDate < fromDate ? fromDate : leave.startDate;
-    const end = leave.endDate > toDate ? toDate : leave.endDate;
-    const fraction = leave.dayPortion === "FULL" ? 1 : 0.5;
-    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-      leaveFractionByEmployeeAndDate.set(`${leave.employeeId}:${isoDate(d)}`, fraction);
-    }
-  }
-
-  const sollHoursPerDay: number[] = [];
-  const dayKeys: string[] = [];
-  for (let d = new Date(fromDate); d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
-    const iso = isoDate(d);
-    dayKeys.push(iso);
-    if (isWeekend(d) || holidaySet.has(iso)) {
-      sollHoursPerDay.push(0);
-    } else {
-      sollHoursPerDay.push(getNetWorkHoursForDay(getWorkTimeForDate(workTime, d)));
-    }
-  }
-
-  const result = new Map<string, FlexTimeBalance>();
-  for (const employeeId of employeeIds) {
-    let sollHours = 0;
-    for (let index = 0; index < dayKeys.length; index += 1) {
-      if (sollHoursPerDay[index] === 0) continue;
-      const leaveFraction = leaveFractionByEmployeeAndDate.get(`${employeeId}:${dayKeys[index]}`) ?? 0;
-      sollHours += sollHoursPerDay[index] * (1 - leaveFraction);
-    }
-    const istHours = istByEmployeeId.get(employeeId) ?? 0;
-    result.set(employeeId, {
-      balanceHours: Math.round((istHours - sollHours) * 100) / 100,
-      istHours: Math.round(istHours * 100) / 100,
-      sollHours: Math.round(sollHours * 100) / 100,
-    });
-  }
-  return result;
+  return new Map(entries);
 }
 
 export type VacationBalance = {
@@ -276,7 +229,7 @@ export async function getEmployeeDayDetails({
       },
     }),
     prisma.employeeDispositionEntry.findMany({
-      select: { endDate: true, startDate: true, typeLabel: true, typeValue: true },
+      select: { endDate: true, hours: true, startDate: true, typeLabel: true, typeValue: true },
       where: {
         employeeId,
         endDate: { gte: fromDate },
@@ -341,6 +294,7 @@ export async function getEmployeeDayDetails({
     }
   }
   const dispositionTypeValueByDate = new Map<string, string>();
+  const dispositionHoursByDate = new Map<string, number>();
   for (const entry of dispositionEntries) {
     const start = entry.startDate < fromDate ? fromDate : entry.startDate;
     const end = entry.endDate > toDate ? toDate : entry.endDate;
@@ -355,6 +309,9 @@ export async function getEmployeeDayDetails({
       const iso = isoDate(d);
       categoryByDate.set(iso, category);
       dispositionTypeValueByDate.set(iso, entry.typeValue);
+      if (entry.hours !== null) {
+        dispositionHoursByDate.set(iso, entry.hours);
+      }
     }
   }
 
@@ -379,7 +336,7 @@ export async function getEmployeeDayDetails({
     const clockedIstHours = istByDate.get(iso) ?? 0;
     const creditedDispositionHours =
       dispositionTypeValue && !weekend && !holiday && clockedIstHours === 0
-        ? (creditedHoursByTypeValue.get(dispositionTypeValue) ?? sollHours)
+        ? (dispositionHoursByDate.get(iso) ?? creditedHoursByTypeValue.get(dispositionTypeValue) ?? sollHours)
         : null;
 
     // Für die Std.-Auswertung im Jahreskalender zählt genehmigter Urlaub/Zeitausgleich mit
