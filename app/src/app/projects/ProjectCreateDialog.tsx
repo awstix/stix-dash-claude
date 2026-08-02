@@ -210,23 +210,27 @@ export function ProjectCreateDialog({
                 onLieferscheineChange={(value) => updateForm("lieferscheine", value)}
               />
 
+              <h4 className="md:col-span-2 lg:col-span-3 mt-2 border-t border-gray-200 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Schnellstand
+              </h4>
+
               <NumberField
-                label="Schnellstand Auftrag netto"
+                label="Auftragssumme (netto)"
                 onChange={(value) => updateForm("contractValueNet", value)}
                 value={form.contractValueNet}
               />
               <NumberField
-                label="Schnellstand Nachträge netto"
+                label="Nachträge beauftragt (netto)"
                 onChange={(value) => updateForm("changeOrdersNet", value)}
                 value={form.changeOrdersNet}
               />
               <NumberField
-                label="Schnellstand Leistung in %"
+                label="Leistungsstand (IST %)"
                 onChange={(value) => updateForm("progressPercent", value)}
                 value={form.progressPercent}
               />
               <NumberField
-                label="Schnellstand Abschläge netto"
+                label="Summe aller Abschläge (netto)"
                 onChange={(value) => updateForm("paymentsNet", value)}
                 value={form.paymentsNet}
               />
@@ -240,14 +244,14 @@ export function ProjectCreateDialog({
               />
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
               <FormMetricCard
-                label="Schnellstand Auftrag inkl. Nachträge"
+                label="Auftragssumme inkl. Nachträge (netto)"
                 value={formatEuro(formTotalContract)}
               />
               <FormMetricCard
                 detail={`${formatPercent(form.progressPercent)} Leistungsstand`}
-                label="Schnellstand Leistung in €"
+                label="Leistungsstand (IST in €)"
                 value={formatEuro(formPerformanceValue)}
               />
               <FormMetricCard
@@ -256,8 +260,12 @@ export function ProjectCreateDialog({
                 value={formatPercent(formBillingPercent)}
               />
               <FormMetricCard
-                detail={formatEuro(formDifference)}
-                label="Über-/Unterdeckung in %"
+                label="Delta Leistungsstand vs. Abrechnungsstand"
+                tone={formDifference >= 0 ? "positive" : "negative"}
+                value={formatEuro(formDifference)}
+              />
+              <FormMetricCard
+                label="Über-/Unterdeckung"
                 tone={formCoveragePercent >= 0 ? "positive" : "negative"}
                 value={formatPercent(formCoveragePercent)}
               />
