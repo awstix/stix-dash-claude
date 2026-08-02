@@ -9,6 +9,7 @@ export const projectAreaNavigation = [
   { key: "documents", label: "Dokumente", href: "/projects/dokumente" },
   { key: "forms", label: "Formulare", href: "/projects/formulare" },
   { key: "notes", label: "Notizen", href: "/projects/notizen" },
+  { key: "requirements", label: "Bedarf", href: "/projects/bedarf" },
   {
     key: "daily-reports",
     label: "Bautagesberichte",

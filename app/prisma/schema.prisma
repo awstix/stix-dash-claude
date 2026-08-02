@@ -120,6 +120,7 @@ model Project {
   dailyReports                      ProjectDailyReport[]
   photos                            ProjectPhoto[]
   projectNotes                      ProjectNote[]
+  requirementItems                  ProjectRequirementItem[]
   documentFolders                   ProjectDocumentFolder[]
   documents                         ProjectDocument[]
   formSubmissions                   ProjectFormSubmission[]
@@ -168,6 +169,31 @@ model ProjectNote {
   @@index([includeInDailyReport])
   @@index([visibility])
   @@index([createdByUserId])
+}
+
+model ProjectRequirementItem {
+  id String @id @default(cuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category    String
+  description String
+
+  done         Boolean   @default(false)
+  doneAt       DateTime?
+  doneByUserId String?
+  doneByName   String?
+
+  createdByUserId String?
+  createdByName   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([category])
+  @@index([done])
 }
 
 model ProjectWeatherLog {

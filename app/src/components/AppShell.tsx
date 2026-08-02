@@ -11,6 +11,7 @@ const primaryNavigation = [
 
 const projectNavigation = [
   { name: "Bautagesberichte", href: "/projects/bautagesberichte" },
+  { name: "Bedarf", href: "/projects/bedarf" },
   { name: "Dokumente", href: "/projects/dokumente" },
   { name: "Formularbuilder", href: "/form-builder?scope=PROJECT" },
   { name: "Formulare", href: "/projects/formulare" },

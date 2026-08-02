@@ -202,6 +202,30 @@ export type ProjectNoteDeleteInput = {
   projectId: string;
 };
 
+export type ProjectRequirementItemInput = {
+  category: string;
+  description: string;
+  projectId: string;
+};
+
+export type ProjectRequirementItemUpdateInput = {
+  category: string;
+  description: string;
+  id: string;
+  projectId: string;
+};
+
+export type ProjectRequirementItemToggleInput = {
+  done: boolean;
+  id: string;
+  projectId: string;
+};
+
+export type ProjectRequirementItemDeleteInput = {
+  id: string;
+  projectId: string;
+};
+
 export type ProjectPhotosMoveInput = {
   photoIds: string[];
   targetProjectId: string;
@@ -439,6 +463,7 @@ function revalidateProjectViews(projectId?: string) {
   revalidatePath("/projects");
   revalidatePath("/projects/performance");
   revalidatePath("/projects/notizen");
+  revalidatePath("/projects/bedarf");
   revalidatePath("/crew-dispatch");
   revalidatePath("/projects/bautagesberichte");
   if (projectId) {
@@ -648,6 +673,118 @@ export async function deleteProjectNote(input: ProjectNoteDeleteInput) {
     where: {
       id: input.id,
     },
+  });
+
+  revalidateProjectViews(input.projectId);
+}
+
+const requirementCategoryValues = ["SCHNITT", "VERGUSS", "LKW", "GERAETE", "SONSTIGES"];
+
+async function resolveUserDisplayName(userId: string) {
+  const user = await prisma.user.findUnique({
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      name: true,
+    },
+    where: { id: userId },
+  });
+  return user?.employee
+    ? `${user.employee.firstName} ${user.employee.lastName}`
+    : user?.name || null;
+}
+
+export async function createProjectRequirementItem(input: ProjectRequirementItemInput) {
+  const description = input.description.trim();
+  if (!description) {
+    throw new Error("Bitte eine Beschreibung eintragen.");
+  }
+  if (!requirementCategoryValues.includes(input.category)) {
+    throw new Error("Bitte eine gültige Kategorie auswählen.");
+  }
+
+  await requireProjectAccess(input.projectId);
+  const session = await requireSession();
+  const authorName = await resolveUserDisplayName(session.user.id);
+
+  await prisma.projectRequirementItem.create({
+    data: {
+      category: input.category,
+      createdByName: authorName || session.user.name || session.user.email,
+      createdByUserId: session.user.id,
+      description,
+      projectId: input.projectId,
+    },
+  });
+
+  revalidateProjectViews(input.projectId);
+}
+
+export async function updateProjectRequirementItem(input: ProjectRequirementItemUpdateInput) {
+  if (!input.id) {
+    throw new Error("Bedarf fehlt.");
+  }
+  const description = input.description.trim();
+  if (!description) {
+    throw new Error("Bitte eine Beschreibung eintragen.");
+  }
+  if (!requirementCategoryValues.includes(input.category)) {
+    throw new Error("Bitte eine gültige Kategorie auswählen.");
+  }
+
+  await requireProjectAccess(input.projectId);
+
+  await prisma.projectRequirementItem.update({
+    where: { id: input.id },
+    data: {
+      category: input.category,
+      description,
+    },
+  });
+
+  revalidateProjectViews(input.projectId);
+}
+
+export async function toggleProjectRequirementItem(input: ProjectRequirementItemToggleInput) {
+  if (!input.id) {
+    throw new Error("Bedarf fehlt.");
+  }
+
+  await requireProjectAccess(input.projectId);
+  const session = await requireSession();
+  const doneByName = input.done ? await resolveUserDisplayName(session.user.id) : null;
+
+  await prisma.projectRequirementItem.update({
+    where: { id: input.id },
+    data: {
+      done: input.done,
+      doneAt: input.done ? new Date() : null,
+      doneByUserId: input.done ? session.user.id : null,
+      doneByName: input.done ? doneByName || session.user.name || session.user.email : null,
+    },
+  });
+
+  revalidateProjectViews(input.projectId);
+}
+
+export async function deleteProjectRequirementItem(input: ProjectRequirementItemDeleteInput) {
+  if (!input.id) {
+    throw new Error("Bedarf fehlt.");
+  }
+  const existing = await prisma.projectRequirementItem.findUnique({
+    select: { createdByUserId: true, projectId: true },
+    where: { id: input.id },
+  });
+  if (!existing) return;
+  await requireProjectAccess(existing.projectId);
+  await requireProjectContentDeleteOwnership(existing.createdByUserId);
+
+  await prisma.projectRequirementItem.delete({
+    where: { id: input.id },
   });
 
   revalidateProjectViews(input.projectId);

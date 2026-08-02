@@ -24,6 +24,7 @@ import {
   type ProjectDailyReportFormPrefill,
 } from "../ProjectFormManager";
 import { ProjectPhotoGallery } from "../ProjectPhotoGallery";
+import { RequirementDoneCheckbox } from "../RequirementDoneCheckbox";
 import { ProjectInlinePhotoUpload } from "../ProjectInlinePhotoUpload";
 import { ProjectMapEditor } from "../ProjectMapEditor";
 import { ProjectWeatherPanel } from "../ProjectWeatherPanel";
@@ -350,6 +351,9 @@ export default async function ProjectDetailPage({
       },
       projectNotes: {
         orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+      },
+      requirementItems: {
+        orderBy: [{ done: "asc" }, { createdAt: "desc" }],
       },
       projectStartChecklists: {
         include: {
@@ -1298,6 +1302,16 @@ export default async function ProjectDetailPage({
           }))}
           projectId={project.id}
         />
+        <ProjectRequirementsPreviewSection
+          projectId={project.id}
+          requirements={project.requirementItems.map((item) => ({
+            category: item.category,
+            description: item.description,
+            done: item.done,
+            doneByName: item.doneByName,
+            id: item.id,
+          }))}
+        />
         <ProjectSafetySection
           assessments={project.generalRiskAssessments.map((assessment) => ({
             assessmentDate: assessment.assessmentDate,
@@ -2214,6 +2228,102 @@ function ProjectNotesPreviewSection({
       ) : null}
     </section>
   );
+}
+
+function ProjectRequirementsPreviewSection({
+  projectId,
+  requirements,
+}: {
+  projectId: string;
+  requirements: {
+    category: string;
+    description: string;
+    done: boolean;
+    doneByName: string | null;
+    id: string;
+  }[];
+}) {
+  const openRequirements = requirements.filter((item) => !item.done);
+  const doneCount = requirements.length - openRequirements.length;
+  const visibleRequirements = [...openRequirements, ...requirements.filter((item) => item.done)].slice(0, 8);
+
+  return (
+    <section
+      id="bedarf"
+      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Bedarf</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Schnitt, Verguss, LKW, Geräte und sonstiger Bedarf für diese Baustelle.
+          </p>
+        </div>
+        <Link
+          className="w-fit rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+          href={`/projects/bedarf?projectId=${projectId}`}
+        >
+          Bedarf erfassen
+        </Link>
+      </div>
+
+      {visibleRequirements.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+          Noch kein Bedarf für dieses Projekt erfasst.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {visibleRequirements.map((item) => (
+            <div
+              className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
+              key={item.id}
+            >
+              <div className="pt-0.5">
+                <RequirementDoneCheckbox done={item.done} id={item.id} projectId={projectId} />
+              </div>
+              <div className="min-w-0">
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                  {getRequirementCategoryLabel(item.category)}
+                </span>
+                <p className={`mt-1 text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                  {item.description}
+                </p>
+                {item.done && item.doneByName ? (
+                  <p className="mt-0.5 text-xs text-gray-500">Erledigt von {item.doneByName}</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {requirements.length > visibleRequirements.length ? (
+        <Link
+          className="mt-4 inline-flex text-xs font-semibold text-gray-700 underline-offset-4 hover:underline"
+          href={`/projects/bedarf?projectId=${projectId}&status=alle`}
+        >
+          Alle {requirements.length} Einträge öffnen ({doneCount} erledigt)
+        </Link>
+      ) : null}
+    </section>
+  );
+}
+
+function getRequirementCategoryLabel(value: string) {
+  switch (value) {
+    case "SCHNITT":
+      return "Schnitt";
+    case "VERGUSS":
+      return "Verguss";
+    case "LKW":
+      return "LKW-Bedarf";
+    case "GERAETE":
+      return "Gerätebedarf";
+    case "SONSTIGES":
+      return "Sonstiges";
+    default:
+      return value;
+  }
 }
 
 function getProjectNoteCategoryLabel(value: string) {
