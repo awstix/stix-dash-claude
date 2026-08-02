@@ -78,6 +78,10 @@ model Project {
   actualEnd                DateTime?
   status                   ProjectStatus @default(NOT_STARTED)
 
+  dvgw                 Boolean @default(false)
+  guetezeichenKanalbau Boolean @default(false)
+  lieferscheine        Boolean @default(false)
+
   contractValueNet Int   @default(0)
   changeOrdersNet  Int   @default(0)
   progressPercent  Float @default(0)

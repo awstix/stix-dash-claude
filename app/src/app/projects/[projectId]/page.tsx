@@ -1213,12 +1213,15 @@ export default async function ProjectDetailPage({
             uploadedByName: document.uploadedByName,
             uploadedByUserId: document.uploadedByUserId,
           }))}
+          dvgw={project.dvgw}
           folders={documentMoveFolders.map((folder) => ({
             id: folder.id,
             name: folder.name,
             projectId: folder.projectId,
             sortOrder: folder.sortOrder,
           }))}
+          guetezeichenKanalbau={project.guetezeichenKanalbau}
+          lieferscheine={project.lieferscheine}
           projectId={project.id}
           projects={photoMoveProjects.map((moveProject) => ({
             id: moveProject.id,
@@ -2036,10 +2039,16 @@ function ProjectPhotoPreviewSection({
 
 function ProjectDocumentPreviewSection({
   documents,
+  dvgw,
   folders,
+  guetezeichenKanalbau,
+  lieferscheine,
   projectId,
   projects,
 }: {
+  dvgw: boolean;
+  guetezeichenKanalbau: boolean;
+  lieferscheine: boolean;
   documents: {
     displayName: string;
     fileSizeBytes: number;
@@ -2088,6 +2097,12 @@ function ProjectDocumentPreviewSection({
         </Link>
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-2">
+        <RequirementBadge label="DVGW" value={dvgw} />
+        <RequirementBadge label="Gütezeichen Kanalbau" value={guetezeichenKanalbau} />
+        <RequirementBadge label="Lieferscheine" value={lieferscheine} />
+      </div>
+
       <ProjectDocumentManager
         documents={documents}
         embedded
@@ -2096,6 +2111,18 @@ function ProjectDocumentPreviewSection({
         projects={projects}
       />
     </section>
+  );
+}
+
+function RequirementBadge({ label, value }: { label: string; value: boolean }) {
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+        value ? "bg-green-100 text-green-900" : "bg-gray-100 text-gray-500"
+      }`}
+    >
+      {label}: {value ? "Ja" : "Nein"}
+    </span>
   );
 }
 

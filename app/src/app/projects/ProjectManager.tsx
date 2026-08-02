@@ -13,6 +13,7 @@ import {
 } from "./actions";
 import type { ConstructionManagerOption } from "./ProjectCreateDialog";
 import { ConstructionManagersField } from "./ConstructionManagersField";
+import { ProjectRequirementsFields } from "./ProjectRequirementsFields";
 import { TimeReminderFields } from "./TimeReminderFields";
 
 type ProjectStatus =
@@ -61,6 +62,9 @@ const emptyProject: ProjectFormInput = {
   actualStart: "",
   actualEnd: "",
   status: "NOT_STARTED",
+  dvgw: false,
+  guetezeichenKanalbau: false,
+  lieferscheine: false,
   contractValueNet: 0,
   changeOrdersNet: 0,
   progressPercent: 0,
@@ -72,6 +76,28 @@ const emptyProject: ProjectFormInput = {
   timeReminderWeekdays: [],
   timeReminderIntervalWeeks: 1,
 };
+
+type SortMode = "newest" | "projectNumberDesc" | "managerThenProjectNumberDesc";
+
+const sortModeOptions: { value: SortMode; label: string }[] = [
+  { value: "newest", label: "Neu angelegt zuerst" },
+  { value: "projectNumberDesc", label: "Projektnummer (absteigend)" },
+  { value: "managerThenProjectNumberDesc", label: "Bauleiter, Projektnummer (absteigend)" },
+];
+
+function compareProjectNumberDesc(a: Project, b: Project) {
+  return b.projectNumber.localeCompare(a.projectNumber, "de-DE", { numeric: true });
+}
+
+function compareManagerThenProjectNumberDesc(a: Project, b: Project) {
+  const managerA = a.constructionManagerDisplay || "";
+  const managerB = b.constructionManagerDisplay || "";
+  if (!managerA && managerB) return 1;
+  if (managerA && !managerB) return -1;
+
+  const managerCompare = managerA.localeCompare(managerB, "de-DE");
+  return managerCompare !== 0 ? managerCompare : compareProjectNumberDesc(a, b);
+}
 
 export function ProjectManager({
   constructionManagerOptions = [],
@@ -89,6 +115,17 @@ export function ProjectManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Project | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
+
+  const sortedProjects = useMemo(() => {
+    if (sortMode === "projectNumberDesc") {
+      return [...projects].sort(compareProjectNumberDesc);
+    }
+    if (sortMode === "managerThenProjectNumberDesc") {
+      return [...projects].sort(compareManagerThenProjectNumberDesc);
+    }
+    return projects;
+  }, [projects, sortMode]);
 
   useEffect(() => {
     const editId = searchParams.get("edit");
@@ -389,7 +426,7 @@ export function ProjectManager({
         </div>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Projektliste</h2>
           <p className="mt-1 text-sm text-gray-600">
@@ -397,12 +434,29 @@ export function ProjectManager({
           </p>
         </div>
 
-        <button
-          onClick={showForm ? resetForm : startCreate}
-          className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-        >
-          {showForm ? "Formular schließen" : "Projekt anlegen"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-xs font-semibold text-gray-700">
+            Sortierung
+            <select
+              className="mt-1 block rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              value={sortMode}
+            >
+              {sortModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            onClick={showForm ? resetForm : startCreate}
+            className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+          >
+            {showForm ? "Formular schließen" : "Projekt anlegen"}
+          </button>
+        </div>
       </div>
 
       {showForm ? (
@@ -468,6 +522,15 @@ export function ProjectManager({
                 ))}
               </select>
             </div>
+
+            <ProjectRequirementsFields
+              dvgw={form.dvgw}
+              guetezeichenKanalbau={form.guetezeichenKanalbau}
+              lieferscheine={form.lieferscheine}
+              onDvgwChange={(value) => updateForm("dvgw", value)}
+              onGuetezeichenKanalbauChange={(value) => updateForm("guetezeichenKanalbau", value)}
+              onLieferscheineChange={(value) => updateForm("lieferscheine", value)}
+            />
 
             <NumberField
               label="Schnellstand Auftrag netto"
@@ -609,14 +672,14 @@ export function ProjectManager({
               </tr>
             </thead>
             <tbody>
-              {projects.length === 0 ? (
+              {sortedProjects.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-500">
                     Noch keine Projekte vorhanden.
                   </td>
                 </tr>
               ) : (
-                projects.map((project) => {
+                sortedProjects.map((project) => {
                   const totalContract =
                     project.contractValueNet + project.changeOrdersNet;
 

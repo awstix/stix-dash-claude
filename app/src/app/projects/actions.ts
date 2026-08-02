@@ -46,6 +46,9 @@ export type ProjectFormInput = {
   actualStart: string;
   actualEnd: string;
   status: ProjectStatus;
+  dvgw: boolean;
+  guetezeichenKanalbau: boolean;
+  lieferscheine: boolean;
   contractValueNet: number;
   changeOrdersNet: number;
   progressPercent: number;
@@ -476,6 +479,9 @@ export async function createProject(input: ProjectFormInput) {
       actualStart: parseDate(input.actualStart),
       actualEnd: parseDate(input.actualEnd),
       status: input.status,
+      dvgw: input.dvgw,
+      guetezeichenKanalbau: input.guetezeichenKanalbau,
+      lieferscheine: input.lieferscheine,
       contractValueNet: cleanNumber(input.contractValueNet),
       changeOrdersNet: cleanNumber(input.changeOrdersNet),
       progressPercent: cleanNumber(input.progressPercent),
@@ -513,6 +519,9 @@ export async function updateProject(input: ProjectFormInput) {
       actualStart: parseDate(input.actualStart),
       actualEnd: parseDate(input.actualEnd),
       status: input.status,
+      dvgw: input.dvgw,
+      guetezeichenKanalbau: input.guetezeichenKanalbau,
+      lieferscheine: input.lieferscheine,
       contractValueNet: cleanNumber(input.contractValueNet),
       changeOrdersNet: cleanNumber(input.changeOrdersNet),
       progressPercent: cleanNumber(input.progressPercent),

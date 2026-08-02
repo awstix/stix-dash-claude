@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { createProject, type ProjectFormInput } from "./actions";
 import { ConstructionManagersField } from "./ConstructionManagersField";
+import { ProjectRequirementsFields } from "./ProjectRequirementsFields";
 import { TimeReminderFields } from "./TimeReminderFields";
 
 type ProjectStatus =
@@ -35,6 +36,9 @@ const emptyProject: ProjectFormInput = {
   paymentsNet: 0,
   plannedEnd: "",
   plannedStart: "",
+  dvgw: false,
+  guetezeichenKanalbau: false,
+  lieferscheine: false,
   progressPercent: 0,
   projectNumber: "",
   status: "NOT_STARTED",
@@ -196,6 +200,15 @@ export function ProjectCreateDialog({
                   ))}
                 </select>
               </div>
+
+              <ProjectRequirementsFields
+                dvgw={form.dvgw}
+                guetezeichenKanalbau={form.guetezeichenKanalbau}
+                lieferscheine={form.lieferscheine}
+                onDvgwChange={(value) => updateForm("dvgw", value)}
+                onGuetezeichenKanalbauChange={(value) => updateForm("guetezeichenKanalbau", value)}
+                onLieferscheineChange={(value) => updateForm("lieferscheine", value)}
+              />
 
               <NumberField
                 label="Schnellstand Auftrag netto"
