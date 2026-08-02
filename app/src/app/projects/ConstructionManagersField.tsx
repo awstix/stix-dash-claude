@@ -77,7 +77,7 @@ export function ConstructionManagersField({
               addFreeText();
             }
           }}
-          placeholder="Weiteren Bauleiter frei eintragen (z.B. extern)"
+          placeholder="Weiteren Empfänger für Projektemails eintragen"
           type="text"
           value={freeText}
         />

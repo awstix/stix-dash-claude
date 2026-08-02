@@ -473,6 +473,8 @@ export default async function ProjectDetailPage({
   const coverage =
     performanceValue > 0 ? (difference / performanceValue) * 100 : 0;
 
+  const todayKey = toDateKey(today);
+
   const people = new Map<
     string,
     {
@@ -497,60 +499,63 @@ export default async function ProjectDetailPage({
 
   for (const row of project.crewPlanningRows) {
     for (const assignment of row.assignments) {
+      const assignmentIsToday = isDateKeyInRange(todayKey, assignment.startDate, assignment.endDate);
       const assignmentPeople = new Set<string>();
 
-      for (const member of assignment.crew?.members ?? []) {
-        const name = `${member.employee.lastName}, ${member.employee.firstName}`;
-        people.set(member.employee.id, {
-          name,
-          photoUrl: member.employee.photoUrl,
-          qualifications: member.employee.qualifications.map(
-            (qualification) => ({
-              category: qualification.qualificationType.category,
-              lastReviewedAt: qualification.lastReviewedAt,
-              name: qualification.qualificationType.name,
-              reviewIntervalMonths:
-                qualification.qualificationType.reviewIntervalMonths,
-            }),
-          ),
-        });
-        assignmentPeople.add(name);
-      }
+      if (assignmentIsToday) {
+        for (const member of assignment.crew?.members ?? []) {
+          const name = `${member.employee.lastName}, ${member.employee.firstName}`;
+          people.set(member.employee.id, {
+            name,
+            photoUrl: member.employee.photoUrl,
+            qualifications: member.employee.qualifications.map(
+              (qualification) => ({
+                category: qualification.qualificationType.category,
+                lastReviewedAt: qualification.lastReviewedAt,
+                name: qualification.qualificationType.name,
+                reviewIntervalMonths:
+                  qualification.qualificationType.reviewIntervalMonths,
+              }),
+            ),
+          });
+          assignmentPeople.add(name);
+        }
 
-      for (const extraEmployee of assignment.extraEmployees) {
-        const name = `${extraEmployee.employee.lastName}, ${extraEmployee.employee.firstName}`;
-        people.set(extraEmployee.employee.id, {
-          name,
-          photoUrl: extraEmployee.employee.photoUrl,
-          qualifications: extraEmployee.employee.qualifications.map(
-            (qualification) => ({
-              category: qualification.qualificationType.category,
-              lastReviewedAt: qualification.lastReviewedAt,
-              name: qualification.qualificationType.name,
-              reviewIntervalMonths:
-                qualification.qualificationType.reviewIntervalMonths,
-            }),
-          ),
-        });
-        assignmentPeople.add(name);
-      }
+        for (const extraEmployee of assignment.extraEmployees) {
+          const name = `${extraEmployee.employee.lastName}, ${extraEmployee.employee.firstName}`;
+          people.set(extraEmployee.employee.id, {
+            name,
+            photoUrl: extraEmployee.employee.photoUrl,
+            qualifications: extraEmployee.employee.qualifications.map(
+              (qualification) => ({
+                category: qualification.qualificationType.category,
+                lastReviewedAt: qualification.lastReviewedAt,
+                name: qualification.qualificationType.name,
+                reviewIntervalMonths:
+                  qualification.qualificationType.reviewIntervalMonths,
+              }),
+            ),
+          });
+          assignmentPeople.add(name);
+        }
 
-      for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
-        setActorListItem(equipment, defaultVehicle.vehicle.id, {
-          detail: getVehicleDetail(defaultVehicle.vehicle),
-          label: getVehicleLabel(defaultVehicle.vehicle),
-          photoUrl: getVehicleDriverPhotoUrl(defaultVehicle.vehicle),
-          photoAlt: getVehicleDriverName(defaultVehicle.vehicle),
-        });
-      }
+        for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
+          setActorListItem(equipment, defaultVehicle.vehicle.id, {
+            detail: getVehicleDetail(defaultVehicle.vehicle),
+            label: getVehicleLabel(defaultVehicle.vehicle),
+            photoUrl: getVehicleDriverPhotoUrl(defaultVehicle.vehicle),
+            photoAlt: getVehicleDriverName(defaultVehicle.vehicle),
+          });
+        }
 
-      for (const extraVehicle of assignment.extraVehicles) {
-        setActorListItem(equipment, extraVehicle.vehicle.id, {
-          detail: getVehicleDetail(extraVehicle.vehicle),
-          label: getVehicleLabel(extraVehicle.vehicle),
-          photoUrl: getVehicleDriverPhotoUrl(extraVehicle.vehicle),
-          photoAlt: getVehicleDriverName(extraVehicle.vehicle),
-        });
+        for (const extraVehicle of assignment.extraVehicles) {
+          setActorListItem(equipment, extraVehicle.vehicle.id, {
+            detail: getVehicleDetail(extraVehicle.vehicle),
+            label: getVehicleLabel(extraVehicle.vehicle),
+            photoUrl: getVehicleDriverPhotoUrl(extraVehicle.vehicle),
+            photoAlt: getVehicleDriverName(extraVehicle.vehicle),
+          });
+        }
       }
 
       crewRows.push({
@@ -566,6 +571,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const assignment of project.equipmentDispatchAssignments) {
+    if (!isDateKeyInRange(todayKey, assignment.startDate, assignment.endDate)) continue;
     setActorListItem(equipment, assignment.vehicle.id, {
       detail: getVehicleDetail(assignment.vehicle),
       label: getVehicleLabel(assignment.vehicle),
@@ -575,6 +581,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const assignment of project.specialVehicleDispatchAssignments) {
+    if (toDateKey(assignment.workDate) !== todayKey) continue;
     if (assignment.vehicle) {
       setActorListItem(equipment, assignment.vehicle.id, {
         detail: getVehicleDetail(assignment.vehicle),
@@ -611,6 +618,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const assignment of project.shortHaulAssignments) {
+    if (toDateKey(assignment.workDate) !== todayKey) continue;
     addTruck(
       trucks,
       assignment.vehicleId ?? assignment.vehicleNumber ?? assignment.id,
@@ -637,6 +645,7 @@ export default async function ProjectDetailPage({
 
   for (const tour of project.shortHaulTours) {
     const assignment = tour.assignment;
+    if (toDateKey(assignment.workDate) !== todayKey) continue;
     addTruck(
       trucks,
       assignment.vehicleId ?? assignment.vehicleNumber ?? assignment.id,
@@ -662,6 +671,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const entry of project.truckLongHaulEntries) {
+    if (toDateKey(entry.workDate) !== todayKey) continue;
     for (const assignment of entry.truckAssignments) {
       addTruck(
         trucks,
@@ -697,6 +707,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const allocation of project.asphaltLoadAllocations) {
+    if (toDateKey(allocation.workDate) !== todayKey) continue;
     addTruck(
       trucks,
       allocation.vehicleId ??
@@ -729,6 +740,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const allocation of project.tackCoatLoadAllocations) {
+    if (toDateKey(allocation.workDate) !== todayKey) continue;
     addTruck(
       trucks,
       allocation.vehicleId ?? allocation.vehicleNumber ?? allocation.id,
@@ -754,6 +766,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const assignment of project.specialVehicleDispatchAssignments) {
+    if (toDateKey(assignment.workDate) !== todayKey) continue;
     addMaterialItem(materials, assignment.materialName, {
       detail: compactLine([
         "Sonderfahrzeug",
@@ -764,6 +777,7 @@ export default async function ProjectDetailPage({
   }
 
   for (const entry of project.asphaltDispatchEntries) {
+    if (toDateKey(entry.workDate) !== todayKey) continue;
     addMaterialItem(
       materials,
       entry.asphaltMixName || entry.asphaltMixNumber || "Asphalt",

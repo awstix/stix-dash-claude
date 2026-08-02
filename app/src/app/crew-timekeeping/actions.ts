@@ -189,6 +189,59 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
   };
 }
 
+export async function getCrewTimeEntryForEdit(entryId: string) {
+  const session = await requireSession();
+  const entry = await prisma.crewTimeEntry.findUnique({
+    include: { employees: true },
+    where: { id: entryId },
+  });
+  if (!entry) throw new Error("Zeiterfassung wurde nicht gefunden.");
+  await assertProjectAccess(session.user.id, entry.projectId);
+
+  const actor = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const actorRoles = String(actor?.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  const mayCorrectApproved =
+    actorRoles.includes("admin") ||
+    actorRoles.includes("construction_manager") ||
+    actorRoles.includes("construction_management") ||
+    Boolean(actor?.canApproveLeaveRequests);
+  const locked = entry.status === "APPROVED" && !mayCorrectApproved;
+
+  const input: CrewTimeEntryInput = {
+    crewId: entry.crewId,
+    crewName: entry.crewName,
+    defaultBreak1From: entry.defaultBreak1From ?? "",
+    defaultBreak1To: entry.defaultBreak1To ?? "",
+    defaultBreak2From: entry.defaultBreak2From ?? "",
+    defaultBreak2To: entry.defaultBreak2To ?? "",
+    defaultEndTime: entry.defaultEndTime,
+    defaultStartTime: entry.defaultStartTime,
+    employees: entry.employees.map((employee) => ({
+      attendanceStatus: employee.attendanceStatus as CrewTimeEmployeeInput["attendanceStatus"],
+      break1From: employee.break1From ?? "",
+      break1To: employee.break1To ?? "",
+      break2From: employee.break2From ?? "",
+      break2To: employee.break2To ?? "",
+      employeeId: employee.employeeId,
+      employeeName: employee.employeeName,
+      endTime: employee.endTime,
+      isPresent: employee.isPresent,
+      notes: employee.notes ?? "",
+      roleLabel: employee.roleLabel ?? "",
+      startTime: employee.startTime,
+    })),
+    notes: entry.notes ?? "",
+    projectId: entry.projectId,
+    projectName: entry.projectName,
+    projectNumber: entry.projectNumber,
+    workDate: entry.workDate.toISOString().slice(0, 10),
+  };
+
+  return { input, locked, status: entry.status };
+}
+
 export async function approveCrewTimeEntry(entryId: string) {
   const session = await requireSession();
   const user = await prisma.user.findUnique({ where: { id: session.user.id } });
@@ -305,4 +358,8 @@ function revalidateCrewTimes() {
   revalidatePath("/crew-timekeeping");
   revalidatePath("/dashboard");
   revalidatePath("/projects/bautagesberichte");
+  revalidatePath("/personal/zeiten");
+  revalidatePath("/personal/monatskalender");
+  revalidatePath("/personal/jahreskalender");
+  revalidatePath("/personal/konten");
 }

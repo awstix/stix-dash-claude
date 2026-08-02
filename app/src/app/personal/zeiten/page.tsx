@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { requireSession } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
+import { PersonalZeitenEditDialog } from "./PersonalZeitenEditDialog";
 
 type PersonalZeitenSearchParams = {
   from?: string;
@@ -165,7 +166,13 @@ export default async function PersonalZeitenPage({
           <tbody>
             {entries.map((employee) => (
               <tr className="border-b border-gray-200" key={employee.id}>
-                <td className="p-3 font-semibold text-gray-900">{employee.employeeName}</td>
+                <td className="p-3">
+                  <PersonalZeitenEditDialog
+                    employeeId={employee.employeeId}
+                    entryId={employee.entryId}
+                    trigger={employee.employeeName}
+                  />
+                </td>
                 <td className="p-3 text-gray-700">{formatDate(employee.entry.workDate)}</td>
                 <td className="p-3 text-gray-700">
                   {employee.entry.projectNumber} · {employee.entry.projectName}
