@@ -288,3 +288,20 @@ export async function deleteWorkTimePreset(formData: FormData) {
 
   revalidateWorkingTimeConsumers();
 }
+
+export async function updateWorkTimeCalendarEffectiveFrom(formData: FormData) {
+  await requireAdmin();
+  const value = text(formData.get("workTimeCalendarEffectiveFrom"));
+  const effectiveFrom = value ? new Date(`${value}T00:00:00.000Z`) : null;
+
+  await prisma.timeTrackingSettings.upsert({
+    create: { id: "default", workTimeCalendarEffectiveFrom: effectiveFrom },
+    update: { workTimeCalendarEffectiveFrom: effectiveFrom },
+    where: { id: "default" },
+  });
+
+  revalidateWorkingTimeConsumers();
+  revalidatePath("/personal/konten");
+  revalidatePath("/personal/monatskalender");
+  revalidatePath("/personal/jahreskalender");
+}

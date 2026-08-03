@@ -2,6 +2,7 @@ import type { SVGProps } from "react";
 
 export type ActionIconName =
   | "bell"
+  | "camera"
   | "close"
   | "delete"
   | "download"
@@ -36,6 +37,15 @@ export function ActionIcon({
       <svg {...sharedProps}>
         <path d="M18 6 6 18" />
         <path d="m6 6 12 12" />
+      </svg>
+    );
+  }
+
+  if (name === "camera") {
+    return (
+      <svg {...sharedProps}>
+        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
+        <circle cx="12" cy="13" r="3.5" />
       </svg>
     );
   }

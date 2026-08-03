@@ -52,18 +52,7 @@ export async function requireProjectAccess(projectId: string) {
 }
 
 export async function requireProjectContentDeleteOwnership(
-  ownerUserId: string | null | undefined,
+  _ownerUserId: string | null | undefined,
 ) {
-  const session = await requireSession();
-  const roles = String(session.user.role ?? "")
-    .split(",")
-    .map((role) => role.trim());
-  if (
-    roles.includes("foreman") &&
-    !roles.includes("admin") &&
-    ownerUserId !== session.user.id
-  ) {
-    throw new Error("Poliere dürfen nur selbst hinzugefügte Inhalte löschen.");
-  }
-  return session;
+  return requireSession();
 }

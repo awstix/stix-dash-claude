@@ -5,6 +5,7 @@ import { employeeDispositionTypes } from "@/app/employee-dispatch/disposition-ty
 import { requireSession } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 import { getEmployeeYearDetail, type EmployeeDayDetail } from "@/lib/time-accounts";
+import { dayOffKindStyles, getDayOffKindStyle } from "@/lib/day-off-kinds";
 
 type PersonalJahreskalenderSearchParams = {
   employeeId?: string;
@@ -41,7 +42,7 @@ function yearHref(employeeId: string | undefined, year: number) {
 
 function dayCellClass(day: EmployeeDayDetail) {
   if (day.category) return day.category.barClass;
-  if (day.isHoliday) return "bg-gray-400 text-white";
+  if (day.holidayKind) return getDayOffKindStyle(day.holidayKind).barClass;
   if (day.isWeekend) return "bg-gray-200 text-gray-500";
   if (day.istHours > 0) return "bg-green-600 text-white";
   return "bg-white text-gray-700";
@@ -49,7 +50,9 @@ function dayCellClass(day: EmployeeDayDetail) {
 
 function dayCellTitle(day: EmployeeDayDetail) {
   if (day.category) return `${day.date}: ${day.category.label}`;
-  if (day.isHoliday) return `${day.date}: Feiertag`;
+  if (day.holidayKind) {
+    return `${day.date}: ${getDayOffKindStyle(day.holidayKind).label}${day.holidayName ? ` (${day.holidayName})` : ""}`;
+  }
   if (day.isWeekend) return `${day.date}: Wochenende`;
   if (day.istHours > 0) return `${day.date}: ${day.istHours} Std. gearbeitet`;
   return day.date;
@@ -130,6 +133,16 @@ export default async function PersonalJahreskalenderPage({
     monthOverview.days.reduce((sum, day) => sum + day.creditedHours, 0),
   );
   const yearHoursTotal = monthlyHours?.reduce((sum, hours) => sum + hours, 0) ?? 0;
+  const monthlySoll = yearDetail?.months.map((monthOverview) =>
+    monthOverview.days.reduce((sum, day) => sum + day.sollHours, 0),
+  );
+  const monthlyIst = yearDetail?.months.map((monthOverview) =>
+    monthOverview.days.reduce((sum, day) => sum + day.istHours, 0),
+  );
+  const monthlySaldo = monthlySoll?.map((soll, index) => (monthlyIst?.[index] ?? 0) - soll);
+  const yearSollTotal = monthlySoll?.reduce((sum, hours) => sum + hours, 0) ?? 0;
+  const yearIstTotal = monthlyIst?.reduce((sum, hours) => sum + hours, 0) ?? 0;
+  const yearSaldoTotal = yearIstTotal - yearSollTotal;
   const monthCategoryCounts = yearDetail?.months.map((monthOverview) =>
     countMonthCategories(monthOverview.days),
   );
@@ -249,9 +262,11 @@ export default async function PersonalJahreskalenderPage({
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-3 rounded border-2 border-dashed border-sky-700 bg-sky-100" /> Urlaub beantragt
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-gray-400" /> Feiertag
-        </span>
+        {Object.entries(dayOffKindStyles).map(([kind, style]) => (
+          <span className="inline-flex items-center gap-1.5" key={kind}>
+            <span className={`h-3 w-3 rounded ${style.barClass}`} /> {style.label}
+          </span>
+        ))}
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-3 rounded bg-gray-200" /> Wochenende
         </span>
@@ -272,6 +287,9 @@ export default async function PersonalJahreskalenderPage({
                 <col key={index} />
               ))}
               <col style={{ width: "48px" }} />
+              <col style={{ width: "52px" }} />
+              <col style={{ width: "52px" }} />
+              <col style={{ width: "56px" }} />
               <col style={{ width: "44px" }} />
               <col style={{ width: "44px" }} />
               <col style={{ width: "44px" }} />
@@ -287,6 +305,9 @@ export default async function PersonalJahreskalenderPage({
                   </th>
                 ))}
                 <th className="p-1 text-right font-medium">Std.</th>
+                <th className="p-1 text-right font-medium">Soll</th>
+                <th className="p-1 text-right font-medium">Ist</th>
+                <th className="p-1 text-right font-medium">Saldo</th>
                 <th className="p-1 text-right font-medium">Arb.</th>
                 <th className="p-1 text-right font-medium">Url.</th>
                 <th className="p-1 text-right font-medium">Sch.</th>
@@ -322,6 +343,19 @@ export default async function PersonalJahreskalenderPage({
                     <td className="p-1 text-right font-semibold text-gray-900">
                       {formatHours(monthlyHours?.[monthIndex] ?? 0)}
                     </td>
+                    <td className="p-1 text-right text-gray-700">
+                      {formatHours(monthlySoll?.[monthIndex] ?? 0)}
+                    </td>
+                    <td className="p-1 text-right text-gray-700">
+                      {formatHours(monthlyIst?.[monthIndex] ?? 0)}
+                    </td>
+                    <td
+                      className={`p-1 text-right font-semibold ${
+                        (monthlySaldo?.[monthIndex] ?? 0) < 0 ? "text-red-700" : "text-green-800"
+                      }`}
+                    >
+                      {formatHours(monthlySaldo?.[monthIndex] ?? 0)}
+                    </td>
                     <td className="p-1 text-right text-gray-700">{counts?.arbeit ?? 0}</td>
                     <td className="p-1 text-right text-gray-700">{counts?.urlaub ?? 0}</td>
                     <td className="p-1 text-right text-gray-700">{counts?.schule ?? 0}</td>
@@ -335,6 +369,13 @@ export default async function PersonalJahreskalenderPage({
                   Summe {year}
                 </td>
                 <td className="p-2 text-right font-bold text-gray-900">{formatHours(yearHoursTotal)}</td>
+                <td className="p-2 text-right font-bold text-gray-900">{formatHours(yearSollTotal)}</td>
+                <td className="p-2 text-right font-bold text-gray-900">{formatHours(yearIstTotal)}</td>
+                <td
+                  className={`p-2 text-right font-bold ${yearSaldoTotal < 0 ? "text-red-700" : "text-green-800"}`}
+                >
+                  {formatHours(yearSaldoTotal)}
+                </td>
                 <td className="p-2 text-right font-bold text-gray-900">{yearCategoryTotals.arbeit}</td>
                 <td className="p-2 text-right font-bold text-gray-900">{yearCategoryTotals.urlaub}</td>
                 <td className="p-2 text-right font-bold text-gray-900">{yearCategoryTotals.schule}</td>

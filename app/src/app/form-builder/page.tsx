@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/AppShell";
-import { denyRoleUnlessAdmin } from "@/lib/auth-access";
+import { requireSession } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 import {
   parseFormEmailRecipients,
@@ -31,7 +31,7 @@ export default async function UniversalFormBuilderPage({
 }: {
   searchParams?: Promise<{ scope?: string; templateId?: string }>;
 }) {
-  await denyRoleUnlessAdmin("foreman");
+  await requireSession();
   const params = (await searchParams) ?? {};
   const initialScope =
     params.scope === "WORKSHOP" || params.scope === "SAFETY"

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
@@ -18,6 +19,7 @@ import {
   deleteWorkTimePreset,
   seedWorkTimePresets,
   setDefaultWorkTimePreset,
+  updateWorkTimeCalendarEffectiveFrom,
   updateWorkTimePreset,
 } from "./actions";
 import { WorkTimeDayRow } from "./WorkTimeDayRow";
@@ -62,12 +64,19 @@ export default async function WorkingTimePage({
   const { month: previewMonth, year: previewYear } = parseMonthParam(params.previewMonth);
   const previewMonthValue = `${previewYear}-${String(previewMonth).padStart(2, "0")}`;
 
-  const [presets, holidaySet] = await Promise.all([
+  const [presets, holidaySet, timeTrackingSettings] = await Promise.all([
     prisma.workTimePreset.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     getHolidayDateSet(),
+    prisma.timeTrackingSettings.findUnique({
+      select: { workTimeCalendarEffectiveFrom: true },
+      where: { id: "default" },
+    }),
   ]);
+  const effectiveFromValue = timeTrackingSettings?.workTimeCalendarEffectiveFrom
+    ?.toISOString()
+    .slice(0, 10);
 
   const defaultPreset = presets.find((preset) => preset.isDefault);
 
@@ -76,6 +85,60 @@ export default async function WorkingTimePage({
       title="Arbeitszeit"
       description="Arbeitszeit-Vorlagen für Zeitstrahlen in LKW-Einteilung und Kurzstrecke verwalten."
     >
+      <div className="mb-6 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-blue-950">
+              Neu: Jahreskalender mit Planzeiten
+            </h2>
+            <p className="mt-1 text-sm text-blue-900">
+              Alternative zu Sommer-/Winterzeit – jedem Tag im Jahr wird eine benannte, farbige
+              Planzeit zugewiesen, statt fest an den Wochentag gebunden zu sein.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/working-time/planzeiten"
+              className="rounded-xl border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100"
+            >
+              Planzeiten verwalten
+            </Link>
+            <Link
+              href="/admin/working-time/kalender"
+              className="rounded-xl bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              Jahreskalender
+            </Link>
+          </div>
+        </div>
+
+        <form
+          action={updateWorkTimeCalendarEffectiveFrom}
+          className="mt-4 flex flex-wrap items-end gap-3 border-t border-blue-200 pt-4"
+        >
+          <label className="text-xs font-semibold text-blue-900">
+            Umstellungs-Stichtag (ab wann gilt der Jahreskalender für zugewiesene Mitarbeiter)
+            <input
+              className="mt-1 w-full rounded-lg border border-blue-300 px-3 py-2 text-sm text-gray-900"
+              defaultValue={effectiveFromValue ?? ""}
+              name="workTimeCalendarEffectiveFrom"
+              type="date"
+            />
+          </label>
+          <button
+            className="rounded-xl bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            type="submit"
+          >
+            Speichern
+          </button>
+          <p className="w-full text-xs text-blue-800">
+            {effectiveFromValue
+              ? `Ab ${new Date(`${effectiveFromValue}T00:00:00.000Z`).toLocaleDateString("de-DE")} gilt für Mitarbeiter mit zugewiesenem Kalender dessen Soll. Ohne Zuweisung oder vor dem Stichtag bleibt es bei Sommer-/Winterzeit.`
+              : "Noch kein Stichtag gesetzt – es gilt für alle weiterhin Sommer-/Winterzeit, unabhängig von Kalender-Zuweisungen."}
+          </p>
+        </form>
+      </div>
+
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>

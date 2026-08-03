@@ -117,20 +117,6 @@ export async function AppShell({
       .map((role) => role.trim()),
   );
   const admin = roles.has("admin");
-  const foreman = roles.has("foreman") && !admin;
-  const visibleProjectNavigation = foreman
-    ? projectNavigation.filter(
-        (item) =>
-          item.href !== "/projects/performance" &&
-          !item.href.startsWith("/form-builder"),
-      )
-    : projectNavigation;
-  const visibleWorkshopNavigation = foreman
-    ? workshopNavigation.filter((item) => !item.href.startsWith("/form-builder"))
-    : workshopNavigation;
-  const visibleSafetyNavigation = foreman
-    ? safetyNavigation.filter((item) => !item.href.startsWith("/form-builder"))
-    : safetyNavigation;
   const visibleSecondaryNavigation = secondaryNavigation.filter(
     (item) => item.href !== "/admin",
   );
@@ -151,12 +137,12 @@ export async function AppShell({
         employeeNavigation={employeeNavigation}
         inventoryNavigation={inventoryNavigation}
         primaryNavigation={primaryNavigation}
-        projectNavigation={visibleProjectNavigation}
-        safetyNavigation={visibleSafetyNavigation}
+        projectNavigation={projectNavigation}
+        safetyNavigation={safetyNavigation}
         secondaryNavigation={visibleSecondaryNavigation}
         showAdminLink={admin}
         unreadNotificationCount={unreadNotificationCount}
-        workshopNavigation={visibleWorkshopNavigation}
+        workshopNavigation={workshopNavigation}
       />
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">

@@ -52,6 +52,10 @@ model TimeTrackingSettings {
   reminderIntervalWeeks Int       @default(1)
   lastReminderRunAt     DateTime?
 
+  /// Ab diesem Datum gilt für Mitarbeiter mit zugewiesenem Jahreskalender dessen Soll statt
+  /// Sommer-/Winterzeit. Ohne Zuweisung bleibt es auch danach bei Sommer-/Winterzeit.
+  workTimeCalendarEffectiveFrom DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -1205,6 +1209,7 @@ model Employee {
   crewPlanningAssignmentEmployees   CrewPlanningAssignmentEmployee[]
   dispositionEntries                EmployeeDispositionEntry[]
   notifications                     Notification[]
+  workTimeCalendarAssignments       WorkTimeCalendarAssignment[]
   inventoryAssignments              InventoryItem[]                    @relation("InventoryResponsibleEmployee")
   inventoryItemAssignments          InventoryItemEmployeeAssignment[]
   inventoryUsageHistory             InventoryUsageHistory[]            @relation("InventoryUsageEmployee")
@@ -1700,6 +1705,74 @@ model WorkTimePreset {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Planzeit: benannter, farbiger, wiederverwendbarer Tages-Baustein (Beginn/Pausen/Ende)
+/// für den Jahreskalender – Ersatz für die feste Wochentag-Bindung bei Sommer-/Winterzeit.
+model WorkTimeDayType {
+  id       String @id @default(cuid())
+  number   Int    @unique
+  colorKey String @default("gray")
+
+  startTime      String?
+  breakfastStart String?
+  breakfastEnd   String?
+  lunchStart     String?
+  lunchEnd       String?
+  endTime        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  calendarDays WorkTimeCalendarDay[]
+
+  @@index([number])
+}
+
+/// Stammkalender für ein Jahr (z.B. "Arbeitszeit 2024"), Tag für Tag mit Planzeiten befüllt
+/// und Mitarbeitern zugewiesen.
+model WorkTimeCalendar {
+  id   String @id @default(cuid())
+  year Int
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  days        WorkTimeCalendarDay[]
+  assignments WorkTimeCalendarAssignment[]
+
+  @@unique([year, name])
+  @@index([year])
+}
+
+model WorkTimeCalendarDay {
+  id         String           @id @default(cuid())
+  calendarId String
+  calendar   WorkTimeCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  date       DateTime
+
+  dayTypeId String?
+  dayType   WorkTimeDayType? @relation(fields: [dayTypeId], references: [id], onDelete: SetNull)
+
+  @@unique([calendarId, date])
+  @@index([calendarId])
+  @@index([date])
+  @@index([dayTypeId])
+}
+
+model WorkTimeCalendarAssignment {
+  id         String           @id @default(cuid())
+  calendarId String
+  calendar   WorkTimeCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([employeeId, calendarId])
+  @@index([employeeId])
+  @@index([calendarId])
 }
 
 model CrewTimeEntry {

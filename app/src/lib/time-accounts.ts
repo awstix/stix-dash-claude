@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { employeeDispositionTypes } from "@/app/employee-dispatch/disposition-types";
+import { vacationDeductingDayOffKinds } from "@/lib/day-off-kinds";
 import {
   getDefaultWorkTime,
   getNetWorkHoursForDay,
@@ -62,6 +63,25 @@ export async function getHolidayDateSet(): Promise<Set<string>> {
   return dates;
 }
 
+export type HolidayDetail = { kind: string; name: string };
+
+/** Wie getHolidayDateSet, aber inkl. Art (Feiertag/Brückentag/Betriebsurlaub/...) und
+ * Bezeichnung je Tag, für die farbliche Darstellung im Jahreskalender. */
+export async function getHolidayDetailsByDate(): Promise<Map<string, HolidayDetail>> {
+  const holidays = await prisma.dispositionDayOff.findMany({
+    select: { date: true, endDate: true, kind: true, name: true },
+    where: { isDayOff: true },
+  });
+  const details = new Map<string, HolidayDetail>();
+  for (const holiday of holidays) {
+    const end = holiday.endDate ?? holiday.date;
+    for (let d = new Date(holiday.date); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      details.set(isoDate(d), { kind: holiday.kind, name: holiday.name });
+    }
+  }
+  return details;
+}
+
 export type FlexTimeBalance = {
   balanceHours: number;
   istHours: number;
@@ -121,12 +141,12 @@ export async function calculateVacationBalances({
   const yearStart = new Date(Date.UTC(year, 0, 1));
   const yearEnd = new Date(Date.UTC(year, 11, 31));
 
-  const [employees, holidaySet, approvedVacation] = await Promise.all([
+  const [employees, holidayDetails, approvedVacation] = await Promise.all([
     prisma.employee.findMany({
       select: { annualVacationDays: true, id: true },
       where: { id: { in: employeeIds } },
     }),
-    getHolidayDateSet(),
+    getHolidayDetailsByDate(),
     prisma.leaveRequest.findMany({
       select: { dayPortion: true, employeeId: true, endDate: true, startDate: true },
       where: {
@@ -148,10 +168,26 @@ export async function calculateVacationBalances({
     const fraction = leave.dayPortion === "FULL" ? 1 : 0.5;
     let taken = 0;
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-      if (isWeekend(d) || holidaySet.has(isoDate(d))) continue;
+      if (isWeekend(d) || holidayDetails.has(isoDate(d))) continue;
       taken += fraction;
     }
     takenByEmployeeId.set(leave.employeeId, (takenByEmployeeId.get(leave.employeeId) ?? 0) + taken);
+  }
+
+  // Brückentage/Betriebsurlaub gelten betriebsweit für alle und werden zusätzlich vom
+  // Urlaubskontingent abgezogen – anders als echte Feiertage oder sonstige arbeitsfreie Tage.
+  let vacationDeductingDayCount = 0;
+  for (let d = new Date(yearStart); d <= yearEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+    if (isWeekend(d)) continue;
+    const detail = holidayDetails.get(isoDate(d));
+    if (detail && vacationDeductingDayOffKinds.has(detail.kind)) {
+      vacationDeductingDayCount += 1;
+    }
+  }
+  if (vacationDeductingDayCount > 0) {
+    for (const employeeId of employeeIds) {
+      takenByEmployeeId.set(employeeId, (takenByEmployeeId.get(employeeId) ?? 0) + vacationDeductingDayCount);
+    }
   }
 
   const result = new Map<string, VacationBalance>();
@@ -177,6 +213,8 @@ export type EmployeeDayDetail = {
    * verwenden, nicht dieses Feld. */
   creditedHours: number;
   date: string;
+  holidayKind: string | null;
+  holidayName: string | null;
   isHoliday: boolean;
   isWeekend: boolean;
   istHours: number;
@@ -199,9 +237,19 @@ export async function getEmployeeDayDetails({
   fromDate: Date;
   toDate: Date;
 }): Promise<EmployeeDayDetail[]> {
-  const [workTime, holidaySet, timeEntries, approvedLeave, allLeave, dispositionEntries, creditSettings] = await Promise.all([
+  const [
+    workTime,
+    holidayDetails,
+    timeEntries,
+    approvedLeave,
+    allLeave,
+    dispositionEntries,
+    creditSettings,
+    timeTrackingSettings,
+    calendarAssignments,
+  ] = await Promise.all([
     getDefaultWorkTime(),
-    getHolidayDateSet(),
+    getHolidayDetailsByDate(),
     prisma.crewTimeEmployee.findMany({
       include: { entry: { select: { workDate: true } } },
       where: {
@@ -239,10 +287,57 @@ export async function getEmployeeDayDetails({
     prisma.dispositionCategoryCredit.findMany({
       select: { creditedHours: true, typeValue: true },
     }),
+    prisma.timeTrackingSettings.findUnique({
+      select: { workTimeCalendarEffectiveFrom: true },
+      where: { id: "default" },
+    }),
+    prisma.workTimeCalendarAssignment.findMany({
+      select: {
+        calendar: {
+          select: {
+            days: {
+              select: { date: true, dayType: true },
+              where: { date: { gte: fromDate, lte: toDate } },
+            },
+            year: true,
+          },
+        },
+      },
+      where: {
+        employeeId,
+        calendar: {
+          year: { gte: fromDate.getUTCFullYear(), lte: toDate.getUTCFullYear() },
+        },
+      },
+    }),
   ]);
   const creditedHoursByTypeValue = new Map(
     creditSettings.map((setting) => [setting.typeValue, setting.creditedHours]),
   );
+
+  // Kalender-Soll: nur für Tage mit eingetragener Planzeit und nur ab dem globalen
+  // Umstellungs-Stichtag. Ohne Eintrag für einen konkreten Tag bleibt es bei
+  // Sommer-/Winterzeit für diesen Tag (keine Lücken durch unvollständige Kalender).
+  const effectiveFrom = timeTrackingSettings?.workTimeCalendarEffectiveFrom ?? null;
+  const calendarSollByDate = new Map<string, number>();
+  if (effectiveFrom) {
+    for (const assignment of calendarAssignments) {
+      for (const day of assignment.calendar.days) {
+        if (day.date < effectiveFrom) continue;
+        const hours = day.dayType
+          ? getNetWorkHoursForDay({
+              breakfastEnd: day.dayType.breakfastEnd ?? "",
+              breakfastStart: day.dayType.breakfastStart ?? "",
+              endTime: day.dayType.endTime ?? "",
+              lunchEnd: day.dayType.lunchEnd ?? "",
+              lunchStart: day.dayType.lunchStart ?? "",
+              startTime: day.dayType.startTime ?? "",
+            })
+          : 0;
+        calendarSollByDate.set(isoDate(day.date), hours);
+      }
+    }
+  }
 
   const istByDate = new Map<string, number>();
   const breakByDate = new Map<string, number>();
@@ -319,14 +414,18 @@ export async function getEmployeeDayDetails({
   for (let d = new Date(fromDate); d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
     const iso = isoDate(d);
     const weekend = isWeekend(d);
-    const holiday = holidaySet.has(iso);
+    const holidayDetail = holidayDetails.get(iso) ?? null;
+    const holiday = holidayDetail !== null;
     const dayWorkTime: WorkTimeDaySettings = getWorkTimeForDate(workTime, d);
+    const calendarDayHours = calendarSollByDate.get(iso);
+    const baseSollHours =
+      calendarDayHours !== undefined
+        ? calendarDayHours
+        : weekend || holiday
+          ? 0
+          : getNetWorkHoursForDay(dayWorkTime);
     const sollHours =
-      weekend || holiday
-        ? 0
-        : Math.round(
-            getNetWorkHoursForDay(dayWorkTime) * (1 - (absenceFractionByDate.get(iso) ?? 0)) * 100,
-          ) / 100;
+      Math.round(baseSollHours * (1 - (absenceFractionByDate.get(iso) ?? 0)) * 100) / 100;
 
     // Dispo-Kategorien (Krank/Schule/Innung/Schulung/Werkstatt/Mischanlage/Baustelle) zählen
     // als Ausgleich an: pro Kategorie fest hinterlegte Stunden (Admin > Zeiterfassung),
@@ -355,6 +454,8 @@ export async function getEmployeeDayDetails({
       creditedHours:
         Math.round((creditedDispositionHours ?? creditedLeaveHours ?? clockedIstHours) * 100) / 100,
       date: iso,
+      holidayKind: holidayDetail?.kind ?? null,
+      holidayName: holidayDetail?.name ?? null,
       isHoliday: holiday,
       isWeekend: weekend,
       istHours:

@@ -3,11 +3,12 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { bavariaHolidays, dateKey } from "@/lib/disposition-days-off";
 import {
-  createManualDayOff,
+  createManualDayOffAction,
   deleteManualDayOff,
   setAutomaticHolidayState,
-  updateManualDayOff,
+  updateManualDayOffAction,
 } from "./actions";
+import { DayOffActionForm } from "./DayOffActionForm";
 
 function parseYear(value: string | undefined) {
   const year = Number(value);
@@ -174,9 +175,10 @@ export default async function HolidaysPage({
         <h2 className="text-xl font-bold text-gray-950">
           Brücken- und betriebsfreie Tage
         </h2>
-        <form
-          action={createManualDayOff}
+        <DayOffActionForm
+          action={createManualDayOffAction}
           className="mt-5 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-4"
+          resetOnSuccess
         >
           <label className="text-sm font-semibold text-gray-800">
             Von
@@ -219,7 +221,7 @@ export default async function HolidaysPage({
           <div className="xl:col-span-3">
             <button className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white">Tag hinzufügen</button>
           </div>
-        </form>
+        </DayOffActionForm>
 
         <div className="mt-5 space-y-3">
           {manual.length === 0 ? <p className="text-sm text-gray-500">Noch keine betrieblichen Tage für {year} angelegt.</p> : null}
@@ -238,7 +240,7 @@ export default async function HolidaysPage({
                 <span className="text-sm font-semibold text-gray-800">{kindLabels[item.kind] ?? item.kind} · {item.scopeLabel}</span>
               </summary>
               <div className="border-t border-gray-200 p-4">
-                <form action={updateManualDayOff} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <DayOffActionForm action={updateManualDayOffAction} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <input name="id" type="hidden" value={item.id} />
                   <label className="text-sm font-semibold">Von<input className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2" defaultValue={dateKey(item.date)} name="date" required type="date" /></label>
                   <label className="text-sm font-semibold">Bis<input className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2" defaultValue={dateKey(item.endDate ?? item.date)} name="endDate" type="date" /></label>
@@ -250,7 +252,7 @@ export default async function HolidaysPage({
                   <label className="text-sm font-semibold xl:col-span-2">Bemerkung<input className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2" defaultValue={item.notes ?? ""} name="notes" /></label>
                   <label className="flex items-center gap-3 text-sm font-bold"><input className="h-5 w-5 accent-gray-950" defaultChecked={item.isDayOff} name="isDayOff" type="checkbox" />Als arbeitsfrei berücksichtigen</label>
                   <div className="flex gap-2 xl:col-span-3"><button className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white">Änderungen speichern</button></div>
-                </form>
+                </DayOffActionForm>
                 <form action={deleteManualDayOff} className="mt-3">
                   <input name="id" type="hidden" value={item.id} />
                   <button className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50">Löschen</button>

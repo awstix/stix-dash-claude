@@ -2,11 +2,32 @@
 
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ActionIcon } from "@/components/ActionIcon";
 import { uploadProjectPhotos } from "./actions";
 import {
   ProjectFileDropInput,
   ProjectPhotoNoteFields,
 } from "./ProjectFileDropInput";
+
+async function getCurrentGpsPosition() {
+  if (!navigator.geolocation) return null;
+
+  try {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        maximumAge: 60_000,
+        timeout: 5_000,
+      });
+    });
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export function ProjectInlinePhotoUpload({
   projectId,
@@ -17,18 +38,44 @@ export function ProjectInlinePhotoUpload({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [pickerFiles, setPickerFiles] = useState<File[]>([]);
+  const [cameraFiles, setCameraFiles] = useState<File[]>([]);
+  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number } | null>(null);
+  const selectedFiles = [...pickerFiles, ...cameraFiles];
+
+  async function handleCameraCapture(event: FormEvent<HTMLInputElement>) {
+    const files = event.currentTarget.files;
+    if (!files || files.length === 0) return;
+    setCameraFiles((current) => [...current, ...Array.from(files)]);
+    const position = await getCurrentGpsPosition();
+    if (position) setCameraGps(position);
+    event.currentTarget.value = "";
+  }
 
   function uploadPhotos(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (selectedFiles.length === 0) {
+      alert("Bitte mindestens ein Foto auswählen oder mit der Kamera aufnehmen.");
+      return;
+    }
     const formData = new FormData(event.currentTarget);
+    for (const file of cameraFiles) {
+      formData.append("photos", file);
+    }
+    if (cameraGps) {
+      formData.set("cameraGpsLatitude", String(cameraGps.latitude));
+      formData.set("cameraGpsLongitude", String(cameraGps.longitude));
+    }
 
     startTransition(async () => {
       try {
         await uploadProjectPhotos(formData);
         formRef.current?.reset();
-        setSelectedFiles([]);
+        setPickerFiles([]);
+        setCameraFiles([]);
+        setCameraGps(null);
         router.refresh();
       } catch (error) {
         alert(
@@ -69,19 +116,34 @@ export function ProjectInlinePhotoUpload({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1fr]">
-          <label className="text-sm font-semibold text-gray-800">
-            Fotos
-            <ProjectFileDropInput
-              accept="image/*"
-              emptyLabel="Fotos auswählen oder ablegen"
-              multiple
-              name="photos"
-              onFilesSelected={setSelectedFiles}
-              required
-              selectedLabel="Drag & Drop oder Klick zum Auswählen"
-            />
-          </label>
+        <input
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          onChange={handleCameraCapture}
+          ref={cameraInputRef}
+          type="file"
+        />
+        <div className="grid grid-cols-2 items-stretch gap-3">
+          <ProjectFileDropInput
+            accept="image/*"
+            emptyLabel="Fotos auswählen oder ablegen"
+            multiple
+            name="photos"
+            onFilesSelected={setPickerFiles}
+            selectedLabel="Drag & Drop oder Klick zum Auswählen"
+          />
+          <button
+            className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-4 text-center transition hover:bg-gray-50"
+            onClick={() => cameraInputRef.current?.click()}
+            type="button"
+          >
+            <ActionIcon name="camera" className="h-5 w-5 text-gray-700" />
+            <span className="text-sm font-semibold text-gray-900">
+              Kamera{cameraFiles.length > 0 ? ` (${cameraFiles.length})` : ""}
+            </span>
+            <span className="text-xs font-medium text-gray-500">Direkt Foto aufnehmen</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-3">

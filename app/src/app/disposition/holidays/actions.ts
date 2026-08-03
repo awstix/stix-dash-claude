@@ -25,6 +25,25 @@ function refresh() {
   revalidatePath("/asphalt-dispatch");
 }
 
+export type DayOffActionState = {
+  error: string | null;
+  errorKey: number;
+  success: boolean;
+  successKey: number;
+};
+
+function dayOffActionError(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+    return "Für dieses Datum und diese Bezeichnung existiert bereits ein Eintrag. Bitte einen anderen Namen wählen oder den vorhandenen Eintrag bearbeiten.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Der Eintrag konnte nicht gespeichert werden.";
+}
+
 export async function setAutomaticHolidayState(formData: FormData) {
   await requireSession();
   const date = dateValue(value(formData, "date"));
@@ -83,6 +102,28 @@ export async function createManualDayOff(formData: FormData) {
   refresh();
 }
 
+export async function createManualDayOffAction(
+  state: DayOffActionState,
+  formData: FormData,
+): Promise<DayOffActionState> {
+  try {
+    await createManualDayOff(formData);
+    return {
+      error: null,
+      errorKey: state.errorKey,
+      success: true,
+      successKey: state.successKey + 1,
+    };
+  } catch (error) {
+    return {
+      error: dayOffActionError(error),
+      errorKey: state.errorKey + 1,
+      success: false,
+      successKey: state.successKey,
+    };
+  }
+}
+
 export async function updateManualDayOff(formData: FormData) {
   await requireSession();
   const id = value(formData, "id");
@@ -109,6 +150,28 @@ export async function updateManualDayOff(formData: FormData) {
     },
   });
   refresh();
+}
+
+export async function updateManualDayOffAction(
+  state: DayOffActionState,
+  formData: FormData,
+): Promise<DayOffActionState> {
+  try {
+    await updateManualDayOff(formData);
+    return {
+      error: null,
+      errorKey: state.errorKey,
+      success: true,
+      successKey: state.successKey + 1,
+    };
+  } catch (error) {
+    return {
+      error: dayOffActionError(error),
+      errorKey: state.errorKey + 1,
+      success: false,
+      successKey: state.successKey,
+    };
+  }
 }
 
 export async function deleteManualDayOff(formData: FormData) {

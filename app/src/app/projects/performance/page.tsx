@@ -5,10 +5,10 @@ import { parseConstructionManagersJson } from "@/lib/construction-managers";
 import { parseRecipientsJson, parseWeekdaysJson } from "@/lib/time-tracking-reminder";
 import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectManager } from "../ProjectManager";
-import { denyRoleUnlessAdmin } from "@/lib/auth-access";
+import { requireSession } from "@/lib/auth-access";
 
 export default async function ProjectPerformancePage() {
-  await denyRoleUnlessAdmin("foreman");
+  await requireSession();
   const [projects, constructionManagerEmployees] = await Promise.all([
     prisma.project.findMany({
       orderBy: {

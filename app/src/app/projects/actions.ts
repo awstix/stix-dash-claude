@@ -1627,6 +1627,12 @@ export async function uploadProjectPhotos(formData: FormData) {
   const files = formData
     .getAll("photos")
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const cameraGpsLatitude = Number(formData.get("cameraGpsLatitude"));
+  const cameraGpsLongitude = Number(formData.get("cameraGpsLongitude"));
+  const cameraGpsFallback =
+    Number.isFinite(cameraGpsLatitude) && Number.isFinite(cameraGpsLongitude)
+      ? { gpsLatitude: cameraGpsLatitude, gpsLongitude: cameraGpsLongitude }
+      : null;
 
   if (!projectId) {
     throw new Error("Bitte ein Projekt auswählen.");
@@ -1703,14 +1709,18 @@ export async function uploadProjectPhotos(formData: FormData) {
       buffer,
       storedPhoto.mimeType,
     );
-    const gpsAddress =
-      typeof metadata.gpsLatitude === "number" &&
-      typeof metadata.gpsLongitude === "number"
-        ? await reverseGeocodePhotoLocation(
-            metadata.gpsLatitude,
-            metadata.gpsLongitude,
-          )
-        : null;
+    // Falls das Foto direkt über den Kamera-Button aufgenommen wurde und das Bild
+    // selbst keine GPS-EXIF-Daten enthält (kommt je nach Handy/Browser vor), auf
+    // den beim Aufnehmen erfassten Browser-Standort zurückfallen.
+    const resolvedGps =
+      typeof metadata.gpsLatitude === "number" && typeof metadata.gpsLongitude === "number"
+        ? { gpsLatitude: metadata.gpsLatitude, gpsLongitude: metadata.gpsLongitude }
+        : takeMetadata && cameraGpsFallback
+          ? cameraGpsFallback
+          : null;
+    const gpsAddress = resolvedGps
+      ? await reverseGeocodePhotoLocation(resolvedGps.gpsLatitude, resolvedGps.gpsLongitude)
+      : null;
 
     await writeFile(absolutePath, buffer);
 
@@ -1736,8 +1746,8 @@ export async function uploadProjectPhotos(formData: FormData) {
           capturedAt: metadata.capturedAt ?? null,
           cameraMake: metadata.cameraMake ?? null,
           cameraModel: metadata.cameraModel ?? null,
-          gpsLatitude: metadata.gpsLatitude ?? null,
-          gpsLongitude: metadata.gpsLongitude ?? null,
+          gpsLatitude: resolvedGps?.gpsLatitude ?? null,
+          gpsLongitude: resolvedGps?.gpsLongitude ?? null,
           ...getPhotoGpsAddressData(gpsAddress),
           metadataJson: metadata.metadataJson ?? null,
           availableForDailyReports,
