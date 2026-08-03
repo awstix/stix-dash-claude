@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { ScrollPreservingForm } from "@/components/ScrollPreservingForm";
@@ -60,6 +61,14 @@ function dayCellTitle(day: EmployeeDayDetail) {
 
 function formatHours(value: number) {
   return value.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+}
+
+function istHoursClass(day: EmployeeDayDetail) {
+  if (day.sollHours <= 0) return "text-gray-400";
+  const deviation = Math.abs(day.istHours - day.sollHours);
+  if (deviation <= 0.25) return "text-green-700";
+  if (deviation <= 1) return "text-amber-600";
+  return "text-red-700";
 }
 
 const weekdayShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -319,49 +328,79 @@ export default async function PersonalJahreskalenderPage({
               {yearDetail.months.map((monthOverview, monthIndex) => {
                 const counts = monthCategoryCounts?.[monthIndex];
                 return (
-                  <tr className="border-b border-gray-100" key={monthOverview.month}>
-                    <td className="sticky left-0 z-10 bg-white p-1 font-semibold text-gray-900">
-                      {monthNames[monthOverview.month - 1].slice(0, 3)}
-                    </td>
-                    {Array.from({ length: maxDays }, (_, index) => {
-                      const day = monthOverview.days[index];
-                      if (!day) return <td className="p-0.5" key={index} />;
-                      return (
-                        <td className="p-0.5 text-center" key={index}>
-                          <div className="text-[8px] leading-none font-medium text-gray-400">
-                            {weekdayLabel(day.date)}
-                          </div>
-                          <div
-                            className={`mx-auto flex h-5 w-5 items-center justify-center rounded text-[10px] ${dayCellClass(day)}`}
-                            title={dayCellTitle(day)}
+                  <Fragment key={monthOverview.month}>
+                    <tr className="border-t-2 border-gray-300">
+                      <td className="sticky left-0 z-10 bg-white p-1 font-semibold text-gray-900" rowSpan={3}>
+                        {monthNames[monthOverview.month - 1].slice(0, 3)}
+                      </td>
+                      {Array.from({ length: maxDays }, (_, index) => {
+                        const day = monthOverview.days[index];
+                        if (!day) return <td className="px-0.5 py-1" key={index} />;
+                        return (
+                          <td className="px-0.5 py-1 text-center" key={index}>
+                            <div className="text-[9px] leading-none font-medium text-gray-400">
+                              {weekdayLabel(day.date)}
+                            </div>
+                            <div
+                              className={`mx-auto mt-0.5 flex h-6 w-6 items-center justify-center rounded text-xs ${dayCellClass(day)}`}
+                              title={dayCellTitle(day)}
+                            >
+                              {index + 1}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="p-1 text-right font-semibold text-gray-900" rowSpan={3}>
+                        {formatHours(monthlyHours?.[monthIndex] ?? 0)}
+                      </td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>
+                        {formatHours(monthlySoll?.[monthIndex] ?? 0)}
+                      </td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>
+                        {formatHours(monthlyIst?.[monthIndex] ?? 0)}
+                      </td>
+                      <td
+                        className={`p-1 text-right font-semibold ${
+                          (monthlySaldo?.[monthIndex] ?? 0) < 0 ? "text-red-700" : "text-green-800"
+                        }`}
+                        rowSpan={3}
+                      >
+                        {formatHours(monthlySaldo?.[monthIndex] ?? 0)}
+                      </td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>{counts?.arbeit ?? 0}</td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>{counts?.urlaub ?? 0}</td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>{counts?.schule ?? 0}</td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>{counts?.innung ?? 0}</td>
+                      <td className="p-1 text-right text-gray-700" rowSpan={3}>{counts?.krank ?? 0}</td>
+                    </tr>
+                    <tr className="bg-gray-50/60">
+                      <td className="px-1 py-1 text-[10px] font-bold tracking-wide text-gray-500">Soll</td>
+                      {Array.from({ length: maxDays }, (_, index) => {
+                        const day = monthOverview.days[index];
+                        if (!day) return <td className="px-0.5 py-1" key={index} />;
+                        return (
+                          <td className="px-0.5 py-1 text-center text-[11px] text-gray-600" key={index}>
+                            {day.sollHours > 0 ? formatHours(day.sollHours) : ""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    <tr className="border-b border-gray-200">
+                      <td className="px-1 py-1 text-[10px] font-bold tracking-wide text-gray-500">Ist</td>
+                      {Array.from({ length: maxDays }, (_, index) => {
+                        const day = monthOverview.days[index];
+                        if (!day) return <td className="px-0.5 py-1" key={index} />;
+                        return (
+                          <td
+                            className={`px-0.5 py-1 text-center text-[11px] font-bold ${istHoursClass(day)}`}
+                            key={index}
                           >
-                            {index + 1}
-                          </div>
-                        </td>
-                      );
-                    })}
-                    <td className="p-1 text-right font-semibold text-gray-900">
-                      {formatHours(monthlyHours?.[monthIndex] ?? 0)}
-                    </td>
-                    <td className="p-1 text-right text-gray-700">
-                      {formatHours(monthlySoll?.[monthIndex] ?? 0)}
-                    </td>
-                    <td className="p-1 text-right text-gray-700">
-                      {formatHours(monthlyIst?.[monthIndex] ?? 0)}
-                    </td>
-                    <td
-                      className={`p-1 text-right font-semibold ${
-                        (monthlySaldo?.[monthIndex] ?? 0) < 0 ? "text-red-700" : "text-green-800"
-                      }`}
-                    >
-                      {formatHours(monthlySaldo?.[monthIndex] ?? 0)}
-                    </td>
-                    <td className="p-1 text-right text-gray-700">{counts?.arbeit ?? 0}</td>
-                    <td className="p-1 text-right text-gray-700">{counts?.urlaub ?? 0}</td>
-                    <td className="p-1 text-right text-gray-700">{counts?.schule ?? 0}</td>
-                    <td className="p-1 text-right text-gray-700">{counts?.innung ?? 0}</td>
-                    <td className="p-1 text-right text-gray-700">{counts?.krank ?? 0}</td>
-                  </tr>
+                            {day.istHours > 0 ? formatHours(day.istHours) : ""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </Fragment>
                 );
               })}
               <tr className="bg-gray-50">
