@@ -1200,6 +1200,7 @@ model Employee {
   crewMemberships                   CrewMember[]
   crewPlanningAssignmentEmployees   CrewPlanningAssignmentEmployee[]
   dispositionEntries                EmployeeDispositionEntry[]
+  notifications                     Notification[]
   inventoryAssignments              InventoryItem[]                    @relation("InventoryResponsibleEmployee")
   inventoryItemAssignments          InventoryItemEmployeeAssignment[]
   inventoryUsageHistory             InventoryUsageHistory[]            @relation("InventoryUsageEmployee")
@@ -1386,6 +1387,30 @@ model EmployeeDispositionEntry {
   @@index([startDate])
   @@index([endDate])
   @@index([typeValue])
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  type    String @default("Fehler")
+  message String
+
+  erfasserUserId String?
+  erfasserName   String
+
+  employeeId   String?
+  employee     Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeName String
+
+  occurredAt DateTime  @default(now())
+  read       Boolean   @default(false)
+  readAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([read])
+  @@index([occurredAt])
 }
 
 model LeaveRequest {

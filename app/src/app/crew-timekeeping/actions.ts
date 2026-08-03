@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
+import { detectCrewTimeConflicts } from "@/lib/notifications";
 
 export type CrewTimeEmployeeInput = {
   attendanceStatus: "NOT_CHECKED_IN" | "CHECKED_IN" | "BREAK" | "CHECKED_OUT";
@@ -182,6 +183,13 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput) {
     return entry;
   });
   revalidateCrewTimes();
+  await detectCrewTimeConflicts({
+    employees,
+    entryId: savedEntry.id,
+    erfasserName: actorName,
+    erfasserUserId: session.user.id,
+    workDate,
+  });
   return {
     approvedByName: savedEntry.approvedByName ?? "",
     id: savedEntry.id,

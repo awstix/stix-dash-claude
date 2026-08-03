@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { ActionIcon } from "@/components/ActionIcon";
 
 type NavigationItem = {
   href: string;
@@ -24,6 +25,9 @@ export function AppHeader({
   companyLogoUrl,
   companyName,
   currentUserName,
+  currentUserRoleLabel,
+  showAdminLink,
+  unreadNotificationCount,
 }: {
   controllingNavigation: NavigationItem[];
   dispositionNavigation: NavigationItem[];
@@ -37,6 +41,9 @@ export function AppHeader({
   companyLogoUrl: string | null;
   companyName: string;
   currentUserName: string;
+  currentUserRoleLabel: string;
+  showAdminLink: boolean;
+  unreadNotificationCount: number;
 }) {
   const router = useRouter();
   const [openMenu, setOpenMenu] = useState<
@@ -244,20 +251,51 @@ export function AppHeader({
               onNavigate={() => setOpenMenu(null)}
             />
           ))}
+          {showAdminLink ? (
+            <NavigationLink
+              item={{ href: "/admin", name: "Admin" }}
+              onNavigate={() => setOpenMenu(null)}
+            />
+          ) : null}
           <div className="ml-2 flex items-center gap-2 border-l border-gray-300 pl-3">
-            <span className="max-w-40 truncate font-bold text-gray-900" title={currentUserName}>
-              {currentUserName}
-            </span>
+            {showAdminLink ? (
+              <Link
+                aria-label={`Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} offen)` : ""}`}
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
+                href="/notifications"
+                onClick={() => setOpenMenu(null)}
+                title="Benachrichtigungen"
+              >
+                <ActionIcon name="bell" className="h-4 w-4" />
+                {unreadNotificationCount > 0 ? (
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                    {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
+            <div className="max-w-40 leading-tight">
+              <p className="truncate font-bold text-gray-900" title={currentUserName}>
+                {currentUserName}
+              </p>
+              {currentUserRoleLabel ? (
+                <p className="truncate text-xs font-semibold text-gray-500" title={currentUserRoleLabel}>
+                  {currentUserRoleLabel}
+                </p>
+              ) : null}
+            </div>
             <button
-              className="rounded-lg border border-gray-400 bg-white px-3 py-2 font-bold text-gray-950 hover:bg-gray-100"
+              aria-label="Abmelden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
               onClick={async () => {
                 await authClient.signOut();
                 router.push("/login");
                 router.refresh();
               }}
+              title="Abmelden"
               type="button"
             >
-              Abmelden
+              <ActionIcon name="logout" className="h-4 w-4" />
             </button>
           </div>
         </nav>
@@ -314,10 +352,28 @@ export function AppHeader({
                 onNavigate={() => setMobileMenuOpen(false)}
               />
             ))}
+            {showAdminLink ? (
+              <MobileNavigationLink
+                item={{ href: "/admin", name: "Admin" }}
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
+            ) : null}
+            {showAdminLink ? (
+              <MobileNavigationLink
+                item={{
+                  href: "/notifications",
+                  name: `Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ""}`,
+                }}
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
+            ) : null}
             <div className="rounded-xl border border-gray-300 bg-gray-50 p-4">
               <p className="truncate font-black">{currentUserName}</p>
+              {currentUserRoleLabel ? (
+                <p className="truncate text-sm font-semibold text-gray-500">{currentUserRoleLabel}</p>
+              ) : null}
               <button
-                className="mt-3 w-full rounded-lg border border-gray-500 bg-white px-3 py-2 font-bold text-gray-950"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-500 bg-white px-3 py-2 font-bold text-gray-950"
                 onClick={async () => {
                   await authClient.signOut();
                   setMobileMenuOpen(false);
@@ -326,6 +382,7 @@ export function AppHeader({
                 }}
                 type="button"
               >
+                <ActionIcon name="logout" className="h-4 w-4" />
                 Abmelden
               </button>
             </div>

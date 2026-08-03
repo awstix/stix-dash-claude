@@ -4,6 +4,7 @@ import { AppHeader } from "./AppHeader";
 import { GlobalFormFeedback } from "./GlobalFormFeedback";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { portalRoleLabels } from "@/lib/portal-roles";
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
@@ -131,8 +132,12 @@ export async function AppShell({
     ? safetyNavigation.filter((item) => !item.href.startsWith("/form-builder"))
     : safetyNavigation;
   const visibleSecondaryNavigation = secondaryNavigation.filter(
-    (item) => item.href !== "/admin" || admin,
+    (item) => item.href !== "/admin",
   );
+  const currentUserRoleLabel = portalRoleLabels(session.user.role).join(" / ");
+  const unreadNotificationCount = admin
+    ? await prisma.notification.count({ where: { read: false } })
+    : 0;
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -140,6 +145,7 @@ export async function AppShell({
         companyLogoUrl={company?.logoPublicUrl ?? null}
         companyName={company?.companyName ?? "Stix"}
         currentUserName={session.user.name}
+        currentUserRoleLabel={currentUserRoleLabel}
         controllingNavigation={controllingNavigation}
         dispositionNavigation={dispositionNavigation}
         employeeNavigation={employeeNavigation}
@@ -148,6 +154,8 @@ export async function AppShell({
         projectNavigation={visibleProjectNavigation}
         safetyNavigation={visibleSafetyNavigation}
         secondaryNavigation={visibleSecondaryNavigation}
+        showAdminLink={admin}
+        unreadNotificationCount={unreadNotificationCount}
         workshopNavigation={visibleWorkshopNavigation}
       />
 
