@@ -180,6 +180,9 @@ model ProjectRequirementItem {
   category    String
   description String
 
+  neededDate DateTime?
+  sortOrder  Int       @default(0)
+
   done         Boolean   @default(false)
   doneAt       DateTime?
   doneByUserId String?
@@ -194,6 +197,7 @@ model ProjectRequirementItem {
   @@index([projectId])
   @@index([category])
   @@index([done])
+  @@index([neededDate])
 }
 
 model ProjectWeatherLog {

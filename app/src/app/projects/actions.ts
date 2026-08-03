@@ -205,6 +205,7 @@ export type ProjectNoteDeleteInput = {
 export type ProjectRequirementItemInput = {
   category: string;
   description: string;
+  neededDate: string;
   projectId: string;
 };
 
@@ -212,7 +213,9 @@ export type ProjectRequirementItemUpdateInput = {
   category: string;
   description: string;
   id: string;
+  neededDate: string;
   projectId: string;
+  sortOrder: number;
 };
 
 export type ProjectRequirementItemToggleInput = {
@@ -224,6 +227,10 @@ export type ProjectRequirementItemToggleInput = {
 export type ProjectRequirementItemDeleteInput = {
   id: string;
   projectId: string;
+};
+
+export type ProjectRequirementItemReorderInput = {
+  ids: string[];
 };
 
 export type ProjectPhotosMoveInput = {
@@ -710,6 +717,13 @@ export async function createProjectRequirementItem(input: ProjectRequirementItem
   await requireProjectAccess(input.projectId);
   const session = await requireSession();
   const authorName = await resolveUserDisplayName(session.user.id);
+  const neededDate = parseDate(input.neededDate);
+
+  const maxSortOrder = await prisma.projectRequirementItem.aggregate({
+    _max: { sortOrder: true },
+    where: { neededDate },
+  });
+  const nextSortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
 
   await prisma.projectRequirementItem.create({
     data: {
@@ -717,7 +731,9 @@ export async function createProjectRequirementItem(input: ProjectRequirementItem
       createdByName: authorName || session.user.name || session.user.email,
       createdByUserId: session.user.id,
       description,
+      neededDate,
       projectId: input.projectId,
+      sortOrder: nextSortOrder,
     },
   });
 
@@ -743,6 +759,8 @@ export async function updateProjectRequirementItem(input: ProjectRequirementItem
     data: {
       category: input.category,
       description,
+      neededDate: parseDate(input.neededDate),
+      sortOrder: cleanNumber(input.sortOrder),
     },
   });
 
@@ -788,6 +806,29 @@ export async function deleteProjectRequirementItem(input: ProjectRequirementItem
   });
 
   revalidateProjectViews(input.projectId);
+}
+
+export async function reorderProjectRequirementItems(input: ProjectRequirementItemReorderInput) {
+  const ids = input.ids.filter(Boolean);
+  if (!ids.length) return;
+
+  const items = await prisma.projectRequirementItem.findMany({
+    select: { id: true, projectId: true },
+    where: { id: { in: ids } },
+  });
+  const projectIds = Array.from(new Set(items.map((item) => item.projectId)));
+  await Promise.all(projectIds.map((projectId) => requireProjectAccess(projectId)));
+
+  await prisma.$transaction(
+    ids.map((id, index) =>
+      prisma.projectRequirementItem.update({
+        data: { sortOrder: index },
+        where: { id },
+      }),
+    ),
+  );
+
+  revalidateProjectViews();
 }
 
 export async function refreshProjectWeather(projectId: string) {

@@ -1310,6 +1310,7 @@ export default async function ProjectDetailPage({
             done: item.done,
             doneByName: item.doneByName,
             id: item.id,
+            neededDate: item.neededDate,
           }))}
         />
         <ProjectSafetySection
@@ -2241,6 +2242,7 @@ function ProjectRequirementsPreviewSection({
     done: boolean;
     doneByName: string | null;
     id: string;
+    neededDate: Date | null;
   }[];
 }) {
   const openRequirements = requirements.filter((item) => !item.done);
@@ -2285,6 +2287,11 @@ function ProjectRequirementsPreviewSection({
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
                   {getRequirementCategoryLabel(item.category)}
                 </span>
+                {item.neededDate ? (
+                  <span className="ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-900">
+                    Benötigt am {formatDate(item.neededDate)}
+                  </span>
+                ) : null}
                 <p className={`mt-1 text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-900"}`}>
                   {item.description}
                 </p>
