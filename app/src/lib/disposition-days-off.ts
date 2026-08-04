@@ -98,8 +98,15 @@ export async function activeDispositionDaysOff(from: Date, to: Date) {
   });
 
   return entries.flatMap((entry) => {
+    // Ohne endDate ist der Eintrag ein Einzeltag (Ende = eigenes Datum), nicht das
+    // Ende des abgefragten Zeitraums – sonst würde z. B. ein einzelner Feiertag
+    // fälschlich bis zum Ende des sichtbaren Kalenderausschnitts "arbeitsfrei" markieren.
+    const entryEnd = entry.endDate ?? entry.date;
     const first = entry.date < from ? from : entry.date;
-    const last = !entry.endDate || entry.endDate > to ? to : entry.endDate;
+    const last = entryEnd > to ? to : entryEnd;
+
+    if (last < first) return [];
+
     const days = [];
 
     for (

@@ -5448,9 +5448,13 @@ export default async function CrewDispatchPage({
                   <div
                     key={unit.key}
                     data-timeline-date={unit.defaultStartDate}
-                    title={daysOffByDate.get(unit.defaultStartDate)?.name}
+                    title={
+                      unit.defaultStartDate === unit.defaultEndDate
+                        ? daysOffByDate.get(unit.defaultStartDate)?.name
+                        : undefined
+                    }
                     className={`flex min-h-[64px] min-w-0 flex-col justify-center border-r border-gray-200 text-center last:border-r-0 ${
-                      daysOffByDate.has(unit.defaultStartDate)
+                      unit.defaultStartDate === unit.defaultEndDate && daysOffByDate.has(unit.defaultStartDate)
                         ? "bg-slate-300"
                         : "bg-gray-50"
                     } ${getHeaderPaddingClass(
@@ -5473,7 +5477,7 @@ export default async function CrewDispatchPage({
                     >
                       {unit.subLabel}
                     </div>
-                    {daysOffByDate.has(unit.defaultStartDate) ? (
+                    {unit.defaultStartDate === unit.defaultEndDate && daysOffByDate.has(unit.defaultStartDate) ? (
                       <div className="truncate text-[9px] font-black uppercase text-gray-800">arbeitsfrei</div>
                     ) : null}
                   </div>
@@ -5570,7 +5574,7 @@ export default async function CrewDispatchPage({
                         <div
                           key={`${row.id}-${unit.key}`}
                           className={`min-w-0 border-r border-gray-100 last:border-r-0 ${
-                            daysOffByDate.has(unit.defaultStartDate)
+                            unit.defaultStartDate === unit.defaultEndDate && daysOffByDate.has(unit.defaultStartDate)
                               ? "bg-slate-200/80"
                               : ""
                           } ${getCellPaddingClass(
@@ -5921,7 +5925,7 @@ export default async function CrewDispatchPage({
                       <div
                         key={`${crew.id}-${unit.key}`}
                         className={`min-w-0 border-r border-gray-100 last:border-r-0 ${
-                          daysOffByDate.has(unit.defaultStartDate)
+                          unit.defaultStartDate === unit.defaultEndDate && daysOffByDate.has(unit.defaultStartDate)
                             ? "bg-slate-200/80"
                             : ""
                         } ${getCellPaddingClass(
