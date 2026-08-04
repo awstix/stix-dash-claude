@@ -1701,6 +1701,12 @@ model WorkTimePreset {
   isActive           Boolean @default(true)
   sortOrder          Int     @default(0)
 
+  /// Wiederkehrender Saison-Zeitraum (Format "MM-DD", jahresunabhängig), z. B. "10-01"–"03-31"
+  /// für Winterzeit. Ohne Zeitraum greift die Vorlage nur, wenn keine andere mit
+  /// passendem Zeitraum existiert (Standard-Vorlage als Fallback).
+  validFrom String?
+  validTo   String?
+
   manualMonthlyHours Float?
 
   createdAt DateTime @default(now())

@@ -1,8 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from "react";
-import { useRouter } from "next/navigation";
-import { setWorkTimeCalendarDays } from "../actions";
+import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 
 const monthNames = [
   "Januar",
@@ -46,62 +44,50 @@ export type WorkTimeCalendarGridHolidayOverlay = {
 };
 
 export function WorkTimeCalendarGrid({
-  calendarId,
+  activeTypeId,
   dayTypes,
+  days,
+  dirtyDates,
   holidayOverlay,
-  initialDays,
+  onActiveTypeChange,
+  onPaint,
   year,
 }: {
-  calendarId: string;
+  activeTypeId: string | null;
   dayTypes: WorkTimeCalendarGridDayType[];
+  days: Record<string, string | undefined>;
+  dirtyDates: Set<string>;
   holidayOverlay: Record<string, WorkTimeCalendarGridHolidayOverlay>;
-  initialDays: Record<string, string>;
+  onActiveTypeChange: (typeId: string | null) => void;
+  onPaint: (dateKey: string) => void;
   year: number;
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
-  const [days, setDays] = useState<Record<string, string | undefined>>(initialDays);
-  const [activeTypeId, setActiveTypeId] = useState<string | null>(dayTypes[0]?.id ?? null);
   const isPaintingRef = useRef(false);
-  const pendingDatesRef = useRef<Set<string>>(new Set());
   const maxDays = 31;
 
   const dayTypeById = new Map(dayTypes.map((type) => [type.id, type]));
 
-  function paintDate(key: string) {
-    setDays((current) => ({ ...current, [key]: activeTypeId ?? undefined }));
-    pendingDatesRef.current.add(key);
-  }
-
-  function commitPaint() {
-    if (!isPaintingRef.current) return;
+  function stopPainting() {
     isPaintingRef.current = false;
-    const dates = Array.from(pendingDatesRef.current);
-    pendingDatesRef.current = new Set();
-    if (dates.length === 0) return;
-    startTransition(async () => {
-      await setWorkTimeCalendarDays({ calendarId, dates, dayTypeId: activeTypeId });
-      router.refresh();
-    });
   }
 
   function handlePointerDown(key: string) {
     return (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
       isPaintingRef.current = true;
-      paintDate(key);
+      onPaint(key);
     };
   }
 
   function handlePointerEnter(key: string) {
     return () => {
       if (!isPaintingRef.current) return;
-      paintDate(key);
+      onPaint(key);
     };
   }
 
   return (
-    <div onPointerLeave={commitPaint} onPointerUp={commitPaint}>
+    <div onPointerLeave={stopPainting} onPointerUp={stopPainting}>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <span className="text-xs font-semibold text-gray-700">Pinsel:</span>
         {dayTypes.map((type) => (
@@ -110,7 +96,7 @@ export function WorkTimeCalendarGrid({
               activeTypeId === type.id ? "border-gray-900 ring-2 ring-gray-900" : "border-gray-300"
             } ${type.barClass}`}
             key={type.id}
-            onClick={() => setActiveTypeId(type.id)}
+            onClick={() => onActiveTypeChange(type.id)}
             type="button"
           >
             {type.number}. ({type.hours.toLocaleString("de-DE")} Std.)
@@ -120,12 +106,12 @@ export function WorkTimeCalendarGrid({
           className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold text-gray-700 ${
             activeTypeId === null ? "border-gray-900 bg-gray-100 ring-2 ring-gray-900" : "border-gray-300 bg-white"
           }`}
-          onClick={() => setActiveTypeId(null)}
+          onClick={() => onActiveTypeChange(null)}
           type="button"
         >
           Löschen (leer)
         </button>
-        <span className="ml-auto text-xs text-gray-500">
+        <span className="text-xs text-gray-500">
           Klicken oder klicken &amp; ziehen, um Tage mit dem gewählten Pinsel zu füllen.
         </span>
       </div>
@@ -163,6 +149,7 @@ export function WorkTimeCalendarGrid({
                     const key = dateKey(year, month, day);
                     const type = dayTypeById.get(days[key] ?? "");
                     const overlay = holidayOverlay[key];
+                    const dirty = dirtyDates.has(key);
                     const title = [type ? `${key}: Planzeit ${type.number}` : key, overlay?.label]
                       .filter(Boolean)
                       .join(" · ");
@@ -175,7 +162,9 @@ export function WorkTimeCalendarGrid({
                           <div
                             className={`mx-auto flex h-6 w-6 cursor-pointer items-center justify-center rounded text-[10px] ${
                               type ? type.barClass : "bg-white text-gray-500 hover:bg-gray-100"
-                            } ${overlay ? overlay.ringClass : ""}`}
+                            } ${overlay ? overlay.ringClass : ""} ${
+                              dirty ? "outline outline-2 outline-offset-1 outline-blue-500" : ""
+                            }`}
                             onPointerDown={handlePointerDown(key)}
                             onPointerEnter={handlePointerEnter(key)}
                             title={title}

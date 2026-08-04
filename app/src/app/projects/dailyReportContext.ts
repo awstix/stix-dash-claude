@@ -4,11 +4,7 @@ import {
   vehicleInventoryLinkInclude,
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
-import {
-  getNetWorkHoursForDay,
-  getWorkTimeForDate,
-  type WorkTimeSettings,
-} from "@/lib/work-time";
+import { getNetWorkHoursForDay, type WorkTimeDaySettings } from "@/lib/work-time";
 
 export type DailyReportCountRow = {
   count: number;
@@ -619,7 +615,7 @@ export function buildDailyReportContext(
   project: ReportProject,
   dateKey: string,
   requestedSheetNumber: string,
-  defaultWorkTime: WorkTimeSettings,
+  reportWorkDay: WorkTimeDaySettings,
 ): DailyReportContext {
   const labor = new Map<string, CountHours>();
   const crewLaborEmployeeIds = new Set<string>();
@@ -644,7 +640,6 @@ export function buildDailyReportContext(
   const asphaltCrewsByName = new Map(
     project.dailyReportAsphaltCrews.map((crew) => [crew.name.trim(), crew]),
   );
-  const reportWorkDay = getWorkTimeForDate(defaultWorkTime, toDailyReportDate(dateKey));
   const reportWorkHours =
     getNetWorkHoursForDay(reportWorkDay) ||
     durationHours(reportWorkDay.startTime, reportWorkDay.endTime);
@@ -1332,10 +1327,12 @@ export function buildDailyReportContext(
   const approvedTimeEntry = project.crewTimeEntries.find(
     (entry) => entry.status === "APPROVED",
   );
-  const suggestedBreak1From = approvedTimeEntry?.defaultBreak1From ?? "";
-  const suggestedBreak1To = approvedTimeEntry?.defaultBreak1To ?? "";
-  const suggestedBreak2From = approvedTimeEntry?.defaultBreak2From ?? "";
-  const suggestedBreak2To = approvedTimeEntry?.defaultBreak2To ?? "";
+  // Erst die tatsächlich erfassten Pausen aus einer freigegebenen Zeiterfassung,
+  // sonst die Pausen der für diesen Tag geltenden Arbeitszeit (Vorlage oder Kalender).
+  const suggestedBreak1From = approvedTimeEntry?.defaultBreak1From || reportWorkDay.breakfastStart || "";
+  const suggestedBreak1To = approvedTimeEntry?.defaultBreak1To || reportWorkDay.breakfastEnd || "";
+  const suggestedBreak2From = approvedTimeEntry?.defaultBreak2From || reportWorkDay.lunchStart || "";
+  const suggestedBreak2To = approvedTimeEntry?.defaultBreak2To || reportWorkDay.lunchEnd || "";
   const suggestedMachineRows = showRealMachineNames
     ? suggestedRealMachineRows
     : suggestedGroupedMachineRows;

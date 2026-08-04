@@ -8,11 +8,8 @@ import { getNetWorkHoursForDay } from "@/lib/work-time";
 import { getWorkTimeDayTypeColor } from "@/lib/work-time-day-type-colors";
 import { getDayOffKindStyle } from "@/lib/day-off-kinds";
 import { deleteWorkTimeCalendar } from "../actions";
-import {
-  WorkTimeCalendarAssignmentsForm,
-  type WorkTimeCalendarAssignmentGroup,
-} from "./WorkTimeCalendarAssignmentsForm";
-import { WorkTimeCalendarGrid } from "./WorkTimeCalendarGrid";
+import type { WorkTimeCalendarAssignmentGroup } from "./WorkTimeCalendarAssignmentsForm";
+import { WorkTimeCalendarEditor } from "./WorkTimeCalendarEditor";
 
 const ohneAbteilungLabel = "Ohne Abteilung";
 
@@ -126,28 +123,15 @@ export default async function WorkTimeCalendarEditorPage({
         </form>
       </div>
 
-      {gridDayTypes.length === 0 ? (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-950">
-          Noch keine Planzeiten angelegt. Erst unter „Planzeiten&rdquo; mindestens eine anlegen, bevor Tage gefüllt
-          werden können.
-        </div>
-      ) : (
-        <WorkTimeCalendarGrid
-          calendarId={calendar.id}
-          dayTypes={gridDayTypes}
-          holidayOverlay={holidayOverlay}
-          initialDays={initialDays}
-          year={calendar.year}
-        />
-      )}
-
-      <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <WorkTimeCalendarAssignmentsForm
-          calendarId={calendar.id}
-          departmentGroups={departmentGroups}
-          initialAssignedIds={assignedEmployeeIds}
-        />
-      </div>
+      <WorkTimeCalendarEditor
+        calendarId={calendar.id}
+        dayTypes={gridDayTypes}
+        departmentGroups={departmentGroups}
+        holidayOverlay={holidayOverlay}
+        initialAssignedIds={assignedEmployeeIds}
+        initialDays={initialDays}
+        year={calendar.year}
+      />
     </AppShell>
   );
 }

@@ -3,11 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
-import {
-  ensureDefaultWorkTimePresets,
-  workTimeDayKeys,
-  type WorkTimeDaySettings,
-} from "@/lib/work-time";
+import { workTimeDayKeys, type WorkTimeDaySettings } from "@/lib/work-time";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -134,6 +130,35 @@ function readManualMonthlyHours(formData: FormData) {
   return value;
 }
 
+/** Liest ein Datum aus einem `type="date"`-Feld und gibt nur Tag/Monat zurück
+ * (Format "MM-DD") – das Jahr im Eingabefeld ist nur ein Platzhalter, da der
+ * Saison-Zeitraum jedes Jahr wiederkehrt. */
+function readMonthDay(formData: FormData, key: string) {
+  const raw = text(formData.get(key));
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error("Ungültiges Datum für den Saison-Zeitraum.");
+  }
+  const [, monthText, dayText] = raw.split("-");
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new Error("Ungültiges Datum für den Saison-Zeitraum.");
+  }
+  return `${monthText}-${dayText}`;
+}
+
+function readSeasonRange(formData: FormData) {
+  const validFrom = readMonthDay(formData, "validFrom");
+  const validTo = readMonthDay(formData, "validTo");
+
+  if ((validFrom && !validTo) || (!validFrom && validTo)) {
+    throw new Error("Saison-Zeitraum: Von und Bis müssen beide ausgefüllt sein, oder beide leer bleiben.");
+  }
+
+  return { validFrom, validTo };
+}
+
 function revalidateWorkingTimeConsumers() {
   revalidatePath("/admin/working-time");
   revalidatePath("/truck-dispatch");
@@ -143,10 +168,15 @@ function revalidateWorkingTimeConsumers() {
   revalidatePath("/api/work-time");
 }
 
-export async function seedWorkTimePresets() {
-  await requireAdmin();
-  await ensureDefaultWorkTimePresets();
-  revalidateWorkingTimeConsumers();
+export type WorkTimePresetActionState = {
+  error: string | null;
+  errorKey: number;
+};
+
+function workTimePresetActionError(error: unknown) {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : "Die Arbeitszeit-Vorlage konnte nicht gespeichert werden.";
 }
 
 export async function createWorkTimePreset(formData: FormData) {
@@ -163,6 +193,7 @@ export async function createWorkTimePreset(formData: FormData) {
   validateTimeRange(startTime, endTime);
   const weeklyScheduleJson = getWeeklySchedulePayload(formData);
   const manualMonthlyHours = readManualMonthlyHours(formData);
+  const { validFrom, validTo } = readSeasonRange(formData);
 
   await prisma.workTimePreset.create({
     data: {
@@ -174,10 +205,24 @@ export async function createWorkTimePreset(formData: FormData) {
       sortOrder: Number.isNaN(sortOrder) ? 9999 : sortOrder,
       isActive: true,
       isDefault: false,
+      validFrom,
+      validTo,
     },
   });
 
   revalidateWorkingTimeConsumers();
+}
+
+export async function createWorkTimePresetAction(
+  state: WorkTimePresetActionState,
+  formData: FormData,
+): Promise<WorkTimePresetActionState> {
+  try {
+    await createWorkTimePreset(formData);
+    return { error: null, errorKey: state.errorKey };
+  } catch (error) {
+    return { error: workTimePresetActionError(error), errorKey: state.errorKey + 1 };
+  }
 }
 
 export async function updateWorkTimePreset(formData: FormData) {
@@ -195,6 +240,7 @@ export async function updateWorkTimePreset(formData: FormData) {
   validateTimeRange(startTime, endTime);
   const weeklyScheduleJson = getWeeklySchedulePayload(formData);
   const manualMonthlyHours = readManualMonthlyHours(formData);
+  const { validFrom, validTo } = readSeasonRange(formData);
 
   await prisma.workTimePreset.update({
     where: {
@@ -208,10 +254,24 @@ export async function updateWorkTimePreset(formData: FormData) {
       manualMonthlyHours,
       sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
       isActive: formData.get("isActive") === "on",
+      validFrom,
+      validTo,
     },
   });
 
   revalidateWorkingTimeConsumers();
+}
+
+export async function updateWorkTimePresetAction(
+  state: WorkTimePresetActionState,
+  formData: FormData,
+): Promise<WorkTimePresetActionState> {
+  try {
+    await updateWorkTimePreset(formData);
+    return { error: null, errorKey: state.errorKey };
+  } catch (error) {
+    return { error: workTimePresetActionError(error), errorKey: state.errorKey + 1 };
+  }
 }
 
 export async function setDefaultWorkTimePreset(formData: FormData) {

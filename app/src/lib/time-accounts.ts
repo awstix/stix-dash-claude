@@ -2,9 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { employeeDispositionTypes } from "@/app/employee-dispatch/disposition-types";
 import { vacationDeductingDayOffKinds } from "@/lib/day-off-kinds";
 import {
-  getDefaultWorkTime,
+  ensureDefaultWorkTimePresets,
+  fallbackWorkTime,
   getNetWorkHoursForDay,
   getWorkTimeForDate,
+  selectWorkTimePresetForDate,
+  workTimeSettingsFromPreset,
   type WorkTimeDaySettings,
 } from "@/lib/work-time";
 
@@ -237,8 +240,9 @@ export async function getEmployeeDayDetails({
   fromDate: Date;
   toDate: Date;
 }): Promise<EmployeeDayDetail[]> {
+  await ensureDefaultWorkTimePresets();
   const [
-    workTime,
+    workTimePresets,
     holidayDetails,
     timeEntries,
     approvedLeave,
@@ -248,7 +252,7 @@ export async function getEmployeeDayDetails({
     timeTrackingSettings,
     calendarAssignments,
   ] = await Promise.all([
-    getDefaultWorkTime(),
+    prisma.workTimePreset.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     getHolidayDetailsByDate(),
     prisma.crewTimeEmployee.findMany({
       include: { entry: { select: { workDate: true } } },
@@ -416,7 +420,9 @@ export async function getEmployeeDayDetails({
     const weekend = isWeekend(d);
     const holidayDetail = holidayDetails.get(iso) ?? null;
     const holiday = holidayDetail !== null;
-    const dayWorkTime: WorkTimeDaySettings = getWorkTimeForDate(workTime, d);
+    const seasonPreset = selectWorkTimePresetForDate(workTimePresets, d);
+    const seasonWorkTime = seasonPreset ? workTimeSettingsFromPreset(seasonPreset) : fallbackWorkTime;
+    const dayWorkTime: WorkTimeDaySettings = getWorkTimeForDate(seasonWorkTime, d);
     const calendarDayHours = calendarSollByDate.get(iso);
     const baseSollHours =
       calendarDayHours !== undefined

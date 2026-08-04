@@ -89,12 +89,24 @@ export function parseWeeklySchedule(
   }
 }
 
-function withSchedule(preset: {
+export type WorkTimePresetRecord = {
+  endTime: string;
+  isActive: boolean;
+  isDefault: boolean;
+  name: string;
+  sortOrder: number;
+  startTime: string;
+  validFrom?: string | null;
+  validTo?: string | null;
+  weeklyScheduleJson?: string | null;
+};
+
+export function workTimeSettingsFromPreset(preset: {
   endTime: string;
   name: string;
   startTime: string;
   weeklyScheduleJson?: string | null;
-}) {
+}): WorkTimeSettings {
   return {
     endTime: preset.endTime,
     name: preset.name,
@@ -105,6 +117,49 @@ function withSchedule(preset: {
       preset.endTime,
     ),
   };
+}
+
+function monthDayValue(date: Date) {
+  return (date.getUTCMonth() + 1) * 100 + date.getUTCDate();
+}
+
+function parseMonthDayValue(value: string) {
+  const [month, day] = value.split("-").map(Number);
+  return month * 100 + day;
+}
+
+/** Prüft, ob ein Datum (nur Tag/Monat, jahresunabhängig) in einem wiederkehrenden
+ * Saison-Zeitraum liegt. Der Zeitraum darf über den Jahreswechsel hinausgehen
+ * (z. B. "10-01"–"03-31" für Winterzeit). */
+function isDateInSeason(date: Date, validFrom: string, validTo: string) {
+  const dayValue = monthDayValue(date);
+  const fromValue = parseMonthDayValue(validFrom);
+  const toValue = parseMonthDayValue(validTo);
+
+  if (fromValue <= toValue) {
+    return dayValue >= fromValue && dayValue <= toValue;
+  }
+
+  return dayValue >= fromValue || dayValue <= toValue;
+}
+
+/** Wählt die für ein Datum gültige Arbeitszeit-Vorlage: zuerst eine aktive Vorlage,
+ * deren wiederkehrender Saison-Zeitraum das Datum abdeckt (bei mehreren Treffern die
+ * mit der niedrigsten Position); ohne Treffer die als Standard markierte Vorlage,
+ * sonst die erste aktive Vorlage. */
+export function selectWorkTimePresetForDate<T extends WorkTimePresetRecord>(
+  presets: T[],
+  date: Date,
+): T | undefined {
+  const activePresets = presets.filter((preset) => preset.isActive);
+  const seasonalMatches = activePresets
+    .filter(
+      (preset) => preset.validFrom && preset.validTo && isDateInSeason(date, preset.validFrom, preset.validTo),
+    )
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (seasonalMatches.length > 0) return seasonalMatches[0];
+  return activePresets.find((preset) => preset.isDefault) ?? activePresets[0];
 }
 
 function getWorkTimeDayKey(date: Date): WorkTimeDayKey {
@@ -206,31 +261,51 @@ export async function ensureDefaultWorkTimePresets() {
   });
 }
 
-export async function getDefaultWorkTime() {
+/** Ermittelt die für ein Datum (Standard: heute) gültige Arbeitszeit-Vorlage –
+ * bevorzugt eine mit passendem Saison-Zeitraum, sonst die Standard-Vorlage. */
+export async function getDefaultWorkTime(date: Date = new Date()) {
   await ensureDefaultWorkTimePresets();
 
-  const defaultPreset = await prisma.workTimePreset.findFirst({
-    where: {
-      isDefault: true,
-      isActive: true,
-    },
+  const presets = await prisma.workTimePreset.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
+  const selected = selectWorkTimePresetForDate(presets, date);
 
-  if (defaultPreset) {
-    return withSchedule(defaultPreset);
-  }
+  return selected ? workTimeSettingsFromPreset(selected) : fallbackWorkTime;
+}
 
-  const firstActivePreset = await prisma.workTimePreset.findFirst({
-    where: {
-      isActive: true,
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+/** Ermittelt die für ein Datum gültige Regel-Arbeitszeit: ab dem globalen
+ * Umstellungs-Stichtag zählt – falls für den Tag eine Planzeit im Jahreskalender
+ * eingetragen ist – der Jahreskalender, sonst (auch vor dem Stichtag oder ohne
+ * Eintrag für diesen Tag) das aktive Sommer-/Winterzeit-Preset. Nicht
+ * mitarbeiterbezogen, gedacht für Vorschläge ohne konkrete Personalzuordnung
+ * (z. B. Bautagesbericht). */
+export async function getWorkTimeDayForDate(date: Date): Promise<WorkTimeDaySettings> {
+  const timeTrackingSettings = await prisma.timeTrackingSettings.findUnique({
+    select: { workTimeCalendarEffectiveFrom: true },
+    where: { id: "default" },
   });
+  const effectiveFrom = timeTrackingSettings?.workTimeCalendarEffectiveFrom ?? null;
 
-  if (firstActivePreset) {
-    return withSchedule(firstActivePreset);
+  if (effectiveFrom && date >= effectiveFrom) {
+    const calendarDay = await prisma.workTimeCalendarDay.findFirst({
+      orderBy: { calendar: { createdAt: "asc" } },
+      select: { dayType: true },
+      where: { calendar: { year: date.getUTCFullYear() }, date },
+    });
+
+    if (calendarDay?.dayType) {
+      return {
+        breakfastEnd: calendarDay.dayType.breakfastEnd ?? "",
+        breakfastStart: calendarDay.dayType.breakfastStart ?? "",
+        endTime: calendarDay.dayType.endTime ?? "",
+        lunchEnd: calendarDay.dayType.lunchEnd ?? "",
+        lunchStart: calendarDay.dayType.lunchStart ?? "",
+        startTime: calendarDay.dayType.startTime ?? "",
+      };
+    }
   }
 
-  return fallbackWorkTime;
+  const defaultWorkTime = await getDefaultWorkTime(date);
+  return getWorkTimeForDate(defaultWorkTime, date);
 }
