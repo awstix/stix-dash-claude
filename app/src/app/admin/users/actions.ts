@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
-import { portalRoleKeys } from "@/lib/portal-roles";
+import { getPortalRoleKeys } from "@/lib/portal-roles";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -38,10 +38,11 @@ export async function createPortalUser(formData: FormData) {
   await requireAdmin();
   const employeeId = text(formData, "employeeId");
   const password = text(formData, "password");
+  const validRoleKeys = await getPortalRoleKeys();
   const roles = formData
     .getAll("role")
     .map(String)
-    .filter((role) => portalRoleKeys.has(role));
+    .filter((role) => validRoleKeys.has(role));
   const role = roles.length ? roles.join(",") : "employee";
   const canApproveLeaveRequests =
     formData.get("canApproveLeaveRequests") === "on";

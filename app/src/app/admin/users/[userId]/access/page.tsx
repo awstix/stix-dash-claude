@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { dashboardWidgets } from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
-import { parsePortalRoles, portalRoles } from "@/lib/portal-roles";
+import { getPortalRoles, parsePortalRoles } from "@/lib/portal-roles";
 import { saveUserAccess } from "./actions";
 
 export default async function UserAccessPage({
@@ -14,7 +14,7 @@ export default async function UserAccessPage({
 }) {
   await requireAdmin();
   const { userId } = await params;
-  const [user, projects] = await Promise.all([
+  const [user, projects, portalRoles] = await Promise.all([
     prisma.user.findUnique({
       include: { featureAccesses: true, projectAccesses: true },
       where: { id: userId },
@@ -23,13 +23,14 @@ export default async function UserAccessPage({
       orderBy: [{ projectNumber: "asc" }, { name: "asc" }],
       select: { id: true, name: true, projectNumber: true, status: true },
     }),
+    getPortalRoles(),
   ]);
   if (!user) throw new Error("Portalkonto wurde nicht gefunden.");
   const features = new Set(
     user.featureAccesses.filter((entry) => entry.canView).map((entry) => entry.featureKey),
   );
   const assignedProjects = new Set(user.projectAccesses.map((entry) => entry.projectId));
-  const assignedRoles = new Set(parsePortalRoles(user.role));
+  const assignedRoles = new Set(await parsePortalRoles(user.role));
 
   return (
     <AppShell

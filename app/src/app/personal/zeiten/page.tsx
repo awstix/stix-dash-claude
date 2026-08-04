@@ -31,6 +31,16 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function statusLabel(status: string) {
   if (status === "APPROVED") return "Freigegeben";
   if (status === "SUBMITTED") return "Zur Freigabe";
@@ -160,7 +170,8 @@ export default async function PersonalZeitenPage({
               <th className="p-3">Ende</th>
               <th className="p-3">Gesamt</th>
               <th className="p-3">Status</th>
-              <th className="p-3">Erfasser</th>
+              <th className="p-3">Zuletzt geändert von</th>
+              <th className="p-3">Geändert am</th>
             </tr>
           </thead>
           <tbody>
@@ -191,6 +202,7 @@ export default async function PersonalZeitenPage({
                   </span>
                 </td>
                 <td className="p-3 text-gray-700">{employee.entry.recordedByName || "-"}</td>
+                <td className="p-3 text-gray-700">{formatDateTime(employee.entry.updatedAt)}</td>
               </tr>
             ))}
           </tbody>

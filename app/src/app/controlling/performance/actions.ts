@@ -697,6 +697,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
+  const useActualHours = formData.get("hourSource") === "actual";
   const report = await prisma.controllingPerformanceReport.findUniqueOrThrow({
     where: {
       id: reportId,
@@ -723,6 +724,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
 
   const [
     crewAssignments,
+    crewTimeEntries,
     equipmentAssignments,
     asphaltDispatchEntries,
     asphaltCrews,
@@ -773,6 +775,19 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
         },
         extraEmployees: true,
         row: true,
+      },
+    }),
+    prisma.crewTimeEntry.findMany({
+      include: {
+        employees: true,
+      },
+      where: {
+        projectId,
+        status: "APPROVED",
+        workDate: {
+          gte: start,
+          lte: end,
+        },
       },
     }),
     prisma.equipmentDispatchAssignment.findMany({
@@ -992,25 +1007,93 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
     return employeeByName.get(normalizePersonName(name));
   }
 
-  const hourEntries: ImportedHourEntry[] = crewAssignments.map((assignment) => {
-    const memberCount =
-      (assignment.crew?.members.length ?? 0) + assignment.extraEmployees.length;
-    const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
+  const employeeById = new Map(employeesForDriverNames.map((employee) => [employee.id, employee]));
 
-    return costedHourEntry({
-      employeeCount: memberCount || 1,
-      endsAt: assignment.endTime,
-      entryDate: start,
-      hoursPerEmployee,
-      internalRateCents: 0,
-      label: assignment.crewName || assignment.crew?.name || assignment.row.rowTitle || "Kolonne",
-      notes: `aus Planung übernommen (${formatIsoDate(start)})`,
-      realRateCents: 0,
-      source: "DISPOSITION_IMPORT",
-      startsAt: assignment.startTime,
-      totalHours: Math.round((memberCount || 1) * hoursPerEmployee * 100) / 100,
-    });
-  });
+  function resolveAssignmentEmployeeIds(assignment: (typeof crewAssignments)[number]) {
+    const excluded = new Set(
+      assignment.extraEmployees.filter((item) => item.mode === "EXCLUDE").map((item) => item.employeeId),
+    );
+    const ids = new Set<string>();
+
+    for (const member of assignment.crew?.members ?? []) {
+      if (!excluded.has(member.employeeId)) ids.add(member.employeeId);
+    }
+
+    for (const item of assignment.extraEmployees) {
+      if (item.mode !== "EXCLUDE") ids.add(item.employeeId);
+    }
+
+    return [...ids];
+  }
+
+  const hourEntries: ImportedHourEntry[] = useActualHours
+    ? crewTimeEntries.flatMap((entry) =>
+        entry.employees
+          .filter((employee) => employee.isPresent && employee.netHours > 0)
+          .map((employee) => {
+            const rates = employeeRateFor(employeeById.get(employee.employeeId));
+
+            return costedHourEntry({
+              employeeCount: 1,
+              employeeId: employee.employeeId,
+              endsAt: employee.endTime,
+              entryDate: entry.workDate,
+              hoursPerEmployee: employee.netHours,
+              internalRateCents: rates.internalRateCents,
+              label: employee.employeeName,
+              notes: `aus Zeiterfassung übernommen, freigegeben (${formatIsoDate(entry.workDate)})`,
+              realRateCents: rates.realRateCents,
+              source: "DISPOSITION_IMPORT",
+              startsAt: employee.startTime,
+              totalHours: Math.round(employee.netHours * 100) / 100,
+            });
+          }),
+      )
+    : crewAssignments.flatMap((assignment) => {
+        const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
+        const crewLabel =
+          assignment.crewName || assignment.crew?.name || assignment.row.rowTitle || "Kolonne";
+        const employeeIds = resolveAssignmentEmployeeIds(assignment);
+
+        if (employeeIds.length === 0) {
+          return [
+            costedHourEntry({
+              employeeCount: 1,
+              endsAt: assignment.endTime,
+              entryDate: start,
+              hoursPerEmployee,
+              internalRateCents: 0,
+              label: crewLabel,
+              notes: `aus Planung übernommen, keine Mitarbeiter zugeordnet (${formatIsoDate(start)})`,
+              realRateCents: 0,
+              source: "DISPOSITION_IMPORT",
+              startsAt: assignment.startTime,
+              totalHours: Math.round(hoursPerEmployee * 100) / 100,
+            }),
+          ];
+        }
+
+        return employeeIds.map((employeeId) => {
+          const employee = employeeById.get(employeeId);
+          const rates = employeeRateFor(employee);
+          const label = employee ? `${employee.lastName}, ${employee.firstName}` : crewLabel;
+
+          return costedHourEntry({
+            employeeCount: 1,
+            employeeId,
+            endsAt: assignment.endTime,
+            entryDate: start,
+            hoursPerEmployee,
+            internalRateCents: rates.internalRateCents,
+            label,
+            notes: `aus Planung übernommen, ${crewLabel} (${formatIsoDate(start)})`,
+            realRateCents: rates.realRateCents,
+            source: "DISPOSITION_IMPORT",
+            startsAt: assignment.startTime,
+            totalHours: Math.round(hoursPerEmployee * 100) / 100,
+          });
+        });
+      });
   const importedHourKeys = new Set(
     hourEntries.map((entry) => `${entry.entryDate.toISOString()}|${entry.label}`),
   );
@@ -1610,7 +1693,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   revalidateControlling();
   redirect(
     pathFor(reportId, projectId, {
-      message: `Übernommen: ${hourEntries.length} Stundenzeilen und ${detailEntries.length} Positionszeilen aus Planung/Disposition. Verwendeter Satzstand: ${rateSet.name} (${rateSet.year}).`,
+      message: `Übernommen: ${hourEntries.length} Stundenzeilen (${useActualHours ? "aus Zeiterfassung, freigegeben" : "aus Planung/Disposition"}) und ${detailEntries.length} Positionszeilen aus Planung/Disposition. Verwendeter Satzstand: ${rateSet.name} (${rateSet.year}).`,
       type: "success",
     }),
   );

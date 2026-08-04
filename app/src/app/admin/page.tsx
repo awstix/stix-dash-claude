@@ -46,6 +46,12 @@ const adminSections: AdminSection[] = [
         href: "/admin/users",
       },
       {
+        title: "Nutzerrollen",
+        description:
+          "Rechte je Rolle festlegen: Lesen, Erstellen, Bearbeiten, Löschen und Projekt-Scope für jeden Menüpunkt.",
+        href: "/admin/permissions",
+      },
+      {
         title: "Kolonnen",
         description:
           "Kolonnen aus Mitarbeitern anhand Berufsgruppen erstellen, Standardpersonen und spätere Gerätezuordnungen verwalten.",

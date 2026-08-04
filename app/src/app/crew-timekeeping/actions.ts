@@ -247,7 +247,13 @@ export async function getCrewTimeEntryForEdit(entryId: string) {
     workDate: entry.workDate.toISOString().slice(0, 10),
   };
 
-  return { input, locked, status: entry.status };
+  return {
+    input,
+    lastChangedAt: entry.updatedAt.toISOString(),
+    lastChangedByName: entry.recordedByName,
+    locked,
+    status: entry.status,
+  };
 }
 
 export async function approveCrewTimeEntry(entryId: string) {

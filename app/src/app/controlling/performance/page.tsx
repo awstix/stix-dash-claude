@@ -544,8 +544,21 @@ export default async function ControllingPerformancePage({
                 <form action={importDispositionIntoPerformanceReport} className="mt-5">
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
+                  <fieldset className="flex flex-wrap gap-4 text-xs font-semibold text-gray-700">
+                    <legend className="mb-1.5 w-full text-xs font-bold text-gray-900">
+                      Personalstunden aus:
+                    </legend>
+                    <label className="flex items-center gap-1.5">
+                      <input defaultChecked name="hourSource" type="radio" value="planned" />
+                      Geplante Dispo-Stunden (Personaleinsatzplanung)
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input name="hourSource" type="radio" value="actual" />
+                      Tatsächlich gebuchte Stunden (freigegebene Zeiterfassung)
+                    </label>
+                  </fieldset>
                   <button
-                    className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
+                    className={`mt-3 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
                       activeRateSet
                         ? "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
                         : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
@@ -557,7 +570,8 @@ export default async function ControllingPerformancePage({
                   </button>
                   <p className="mt-2 text-xs text-gray-500">
                     Ersetzt nur automatisch übernommene Controlling-Zeilen für diesen Zeitraum.
-                    Manuelle Einträge bleiben erhalten.
+                    Manuelle Einträge bleiben erhalten. Material und Geräte kommen unabhängig von der
+                    Auswahl oben weiterhin aus der Disposition.
                   </p>
                 </form>
               </section>

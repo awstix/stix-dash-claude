@@ -3263,3 +3263,50 @@ model SafetyDataSheet {
   @@index([uploadedAt])
   @@index([documentType])
 }
+
+/// Rechte-Matrix je Portal-Rolle (Admin > Mitarbeiter > Nutzerrollen). Eine Zeile
+/// pro (Rolle, Menüpunkt) – ohne Zeile gilt "kein Zugriff". moduleKey/featureKey
+/// verweisen auf src/lib/portal-features.ts, nicht auf den Pfad, damit
+/// Menü-Umbenennungen die gespeicherten Rechte nicht verwaisen lassen.
+model PortalPermission {
+  id String @id @default(cuid())
+
+  roleKey    String
+  moduleKey  String
+  featureKey String
+
+  canRead   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  /// "all" (alle Projekte) oder "own" (nur eigene Projekte) – nur relevant für
+  /// projektbezogene Menüpunkte, sonst ignoriert.
+  projectScope String @default("all")
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([roleKey, featureKey])
+  @@index([roleKey])
+  @@index([moduleKey])
+}
+
+/// Portal-Rolle (Admin > Mitarbeiter > Nutzerrollen). Die elf ursprünglichen Rollen
+/// sind als isBuiltIn markiert (Key & Löschen gesperrt, da an mehreren Stellen im Code
+/// fest auf den Key geprüft wird, z. B. "admin"/"construction_manager") – Label und
+/// Beschreibung bleiben aber überall editierbar. Neue Rollen sind frei editier- und
+/// löschbar.
+model PortalRole {
+  id String @id @default(cuid())
+
+  key         String  @unique
+  label       String
+  description String?
+  isBuiltIn   Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}

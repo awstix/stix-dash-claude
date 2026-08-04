@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
-import { portalRoleLabels, portalRoles } from "@/lib/portal-roles";
+import { getPortalRoles } from "@/lib/portal-roles";
 import {
   approvePortalUser,
   createPortalUser,
@@ -11,7 +11,7 @@ import {
 
 export default async function PortalUsersPage() {
   await requireAdmin();
-  const [users, employees] = await Promise.all([
+  const [users, employees, portalRoles] = await Promise.all([
     prisma.user.findMany({
       include: { employee: true },
       orderBy: { name: "asc" },
@@ -23,9 +23,15 @@ export default async function PortalUsersPage() {
         statusValue: "active",
       },
     }),
+    getPortalRoles(),
   ]);
   const inputClass =
     "mt-2 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-gray-950";
+
+  function labelsForRoleValue(value: string | null | undefined) {
+    const keys = new Set(String(value ?? "").split(",").map((role) => role.trim()));
+    return portalRoles.filter((role) => keys.has(role.key)).map((role) => role.label);
+  }
 
   return (
     <AppShell
@@ -121,7 +127,7 @@ export default async function PortalUsersPage() {
                   </Link>
                 </td>
                 <td className="p-3 font-bold">
-                  {portalRoleLabels(user.role).join(", ") || "Mitarbeiter"}
+                  {labelsForRoleValue(user.role).join(", ") || "Mitarbeiter"}
                 </td>
                 <td className="p-3">
                   {user.employee

@@ -1,4 +1,17 @@
-export const portalRoles = [
+import { prisma } from "@/lib/prisma";
+
+export type PortalRole = {
+  description: string | null;
+  id: string;
+  isBuiltIn: boolean;
+  key: string;
+  label: string;
+  sortOrder: number;
+};
+
+/** Die elf ursprünglichen Rollen – nur zum einmaligen Befüllen der Tabelle beim
+ * ersten Aufruf, danach ist die Datenbank die Quelle der Wahrheit. */
+const builtInPortalRoles: { key: string; label: string }[] = [
   { key: "admin", label: "Administrator" },
   { key: "foreman", label: "Polier" },
   { key: "accounting", label: "Buchhaltung" },
@@ -10,22 +23,47 @@ export const portalRoles = [
   { key: "mixing_plant_management", label: "Leitung Mischanlage" },
   { key: "construction_management", label: "Leitung Bauleitung" },
   { key: "estimating_management", label: "Leitung Kalkulation" },
-] as const;
+];
 
-export const portalRoleKeys = new Set<string>(
-  portalRoles.map((role) => role.key),
-);
+export async function ensurePortalRolesSeeded() {
+  const count = await prisma.portalRole.count();
 
-export function parsePortalRoles(value: string | null | undefined) {
+  if (count > 0) {
+    return;
+  }
+
+  await prisma.portalRole.createMany({
+    data: builtInPortalRoles.map((role, index) => ({
+      isBuiltIn: true,
+      key: role.key,
+      label: role.label,
+      sortOrder: (index + 1) * 10,
+    })),
+  });
+}
+
+export async function getPortalRoles(): Promise<PortalRole[]> {
+  await ensurePortalRolesSeeded();
+  return prisma.portalRole.findMany({
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+}
+
+export async function getPortalRoleKeys(): Promise<Set<string>> {
+  const roles = await getPortalRoles();
+  return new Set(roles.map((role) => role.key));
+}
+
+export async function parsePortalRoles(value: string | null | undefined) {
+  const validKeys = await getPortalRoleKeys();
   return String(value ?? "")
     .split(",")
     .map((role) => role.trim())
-    .filter((role) => portalRoleKeys.has(role));
+    .filter((role) => validKeys.has(role));
 }
 
-export function portalRoleLabels(value: string | null | undefined) {
-  const selected = new Set(parsePortalRoles(value));
-  return portalRoles
-    .filter((role) => selected.has(role.key))
-    .map((role) => role.label);
+export async function portalRoleLabels(value: string | null | undefined) {
+  const roles = await getPortalRoles();
+  const selected = new Set(await parsePortalRoles(value));
+  return roles.filter((role) => selected.has(role.key)).map((role) => role.label);
 }

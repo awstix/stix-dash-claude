@@ -8,8 +8,13 @@ import { prisma } from "@/lib/prisma";
 import { leaveRequestIdsInProjectScope } from "@/lib/leave-request-access";
 import { DashboardGrid } from "./DashboardGrid";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ access?: string }>;
+}) {
   const session = await requireSession();
+  const accessDenied = (await searchParams)?.access === "denied";
   const [
     activeProjectCount,
     inventoryLocationAlertCount,
@@ -612,6 +617,11 @@ export default async function DashboardPage() {
       title="Dashboard"
       description="Rollenbasierte Übersicht über Projekte, Dispositionen und offene Aufgaben."
     >
+      {accessDenied ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
+          Kein Zugriff: Für deine Rolle ist dieser Bereich nicht freigegeben.
+        </div>
+      ) : null}
       <DashboardGrid available={availableTiles} initial={dashboardTiles} />
     </AppShell>
   );

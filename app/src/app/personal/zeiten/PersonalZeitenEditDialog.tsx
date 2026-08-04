@@ -36,6 +36,16 @@ function ratioFromMinutes(minutes: number) {
   return Math.min(1, Math.max(0, (minutes - RANGE_START_MIN) / RANGE_SPAN_MIN));
 }
 
+function formatChangedAt(value: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 const hourTicks = Array.from(
   { length: RANGE_SPAN_MIN / 60 + 1 },
   (_, index) => RANGE_START_MIN + index * 60,
@@ -63,6 +73,7 @@ export function PersonalZeitenEditDialog({
   const [isSaving, startSaving] = useTransition();
   const [entryInput, setEntryInput] = useState<CrewTimeEntryInput | null>(null);
   const [locked, setLocked] = useState(false);
+  const [lastChange, setLastChange] = useState<{ at: string; byName: string | null } | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   function openDialog() {
@@ -70,11 +81,13 @@ export function PersonalZeitenEditDialog({
     setError("");
     setMessage("");
     setEntryInput(null);
+    setLastChange(null);
     startLoading(async () => {
       try {
         const result = await getCrewTimeEntryForEdit(entryId);
         setEntryInput(result.input);
         setLocked(result.locked);
+        setLastChange({ at: result.lastChangedAt, byName: result.lastChangedByName });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
       }
@@ -211,6 +224,12 @@ export function PersonalZeitenEditDialog({
                   <p className="mt-1 text-sm text-gray-600">
                     {employee?.employeeName} · {entryInput.workDate} · {entryInput.projectNumber}{" "}
                     {entryInput.projectName}
+                  </p>
+                ) : null}
+                {lastChange ? (
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
+                    Zuletzt geändert von {lastChange.byName || "unbekannt"} am{" "}
+                    {formatChangedAt(lastChange.at)}
                   </p>
                 ) : null}
               </div>

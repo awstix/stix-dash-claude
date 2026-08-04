@@ -4,7 +4,22 @@ import { AppHeader } from "./AppHeader";
 import { GlobalFormFeedback } from "./GlobalFormFeedback";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { portalFeatureByPath } from "@/lib/portal-features";
+import { getVisibleFeatureKeysForUser } from "@/lib/portal-permissions";
 import { portalRoleLabels } from "@/lib/portal-roles";
+
+type NavigationItem = { href: string; name: string };
+
+/** Blendet Menüpunkte aus, für die die aktuelle Rollen-Kombination laut
+ * Rechte-Matrix kein "Lesen" hat. Einträge ohne Katalog-Eintrag (z. B. Tippfehler
+ * im Pfad) bleiben sicherheitshalber sichtbar, statt versehentlich zu verschwinden. */
+function filterNavigationByVisibility(items: NavigationItem[], visibleFeatureKeys: Set<string> | "all") {
+  if (visibleFeatureKeys === "all") return items;
+  return items.filter((item) => {
+    const feature = portalFeatureByPath.get(item.href);
+    return !feature || visibleFeatureKeys.has(feature.featureKey);
+  });
+}
 
 const primaryNavigation = [
   { name: "Dashboard", href: "/dashboard" },
@@ -35,7 +50,6 @@ const workshopNavigation = [
 
 const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
-  { name: "Feiertage & arbeitsfreie Tage", href: "/disposition/holidays" },
   { name: "Gerätedisposition", href: "/equipment-dispatch" },
   { name: "Kolonnen-Zeiterfassung", href: "/crew-timekeeping" },
   { name: "Planung", href: "/crew-dispatch" },
@@ -85,6 +99,7 @@ const employeeNavigation = [
   { name: "Jahreskalender", href: "/personal/jahreskalender" },
   { name: "Skills", href: "/personal/skills" },
   { name: "Arbeitszeit", href: "/admin/working-time" },
+  { name: "Feiertage & arbeitsfreie Tage", href: "/disposition/holidays" },
   { name: "Führerscheinkontrolle", href: "/employees/driver-licenses" },
   { name: "Mitarbeiterakte", href: "/employees/certificates" },
   { name: "Mitarbeiterverwaltung", href: "/employees" },
@@ -117,10 +132,12 @@ export async function AppShell({
       .map((role) => role.trim()),
   );
   const admin = roles.has("admin");
-  const visibleSecondaryNavigation = secondaryNavigation.filter(
-    (item) => item.href !== "/admin",
+  const visibleFeatureKeys = await getVisibleFeatureKeysForUser(session.user.role);
+  const visibleSecondaryNavigation = filterNavigationByVisibility(
+    secondaryNavigation.filter((item) => item.href !== "/admin"),
+    visibleFeatureKeys,
   );
-  const currentUserRoleLabel = portalRoleLabels(session.user.role).join(" / ");
+  const currentUserRoleLabel = (await portalRoleLabels(session.user.role)).join(" / ");
   const unreadNotificationCount = admin
     ? await prisma.notification.count({ where: { read: false } })
     : 0;
@@ -132,17 +149,17 @@ export async function AppShell({
         companyName={company?.companyName ?? "Stix"}
         currentUserName={session.user.name}
         currentUserRoleLabel={currentUserRoleLabel}
-        controllingNavigation={controllingNavigation}
-        dispositionNavigation={dispositionNavigation}
-        employeeNavigation={employeeNavigation}
-        inventoryNavigation={inventoryNavigation}
+        controllingNavigation={filterNavigationByVisibility(controllingNavigation, visibleFeatureKeys)}
+        dispositionNavigation={filterNavigationByVisibility(dispositionNavigation, visibleFeatureKeys)}
+        employeeNavigation={filterNavigationByVisibility(employeeNavigation, visibleFeatureKeys)}
+        inventoryNavigation={filterNavigationByVisibility(inventoryNavigation, visibleFeatureKeys)}
         primaryNavigation={primaryNavigation}
-        projectNavigation={projectNavigation}
-        safetyNavigation={safetyNavigation}
+        projectNavigation={filterNavigationByVisibility(projectNavigation, visibleFeatureKeys)}
+        safetyNavigation={filterNavigationByVisibility(safetyNavigation, visibleFeatureKeys)}
         secondaryNavigation={visibleSecondaryNavigation}
         showAdminLink={admin}
         unreadNotificationCount={unreadNotificationCount}
-        workshopNavigation={workshopNavigation}
+        workshopNavigation={filterNavigationByVisibility(workshopNavigation, visibleFeatureKeys)}
       />
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">

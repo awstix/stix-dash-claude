@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-access";
 import { dashboardWidgets } from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
-import { portalRoleKeys } from "@/lib/portal-roles";
+import { getPortalRoleKeys } from "@/lib/portal-roles";
 
 export async function saveUserAccess(formData: FormData) {
   await requireAdmin();
@@ -27,10 +27,11 @@ export async function saveUserAccess(formData: FormData) {
     .getAll("projectId")
     .map(String)
     .filter((id) => validProjects.has(id));
+  const validRoleKeys = await getPortalRoleKeys();
   const roles = formData
     .getAll("role")
     .map(String)
-    .filter((role) => portalRoleKeys.has(role));
+    .filter((role) => validRoleKeys.has(role));
 
   await prisma.$transaction([
     prisma.user.update({

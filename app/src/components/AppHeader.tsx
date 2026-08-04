@@ -420,6 +420,8 @@ function MobileNavigationSection({
   label: string;
   onNavigate: () => void;
 }) {
+  if (items.length === 0) return null;
+
   return (
     <details className="rounded-xl border border-gray-300 bg-white">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 font-bold">
@@ -473,6 +475,8 @@ function NavigationMenu({
   onNavigate: () => void;
   onToggle: () => void;
 }) {
+  if (items.length === 0) return null;
+
   return (
     <div className="relative">
       <button
