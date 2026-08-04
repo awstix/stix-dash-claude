@@ -58,7 +58,7 @@ export default async function WorkTimeCalendarEditorPage({
   }
 
   const gridDayTypes = dayTypes.map((type) => ({
-    barClass: getWorkTimeDayTypeColor(type.colorKey).barClass,
+    colorStyle: getWorkTimeDayTypeColor(type.colorKey),
     hours: getNetWorkHoursForDay({
       breakfastEnd: type.breakfastEnd ?? "",
       breakfastStart: type.breakfastStart ?? "",

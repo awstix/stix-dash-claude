@@ -3,12 +3,13 @@ import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getNetWorkHoursForDay } from "@/lib/work-time";
-import { workTimeDayTypeColorOptions } from "@/lib/work-time-day-type-colors";
+import { defaultWorkTimeDayTypeColor, getWorkTimeDayTypeColor } from "@/lib/work-time-day-type-colors";
 import {
   createWorkTimeDayType,
   deleteWorkTimeDayType,
   updateWorkTimeDayType,
 } from "./actions";
+import { WorkTimeColorPicker } from "./WorkTimeColorPicker";
 
 type WorkTimeDayTypeRow = {
   breakfastEnd: string | null;
@@ -18,6 +19,7 @@ type WorkTimeDayTypeRow = {
   id: string;
   lunchEnd: string | null;
   lunchStart: string | null;
+  note: string | null;
   number: number;
   startTime: string | null;
 };
@@ -37,6 +39,11 @@ export default async function WorkTimeDayTypesPage() {
   const dayTypes = await prisma.workTimeDayType.findMany({
     orderBy: [{ number: "asc" }],
   });
+
+  const usedColors = dayTypes.map((dayType) => ({
+    hex: dayType.colorKey,
+    label: `Planzeit ${dayType.number}`,
+  }));
 
   return (
     <AppShell
@@ -72,44 +79,38 @@ export default async function WorkTimeDayTypesPage() {
                 <th className="p-3">Pause 2 bis</th>
                 <th className="p-3">Ende</th>
                 <th className="p-3">Std.</th>
+                <th className="p-3">Bemerkung</th>
                 <th className="p-3">Aktion</th>
               </tr>
             </thead>
             <tbody>
               {dayTypes.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
+                  <td colSpan={11} className="p-8 text-center text-gray-500">
                     Noch keine Planzeiten angelegt.
                   </td>
                 </tr>
               ) : (
                 dayTypes.map((dayType) => {
                   const formId = `day-type-${dayType.id}`;
-                  const color = workTimeDayTypeColorOptions.find(
-                    (option) => option.key === dayType.colorKey,
-                  );
+                  const color = getWorkTimeDayTypeColor(dayType.colorKey);
                   return (
                     <tr key={dayType.id} className="border-b border-gray-100 align-top">
                       <td className="p-3">
                         <span
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${color?.barClass ?? ""}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+                          style={{ backgroundColor: color.backgroundColor, color: color.color }}
                         >
                           {dayType.number}
                         </span>
                       </td>
                       <td className="p-3">
-                        <select
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-900"
+                        <WorkTimeColorPicker
                           defaultValue={dayType.colorKey}
-                          form={formId}
+                          formId={formId}
                           name="colorKey"
-                        >
-                          {workTimeDayTypeColorOptions.map((option) => (
-                            <option key={option.key} value={option.key}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                          usedColors={usedColors}
+                        />
                       </td>
                       <td className="p-3">
                         <input
@@ -169,6 +170,16 @@ export default async function WorkTimeDayTypesPage() {
                         {dayTypeHours(dayType).toLocaleString("de-DE")}
                       </td>
                       <td className="p-3">
+                        <input
+                          className="w-40 rounded-lg border border-gray-300 px-2 py-1.5 text-xs text-gray-900"
+                          defaultValue={dayType.note ?? ""}
+                          form={formId}
+                          name="note"
+                          placeholder="z. B. gilt ab April"
+                          type="text"
+                        />
+                      </td>
+                      <td className="p-3">
                         <form action={updateWorkTimeDayType} className="inline" id={formId}>
                           <input name="id" type="hidden" value={dayType.id} />
                         </form>
@@ -209,21 +220,17 @@ export default async function WorkTimeDayTypesPage() {
           Planzeit hinzufügen
         </summary>
 
-        <form action={createWorkTimeDayType} className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
-          <label className="text-xs font-semibold text-gray-700">
+        <form action={createWorkTimeDayType} className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-9">
+          <div className="text-xs font-semibold text-gray-700">
             Farbe
-            <select
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-              defaultValue="gray"
-              name="colorKey"
-            >
-              {workTimeDayTypeColorOptions.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="mt-1">
+              <WorkTimeColorPicker
+                defaultValue={defaultWorkTimeDayTypeColor}
+                name="colorKey"
+                usedColors={usedColors}
+              />
+            </div>
+          </div>
           <label className="text-xs font-semibold text-gray-700">
             Beginn
             <input
@@ -270,6 +277,15 @@ export default async function WorkTimeDayTypesPage() {
               className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
               name="endTime"
               type="time"
+            />
+          </label>
+          <label className="text-xs font-semibold text-gray-700">
+            Bemerkung
+            <input
+              className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900"
+              name="note"
+              placeholder="z. B. gilt ab April"
+              type="text"
             />
           </label>
           <div className="flex items-end">

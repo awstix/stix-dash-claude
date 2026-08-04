@@ -31,7 +31,7 @@ function weekdayForDate(year: number, month: number, day: number) {
 }
 
 export type WorkTimeCalendarGridDayType = {
-  barClass: string;
+  colorStyle: { backgroundColor: string; color: string };
   hours: number;
   id: string;
   number: number;
@@ -94,9 +94,10 @@ export function WorkTimeCalendarGrid({
           <button
             className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold ${
               activeTypeId === type.id ? "border-gray-900 ring-2 ring-gray-900" : "border-gray-300"
-            } ${type.barClass}`}
+            }`}
             key={type.id}
             onClick={() => onActiveTypeChange(type.id)}
+            style={type.colorStyle}
             type="button"
           >
             {type.number}. ({type.hours.toLocaleString("de-DE")} Std.)
@@ -161,12 +162,13 @@ export function WorkTimeCalendarGrid({
                           </div>
                           <div
                             className={`mx-auto flex h-6 w-6 cursor-pointer items-center justify-center rounded text-[10px] ${
-                              type ? type.barClass : "bg-white text-gray-500 hover:bg-gray-100"
+                              type ? "" : "bg-white text-gray-500 hover:bg-gray-100"
                             } ${overlay ? overlay.ringClass : ""} ${
                               dirty ? "outline outline-2 outline-offset-1 outline-blue-500" : ""
                             }`}
                             onPointerDown={handlePointerDown(key)}
                             onPointerEnter={handlePointerEnter(key)}
+                            style={type ? type.colorStyle : undefined}
                             title={title}
                           >
                             {day}

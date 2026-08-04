@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
-import { workTimeDayTypeColorOptions } from "@/lib/work-time-day-type-colors";
+import { defaultWorkTimeDayTypeColor, isHexColor } from "@/lib/work-time-day-type-colors";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -26,10 +26,8 @@ async function nextDayTypeNumber() {
 }
 
 function dayTypeFieldsFromFormData(formData: FormData) {
-  const colorKey = text(formData.get("colorKey")) || "gray";
-  if (!workTimeDayTypeColorOptions.some((option) => option.key === colorKey)) {
-    throw new Error("Bitte eine gültige Farbe auswählen.");
-  }
+  const rawColorKey = text(formData.get("colorKey")) || defaultWorkTimeDayTypeColor;
+  const colorKey = isHexColor(rawColorKey) ? rawColorKey.toLowerCase() : defaultWorkTimeDayTypeColor;
   const startTime = optionalTime(formData.get("startTime"));
   const endTime = optionalTime(formData.get("endTime"));
   if ((startTime && !endTime) || (!startTime && endTime)) {
@@ -43,6 +41,7 @@ function dayTypeFieldsFromFormData(formData: FormData) {
     endTime,
     lunchEnd: optionalTime(formData.get("lunchEnd")),
     lunchStart: optionalTime(formData.get("lunchStart")),
+    note: text(formData.get("note")) || null,
     startTime,
   };
 }

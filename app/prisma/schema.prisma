@@ -1716,9 +1716,10 @@ model WorkTimePreset {
 /// Planzeit: benannter, farbiger, wiederverwendbarer Tages-Baustein (Beginn/Pausen/Ende)
 /// für den Jahreskalender – Ersatz für die feste Wochentag-Bindung bei Sommer-/Winterzeit.
 model WorkTimeDayType {
-  id       String @id @default(cuid())
-  number   Int    @unique
-  colorKey String @default("gray")
+  id       String  @id @default(cuid())
+  number   Int     @unique
+  colorKey String  @default("gray")
+  note     String?
 
   startTime      String?
   breakfastStart String?
