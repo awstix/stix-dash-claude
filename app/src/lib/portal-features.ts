@@ -56,7 +56,6 @@ export const portalModules: PortalModule[] = [
       { key: "lkw_einteilung", label: "LKW-Einteilung", path: "/truck-dispatch" },
       { key: "lkw_einteilung_kurzstrecke", label: "LKW-Einteilung Kurzstrecke", path: "/truck-dispatch/short-haul" },
       { key: "lkw_einteilung_langstrecke", label: "LKW-Einteilung Langstrecke", path: "/truck-dispatch/long-haul" },
-      { key: "kolonnen_zeiterfassung", label: "Kolonnen-Zeiterfassung", path: "/crew-timekeeping" },
     ],
   },
   {
@@ -116,6 +115,8 @@ export const portalModules: PortalModule[] = [
     label: "Personal",
     features: [
       { key: "personal_uebersicht", label: "Personal-Übersicht", path: "/personal" },
+      { key: "kolonnen_zeiterfassung", label: "Kolonnen-Zeiterfassung", path: "/crew-timekeeping" },
+      { key: "stundenkontrolle", label: "Stundenkontrolle", path: "/crew-timekeeping/freigabe" },
       { key: "personalzeiten", label: "Personalzeiten", path: "/personal/zeiten" },
       { key: "abwesenheiten", label: "Abwesenheiten", path: "/personal/abwesenheiten" },
       { key: "zeitkonten", label: "Zeitkonten", path: "/personal/konten" },
@@ -146,6 +147,7 @@ export const portalModules: PortalModule[] = [
       { key: "nutzerrollen", label: "Nutzerrollen", path: "/admin/permissions", group: "Mitarbeiter" },
       { key: "kolonnen", label: "Kolonnen", path: "/admin/crews", group: "Mitarbeiter" },
       { key: "zeiterfassung_regeln", label: "Zeiterfassung (Freigabe-Regeln)", path: "/admin/time-tracking", group: "Mitarbeiter" },
+      { key: "taetigkeiten", label: "Tätigkeiten für Zeiterfassung", path: "/admin/working-time/taetigkeiten", group: "Mitarbeiter" },
       { key: "fahrer", label: "Fahrer", path: "/admin/drivers", group: "Fuhrpark & LKW" },
       { key: "fahrer_fahrzeug", label: "Fahrer-Fahrzeug-Zuordnung", path: "/admin/driver-vehicles", group: "Fuhrpark & LKW" },
       { key: "inventarkategorien", label: "Inventarkategorien", path: "/admin/inventory-categories", group: "Inventar" },

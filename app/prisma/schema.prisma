@@ -1789,9 +1789,10 @@ model CrewTimeEntry {
   crewId    String
   workDate  DateTime
 
-  projectNumber String @default("")
-  projectName   String @default("")
-  crewName      String @default("")
+  projectNumber String  @default("")
+  projectName   String  @default("")
+  crewName      String  @default("")
+  activityLabel String?
 
   defaultStartTime  String  @default("07:00")
   defaultEndTime    String  @default("17:00")
@@ -1861,10 +1862,52 @@ model CrewTimeEntryRevision {
   snapshotJson    String
   changedByUserId String?
   changedByName   String?
+  /// "LIVE" (Echtzeit-Stempelung) oder "NACHERFASSUNG" (nachträglich mit
+  /// frei gewähltem Zeitraum erfasst) – für die Kennzeichnung in der
+  /// Stundenkontrolle.
+  changeKind      String   @default("LIVE")
   createdAt       DateTime @default(now())
 
   @@unique([entryId, version])
   @@index([entryId])
+}
+
+/// Vom Polier selbst zusammengestellte, für künftige Buchungen gemerkte
+/// Mitgliederliste einer Kolonne (Team zusammenstellen) – überschreibt bei
+/// der Buchung die reguläre Crew-Besetzung (CrewMember), ohne diese zu
+/// verändern.
+model CrewTeamPreference {
+  id     String @id @default(cuid())
+  crewId String @unique
+  crew   Crew   @relation(fields: [crewId], references: [id], onDelete: Cascade)
+
+  members CrewTeamPreferenceMember[]
+
+  updatedAt DateTime @updatedAt
+}
+
+model CrewTeamPreferenceMember {
+  id           String             @id @default(cuid())
+  preferenceId String
+  preference   CrewTeamPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  employeeId String
+
+  @@unique([preferenceId, employeeId])
+}
+
+/// Tätigkeiten-Katalog für Kolonnen-Buchungen (z. B. "Arbeiten") – admin-
+/// verwaltet unter Admin > Arbeitszeit > Tätigkeiten.
+model CrewTimeActivity {
+  id        String  @id @default(cuid())
+  label     String
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
 }
 
 model Crew {
@@ -1890,6 +1933,7 @@ model Crew {
   equipmentDispatchAssignments      EquipmentDispatchAssignment[]
   specialVehicleDispatchAssignments SpecialVehicleDispatchAssignment[]
   inventoryAssignments              InventoryItem[]                    @relation("InventoryResponsibleCrew")
+  teamPreference                    CrewTeamPreference?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

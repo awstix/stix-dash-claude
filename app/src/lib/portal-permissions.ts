@@ -34,3 +34,35 @@ export async function getVisibleFeatureKeysForUser(
 
   return new Set(rows.filter((row) => row.canRead).map((row) => row.featureKey));
 }
+
+/** Projekt-Scope eines Nutzers für ein einzelnes Feature (z. B. Kolonnen-
+ * Zeiterfassung): "all" = alle aktiven Baustellen wählbar, "own" = nur die
+ * dem Nutzer zugeordneten. Vereinigung über alle Rollen – sobald eine Rolle
+ * "all" erlaubt (oder unkonfiguriert ist), gilt "all" für den Nutzer, analog
+ * zu getVisibleFeatureKeysForUser. */
+export async function getProjectScopeForUser(
+  roleValue: string | null | undefined,
+  featureKey: string,
+): Promise<"all" | "own"> {
+  const roleKeys = String(roleValue ?? "")
+    .split(",")
+    .map((role) => role.trim())
+    .filter(Boolean);
+
+  if (roleKeys.length === 0 || roleKeys.includes("admin")) {
+    return "all";
+  }
+
+  const rows = await prisma.portalPermission.findMany({
+    select: { projectScope: true, roleKey: true },
+    where: { featureKey, roleKey: { in: roleKeys } },
+  });
+  const configuredRoleKeys = new Set(rows.map((row) => row.roleKey));
+  const hasUnconfiguredRole = roleKeys.some((roleKey) => !configuredRoleKeys.has(roleKey));
+
+  if (hasUnconfiguredRole || rows.some((row) => row.projectScope === "all")) {
+    return "all";
+  }
+
+  return "own";
+}

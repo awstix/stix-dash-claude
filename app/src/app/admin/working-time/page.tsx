@@ -440,6 +440,12 @@ export default async function WorkingTimePage({
               Planzeiten verwalten
             </Link>
             <Link
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href="/admin/working-time/taetigkeiten"
+            >
+              Tätigkeiten verwalten
+            </Link>
+            <Link
               className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
               href="/admin/working-time/kalender"
             >

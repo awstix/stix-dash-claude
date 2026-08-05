@@ -63,6 +63,18 @@ const adminSections: AdminSection[] = [
           "Standard für automatische Stundenfreigabe und Erinnerungsmails an die Bauleitung bei offenen Freigaben.",
         href: "/admin/time-tracking",
       },
+      {
+        title: "Arbeitszeit",
+        description:
+          "Planzeiten (Tages-Bausteine) und Jahreskalender verwalten.",
+        href: "/admin/working-time",
+      },
+      {
+        title: "Tätigkeiten für Zeiterfassung",
+        description:
+          "Katalog der Tätigkeiten, die Poliere/Mitarbeiter bei einer Kolonnen-Buchung auswählen (z. B. Arbeiten).",
+        href: "/admin/working-time/taetigkeiten",
+      },
     ],
   },
   {

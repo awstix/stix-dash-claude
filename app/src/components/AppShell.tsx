@@ -51,7 +51,6 @@ const workshopNavigation = [
 const dispositionNavigation = [
   { name: "Asphaltdisposition", href: "/asphalt-dispatch" },
   { name: "Gerätedisposition", href: "/equipment-dispatch" },
-  { name: "Kolonnen-Zeiterfassung", href: "/crew-timekeeping" },
   { name: "Planung", href: "/crew-dispatch" },
   { name: "LKW-Einteilung", href: "/truck-dispatch" },
   { name: "LKW-Einteilung Kurzstrecke", href: "/truck-dispatch/short-haul" },
@@ -92,6 +91,8 @@ const safetyNavigation = [
 
 const employeeNavigation = [
   { name: "Personal-Übersicht", href: "/personal" },
+  { name: "Kolonnen-Zeiterfassung", href: "/crew-timekeeping" },
+  { name: "Stundenkontrolle", href: "/crew-timekeeping/freigabe" },
   { name: "Personalzeiten", href: "/personal/zeiten" },
   { name: "Abwesenheiten", href: "/personal/abwesenheiten" },
   { name: "Zeitkonten", href: "/personal/konten" },

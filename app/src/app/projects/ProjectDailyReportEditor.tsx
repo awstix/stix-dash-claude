@@ -72,6 +72,39 @@ function setDailyReportDirty(isDirty: boolean) {
     isDirty;
 }
 
+function timeToMinutesOrNull(value: string) {
+  return /^\d{2}:\d{2}$/.test(value)
+    ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5))
+    : null;
+}
+
+/** Nettostunden für die allgemeine Arbeitszeit des Bautagesberichts (Arbeitszeit
+ * von/bis minus Pausen). Bewusst lokal statt aus @/lib/work-time importiert –
+ * diese Komponente ist "use client", und work-time.ts hängt an prisma. */
+function netWorkWindowHours(
+  start: string,
+  end: string,
+  break1From: string,
+  break1To: string,
+  break2From: string,
+  break2To: string,
+) {
+  const startMinutes = timeToMinutesOrNull(start);
+  const endMinutes = timeToMinutesOrNull(end);
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return 0;
+
+  function breakMinutes(from: string, to: string) {
+    const fromMinutes = timeToMinutesOrNull(from);
+    const toMinutes = timeToMinutesOrNull(to);
+    if (fromMinutes === null || toMinutes === null || toMinutes <= fromMinutes) return 0;
+    return toMinutes - fromMinutes;
+  }
+
+  const grossMinutes = endMinutes - startMinutes;
+  const pauseMinutes = breakMinutes(break1From, break1To) + breakMinutes(break2From, break2To);
+  return Math.max(0, (grossMinutes - pauseMinutes) / 60);
+}
+
 export function ProjectDailyReportEditor({
   context,
   exportHref,
@@ -85,6 +118,8 @@ export function ProjectDailyReportEditor({
   const [isPending, startTransition] = useTransition();
   const [saveMessage, setSaveMessage] = useState("");
   const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
+  const [showWorkWindowHint, setShowWorkWindowHint] = useState(false);
+  const [workWindowHintDismissed, setWorkWindowHintDismissed] = useState(false);
   const [form, setForm] = useState<ReportFormState>(() =>
     createInitialState(context),
   );
@@ -115,6 +150,78 @@ export function ProjectDailyReportEditor({
       ...current,
       [key]: value,
     }));
+  }
+
+  /** Für Arbeitszeit von/bis + Pause 1/2: aktualisiert zusätzlich die
+   * Stunden je Arbeitskräfte-Zeile (Anzahl × Nettozeit des neuen
+   * Zeitfensters) – wirkt sich bewusst nur auf diesen Bautagesbericht aus,
+   * nie auf die Kolonnen-Zeiterfassung oder Lohnbuchhaltung. */
+  function updateWorkWindow(
+    key: "workStart" | "workEnd" | "break1From" | "break1To" | "break2From" | "break2To",
+    value: string,
+  ) {
+    markDirty();
+    if (!workWindowHintDismissed) setShowWorkWindowHint(true);
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      const netHours = netWorkWindowHours(
+        next.workStart,
+        next.workEnd,
+        next.break1From,
+        next.break1To,
+        next.break2From,
+        next.break2To,
+      );
+      return {
+        ...next,
+        laborRows: next.laborRows.map((row) => ({
+          ...row,
+          hours: Math.round(row.count * netHours * 100) / 100,
+        })),
+      };
+    });
+  }
+
+  /** Übernimmt Arbeitszeit + Pausen komplett aus der geplanten Vorlage
+   * (Jahreskalender) oder aus der bereits freigegebenen Kolonnen-
+   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte-Stunden. */
+  function applyWorkWindowSource(source: "plan" | "approved") {
+    const { suggestions } = context;
+    const start = source === "plan" ? suggestions.planWorkStart : suggestions.approvedWorkStart;
+    const end = source === "plan" ? suggestions.planWorkEnd : suggestions.approvedWorkEnd;
+    if (!start || !end) return;
+    markDirty();
+    if (!workWindowHintDismissed) setShowWorkWindowHint(true);
+    setForm((current) => {
+      const next = {
+        ...current,
+        // Bewusst immer die zur Quelle passenden Pausen setzen (auch wenn leer,
+        // z. B. keine Pause im Arbeitsplan hinterlegt) statt alte Werte stehen zu
+        // lassen – sonst könnten z. B. freigegebene Pausenzeiten unbemerkt bei
+        // "Nach Arbeitsplan" hängen bleiben.
+        break1From: source === "plan" ? suggestions.planBreak1From : suggestions.approvedBreak1From,
+        break1To: source === "plan" ? suggestions.planBreak1To : suggestions.approvedBreak1To,
+        break2From: source === "plan" ? suggestions.planBreak2From : suggestions.approvedBreak2From,
+        break2To: source === "plan" ? suggestions.planBreak2To : suggestions.approvedBreak2To,
+        workEnd: end,
+        workStart: start,
+      };
+      const netHours = netWorkWindowHours(
+        next.workStart,
+        next.workEnd,
+        next.break1From,
+        next.break1To,
+        next.break2From,
+        next.break2To,
+      );
+      return {
+        ...next,
+        laborRows: next.laborRows.map((row) => ({
+          ...row,
+          hours: Math.round(row.count * netHours * 100) / 100,
+        })),
+      };
+    });
   }
 
   function toggleApproval(fieldId: string, checked: boolean) {
@@ -550,45 +657,87 @@ export function ProjectDailyReportEditor({
           onToggle={toggleApproval}
           title="Arbeitszeit"
         />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!context.suggestions.planWorkStart || !context.suggestions.planWorkEnd}
+            onClick={() => applyWorkWindowSource("plan")}
+            type="button"
+          >
+            ↺ Nach Arbeitsplan
+            {context.suggestions.planWorkStart
+              ? ` (${context.suggestions.planWorkStart}–${context.suggestions.planWorkEnd})`
+              : ""}
+          </button>
+          <button
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!context.suggestions.approvedWorkStart || !context.suggestions.approvedWorkEnd}
+            onClick={() => applyWorkWindowSource("approved")}
+            type="button"
+          >
+            ↺ Nach freigegebenen Stunden
+            {context.suggestions.approvedWorkStart
+              ? ` (${context.suggestions.approvedWorkStart}–${context.suggestions.approvedWorkEnd})`
+              : " (noch keine freigegeben)"}
+          </button>
+        </div>
+        {showWorkWindowHint ? (
+          <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <p>
+              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; unten an – wirkt sich nur
+              auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die Lohnbuchhaltung.
+            </p>
+            <button
+              className="shrink-0 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+              onClick={() => {
+                setShowWorkWindowHint(false);
+                setWorkWindowHintDismissed(true);
+              }}
+              type="button"
+            >
+              Verstanden
+            </button>
+          </div>
+        ) : null}
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <LabeledInput
             label="Arbeitszeit von"
-            onChange={(value) => updateValue("workStart", value)}
+            onChange={(value) => updateWorkWindow("workStart", value)}
             suggestion={context.suggestions.workStart}
             type="time"
             value={form.workStart}
           />
           <LabeledInput
             label="Arbeitszeit bis"
-            onChange={(value) => updateValue("workEnd", value)}
+            onChange={(value) => updateWorkWindow("workEnd", value)}
             suggestion={context.suggestions.workEnd}
             type="time"
             value={form.workEnd}
           />
           <LabeledInput
             label="Pause 1 von"
-            onChange={(value) => updateValue("break1From", value)}
+            onChange={(value) => updateWorkWindow("break1From", value)}
             suggestion={context.suggestions.break1From}
             type="time"
             value={form.break1From}
           />
           <LabeledInput
             label="Pause 1 bis"
-            onChange={(value) => updateValue("break1To", value)}
+            onChange={(value) => updateWorkWindow("break1To", value)}
             suggestion={context.suggestions.break1To}
             type="time"
             value={form.break1To}
           />
           <LabeledInput
             label="Pause 2 von"
-            onChange={(value) => updateValue("break2From", value)}
+            onChange={(value) => updateWorkWindow("break2From", value)}
             suggestion={context.suggestions.break2From}
             type="time"
             value={form.break2From}
           />
           <LabeledInput
             label="Pause 2 bis"
-            onChange={(value) => updateValue("break2To", value)}
+            onChange={(value) => updateWorkWindow("break2To", value)}
             suggestion={context.suggestions.break2To}
             type="time"
             value={form.break2To}

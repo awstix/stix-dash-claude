@@ -156,7 +156,7 @@ export function PersonalZeitenEditDialog({
     setMessage("");
     startSaving(async () => {
       try {
-        await saveCrewTimeEntry(entryInput);
+        await saveCrewTimeEntry(entryInput, "KORREKTUR");
         setMessage("Gespeichert.");
         router.refresh();
         window.setTimeout(() => close(), 600);

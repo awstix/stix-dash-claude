@@ -91,6 +91,14 @@ export type DailyReportContext = {
 };
 
 export type DailyReportSuggestionValues = {
+  approvedBreak1From: string;
+  approvedBreak1To: string;
+  approvedBreak2From: string;
+  approvedBreak2To: string;
+  /** Freigegebene reale Arbeitszeit, falls für den Tag bereits eine
+   * Kolonnen-Zeiterfassung freigegeben wurde (sonst leer). */
+  approvedWorkEnd: string;
+  approvedWorkStart: string;
   break1From: string;
   break1To: string;
   break2From: string;
@@ -103,6 +111,15 @@ export type DailyReportSuggestionValues = {
   realMachineRows: DailyReportCountRow[];
   subcontractorRows: DailyReportCountRow[];
   performanceLines: string[];
+  /** Pausen laut Arbeitszeit-Vorlage/Jahreskalender für diesen Tag (unabhängig
+   * von einer eventuell freigegebenen Zeiterfassung). */
+  planBreak1From: string;
+  planBreak1To: string;
+  planBreak2From: string;
+  planBreak2To: string;
+  /** Geplante Arbeitszeit laut Arbeitszeit-Vorlage/Jahreskalender für diesen Tag. */
+  planWorkEnd: string;
+  planWorkStart: string;
   projectName: string;
   projectNumber: string;
   tempMax: string;
@@ -1282,11 +1299,20 @@ export function buildDailyReportContext(
 
   const dailyReport = project.dailyReports[0] ?? null;
   const weatherLog = project.weatherLogs[0] ?? null;
+  const approvedTimeEntry = project.crewTimeEntries.find(
+    (entry) => entry.status === "APPROVED",
+  );
+  // Solange keine Zeiterfassung freigegeben ist, gilt die geplante Arbeitszeit
+  // (Vorlage/Jahreskalender). Sobald Stunden freigegeben sind, hat die reale
+  // freigegebene Arbeitszeit Vorrang – analog zu den Pausen weiter unten.
   const suggestedWorkStart =
+    approvedTimeEntry?.defaultStartTime ||
     reportWorkDay.startTime ||
     earliestTime(workTimes.map((time) => time.start));
   const suggestedWorkEnd =
-    reportWorkDay.endTime || latestTime(workTimes.map((time) => time.end));
+    approvedTimeEntry?.defaultEndTime ||
+    reportWorkDay.endTime ||
+    latestTime(workTimes.map((time) => time.end));
   const workTimeWeather = getWeatherForWorkTime(
     weatherLog,
     dateKey,
@@ -1324,9 +1350,6 @@ export function buildDailyReportContext(
     dailyReportPerformanceLineLimit,
   );
   const suggestedWeekday = formatWeekday(dateKey);
-  const approvedTimeEntry = project.crewTimeEntries.find(
-    (entry) => entry.status === "APPROVED",
-  );
   // Erst die tatsächlich erfassten Pausen aus einer freigegebenen Zeiterfassung,
   // sonst die Pausen der für diesen Tag geltenden Arbeitszeit (Vorlage oder Kalender).
   const suggestedBreak1From = approvedTimeEntry?.defaultBreak1From || reportWorkDay.breakfastStart || "";
@@ -1416,6 +1439,12 @@ export function buildDailyReportContext(
       ? dailyReport?.status ?? "DRAFT"
       : "DRAFT",
     suggestions: {
+      approvedBreak1From: approvedTimeEntry?.defaultBreak1From ?? "",
+      approvedBreak1To: approvedTimeEntry?.defaultBreak1To ?? "",
+      approvedBreak2From: approvedTimeEntry?.defaultBreak2From ?? "",
+      approvedBreak2To: approvedTimeEntry?.defaultBreak2To ?? "",
+      approvedWorkEnd: approvedTimeEntry?.defaultEndTime ?? "",
+      approvedWorkStart: approvedTimeEntry?.defaultStartTime ?? "",
       break1From: suggestedBreak1From,
       break1To: suggestedBreak1To,
       break2From: suggestedBreak2From,
@@ -1426,6 +1455,12 @@ export function buildDailyReportContext(
       machineRows: suggestedMachineRows,
       otherRows: suggestedOtherRows,
       performanceLines: suggestedPerformanceLines,
+      planBreak1From: reportWorkDay.breakfastStart || "",
+      planBreak1To: reportWorkDay.breakfastEnd || "",
+      planBreak2From: reportWorkDay.lunchStart || "",
+      planBreak2To: reportWorkDay.lunchEnd || "",
+      planWorkEnd: reportWorkDay.endTime || "",
+      planWorkStart: reportWorkDay.startTime || "",
       projectName: project.name,
       projectNumber: project.projectNumber,
       tempMax: formatTemperature(suggestedTempMax),
