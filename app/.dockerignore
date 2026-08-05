@@ -1,0 +1,12 @@
+node_modules
+.next
+dev.db
+dev.db-journal
+dev.db-wal
+dev.db-shm
+public/uploads
+public/exports
+.env
+.env.local
+.git
+npm-debug.log*

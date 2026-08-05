@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   description: "Zentrale Projekt- und Dispositionsverwaltung",
 };
 
+// Komplette App ist login-/datenbankabhängig und darf beim Bauen nie
+// statisch vorgerendert werden (dabei existiert noch keine Datenbank-
+// Verbindung, z. B. im Docker-Build) – erzwingt dynamisches Rendering für
+// jede Seite.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -9,3 +9,7 @@ app/public/uploads/safety-data-sheets/**
 app/public/uploads/safety-operating-instructions/**
 output/
 tmp/
+backups/
+data/
+uploads/
+exports/
