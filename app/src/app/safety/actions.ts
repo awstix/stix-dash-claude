@@ -541,8 +541,8 @@ export async function createSafetyAccidentReport(formData: FormData) {
   const report = await prisma.safetyAccidentReport.create({
     data: {
       ...reportData,
-      employee: employeeRelation,
-      project: projectRelation,
+      ...("connect" in employeeRelation ? { employee: employeeRelation } : {}),
+      ...("connect" in projectRelation ? { project: projectRelation } : {}),
       reportDate: new Date(),
       status: "OPEN",
     },
