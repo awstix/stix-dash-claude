@@ -1,11 +1,12 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
+import { deleteFile, putFile } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
 
 const allowedCategories = new Set([
   "DRIVER_LICENSE",
@@ -221,15 +222,6 @@ export async function uploadEmployeeQualificationDocuments(formData: FormData) {
     throw new Error("Mitarbeiter wurde nicht gefunden.");
   }
 
-  const targetDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "employee-qualifications",
-    employeeId,
-  );
-  await mkdir(targetDirectory, { recursive: true });
-
   for (const file of files) {
     if (file.size > 25 * 1024 * 1024) {
       throw new Error(`"${file.name}" ist größer als 25 MB.`);
@@ -237,20 +229,17 @@ export async function uploadEmployeeQualificationDocuments(formData: FormData) {
 
     const extension = getFileExtension(file);
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
-    const storagePath = path.join(
-      "public",
-      "uploads",
-      "employee-qualifications",
-      employeeId,
-      fileName,
-    );
-    const publicUrl = `/uploads/employee-qualifications/${employeeId}/${fileName}`;
+    const storagePath = `employee-qualifications/${employeeId}/${fileName}`;
     const originalFileName = cleanFileName(file.name);
 
-    await writeFile(
-      path.join(targetDirectory, fileName),
-      Buffer.from(await file.arrayBuffer()),
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const uploaded = await putFile(
+      STORAGE_BUCKET,
+      storagePath,
+      bytes,
+      file.type || "application/octet-stream",
     );
+    const publicUrl = uploaded.publicUrl;
 
     await prisma.employeeQualificationDocument.create({
       data: {
@@ -298,11 +287,7 @@ export async function deleteEmployeeQualificationDocument(formData: FormData) {
     },
   });
 
-  try {
-    await unlink(path.join(process.cwd(), document.storagePath));
-  } catch {
-    // Die Datenbank bleibt führend, falls eine Datei bereits extern fehlt.
-  }
+  await deleteFile(STORAGE_BUCKET, document.storagePath).catch(() => undefined);
 
   revalidateQualificationViews();
 }
