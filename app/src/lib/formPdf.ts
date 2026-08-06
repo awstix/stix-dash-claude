@@ -269,7 +269,7 @@ export async function createFormPdf(input: {
       },
     );
 
-    if (field.type === "photo" && value.startsWith("/uploads/")) {
+    if (field.type === "photo" && value.startsWith("http")) {
       const imageDrawn = await drawPhoto(targetPage, value, {
         height: box.height - 26,
         width: box.width - 14,

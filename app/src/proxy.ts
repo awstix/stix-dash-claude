@@ -12,7 +12,6 @@ const publicPrefixes = [
   "/_next",
   "/favicon.ico",
   "/fonts",
-  "/uploads/company",
 ];
 
 export async function proxy(request: NextRequest) {
