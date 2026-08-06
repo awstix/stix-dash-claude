@@ -53,6 +53,48 @@ export async function moveFile(
   }
 }
 
+async function listFilesRecursive(bucket: string, prefix: string): Promise<string[]> {
+  const { data, error } = await supabase.storage.from(bucket).list(prefix, {
+    limit: 1000,
+  });
+
+  if (error) {
+    throw new Error(
+      `Supabase Storage Auflisten fehlgeschlagen (${bucket}/${prefix}): ${error.message}`,
+    );
+  }
+
+  const keys: string[] = [];
+
+  for (const entry of data) {
+    const entryPath = `${prefix}/${entry.name}`;
+
+    if (entry.id === null) {
+      keys.push(...(await listFilesRecursive(bucket, entryPath)));
+    } else {
+      keys.push(entryPath);
+    }
+  }
+
+  return keys;
+}
+
+export async function deleteFolder(bucket: string, prefix: string): Promise<void> {
+  const keys = await listFilesRecursive(bucket, prefix);
+
+  if (keys.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.storage.from(bucket).remove(keys);
+
+  if (error) {
+    throw new Error(
+      `Supabase Storage Löschen fehlgeschlagen (${bucket}/${prefix}): ${error.message}`,
+    );
+  }
+}
+
 export async function deleteFile(bucket: string, key: string): Promise<void> {
   const { error } = await supabase.storage.from(bucket).remove([key]);
 

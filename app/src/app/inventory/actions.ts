@@ -1,8 +1,6 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { syncDriverVehicleAssignmentForInventoryItem } from "@/lib/driver-vehicle-inventory-sync";
@@ -13,6 +11,9 @@ import {
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSession } from "@/lib/auth-access";
+import { deleteFile, deleteFolder, putFile } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
 
 const allowedInventoryPhotoTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -850,20 +851,11 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
       throw new Error("Bitte Inventarfotos als JPG, PNG oder WebP hochladen.");
     }
 
-    const uploadDirectory = path.join(
-      process.cwd(),
-      "public",
-      "uploads",
-      "inventory-items",
-      itemId,
-    );
-    await mkdir(uploadDirectory, { recursive: true });
-
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
-    const absolutePath = path.join(uploadDirectory, fileName);
     const bytes = Buffer.from(await file.arrayBuffer());
+    const storagePath = `inventory-items/${itemId}/${fileName}`;
 
-    await writeFile(absolutePath, bytes);
+    const uploaded = await putFile(STORAGE_BUCKET, storagePath, bytes, file.type);
 
     await prisma.inventoryPhoto.create({
       data: {
@@ -873,7 +865,7 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
         mimeType: file.type,
         originalName: file.name,
         sizeBytes: file.size,
-        url: `/uploads/inventory-items/${itemId}/${fileName}`,
+        url: uploaded.publicUrl,
       },
     });
   }
@@ -1655,6 +1647,11 @@ export async function deleteInventoryPhoto(formData: FormData) {
     },
   });
 
+  await deleteFile(
+    STORAGE_BUCKET,
+    `inventory-items/${photo.itemId}/${photo.fileName}`,
+  ).catch(() => undefined);
+
   if (photo.isPrimary) {
     const nextPrimaryPhoto = await prisma.inventoryPhoto.findFirst({
       where: {
@@ -1750,13 +1747,7 @@ export async function deleteCompleteInventory(formData: FormData) {
     }
   });
 
-  await rm(
-    path.join(process.cwd(), "public", "uploads", "inventory-items"),
-    {
-      force: true,
-      recursive: true,
-    },
-  );
+  await deleteFolder(STORAGE_BUCKET, "inventory-items").catch(() => undefined);
 
   revalidatePath("/inventory");
   revalidatePath("/inventory/storage");

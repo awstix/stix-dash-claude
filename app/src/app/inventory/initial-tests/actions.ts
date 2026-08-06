@@ -1,18 +1,13 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
+import { deleteFile, putFile } from "@/lib/storage";
 
-const uploadDirectory = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "inventory-initial-tests",
-);
+const STORAGE_BUCKET = "uploads";
+const INITIAL_TEST_PREFIX = "inventory-initial-tests/";
 
 function text(formData: FormData, name: string) {
   const value = String(formData.get(name) ?? "").trim();
@@ -39,19 +34,28 @@ async function storePdf(entry: FormDataEntryValue | null) {
   if (entry.type !== "application/pdf") {
     throw new Error("Die Erstprüfung muss als PDF hochgeladen werden.");
   }
-  await mkdir(uploadDirectory, { recursive: true });
   const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.pdf`;
-  await writeFile(
-    path.join(uploadDirectory, fileName),
+  const storagePath = `${INITIAL_TEST_PREFIX}${fileName}`;
+  const uploaded = await putFile(
+    STORAGE_BUCKET,
+    storagePath,
     Buffer.from(await entry.arrayBuffer()),
+    entry.type,
   );
   return {
     pdfFileName: fileName,
     pdfOriginalName: entry.name,
-    pdfUrl: `/uploads/inventory-initial-tests/${fileName}`,
+    pdfUrl: uploaded.publicUrl,
     pdfMimeType: entry.type,
     pdfSizeBytes: entry.size,
   };
+}
+
+async function deleteStoredPdf(fileName: string | null) {
+  if (!fileName) return;
+  await deleteFile(STORAGE_BUCKET, `${INITIAL_TEST_PREFIX}${fileName}`).catch(
+    () => undefined,
+  );
 }
 
 function payload(formData: FormData) {
@@ -90,6 +94,15 @@ export async function updateInitialTest(formData: FormData) {
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
   const pdf = await storePdf(formData.get("pdf"));
+
+  if (pdf) {
+    const existing = await prisma.inventoryInitialTest.findUnique({
+      where: { id },
+      select: { pdfFileName: true },
+    });
+    await deleteStoredPdf(existing?.pdfFileName ?? null);
+  }
+
   await prisma.inventoryInitialTest.update({
     where: { id },
     data: { ...payload(formData), ...(pdf ?? {}) },
@@ -101,6 +114,9 @@ export async function deleteInitialTest(formData: FormData) {
   await requireSession();
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
-  await prisma.inventoryInitialTest.delete({ where: { id } });
+  const existing = await prisma.inventoryInitialTest.delete({
+    where: { id },
+  });
+  await deleteStoredPdf(existing.pdfFileName);
   revalidatePath("/inventory/initial-tests");
 }
