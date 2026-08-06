@@ -9,7 +9,7 @@ export const auth = betterAuth({
   appName: "STIX Portal",
   baseURL: process.env.BETTER_AUTH_URL,
   database: prismaAdapter(prisma, {
-    provider: "sqlite",
+    provider: "postgresql",
   }),
   disabledPaths: ["/sign-up/email", "/is-username-available"],
   emailAndPassword: {

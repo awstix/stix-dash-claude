@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { getResetPreview } from "@/lib/data-maintenance";
@@ -70,7 +69,6 @@ export default async function BackupResetPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    backup?: string;
     deleted?: string;
     legacyCleanup?: string;
     reset?: string;
@@ -80,7 +78,7 @@ export default async function BackupResetPage({
   await requireAdmin();
   const [params, preview] = await Promise.all([
     searchParams,
-    Promise.resolve(getResetPreview()),
+    getResetPreview(),
   ]);
   const hasResetResult = params.reset === "1";
   const hasLegacyCleanupResult = params.legacyCleanup === "1";
@@ -96,7 +94,7 @@ export default async function BackupResetPage({
             <h2 className="text-xl font-bold">Reset abgeschlossen</h2>
             <p className="mt-2 text-sm leading-6">
               Gelöscht: <strong>{formatNumber(Number(params.deleted ?? 0))}</strong>{" "}
-              Datensätze. Backup: <strong>{params.backup}</strong>
+              Datensätze.
               {Number(params.uploads ?? 0) > 0 ? (
                 <>
                   {" "}
@@ -115,37 +113,20 @@ export default async function BackupResetPage({
             </h2>
             <p className="mt-2 text-sm leading-6">
               Gelöscht: <strong>{formatNumber(Number(params.deleted ?? 0))}</strong>{" "}
-              alte Material-/Asphalt-/Beton-Datensätze. Backup:{" "}
-              <strong>{params.backup}</strong>
+              alte Material-/Asphalt-/Beton-Datensätze.
             </p>
           </div>
         ) : null}
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Komplett-Backup direkt herunterladen
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                Erstellt ein ZIP aus der aktuellen <strong>dev.db</strong>{" "}
-                sowie vorhandenen Upload-/Exportdateien und lädt es direkt
-                herunter. Zusätzlich wird die Datenbankkopie im Ordner{" "}
-                <strong>app/backups</strong> abgelegt.
-              </p>
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                So hast du vor einem Reset nicht nur die Tabellen, sondern auch
-                Fotos, Dokumente, Zertifikate und erzeugte Exporte mitgesichert.
-              </p>
-            </div>
-
-            <Link
-              href="/admin/backup-reset/backup"
-              className="inline-flex justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white hover:bg-gray-700"
-            >
-              Komplett-Backup herunterladen
-            </Link>
-          </div>
+        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-blue-950">
+            Datenbank-Backups
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-blue-950/80">
+            Backups der Datenbank übernimmt Supabase automatisch (Point-in-Time-
+            Recovery / tägliche Snapshots je nach Projekt-Plan). Ein manuelles
+            ZIP-Backup wird hier nicht mehr benötigt.
+          </p>
         </section>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">

@@ -17,7 +17,7 @@ export async function resetDashboardDataAction(formData: FormData) {
     );
   }
 
-  const result = resetDashboardData({
+  const result = await resetDashboardData({
     deleteCategories: formData.get("deleteCategories") === "on",
     deleteQualificationTypes:
       formData.get("deleteQualificationTypes") === "on",
@@ -25,7 +25,6 @@ export async function resetDashboardDataAction(formData: FormData) {
   });
 
   const params = new URLSearchParams({
-    backup: result.backupPath,
     deleted: String(result.deletedRows),
     reset: "1",
     uploads: String(result.uploadsCleared.length),
@@ -36,9 +35,8 @@ export async function resetDashboardDataAction(formData: FormData) {
 
 export async function cleanupLegacyMasterDataAction() {
   await requireAdmin();
-  const result = cleanupLegacyMasterData();
+  const result = await cleanupLegacyMasterData();
   const params = new URLSearchParams({
-    backup: result.backupPath,
     deleted: String(result.deletedRows),
     legacyCleanup: "1",
   });
