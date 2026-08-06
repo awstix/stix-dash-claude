@@ -284,6 +284,15 @@ export function AppHeader({
                 </p>
               ) : null}
             </div>
+            <Link
+              aria-label="Mein Konto"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
+              href="/account"
+              onClick={() => setOpenMenu(null)}
+              title="Mein Konto"
+            >
+              <ActionIcon name="key" className="h-4 w-4" />
+            </Link>
             <button
               aria-label="Abmelden"
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
@@ -372,8 +381,16 @@ export function AppHeader({
               {currentUserRoleLabel ? (
                 <p className="truncate text-sm font-semibold text-gray-500">{currentUserRoleLabel}</p>
               ) : null}
+              <Link
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-400 bg-white px-3 py-2 font-bold text-gray-950"
+                href="/account"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <ActionIcon name="key" className="h-4 w-4" />
+                Mein Konto
+              </Link>
               <button
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-500 bg-white px-3 py-2 font-bold text-gray-950"
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-500 bg-white px-3 py-2 font-bold text-gray-950"
                 onClick={async () => {
                   await authClient.signOut();
                   setMobileMenuOpen(false);

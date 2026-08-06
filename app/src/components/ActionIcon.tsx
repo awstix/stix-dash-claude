@@ -8,6 +8,7 @@ export type ActionIconName =
   | "download"
   | "edit"
   | "filter"
+  | "key"
   | "logout"
   | "move"
   | "open"
@@ -116,6 +117,17 @@ export function ActionIcon({
         <path d="M4 5h16" />
         <path d="M7 12h10" />
         <path d="M10 19h4" />
+      </svg>
+    );
+  }
+
+  if (name === "key") {
+    return (
+      <svg {...sharedProps}>
+        <circle cx="7.5" cy="15.5" r="4.5" />
+        <path d="m10.5 12.5 8-8" />
+        <path d="M15.5 7.5 18 5" />
+        <path d="M18.5 10.5 21 8" />
       </svg>
     );
   }
