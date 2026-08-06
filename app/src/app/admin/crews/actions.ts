@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
@@ -356,7 +357,7 @@ export async function addCrewDefaultVehicle(formData: FormData) {
   const fallbackSortOrder = await getNextCrewDefaultVehicleSortOrder(crewId);
   const sortOrder = parseSortOrder(formData.get("sortOrder"), fallbackSortOrder);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.crewDefaultVehicle.upsert({
       where: {
         crewId_vehicleId: {
@@ -413,7 +414,7 @@ export async function removeCrewDefaultVehicle(formData: FormData) {
     throw new Error("Gerätezuordnung-ID fehlt.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const assignment = await tx.crewDefaultVehicle.findUnique({
       where: {
         id,
