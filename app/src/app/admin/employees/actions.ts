@@ -1,25 +1,34 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
+import { deleteFile, putFile } from "@/lib/storage";
 
 const LKW_DRIVER_POSITION_VALUE = "lkw_fahrer_in";
-const employeePhotoUploadDirectory = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "employee-photos",
-);
+const STORAGE_BUCKET = "uploads";
+const EMPLOYEE_PHOTO_PREFIX = "employee-photos/";
 const allowedEmployeePhotoTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
   ["image/webp", "webp"],
 ]);
+
+function employeePhotoStorageKeyFromUrl(photoUrl: string | null) {
+  if (!photoUrl) return null;
+  const marker = `/${EMPLOYEE_PHOTO_PREFIX}`;
+  const index = photoUrl.indexOf(marker);
+  if (index === -1) return null;
+  return photoUrl.slice(index + 1);
+}
+
+async function deleteEmployeePhotoIfStored(photoUrl: string | null) {
+  const key = employeePhotoStorageKeyFromUrl(photoUrl);
+  if (!key) return;
+  await deleteFile(STORAGE_BUCKET, key).catch(() => undefined);
+}
 
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -47,15 +56,13 @@ async function storeEmployeePhoto(file: FormDataEntryValue | null) {
     throw new Error("Bitte ein Mitarbeiterfoto als JPG, PNG oder WebP hochladen.");
   }
 
-  await mkdir(employeePhotoUploadDirectory, { recursive: true });
-
   const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
-  const absolutePath = path.join(employeePhotoUploadDirectory, fileName);
+  const key = `${EMPLOYEE_PHOTO_PREFIX}${fileName}`;
   const bytes = Buffer.from(await file.arrayBuffer());
 
-  await writeFile(absolutePath, bytes);
+  const uploaded = await putFile(STORAGE_BUCKET, key, bytes, file.type);
 
-  return `/uploads/employee-photos/${fileName}`;
+  return uploaded.publicUrl;
 }
 
 function employeePhotoFromFormData(formData: FormData) {
@@ -338,6 +345,10 @@ export async function updateEmployee(formData: FormData) {
   const payload = getEmployeePayload(formData);
   const photoUrl = await storeEmployeePhoto(employeePhotoFromFormData(formData));
 
+  if (photoUrl) {
+    await deleteEmployeePhotoIfStored(existingEmployee.photoUrl);
+  }
+
   const [
     statusLabel,
     companyLabel,
@@ -451,6 +462,8 @@ export async function deleteEmployee(formData: FormData) {
       });
     }
   });
+
+  await deleteEmployeePhotoIfStored(employee?.photoUrl ?? null);
 
   revalidatePath("/admin/employees");
   revalidatePath("/employees");
