@@ -5,8 +5,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-const adapter = new PrismaPg(process.env.DATABASE_URL ?? "");
+// Kleines, festes Verbindungslimit pro Server-Instanz: Supabases Session-
+// Pooler erlaubt insgesamt nur 15 Clients, und jede Serverless-Instanz auf
+// Vercel würde sonst ihren eigenen vollen Pool aufmachen.
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL ?? "",
+  max: 3,
+});
 
+// Immer global cachen (auch in production): auf Vercel bleibt globalThis
+// über warme Serverless-Aufrufe hinweg erhalten, ohne das würde jede
+// Anfrage einen neuen PrismaClient samt eigenem Connection-Pool anlegen.
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
@@ -14,6 +23,4 @@ export const prisma =
     log: ["error", "warn"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;
