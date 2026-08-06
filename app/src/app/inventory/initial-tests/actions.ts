@@ -94,8 +94,9 @@ export async function updateInitialTest(formData: FormData) {
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
   const pdf = await storePdf(formData.get("pdf"));
+  const removePdf = !pdf && formData.get("removePdf") === "on";
 
-  if (pdf) {
+  if (pdf || removePdf) {
     const existing = await prisma.inventoryInitialTest.findUnique({
       where: { id },
       select: { pdfFileName: true },
@@ -105,7 +106,19 @@ export async function updateInitialTest(formData: FormData) {
 
   await prisma.inventoryInitialTest.update({
     where: { id },
-    data: { ...payload(formData), ...(pdf ?? {}) },
+    data: {
+      ...payload(formData),
+      ...(pdf ?? {}),
+      ...(removePdf
+        ? {
+            pdfFileName: null,
+            pdfOriginalName: null,
+            pdfUrl: null,
+            pdfMimeType: null,
+            pdfSizeBytes: null,
+          }
+        : {}),
+    },
   });
   revalidatePath("/inventory/initial-tests");
 }
