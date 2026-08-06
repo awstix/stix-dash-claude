@@ -413,9 +413,20 @@ async function readPublicFont(fileName: string) {
 }
 
 async function getPublicImageDataUrl(publicUrl?: string | null) {
-  if (!publicUrl || !publicUrl.startsWith("/")) return null;
+  if (!publicUrl) return null;
 
   try {
+    if (publicUrl.startsWith("http")) {
+      const response = await fetch(publicUrl);
+      if (!response.ok) return null;
+      const data = Buffer.from(await response.arrayBuffer());
+      const mimeType = getImageMimeType(publicUrl.split("?")[0] ?? "");
+
+      return `data:${mimeType};base64,${data.toString("base64")}`;
+    }
+
+    if (!publicUrl.startsWith("/")) return null;
+
     const cleanPath = publicUrl.split("?")[0]?.replace(/^\/+/, "");
     if (!cleanPath) return null;
     const filePath = path.join(process.cwd(), "public", cleanPath);

@@ -1,12 +1,18 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
+import { deleteFile, putFile } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
+
+async function deleteExistingLogo(storagePath: string | null) {
+  if (!storagePath) return;
+  await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
+}
 
 function text(formData: FormData, name: string, maxLength = 300) {
   const value = String(formData.get(name) ?? "")
@@ -56,15 +62,8 @@ export async function saveCompanyInfo(formData: FormData) {
       );
     }
 
-    const targetDirectory = path.join(
-      process.cwd(),
-      "public",
-      "uploads",
-      "company",
-    );
-    await mkdir(targetDirectory, { recursive: true });
     const fileName = `logo-${randomUUID()}.png`;
-    const absolutePath = path.join(targetDirectory, fileName);
+    const key = `company/${fileName}`;
     const buffer = await sharp(sourceBuffer)
       .rotate()
       .resize({
@@ -75,21 +74,13 @@ export async function saveCompanyInfo(formData: FormData) {
       })
       .png()
       .toBuffer();
-    await writeFile(absolutePath, buffer);
-    logoPublicUrl = `/uploads/company/${fileName}`;
-    logoStoragePath = path.join("public", "uploads", "company", fileName);
+    const uploaded = await putFile(STORAGE_BUCKET, key, buffer, "image/png");
+    logoPublicUrl = uploaded.publicUrl;
+    logoStoragePath = uploaded.path;
 
-    if (existing?.logoStoragePath) {
-      await unlink(path.resolve(process.cwd(), existing.logoStoragePath)).catch(
-        () => undefined,
-      );
-    }
+    await deleteExistingLogo(existing?.logoStoragePath ?? null);
   } else if (formData.get("removeLogo") === "on") {
-    if (existing?.logoStoragePath) {
-      await unlink(path.resolve(process.cwd(), existing.logoStoragePath)).catch(
-        () => undefined,
-      );
-    }
+    await deleteExistingLogo(existing?.logoStoragePath ?? null);
     logoPublicUrl = null;
     logoStoragePath = null;
   }

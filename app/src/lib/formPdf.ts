@@ -460,14 +460,11 @@ async function embedCompanyLogo(
   pdf: PDFDocument,
   publicUrl: string | null,
 ) {
-  if (!publicUrl?.startsWith("/uploads/company/")) return null;
+  if (!publicUrl) return null;
   try {
-    const absolutePath = path.resolve(
-      process.cwd(),
-      "public",
-      publicUrl.replace(/^\/+/, ""),
-    );
-    const source = await readFile(absolutePath);
+    const response = await fetch(publicUrl);
+    if (!response.ok) return null;
+    const source = Buffer.from(await response.arrayBuffer());
     const png = await sharp(source)
       .rotate()
       .resize({
