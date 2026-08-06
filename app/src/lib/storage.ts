@@ -34,6 +34,25 @@ export async function putFile(
   };
 }
 
+export function getPublicUrl(bucket: string, key: string): string {
+  const { data } = supabase.storage.from(bucket).getPublicUrl(key);
+  return data.publicUrl;
+}
+
+export async function moveFile(
+  bucket: string,
+  fromKey: string,
+  toKey: string,
+): Promise<void> {
+  const { error } = await supabase.storage.from(bucket).move(fromKey, toKey);
+
+  if (error) {
+    throw new Error(
+      `Supabase Storage Verschieben fehlgeschlagen (${bucket}/${fromKey} -> ${toKey}): ${error.message}`,
+    );
+  }
+}
+
 export async function deleteFile(bucket: string, key: string): Promise<void> {
   const { error } = await supabase.storage.from(bucket).remove([key]);
 

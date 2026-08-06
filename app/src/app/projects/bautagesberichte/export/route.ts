@@ -855,16 +855,13 @@ async function embedProjectPhoto(
   pdfDocument: PDFDocument,
   photo: ReturnType<typeof buildDailyReportContext>["photos"][number],
 ) {
-  if (!photo.publicUrl.startsWith("/uploads/project-photos/")) {
-    throw new Error("Ungültiger Pfad für Berichtsfoto.");
+  const response = await fetch(photo.publicUrl);
+
+  if (!response.ok) {
+    throw new Error("Berichtsfoto konnte nicht geladen werden.");
   }
 
-  const absolutePath = path.resolve(
-    process.cwd(),
-    "public",
-    photo.publicUrl.replace(/^\/+/, ""),
-  );
-  const bytes = await readFile(absolutePath);
+  const bytes = Buffer.from(await response.arrayBuffer());
   const optimizedBytes = await sharp(bytes)
     .rotate()
     .resize({

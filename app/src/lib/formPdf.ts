@@ -303,14 +303,10 @@ export async function createFormPdf(input: {
     publicUrl: string,
     box: { height: number; width: number; x: number; y: number },
   ) {
-    if (!publicUrl.startsWith("/uploads/project-photos/")) return false;
     try {
-      const absolutePath = path.resolve(
-        process.cwd(),
-        "public",
-        publicUrl.replace(/^\/+/, ""),
-      );
-      const source = await readFile(absolutePath);
+      const response = await fetch(publicUrl);
+      if (!response.ok) return false;
+      const source = Buffer.from(await response.arrayBuffer());
       const optimized = await sharp(source)
         .rotate()
         .resize({

@@ -2,12 +2,12 @@
 
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { ProjectStatus } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
+import { deleteFile, getPublicUrl, moveFile, putFile } from "@/lib/storage";
 import {
   requireProjectAccess,
   requireProjectContentDeleteOwnership,
@@ -35,6 +35,8 @@ import type {
   ProjectFormFieldDefinition,
   ProjectFormFieldType,
 } from "./projectFormTypes";
+
+const STORAGE_BUCKET = "uploads";
 
 export type ProjectFormInput = {
   id?: string;
@@ -1666,14 +1668,6 @@ export async function uploadProjectPhotos(formData: FormData) {
     }
   }
 
-  const uploadDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "project-photos",
-    projectId,
-  );
-  await mkdir(uploadDirectory, { recursive: true });
   const uploadedPublicUrls: string[] = [];
 
   for (const [fileIndex, file] of files.entries()) {
@@ -1690,15 +1684,7 @@ export async function uploadProjectPhotos(formData: FormData) {
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${
       storedPhoto.extension || extension
     }`;
-    const absolutePath = path.join(uploadDirectory, fileName);
-    const storagePath = path.join(
-      "public",
-      "uploads",
-      "project-photos",
-      projectId,
-      fileName,
-    );
-    const publicUrl = `/uploads/project-photos/${projectId}/${fileName}`;
+    const storagePath = `project-photos/${projectId}/${fileName}`;
     const metadata = takeMetadata
       ? extractPhotoMetadata(originalBuffer, file.type, {
           fileLastModified: file.lastModified,
@@ -1722,7 +1708,13 @@ export async function uploadProjectPhotos(formData: FormData) {
       ? await reverseGeocodePhotoLocation(resolvedGps.gpsLatitude, resolvedGps.gpsLongitude)
       : null;
 
-    await writeFile(absolutePath, buffer);
+    const uploaded = await putFile(
+      STORAGE_BUCKET,
+      storagePath,
+      buffer,
+      storedPhoto.mimeType,
+    );
+    const publicUrl = uploaded.publicUrl;
 
     try {
       await prisma.projectPhoto.create({
@@ -1757,7 +1749,7 @@ export async function uploadProjectPhotos(formData: FormData) {
       });
       uploadedPublicUrls.push(publicUrl);
     } catch (error) {
-      await unlink(absolutePath).catch(() => undefined);
+      await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
       throw error;
     }
   }
@@ -1877,11 +1869,7 @@ export async function deleteProjectPhoto(id: string) {
     },
   });
 
-  try {
-    await unlink(path.join(process.cwd(), photo.storagePath));
-  } catch {
-    // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
-  }
+  await deleteFile(STORAGE_BUCKET, photo.storagePath).catch(() => undefined);
 
   revalidateProjectPhotoViews(photo.projectId);
 }
@@ -1923,13 +1911,9 @@ export async function deleteProjectPhotos(photoIds: string[]) {
   });
 
   await Promise.all(
-    photos.map(async (photo) => {
-      try {
-        await unlink(path.join(process.cwd(), photo.storagePath));
-      } catch {
-        // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
-      }
-    }),
+    photos.map((photo) =>
+      deleteFile(STORAGE_BUCKET, photo.storagePath).catch(() => undefined),
+    ),
   );
 
   for (const projectId of new Set(photos.map((photo) => photo.projectId))) {
@@ -1979,15 +1963,6 @@ export async function moveProjectPhotos(input: ProjectPhotosMoveInput) {
     return;
   }
 
-  const targetDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "project-photos",
-    input.targetProjectId,
-  );
-  await mkdir(targetDirectory, { recursive: true });
-
   const affectedProjectIds = new Set<string>([input.targetProjectId]);
 
   for (const photo of photos) {
@@ -1997,24 +1972,13 @@ export async function moveProjectPhotos(input: ProjectPhotosMoveInput) {
 
     affectedProjectIds.add(photo.projectId);
 
-    const targetFileName = await getAvailableMovedPhotoFileName(
-      targetDirectory,
-      photo.fileName,
-    );
-    const newStoragePath = path.join(
-      "public",
-      "uploads",
-      "project-photos",
-      input.targetProjectId,
-      targetFileName,
-    );
-    const newPublicUrl = `/uploads/project-photos/${input.targetProjectId}/${targetFileName}`;
+    const targetFileName = photo.fileName;
+    const newStoragePath = `project-photos/${input.targetProjectId}/${targetFileName}`;
+    let newPublicUrl: string | undefined;
 
     try {
-      await rename(
-        path.join(process.cwd(), photo.storagePath),
-        path.join(process.cwd(), newStoragePath),
-      );
+      await moveFile(STORAGE_BUCKET, photo.storagePath, newStoragePath);
+      newPublicUrl = getPublicUrl(STORAGE_BUCKET, newStoragePath);
     } catch {
       // Wenn die Datei extern fehlt, wird wenigstens die Projektzuordnung korrigiert.
     }
@@ -2215,36 +2179,21 @@ export async function uploadProjectDocuments(formData: FormData) {
     }
   }
 
-  const uploadDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "project-documents",
-    projectId,
-  );
-  await mkdir(uploadDirectory, { recursive: true });
-
   for (const [index, file] of files.entries()) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const extension = getDocumentExtension(file);
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
-    const absolutePath = path.join(uploadDirectory, fileName);
-    const storagePath = path.join(
-      "public",
-      "uploads",
-      "project-documents",
-      projectId,
-      fileName,
-    );
-    const publicUrl = `/uploads/project-documents/${projectId}/${fileName}`;
+    const storagePath = `project-documents/${projectId}/${fileName}`;
     const originalFileName = cleanDocumentFileName(file.name);
     const documentDisplayName = getDocumentDisplayName(
       files.length === 1 ? displayName : "",
       originalFileName,
       index,
     );
+    const mimeType = file.type || "application/octet-stream";
 
-    await writeFile(absolutePath, buffer);
+    const uploaded = await putFile(STORAGE_BUCKET, storagePath, buffer, mimeType);
+    const publicUrl = uploaded.publicUrl;
 
     try {
       await prisma.projectDocument.create({
@@ -2256,14 +2205,14 @@ export async function uploadProjectDocuments(formData: FormData) {
           originalFileName,
           publicUrl,
           storagePath,
-          mimeType: file.type || "application/octet-stream",
+          mimeType,
           fileSizeBytes: file.size,
           uploadedByName: actor.name,
           uploadedByUserId: actor.userId,
         },
       });
     } catch (error) {
-      await unlink(absolutePath).catch(() => undefined);
+      await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
       throw error;
     }
   }
@@ -2331,11 +2280,7 @@ export async function deleteProjectDocument(id: string) {
     },
   });
 
-  try {
-    await unlink(path.join(process.cwd(), document.storagePath));
-  } catch {
-    // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
-  }
+  await deleteFile(STORAGE_BUCKET, document.storagePath).catch(() => undefined);
 
   revalidateProjectDocumentViews(document.projectId);
 }
@@ -2377,13 +2322,9 @@ export async function deleteProjectDocuments(documentIds: string[]) {
   });
 
   await Promise.all(
-    documents.map(async (document) => {
-      try {
-        await unlink(path.join(process.cwd(), document.storagePath));
-      } catch {
-        // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Löschen nicht.
-      }
-    }),
+    documents.map((document) =>
+      deleteFile(STORAGE_BUCKET, document.storagePath).catch(() => undefined),
+    ),
   );
 
   for (const projectId of new Set(documents.map((document) => document.projectId))) {
@@ -2439,43 +2380,21 @@ export async function moveProjectDocuments(input: ProjectDocumentsMoveInput) {
     return;
   }
 
-  const targetDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "project-documents",
-    targetProjectId,
-  );
-  await mkdir(targetDirectory, { recursive: true });
-
   const affectedProjectIds = new Set<string>([targetProjectId]);
 
   for (const document of documents) {
     const isProjectChange = document.projectId !== targetProjectId;
-    let targetFileName = document.fileName;
+    const targetFileName = document.fileName;
     let newPublicUrl: string | undefined;
     let newStoragePath: string | undefined;
 
     if (isProjectChange) {
       affectedProjectIds.add(document.projectId);
-      targetFileName = await getAvailableMovedDocumentFileName(
-        targetDirectory,
-        document.fileName,
-      );
-      newStoragePath = path.join(
-        "public",
-        "uploads",
-        "project-documents",
-        targetProjectId,
-        targetFileName,
-      );
-      newPublicUrl = `/uploads/project-documents/${targetProjectId}/${targetFileName}`;
+      newStoragePath = `project-documents/${targetProjectId}/${targetFileName}`;
 
       try {
-        await rename(
-          path.join(process.cwd(), document.storagePath),
-          path.join(process.cwd(), newStoragePath),
-        );
+        await moveFile(STORAGE_BUCKET, document.storagePath, newStoragePath);
+        newPublicUrl = getPublicUrl(STORAGE_BUCKET, newStoragePath);
       } catch {
         // Wenn die Datei extern fehlt, wird wenigstens die Projektzuordnung korrigiert.
       }
@@ -2872,13 +2791,9 @@ export async function deleteProject(id: string) {
   });
 
   await Promise.all(
-    storagePaths.map(async (storagePath) => {
-      try {
-        await unlink(path.join(process.cwd(), storagePath));
-      } catch {
-        // Die Datenbank ist führend; eine bereits entfernte Datei blockiert das Projektlöschen nicht.
-      }
-    }),
+    storagePaths.map((storagePath) =>
+      deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined),
+    ),
   );
 
   revalidateProjectViews();
@@ -3360,49 +3275,6 @@ async function getProjectActor() {
       : user?.name || session.user.name || session.user.email,
     userId: session.user.id,
   };
-}
-
-async function getAvailableMovedPhotoFileName(
-  targetDirectory: string,
-  fileName: string,
-) {
-  const extension = path.extname(fileName);
-  const baseName = path.basename(fileName, extension);
-  let candidate = fileName;
-  let index = 1;
-
-  while (await fileExists(path.join(targetDirectory, candidate))) {
-    candidate = `${baseName}-${index}${extension}`;
-    index += 1;
-  }
-
-  return candidate;
-}
-
-async function getAvailableMovedDocumentFileName(
-  targetDirectory: string,
-  fileName: string,
-) {
-  const extension = path.extname(fileName);
-  const baseName = path.basename(fileName, extension);
-  let candidate = fileName;
-  let index = 1;
-
-  while (await fileExists(path.join(targetDirectory, candidate))) {
-    candidate = `${baseName}-${index}${extension}`;
-    index += 1;
-  }
-
-  return candidate;
-}
-
-async function fileExists(filePath: string) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function extractPhotoMetadata(
