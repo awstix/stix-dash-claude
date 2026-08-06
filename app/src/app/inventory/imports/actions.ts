@@ -1,7 +1,5 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -13,6 +11,9 @@ import {
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
+import { putFile, signedUrl } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
 
 type ExcelRow = Record<string, unknown>;
 
@@ -641,24 +642,20 @@ export async function importInventoryItems(formData: FormData) {
     }));
     XLSX.utils.book_append_sheet(reportWorkbook, reportSheet, "Importfehler");
 
-    const reportDirectory = path.join(
-      process.cwd(),
-      "public",
-      "exports",
-      "inventory-import-errors",
-    );
-    await mkdir(reportDirectory, { recursive: true });
     const reportFileName = `inventar-importfehler-${new Date()
       .toISOString()
       .slice(0, 10)}-${randomUUID().slice(0, 8)}.xlsx`;
-    await writeFile(
-      path.join(reportDirectory, reportFileName),
+    const reportStoragePath = `inventory-import-errors/${reportFileName}`;
+    await putFile(
+      STORAGE_BUCKET,
+      reportStoragePath,
       XLSX.write(reportWorkbook, {
         bookType: "xlsx",
         type: "buffer",
       }),
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
-    reportUrl = `/exports/inventory-import-errors/${reportFileName}`;
+    reportUrl = await signedUrl(STORAGE_BUCKET, reportStoragePath, 60 * 60);
   }
 
   revalidatePath("/inventory");

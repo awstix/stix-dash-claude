@@ -1,6 +1,5 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -9,7 +8,7 @@ import * as XLSX from "xlsx";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
-import { deleteFile, putFile } from "@/lib/storage";
+import { deleteFile, putFile, signedUrl } from "@/lib/storage";
 
 const STORAGE_BUCKET = "uploads";
 
@@ -35,12 +34,6 @@ type ImportErrorRow = {
   "gültig bis": string;
 };
 
-const importErrorDirectory = path.join(
-  process.cwd(),
-  "public",
-  "exports",
-  "employee-training-import-errors",
-);
 const allowedTrainingDocumentMimeTypes = new Set([
   "application/pdf",
   "image/jpeg",
@@ -252,14 +245,17 @@ async function writeImportErrorWorkbook(errorRows: ImportErrorRow[]) {
     bookType: "xlsx",
     type: "buffer",
   });
-  await mkdir(importErrorDirectory, {
-    recursive: true,
-  });
 
   const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.xlsx`;
-  await writeFile(path.join(importErrorDirectory, fileName), buffer);
+  const storagePath = `employee-training-import-errors/${fileName}`;
+  await putFile(
+    STORAGE_BUCKET,
+    storagePath,
+    buffer,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
 
-  return `/exports/employee-training-import-errors/${fileName}`;
+  return signedUrl(STORAGE_BUCKET, storagePath, 60 * 60);
 }
 
 function optionalDate(value: FormDataEntryValue | null) {
