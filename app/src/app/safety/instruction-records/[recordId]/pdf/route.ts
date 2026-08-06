@@ -72,15 +72,19 @@ export async function GET(
       },
     });
   }
-  if (
-    sourcePath?.startsWith("/templates/operating-instructions/") ||
-    sourcePath?.startsWith("/uploads/safety-templates/")
-  ) {
+  if (sourcePath?.startsWith("/templates/operating-instructions/")) {
     const source = await PDFDocument.load(
       await fs.readFile(path.join(process.cwd(), "public", sourcePath)),
     );
     const pages = await pdf.copyPages(source, source.getPageIndices());
     pages.forEach((page) => pdf.addPage(page));
+  } else if (sourcePath?.startsWith("http")) {
+    const response = await fetch(sourcePath);
+    if (response.ok) {
+      const source = await PDFDocument.load(await response.arrayBuffer());
+      const pages = await pdf.copyPages(source, source.getPageIndices());
+      pages.forEach((page) => pdf.addPage(page));
+    }
   }
 
   const regular = await pdf.embedFont(StandardFonts.Helvetica);

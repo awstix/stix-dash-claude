@@ -12,6 +12,7 @@ import {
 } from "pdf-lib";
 
 import { prisma } from "@/lib/prisma";
+import { fileExists, getPublicUrl } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -74,9 +75,16 @@ export async function GET(
     });
   }
 
-  const templateBytes = await readFile(
-    path.join(process.cwd(), "public", "templates", "unfallsofortmeldung.pdf"),
-  );
+  const templateStorageKey = "safety-templates-admin/unfallsofortmeldung.pdf";
+  const templateBytes = (await fileExists("uploads", templateStorageKey))
+    ? Buffer.from(
+        await (
+          await fetch(getPublicUrl("uploads", templateStorageKey))
+        ).arrayBuffer(),
+      )
+    : await readFile(
+        path.join(process.cwd(), "public", "templates", "unfallsofortmeldung.pdf"),
+      );
   const pdf = await PDFDocument.load(templateBytes);
   const page = pdf.getPages()[0];
   page.node.delete(PDFName.of("Annots"));

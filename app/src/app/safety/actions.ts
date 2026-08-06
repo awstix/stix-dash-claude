@@ -1,7 +1,6 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 
 import { revalidatePath } from "next/cache";
@@ -13,6 +12,9 @@ import {
   nextHazardSequentialNumber,
   readHazardRegisterTemplate,
 } from "@/lib/hazard-register";
+import { deleteFile, putFile } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
 import {
   PROJECT_FORM_FIELD_TYPES,
   type ProjectFormFieldDefinition,
@@ -180,14 +182,11 @@ async function replaceTemplatePdf(file: File, fileName: string) {
     throw new Error("Bitte eine PDF-Datei hochladen.");
   }
 
-  const templateDir = path.join(process.cwd(), "public", "templates");
-  await mkdir(templateDir, {
-    recursive: true,
-  });
-
-  await writeFile(
-    path.join(templateDir, fileName),
+  await putFile(
+    STORAGE_BUCKET,
+    `safety-templates-admin/${fileName}`,
     Buffer.from(await file.arrayBuffer()),
+    "application/pdf",
   );
 }
 
@@ -299,26 +298,19 @@ async function saveAccidentPhotos(reportId: string, files: File[]) {
     return;
   }
 
-  const uploadDir = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "safety-accidents",
-    reportId,
-  );
-
-  await mkdir(uploadDir, {
-    recursive: true,
-  });
-
   const photoRows = [];
 
   for (const file of usableFiles) {
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${fileExtension(file)}`;
-    const storagePath = path.join(uploadDir, fileName);
-    const publicUrl = `/uploads/safety-accidents/${reportId}/${fileName}`;
+    const storagePath = `safety-accidents/${reportId}/${fileName}`;
 
-    await writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
+    const uploaded = await putFile(
+      STORAGE_BUCKET,
+      storagePath,
+      Buffer.from(await file.arrayBuffer()),
+      file.type || "application/octet-stream",
+    );
+    const publicUrl = uploaded.publicUrl;
 
     photoRows.push({
       accidentReportId: reportId,
@@ -349,17 +341,8 @@ async function saveSafetyDocuments(
     return;
   }
 
-  const uploadDir = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    documentType === "BA" ? "safety-operating-instructions" : "safety-data-sheets",
-    substanceId,
-  );
-
-  await mkdir(uploadDir, {
-    recursive: true,
-  });
+  const documentFolder =
+    documentType === "BA" ? "safety-operating-instructions" : "safety-data-sheets";
 
   const rows = [];
 
@@ -367,14 +350,15 @@ async function saveSafetyDocuments(
     const originalExtension = path.extname(file.name || "").toLowerCase();
     const extension = originalExtension || (file.type === "application/pdf" ? ".pdf" : fileExtension(file));
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
-    const storagePath = path.join(uploadDir, fileName);
-    const publicUrl = `/uploads/${
-      documentType === "BA"
-        ? "safety-operating-instructions"
-        : "safety-data-sheets"
-    }/${substanceId}/${fileName}`;
+    const storagePath = `${documentFolder}/${substanceId}/${fileName}`;
 
-    await writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
+    const uploaded = await putFile(
+      STORAGE_BUCKET,
+      storagePath,
+      Buffer.from(await file.arrayBuffer()),
+      file.type || "application/octet-stream",
+    );
+    const publicUrl = uploaded.publicUrl;
 
     rows.push({
       displayName:
@@ -910,19 +894,13 @@ export async function deleteSafetyDataSheet(formData: FormData) {
   });
   if (!document) return;
 
-  const allowedRoots = ["safety-data-sheets", "safety-operating-instructions"].map(
-    (folder) =>
-      path.resolve(process.cwd(), "public", "uploads", folder),
-  );
-  const storedPath = path.resolve(document.storagePath);
-  if (
-    !allowedRoots.some((root) => storedPath.startsWith(`${root}${path.sep}`))
-  ) {
+  const allowedPrefixes = ["safety-data-sheets/", "safety-operating-instructions/"];
+  if (!allowedPrefixes.some((prefix) => document.storagePath.startsWith(prefix))) {
     throw new Error("Ungültiger Speicherort des Sicherheitsdatenblatts.");
   }
 
   await prisma.safetyDataSheet.delete({ where: { id } });
-  await rm(storedPath, { force: true });
+  await deleteFile(STORAGE_BUCKET, document.storagePath).catch(() => undefined);
 
   const remaining = await prisma.safetyDataSheet.count({
     where: {
@@ -1672,28 +1650,24 @@ export async function uploadSafetyDocumentTemplate(formData: FormData) {
   }
 
   const templateId = randomUUID();
-  const uploadDirectory = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    "safety-templates",
-    templateId,
-  );
-  await mkdir(uploadDirectory, { recursive: true });
   const pdfName = safeUploadName(pdf.name);
-  await writeFile(
-    path.join(uploadDirectory, pdfName),
+  const pdfUploaded = await putFile(
+    STORAGE_BUCKET,
+    `safety-templates/${templateId}/${pdfName}`,
     Buffer.from(await pdf.arrayBuffer()),
+    "application/pdf",
   );
-  const sourcePdfPath = `/uploads/safety-templates/${templateId}/${pdfName}`;
+  const sourcePdfPath = pdfUploaded.publicUrl;
   let sourceDocxPath: string | null = null;
   if (docx instanceof File && docx.size > 0) {
     const docxName = safeUploadName(docx.name);
-    await writeFile(
-      path.join(uploadDirectory, docxName),
+    const docxUploaded = await putFile(
+      STORAGE_BUCKET,
+      `safety-templates/${templateId}/${docxName}`,
       Buffer.from(await docx.arrayBuffer()),
+      docx.type || "application/octet-stream",
     );
-    sourceDocxPath = `/uploads/safety-templates/${templateId}/${docxName}`;
+    sourceDocxPath = docxUploaded.publicUrl;
   }
 
   const sections =

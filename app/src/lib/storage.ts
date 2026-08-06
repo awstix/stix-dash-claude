@@ -34,6 +34,22 @@ export async function putFile(
   };
 }
 
+export async function fileExists(bucket: string, key: string): Promise<boolean> {
+  const lastSlash = key.lastIndexOf("/");
+  const folder = lastSlash === -1 ? "" : key.slice(0, lastSlash);
+  const fileName = lastSlash === -1 ? key : key.slice(lastSlash + 1);
+
+  const { data, error } = await supabase.storage.from(bucket).list(folder, {
+    search: fileName,
+  });
+
+  if (error) {
+    return false;
+  }
+
+  return data.some((entry) => entry.name === fileName);
+}
+
 export function getPublicUrl(bucket: string, key: string): string {
   const { data } = supabase.storage.from(bucket).getPublicUrl(key);
   return data.publicUrl;

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { fileExists, getPublicUrl } from "@/lib/storage";
 
 import { SignatureFormField } from "../_components/SignatureFormField";
 import {
@@ -31,6 +32,14 @@ function dateInputValue(date?: Date | null) {
 
 function fieldValue(value?: string | null) {
   return value ?? "";
+}
+
+async function resolveAccidentTemplateUrl(fileName: string, fallback: string) {
+  const key = `safety-templates-admin/${fileName}`;
+  if (await fileExists("uploads", key)) {
+    return getPublicUrl("uploads", key);
+  }
+  return fallback;
 }
 
 function ChoiceGroup({
@@ -80,7 +89,15 @@ export default async function SafetyAccidentsPage({
   const preselectedProjectId =
     !editReportId && typeof params.projectId === "string" ? params.projectId : "";
 
-  const [projects, employees, reports, officers, editReport] = await Promise.all([
+  const [
+    projects,
+    employees,
+    reports,
+    officers,
+    editReport,
+    accidentProcessUrl,
+    accidentReportTemplateUrl,
+  ] = await Promise.all([
     prisma.project.findMany({
       orderBy: [
         {
@@ -151,6 +168,14 @@ export default async function SafetyAccidentsPage({
           },
         })
       : null,
+    resolveAccidentTemplateUrl(
+      "unfallmeldeprozess.pdf",
+      "/templates/unfallmeldeprozess.pdf",
+    ),
+    resolveAccidentTemplateUrl(
+      "unfallsofortmeldung.pdf",
+      "/templates/unfallsofortmeldung.pdf",
+    ),
   ]);
   const accidentFormAction = editReport
     ? updateSafetyAccidentReport.bind(null, editReport.id)
@@ -174,14 +199,14 @@ export default async function SafetyAccidentsPage({
           <div className="mt-4 flex flex-wrap gap-3">
             <a
               className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800"
-              href="/templates/unfallmeldeprozess.pdf"
+              href={accidentProcessUrl}
               target="_blank"
             >
               Unfallmeldeprozess öffnen
             </a>
             <a
               className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-950 hover:bg-gray-100"
-              href="/templates/unfallsofortmeldung.pdf"
+              href={accidentReportTemplateUrl}
               target="_blank"
             >
               Unfallsofortmeldung-Vorlage öffnen
