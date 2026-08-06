@@ -1,6 +1,6 @@
 "use server";
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -9,6 +9,9 @@ import * as XLSX from "xlsx";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
+import { deleteFile, putFile } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
 
 type ExcelRow = Record<string, unknown>;
 type ImportErrorRow = {
@@ -37,12 +40,6 @@ const importErrorDirectory = path.join(
   "public",
   "exports",
   "employee-training-import-errors",
-);
-const trainingDocumentUploadDirectory = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "employee-training-certificates",
 );
 const allowedTrainingDocumentMimeTypes = new Set([
   "application/pdf",
@@ -894,15 +891,6 @@ export async function uploadEmployeeTrainingRecordDocument(formData: FormData) {
     throw new Error("Schulung wurde nicht gefunden.");
   }
 
-  const uploadDirectory = path.join(
-    trainingDocumentUploadDirectory,
-    employeeId,
-    trainingRecordId,
-  );
-  await mkdir(uploadDirectory, {
-    recursive: true,
-  });
-
   const documents = [];
 
   for (const file of files) {
@@ -918,10 +906,15 @@ export async function uploadEmployeeTrainingRecordDocument(formData: FormData) {
       sanitizeFileName(path.basename(originalFileName, extension)) ||
       "zertifikat";
     const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}-${safeBaseName}${extension}`;
-    const storagePath = path.join(uploadDirectory, fileName);
-    const publicUrl = `/uploads/employee-training-certificates/${employeeId}/${trainingRecordId}/${fileName}`;
+    const storagePath = `employee-training-certificates/${employeeId}/${trainingRecordId}/${fileName}`;
 
-    await writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
+    const uploaded = await putFile(
+      STORAGE_BUCKET,
+      storagePath,
+      Buffer.from(await file.arrayBuffer()),
+      file.type,
+    );
+    const publicUrl = uploaded.publicUrl;
 
     documents.push({
       displayName: originalFileName,
@@ -973,9 +966,7 @@ export async function deleteEmployeeTrainingRecordDocument(formData: FormData) {
       id: documentId,
     },
   });
-  await rm(document.storagePath, {
-    force: true,
-  });
+  await deleteFile(STORAGE_BUCKET, document.storagePath).catch(() => undefined);
 
   revalidateEmployeeTraining(employeeId);
 }
