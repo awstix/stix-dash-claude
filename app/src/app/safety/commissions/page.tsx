@@ -69,7 +69,18 @@ async function synchronizeCommissionCatalog() {
     folderIds.set(code, entry.id);
   }
   const existing = await prisma.safetyInstructionTemplate.findMany({
-    select: { id: true, sourcePdfPath: true, title: true },
+    select: {
+      content: true,
+      description: true,
+      folderId: true,
+      id: true,
+      isActive: true,
+      sectionsJson: true,
+      sortOrder: true,
+      sourceDocxPath: true,
+      sourcePdfPath: true,
+      title: true,
+    },
     where: { type: "COMMISSION" },
   });
   const bySource = new Map(
@@ -78,29 +89,52 @@ async function synchronizeCommissionCatalog() {
       .map((entry) => [entry.sourcePdfPath, entry]),
   );
   const byTitle = new Map(existing.map((entry) => [entry.title, entry]));
-  await prisma.$transaction(
-    catalog.map((entry, index) => {
-      const data = {
-        content: `SOURCE_PDF:${entry.pdfPath}${entry.docxPath ? `\nSOURCE_DOCX:${entry.docxPath}` : ""}`,
-        description: entry.folderCode,
-        folderId: folderIds.get(entry.folderCode),
-        isActive: true,
-        sectionsJson: JSON.stringify(entry.sections),
-        sortOrder: index,
-        sourceDocxPath: entry.docxPath,
-        sourcePdfPath: entry.pdfPath,
-        title: entry.title,
-        type: "COMMISSION",
-      };
-      const current = bySource.get(entry.pdfPath) ?? byTitle.get(entry.title);
-      return current
-        ? prisma.safetyInstructionTemplate.update({
-            data,
-            where: { id: current.id },
-          })
-        : prisma.safetyInstructionTemplate.create({ data });
-    }),
-  );
+
+  const operations = catalog.flatMap((entry, index) => {
+    const data = {
+      content: `SOURCE_PDF:${entry.pdfPath}${entry.docxPath ? `\nSOURCE_DOCX:${entry.docxPath}` : ""}`,
+      description: entry.folderCode,
+      folderId: folderIds.get(entry.folderCode),
+      isActive: true,
+      sectionsJson: JSON.stringify(entry.sections),
+      sortOrder: index,
+      sourceDocxPath: entry.docxPath,
+      sourcePdfPath: entry.pdfPath,
+      title: entry.title,
+      type: "COMMISSION",
+    };
+    const current = bySource.get(entry.pdfPath) ?? byTitle.get(entry.title);
+
+    if (!current) {
+      return [prisma.safetyInstructionTemplate.create({ data })];
+    }
+
+    const isUpToDate =
+      current.content === data.content &&
+      current.description === data.description &&
+      current.folderId === data.folderId &&
+      current.isActive === data.isActive &&
+      current.sectionsJson === data.sectionsJson &&
+      current.sortOrder === data.sortOrder &&
+      current.sourceDocxPath === data.sourceDocxPath &&
+      current.sourcePdfPath === data.sourcePdfPath &&
+      current.title === data.title;
+
+    if (isUpToDate) {
+      return [];
+    }
+
+    return [
+      prisma.safetyInstructionTemplate.update({
+        data,
+        where: { id: current.id },
+      }),
+    ];
+  });
+
+  if (operations.length > 0) {
+    await prisma.$transaction(operations, { timeout: 20000 });
+  }
 }
 
 export default async function SafetyCommissionsPage() {
