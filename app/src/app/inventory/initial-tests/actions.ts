@@ -94,9 +94,8 @@ export async function updateInitialTest(formData: FormData) {
   const id = text(formData, "id");
   if (!id) throw new Error("Erstprüfung fehlt.");
   const pdf = await storePdf(formData.get("pdf"));
-  const removePdf = !pdf && formData.get("removePdf") === "on";
 
-  if (pdf || removePdf) {
+  if (pdf) {
     const existing = await prisma.inventoryInitialTest.findUnique({
       where: { id },
       select: { pdfFileName: true },
@@ -106,18 +105,30 @@ export async function updateInitialTest(formData: FormData) {
 
   await prisma.inventoryInitialTest.update({
     where: { id },
+    data: { ...payload(formData), ...(pdf ?? {}) },
+  });
+  revalidatePath("/inventory/initial-tests");
+}
+
+export async function removeInitialTestPdf(formData: FormData) {
+  await requireSession();
+  const id = text(formData, "id");
+  if (!id) throw new Error("Erstprüfung fehlt.");
+
+  const existing = await prisma.inventoryInitialTest.findUnique({
+    where: { id },
+    select: { pdfFileName: true },
+  });
+  await deleteStoredPdf(existing?.pdfFileName ?? null);
+
+  await prisma.inventoryInitialTest.update({
+    where: { id },
     data: {
-      ...payload(formData),
-      ...(pdf ?? {}),
-      ...(removePdf
-        ? {
-            pdfFileName: null,
-            pdfOriginalName: null,
-            pdfUrl: null,
-            pdfMimeType: null,
-            pdfSizeBytes: null,
-          }
-        : {}),
+      pdfFileName: null,
+      pdfOriginalName: null,
+      pdfUrl: null,
+      pdfMimeType: null,
+      pdfSizeBytes: null,
     },
   });
   revalidatePath("/inventory/initial-tests");

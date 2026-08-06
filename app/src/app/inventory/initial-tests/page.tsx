@@ -8,6 +8,7 @@ import {
 } from "./actions";
 import { DeleteInitialTestButton } from "./DeleteInitialTestButton";
 import { InitialTestShareButtons } from "./InitialTestShareButtons";
+import { RemoveInitialTestPdfButton } from "./RemoveInitialTestPdfButton";
 
 function dateInput(date: Date | null) {
   return date?.toISOString().slice(0, 10) ?? "";
@@ -181,6 +182,11 @@ export default async function InitialTestsPage({
                                 </a>
                               </div>
                               <InitialTestForm action={updateInitialTest} initial={test} submitLabel="Änderungen speichern" />
+                              {test.pdfUrl ? (
+                                <div className="mt-4 border-t border-gray-200 pt-4">
+                                  <RemoveInitialTestPdfButton id={test.id} />
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </details>
@@ -265,12 +271,6 @@ function InitialTestForm({
       <Field label="Dichte t/m³"><input className={inputClass} defaultValue={initial?.densityTonPerCubicMeter ?? ""} inputMode="decimal" name="densityTonPerCubicMeter" placeholder="z. B. 2,575" /></Field>
       <Field label={initial ? "PDF ersetzen (optional)" : "Erstprüfung als PDF"}>
         <input accept="application/pdf" className={inputClass} name="pdf" required={!initial} type="file" />
-        {initial?.pdfUrl ? (
-          <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-gray-800">
-            <input className="h-4 w-4 accent-gray-950" name="removePdf" type="checkbox" />
-            Hinterlegtes PDF entfernen (ohne Ersatz)
-          </label>
-        ) : null}
       </Field>
       <Field label="Bemerkung"><input className={inputClass} defaultValue={initial?.notes ?? ""} name="notes" /></Field>
       <label className="flex items-center gap-3 pt-7 text-sm font-bold text-gray-950"><input className="h-5 w-5 accent-gray-950" defaultChecked={initial?.isActive ?? true} name="isActive" type="checkbox" />Aktiv</label>
