@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -150,7 +151,7 @@ export async function createWorkshopRepairOrder(formData: FormData) {
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
   const customValues = await getCustomValues(formData);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await tx.workshopRepairOrder.create({
       data: {
         vehicle: vehicleId
@@ -228,7 +229,7 @@ export async function updateWorkshopRepairOrder(formData: FormData) {
   const status = completedAt ? "DONE" : cleanStatus(formData.get("status"));
   const customValues = await getCustomValues(formData);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const previousOrder = await tx.workshopRepairOrder.findUnique({
       where: {
         id,
@@ -308,7 +309,7 @@ export async function deleteWorkshopRepairOrder(formData: FormData) {
   await requireSession();
   const id = requiredString(formData.get("id"), "Auftrags-ID");
 
-  const inventoryItemId = await prisma.$transaction(async (tx) => {
+  const inventoryItemId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await tx.workshopRepairOrder.findUnique({
       where: {
         id,

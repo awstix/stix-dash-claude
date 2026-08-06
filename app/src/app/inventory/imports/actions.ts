@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -427,7 +428,7 @@ export async function importInventoryItems(formData: FormData) {
         ? (floatValue(rowValue(row, "Aktueller Bestand")) ?? openingStock)
         : null;
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existingByObjectNumber = requestedObjectNumber
           ? await tx.inventoryItem.findUnique({
               where: {

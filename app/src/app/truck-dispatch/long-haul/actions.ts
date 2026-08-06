@@ -987,7 +987,7 @@ export async function createLongHaulEntry(formData: FormData) {
 
   const subAssignments = parseInitialSubcontractorTruckAssignments(formData);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const entry = await tx.truckLongHaulEntry.create({
       data: {
         workDate,
@@ -1124,7 +1124,7 @@ export async function createOwnTruckAssignment(formData: FormData) {
     fallbackNotes: assignment.notes,
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const truckAssignment = await tx.truckLongHaulTruckAssignment.create({
       data: {
         ...assignment,
@@ -1203,7 +1203,7 @@ export async function createSubcontractorTruckAssignment(formData: FormData) {
     fallbackNotes: assignment.notes,
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const truckAssignment = await tx.truckLongHaulTruckAssignment.create({
       data: {
         ...assignment,

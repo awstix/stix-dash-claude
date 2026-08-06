@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { revalidatePath } from "next/cache";
 import {
@@ -910,7 +911,7 @@ export async function updateShortHaulAssignment(formData: FormData) {
     excludeId: id,
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.shortHaulAssignment.update({
       where: {
         id,
@@ -1022,7 +1023,7 @@ export async function updateShortHaulTourTimeFromTimeline({
     }
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.shortHaulTour.update({
       where: {
         id: safeTourId,

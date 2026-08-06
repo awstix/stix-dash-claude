@@ -271,7 +271,7 @@ export async function createEmployee(formData: FormData) {
     getPositionItems(payload.positionValues),
   ]);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const employee = await tx.employee.create({
       data: {
         statusValue: payload.statusValue,
@@ -363,7 +363,7 @@ export async function updateEmployee(formData: FormData) {
     getPositionItems(payload.positionValues),
   ]);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.employee.update({
       where: {
         id,
@@ -443,7 +443,7 @@ export async function deleteEmployee(formData: FormData) {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.employee.delete({
       where: {
         id,

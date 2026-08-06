@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Prisma } from "@prisma/client";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
@@ -30,7 +31,7 @@ async function syncDriversFromEmployees() {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     for (const employee of employees) {
       const hasLkwDriverPosition = employee.positions.some(
         (position) => position.positionValue === LKW_DRIVER_POSITION_VALUE

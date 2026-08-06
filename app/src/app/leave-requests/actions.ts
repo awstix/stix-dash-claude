@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -187,7 +188,7 @@ export async function decideLeaveRequest(formData: FormData) {
   }
   const decisionNote = String(formData.get("decisionNote") ?? "").trim() || null;
   if (decision === "APPROVED") {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       if (request.requestType === "CANCEL") {
         const original = request.originalRequestId
           ? await tx.leaveRequest.findUnique({ where: { id: request.originalRequestId } })

@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -128,7 +129,7 @@ export async function saveEmployeeQualifications(formData: FormData) {
   });
   const validTypeIds = validTypes.map((type) => type.id);
 
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
     await transaction.employeeQualification.deleteMany({
       where: {
         employeeId,

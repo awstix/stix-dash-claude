@@ -480,7 +480,7 @@ export async function updateEmployeeTrainingType(formData: FormData) {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const trainingType = existingTrainingType
       ? await tx.employeeTrainingType.update({
           where: {
@@ -585,7 +585,7 @@ export async function deleteEmployeeTrainingType(formData: FormData) {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.employeeTrainingRecord.deleteMany({
       where: {
         OR: affectedEmployeeConditions,

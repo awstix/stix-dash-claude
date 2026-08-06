@@ -4,7 +4,7 @@ import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { ProjectStatus } from "@prisma/client";
+import { ProjectStatus, type Prisma } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { deleteFile, getPublicUrl, moveFile, putFile } from "@/lib/storage";
@@ -1322,7 +1322,7 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
         })
       : [];
 
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
     const report = await transaction.projectDailyReport.upsert({
       where: {
         projectId_reportDate: {
@@ -2734,7 +2734,7 @@ export async function deleteProject(id: string) {
     ...documents.map((document) => document.storagePath),
   ];
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.shortHaulTour.deleteMany({
       where: {
         projectId: id,

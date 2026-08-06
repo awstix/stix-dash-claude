@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -199,7 +200,7 @@ function revalidateInventory() {
 }
 
 async function syncDriverVehicleAssignmentForInventoryItemId(itemId: string) {
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await syncDriverVehicleAssignmentForInventoryItem(tx, itemId);
   });
 }
@@ -880,7 +881,7 @@ export async function createInventoryItem(formData: FormData) {
   const contacts = getInventoryContacts(formData);
   const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const objectNumber =
       payload.objectNumber ?? (await getNextInventoryObjectNumber(tx, categoryId));
 
@@ -931,7 +932,7 @@ export async function updateInventoryItem(formData: FormData) {
   const contacts = getInventoryContacts(formData);
   const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryContact.deleteMany({
       where: {
         itemId: id,
@@ -1032,7 +1033,7 @@ export async function deleteInventoryItemPermanently(formData: FormData) {
     throw new Error("Inventar-ID fehlt.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const item = await tx.inventoryItem.findUnique({
       where: {
         id,
@@ -1140,7 +1141,7 @@ export async function saveInventoryIdlePeriods(formData: FormData) {
     })
     .filter((period): period is NonNullable<typeof period> => Boolean(period));
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryIdlePeriod.deleteMany({
       where: {
         itemId,
@@ -1244,7 +1245,7 @@ export async function updateInventoryAssignment(formData: FormData) {
   const responsibleCrewId = optionalId(formData.get("responsibleCrewId"));
   const notes = optionalString(formData.get("notes"));
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryItem.update({
       where: {
         id,
@@ -1305,7 +1306,7 @@ export async function returnInventoryItemToBaseLocation(formData: FormData) {
     throw new Error("Bitte Zielstandort auswählen.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryItem.update({
       where: {
         id,
@@ -1376,7 +1377,7 @@ export async function recordInventoryStockMovement(formData: FormData) {
   const projectId = optionalId(formData.get("projectId"));
   const notes = optionalString(formData.get("notes"));
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const item = await tx.inventoryItem.findUnique({
       where: {
         id,
@@ -1466,7 +1467,7 @@ export async function issuePersonalInventory(formData: FormData) {
     "Ausgegeben durch",
   );
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const manager = await tx.employee.findFirst({
       where: {
         id: processedByEmployeeId,
@@ -1562,7 +1563,7 @@ export async function returnPersonalInventory(formData: FormData) {
     "Zurückgenommen durch",
   );
 
-  const assignment = await prisma.$transaction(async (tx) => {
+  const assignment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const manager = await tx.employee.findFirst({
       where: {
         id: processedByEmployeeId,
@@ -1725,7 +1726,7 @@ export async function deleteCompleteInventory(formData: FormData) {
     );
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryItem.deleteMany();
 
     const categories = await tx.inventoryCategory.findMany({

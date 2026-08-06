@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import * as XLSX from "xlsx";
 import { redirect } from "next/navigation";
@@ -572,7 +573,7 @@ export async function importItwoInvoiceItems(formData: FormData) {
     );
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (formData.get("replaceItwoItems") === "on") {
       await tx.controllingInvoiceItem.deleteMany({
         where: {
@@ -670,7 +671,7 @@ export async function importDetailEntriesFromExcel(formData: FormData) {
     );
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (formData.get("replaceDetailImport") === "on") {
       await tx.controllingDetailEntry.deleteMany({
         where: {
@@ -1655,7 +1656,7 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
     entry.amountCents = Math.round(entry.quantity * rate);
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.controllingHourEntry.deleteMany({
       where: {
         reportId,
@@ -1706,7 +1707,7 @@ export async function saveEmployeeGroupRates(formData: FormData) {
   const realRates = formData.getAll("rateReal");
   const internalRates = formData.getAll("rateInternal");
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     for (const [index, name] of names.entries()) {
       const existing = await tx.controllingEmployeeGroupRate.findFirst({
         where: {

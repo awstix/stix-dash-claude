@@ -729,7 +729,7 @@ async function createInventoryCategoryInternal(formData: FormData) {
     parseSortOrder(formData.get("sortOrder")) ??
     (await getNextCategorySortOrder(parentCategoryId));
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const category = await tx.inventoryCategory.create({
       data: {
         ...categoryData,
@@ -820,7 +820,7 @@ async function updateInventoryCategoryInternal(formData: FormData) {
     parseSortOrder(formData.get("sortOrder")) ??
     (await getNextCategorySortOrder(parentCategoryId));
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryCategory.update({
       where: {
         id,
@@ -932,7 +932,7 @@ export async function deleteInventoryCategory(formData: FormData) {
     throw new Error("Kategorie-ID fehlt.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const category = await tx.inventoryCategory.findUnique({
       where: { id },
       select: {

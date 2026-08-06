@@ -664,7 +664,7 @@ async function importEmployees(rows: ExcelRow[]): Promise<ImportResult> {
       mobilePhone,
     });
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let employeeId: string;
       let driverId: string | null = null;
 

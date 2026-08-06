@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -735,7 +736,7 @@ export async function revertRateChangeBatch(formData: FormData) {
     throw new Error("Für diese Sammeländerung gibt es nichts mehr rückgängig zu machen.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     for (const log of logs) {
       if (log.targetType === "EMPLOYEE_GROUP") {
         await tx.controllingEmployeeGroupRate.update({
@@ -846,7 +847,7 @@ export async function createRateSetFromPreviousYear(formData: FormData) {
       throw new Error(`Satzstand ${targetYear} existiert bereits.`);
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const target = await tx.controllingRateSet.create({
         data: {
           description: `Aus Satzstand ${sourceYear} kopiert.`,

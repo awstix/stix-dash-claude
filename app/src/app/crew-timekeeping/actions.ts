@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-access";
@@ -87,7 +88,7 @@ export async function saveCrewTimeEntry(input: CrewTimeEntryInput, changeKind: C
     project?.autoApproveTimeEntriesOverride ?? crew?.autoApproveTimeEntries ?? false;
   const resolvedStatus = resolveEntryStatus(employees, autoApprove);
 
-  const savedEntry = await prisma.$transaction(async (tx) => {
+  const savedEntry = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existing = await tx.crewTimeEntry.findUnique({
       include: { employees: true },
       where: {
@@ -342,7 +343,7 @@ export async function moveEntryToProject(input: { entryId: string; toProjectId: 
 
   const actorName = session.user.name || session.user.email;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.crewTimeEntry.update({
       data: {
         projectId: toProject.id,
@@ -426,7 +427,7 @@ export async function moveEmployeesToProject(input: {
 
   const actorName = session.user.name || session.user.email;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const toEntryExisting = await tx.crewTimeEntry.findUnique({
       include: { employees: true },
       where: {
@@ -613,7 +614,7 @@ export async function saveCrewTeamPreference(input: { crewId: string; employeeId
   const crew = await prisma.crew.findUnique({ select: { id: true }, where: { id: input.crewId } });
   if (!crew) throw new Error("Kolonne wurde nicht gefunden.");
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const preference = await tx.crewTeamPreference.upsert({
       create: { crewId: input.crewId },
       update: {},
@@ -828,7 +829,7 @@ export async function switchEmployeeProject(input: {
   const workDate = dateValue(input.entry.workDate);
   const defaultEndTime = requiredTime(input.entry.defaultEndTime, "Arbeitsende");
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const toEntryExisting = await tx.crewTimeEntry.findUnique({
       include: { employees: true },
       where: {

@@ -228,7 +228,7 @@ export async function createDriverVehicleAssignment(formData: FormData) {
     throw new Error("Bitte ein Inventarobjekt auswählen.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const driverId = await resolveDriverForPersonInput(tx, personInput);
     const inventoryAssignment = await resolveInventoryVehicleAssignmentInput(
       tx,
@@ -302,7 +302,7 @@ export async function updateDriverVehicleAssignment(formData: FormData) {
     throw new Error("Bitte ein Inventarobjekt auswählen.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const existingAssignment = await tx.driverVehicleAssignment.findUnique({
       where: {
         id,
@@ -398,7 +398,7 @@ export async function deleteDriverVehicleAssignment(formData: FormData) {
     throw new Error("Zuordnungs-ID fehlt.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const assignment = await tx.driverVehicleAssignment.findUnique({
       where: {
         id,
@@ -427,7 +427,7 @@ export async function deleteDriverVehicleAssignment(formData: FormData) {
 
 export async function normalizeDriverVehicleAssignments(formData: FormData) {
   await requireAdmin();
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const duplicateDrivers = await tx.driverVehicleAssignment.groupBy({
       by: ["driverId"],
       where: {
