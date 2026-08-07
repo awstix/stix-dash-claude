@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import { prisma } from "@/lib/prisma";
+import { CrewColorPicker } from "./CrewColorPicker";
 import {
   addCrewDefaultVehicle,
   addCrewMember,
@@ -307,6 +308,9 @@ export default async function CrewsAdminPage() {
     (crew) => crew.isActive && crew.isAsphaltDispatchCrew
   );
   const nextCrewSortOrder = getNextSortOrder(crews);
+  const usedCrewColors = crews
+    .filter((crew) => crew.colorClass)
+    .map((crew) => ({ hex: crew.colorClass!, label: crew.name }));
 
   return (
     <AppShell
@@ -374,6 +378,7 @@ export default async function CrewsAdminPage() {
           crewTypeOptions={crewTypeOptions}
           defaultSortOrder={String(nextCrewSortOrder)}
           defaultIsActive
+          usedColors={usedCrewColors}
         />
       </details>
 
@@ -463,6 +468,7 @@ export default async function CrewsAdminPage() {
                       defaultAutoApproveTimeEntries={
                         crew.autoApproveTimeEntries
                       }
+                      usedColors={usedCrewColors}
                     />
 
                     <form action={deleteCrew} className="mt-4">
@@ -836,6 +842,7 @@ function CrewForm({
   defaultIsActive = true,
   defaultIsAsphaltDispatchCrew = false,
   defaultAutoApproveTimeEntries = false,
+  usedColors,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   id?: string;
@@ -848,6 +855,7 @@ function CrewForm({
   defaultIsActive?: boolean;
   defaultIsAsphaltDispatchCrew?: boolean;
   defaultAutoApproveTimeEntries?: boolean;
+  usedColors: { hex: string; label: string }[];
 }) {
   return (
     <form action={action} className="mt-5 space-y-4">
@@ -883,13 +891,14 @@ function CrewForm({
         </label>
 
         <label className="text-sm font-medium text-gray-800">
-          Farbe optional
-          <input
-            name="colorClass"
-            defaultValue={defaultColorClass}
-            placeholder="z.B. bg-orange-100 text-orange-900"
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          />
+          Farbe für die Planung
+          <div className="mt-2">
+            <CrewColorPicker
+              defaultValue={defaultColorClass}
+              name="colorClass"
+              usedColors={usedColors}
+            />
+          </div>
         </label>
 
         <label className="text-sm font-medium text-gray-800">
