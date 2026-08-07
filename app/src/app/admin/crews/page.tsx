@@ -489,7 +489,15 @@ export default async function CrewsAdminPage() {
                 </details>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <details className="mt-6">
+                <summary className="cursor-pointer list-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 marker:content-none hover:bg-gray-100">
+                  Mitarbeiter &amp; Geräte anzeigen ·{" "}
+                  <span className="text-gray-500">
+                    {crew.members.length} Mitarbeiter
+                  </span>
+                </summary>
+
+              <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                   <h3 className="text-lg font-semibold text-gray-900">
                     Mitarbeiter in der Kolonne
@@ -826,6 +834,7 @@ export default async function CrewsAdminPage() {
                   </details>
                 </div>
               </div>
+              </details>
               </section>
             );
           })
