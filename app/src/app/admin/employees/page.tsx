@@ -935,7 +935,7 @@ export async function EmployeesManagementPage({
                           className="fixed inset-0 z-[var(--z-modal)] cursor-default bg-black/20"
                         />
 
-                        <div className="fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[min(980px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
+                        <div className="fixed left-1/2 top-1/2 z-[var(--z-modal-nested)] max-h-[86vh] w-[min(980px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
                           <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
