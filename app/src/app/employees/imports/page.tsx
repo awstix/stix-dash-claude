@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { importExcel } from "@/app/admin/imports/actions";
 
 const importTypes = [
@@ -98,12 +99,11 @@ export default async function EmployeeImportsPage({
             />
           </label>
 
-          <button
+          <FormSubmitButton
             className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-            type="submit"
-          >
-            Import starten
-          </button>
+            idleLabel="Import starten"
+            pendingLabel="Import läuft … bitte warten"
+          />
         </form>
       </section>
 

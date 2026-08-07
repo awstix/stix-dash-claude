@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { prisma } from "@/lib/prisma";
 import {
   createEmployeeTrainingRecordsForParticipants,
@@ -812,12 +813,11 @@ export default async function EmployeeCertificatesPage({
                   type="file"
                 />
               </label>
-              <button
-                className="mt-3 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-                type="submit"
-              >
-                Importieren
-              </button>
+              <FormSubmitButton
+                className="mt-3 w-full justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                idleLabel="Importieren"
+                pendingLabel="Import läuft …"
+              />
             </form>
             <Link
               className="rounded-2xl border border-gray-200 bg-gray-50 p-4 hover:bg-gray-100"
