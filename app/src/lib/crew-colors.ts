@@ -42,3 +42,17 @@ export function buildCrewColorPalette(): string[][] {
   }
   return rows;
 }
+
+/** Zufällige Farbe aus dem Muster, die noch bei keiner Kolonne verwendet wird –
+ * als Vorschlag beim Anlegen einer neuen Kolonne. Lässt sich danach im Picker
+ * jederzeit auf eine bereits verwendete Farbe umstellen. */
+export function pickRandomUnusedCrewColor(usedHexes: string[]): string {
+  const used = new Set(usedHexes.map((hex) => normalizeCrewColor(hex)));
+  const candidates = buildCrewColorPalette()
+    .flat()
+    .filter((hex) => !used.has(hex));
+
+  const pool = candidates.length > 0 ? candidates : buildCrewColorPalette().flat();
+
+  return pool[Math.floor(Math.random() * pool.length)];
+}

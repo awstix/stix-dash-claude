@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
 import { prisma } from "@/lib/prisma";
 import { CrewColorPicker } from "./CrewColorPicker";
+import { pickRandomUnusedCrewColor } from "@/lib/crew-colors";
 import {
   addCrewDefaultVehicle,
   addCrewMember,
@@ -311,6 +312,9 @@ export default async function CrewsAdminPage() {
   const usedCrewColors = crews
     .filter((crew) => crew.colorClass)
     .map((crew) => ({ hex: crew.colorClass!, label: crew.name }));
+  const suggestedNewCrewColor = pickRandomUnusedCrewColor(
+    usedCrewColors.map((used) => used.hex)
+  );
 
   return (
     <AppShell
@@ -376,6 +380,7 @@ export default async function CrewsAdminPage() {
         <CrewForm
           action={createCrew}
           crewTypeOptions={crewTypeOptions}
+          defaultColorClass={suggestedNewCrewColor}
           defaultSortOrder={String(nextCrewSortOrder)}
           defaultIsActive
           usedColors={usedCrewColors}
