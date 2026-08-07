@@ -782,6 +782,10 @@ export default async function InventoryDetailPage({
             <Info label="STIX-ID" value={item.stixId ?? "—"} />
             <Info label="Kennzeichen" value={item.licensePlate ?? "—"} />
             <Info label="Seriennummer" value={item.serialNumber ?? "—"} />
+            <Info
+              label="Fahrzeug-Ident.-Nr."
+              value={item.vehicleIdentNumber ?? "—"}
+            />
             <Info label="Hersteller" value={item.manufacturer ?? "—"} />
             <Info label="Typ/Modell" value={item.model ?? "—"} />
             <Info

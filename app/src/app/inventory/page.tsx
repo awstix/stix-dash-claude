@@ -211,6 +211,7 @@ export default async function InventoryPage({
             { stixId: { contains: searchQuery } },
             { licensePlate: { contains: searchQuery } },
             { serialNumber: { contains: searchQuery } },
+            { vehicleIdentNumber: { contains: searchQuery } },
             { inventoryNumber: { contains: searchQuery } },
             { category: { name: { contains: searchQuery } } },
             { currentProject: { name: { contains: searchQuery } } },

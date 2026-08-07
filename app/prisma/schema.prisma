@@ -2182,6 +2182,7 @@ model InventoryItem {
   manufacturer           String?
   model                  String?
   serialNumber           String?
+  vehicleIdentNumber     String?
   licensePlate           String?
   stixId                 String?            @unique
   objectNumber           String?            @unique

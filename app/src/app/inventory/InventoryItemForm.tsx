@@ -86,6 +86,7 @@ export type InventoryItemFormData = {
   status: string;
   stixId: string | null;
   stockUnit: string;
+  vehicleIdentNumber: string | null;
 };
 
 function formatDateInput(date: Date | null) {
@@ -274,6 +275,12 @@ export function InventoryItemForm({
                 defaultValue={item?.serialNumber ?? ""}
                 label="Seriennummer"
                 name="serialNumber"
+              />
+              <Input
+                defaultValue={item?.vehicleIdentNumber ?? ""}
+                label="Fahrzeug-Ident.-Nr."
+                name="vehicleIdentNumber"
+                placeholder="z.B. WDB1234567A123456"
               />
               <Input
                 defaultValue={item?.stixId ?? ""}

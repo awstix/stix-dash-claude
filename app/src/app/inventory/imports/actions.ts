@@ -565,6 +565,9 @@ export async function importInventoryItems(formData: FormData) {
               ? "CREW"
               : null,
           serialNumber: text(rowValue(row, "Seriennummer")),
+          vehicleIdentNumber: text(
+            rowValue(row, "Fahrzeug-Ident.-Nr.", "Fahrzeug-Ident-Nr", "FIN"),
+          ),
           status: statusValue(rowValue(row, "Status")),
           stockUnit: text(rowValue(row, "Einheit")) ?? "Stk.",
           stixId,

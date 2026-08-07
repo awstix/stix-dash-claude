@@ -305,6 +305,7 @@ function getInventoryPayload(formData: FormData) {
     purchasedFrom: optionalString(formData.get("purchasedFrom")),
     receivedAt: optionalDate(formData.get("receivedAt")),
     serialNumber: optionalString(formData.get("serialNumber")),
+    vehicleIdentNumber: optionalString(formData.get("vehicleIdentNumber")),
     status: inventoryStatus(formData.get("status")),
     stixId: optionalString(formData.get("stixId")),
     stockUnit: optionalString(formData.get("stockUnit")) ?? "Stk.",
