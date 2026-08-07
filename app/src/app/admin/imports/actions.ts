@@ -1,11 +1,44 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
+import { putFile, signedUrl } from "@/lib/storage";
+
+const STORAGE_BUCKET = "uploads";
+
+async function writeImportErrorReport(
+  errorRows: Record<string, unknown>[],
+): Promise<string | null> {
+  if (errorRows.length === 0) return null;
+
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(errorRows);
+  sheet["!cols"] = Object.keys(errorRows[0]).map((key) => ({
+    wch: Math.max(14, Math.min(48, key.length + 4)),
+  }));
+  XLSX.utils.book_append_sheet(workbook, sheet, "Importfehler");
+
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "buffer",
+  });
+
+  const fileName = `import-fehler-${new Date().toISOString().slice(0, 10)}-${randomUUID().slice(0, 8)}.xlsx`;
+  const storagePath = `admin-import-errors/${fileName}`;
+  await putFile(
+    STORAGE_BUCKET,
+    storagePath,
+    buffer,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+
+  return signedUrl(STORAGE_BUCKET, storagePath, 60 * 60);
+}
 
 type ImportType =
   | "employees"
@@ -21,6 +54,7 @@ type ImportResult = {
   created: number;
   updated: number;
   skipped: number;
+  errorReportUrl?: string | null;
 };
 
 type ExcelRow = Record<string, unknown>;
@@ -565,13 +599,15 @@ async function findExistingEmployee({
 }
 
 async function importEmployees(rows: ExcelRow[]): Promise<ImportResult> {
-  const result = {
+  const result: ImportResult = {
     created: 0,
     updated: 0,
     skipped: 0,
   };
+  const errorRows: Record<string, unknown>[] = [];
 
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
+    const excelRow = index + 2;
     const isCompletelyEmpty = Object.values(row).every((value) => !text(value));
 
     if (isCompletelyEmpty) {
@@ -583,9 +619,41 @@ async function importEmployees(rows: ExcelRow[]): Promise<ImportResult> {
 
     if (!firstName || !lastName) {
       result.skipped++;
+      errorRows.push({
+        "Excel-Zeile": excelRow,
+        Fehler: "Vorname oder Nachname fehlt.",
+        ...row,
+      });
       continue;
     }
 
+    try {
+      await importEmployeeRow(row, firstName, lastName, result);
+    } catch (error) {
+      result.skipped++;
+      errorRows.push({
+        "Excel-Zeile": excelRow,
+        Fehler:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler beim Import.",
+        ...row,
+      });
+    }
+  }
+
+  result.errorReportUrl = await writeImportErrorReport(errorRows);
+
+  return result;
+}
+
+async function importEmployeeRow(
+  row: ExcelRow,
+  firstName: string,
+  lastName: string,
+  result: ImportResult,
+) {
+  {
     const rawStatus = getCell(row, ["Status"]) || "Aktiv";
 
     const status = await resolveOption({
@@ -723,8 +791,6 @@ async function importEmployees(rows: ExcelRow[]): Promise<ImportResult> {
       });
     });
   }
-
-  return result;
 }
 
 async function importDrivers(rows: ExcelRow[]): Promise<ImportResult> {
@@ -1333,7 +1399,15 @@ export async function importExcel(formData: FormData) {
   revalidatePath("/admin/concrete-types");
   revalidatePath("/admin/options");
 
-  redirect(
-    `${returnPath}?type=${importType}&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`
-  );
+  const params = new URLSearchParams({
+    created: String(result.created),
+    skipped: String(result.skipped),
+    type: importType,
+    updated: String(result.updated),
+  });
+  if (result.errorReportUrl) {
+    params.set("errorReport", result.errorReportUrl);
+  }
+
+  redirect(`${returnPath}?${params.toString()}`);
 }

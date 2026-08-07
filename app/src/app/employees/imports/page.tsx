@@ -16,6 +16,7 @@ export default async function EmployeeImportsPage({
 }: {
   searchParams: Promise<{
     created?: string;
+    errorReport?: string;
     skipped?: string;
     type?: string;
     updated?: string;
@@ -58,6 +59,14 @@ export default async function EmployeeImportsPage({
             <strong>{params.updated ?? 0}</strong> · Übersprungen:{" "}
             <strong>{params.skipped ?? 0}</strong>
           </p>
+          {params.errorReport ? (
+            <Link
+              className="mt-3 inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-green-950 ring-1 ring-green-300 hover:bg-green-100"
+              href={params.errorReport}
+            >
+              Fehlerliste herunterladen
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
