@@ -12,8 +12,15 @@ export default async function EditInventoryItemPage({
 }) {
   const { itemId } = await params;
 
-  const [attachmentTypeRows, categories, crews, employees, item, items] =
-    await Promise.all([
+  const [
+    attachmentTypeRows,
+    fuelTypeRows,
+    categories,
+    crews,
+    employees,
+    item,
+    items,
+  ] = await Promise.all([
       prisma.inventoryItem.findMany({
         distinct: ["attachmentType"],
         orderBy: [{ attachmentType: "asc" }],
@@ -25,6 +32,13 @@ export default async function EditInventoryItemPage({
             not: null,
           },
         },
+      }),
+      prisma.adminOption.findMany({
+        where: {
+          groupKey: "vehicle_fuel_type",
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       }),
       prisma.inventoryCategory.findMany({
         where: {
@@ -122,6 +136,10 @@ export default async function EditInventoryItemPage({
         containerOptions={items}
         crews={crews}
         employees={employees}
+        fuelTypeOptions={fuelTypeRows.map((row) => ({
+          label: row.label,
+          value: row.value,
+        }))}
         item={item}
         layout="stacked"
       />

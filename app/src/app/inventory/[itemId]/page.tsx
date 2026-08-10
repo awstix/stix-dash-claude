@@ -810,6 +810,7 @@ export default async function InventoryDetailPage({
                   : "—"
               }
             />
+            <Info label="Kraftstoffart" value={item.fuelTypeLabel ?? "—"} />
             <Info
               label="Arbeitsmitteltank"
               value={

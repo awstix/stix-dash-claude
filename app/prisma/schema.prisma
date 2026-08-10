@@ -2201,6 +2201,8 @@ model InventoryItem {
   payloadKg              Int?
   driveType              String?
   attachmentType         String?
+  fuelTypeValue          String?
+  fuelTypeLabel          String?
   fuelTankLiters         Float?
   workMaterialTankLiters Float?
 

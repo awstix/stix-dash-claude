@@ -57,6 +57,11 @@ const optionSections: OptionSection[] = [
     groups: [
       { key: "vehicle_type", label: "Fahrzeugtypen" },
       { key: "vehicle_category", label: "Fahrzeugkategorien" },
+      {
+        key: "vehicle_fuel_type",
+        label: "Kraftstoffarten",
+        hint: "Wird im Inventar bei Fahrzeug-, LKW- und Gerätedaten beim Feld Kraftstoffart verwendet.",
+      },
     ],
   },
   {

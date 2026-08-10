@@ -37,6 +37,8 @@ export type InventoryItemFormData = {
     employeeId: string;
   }[];
   fuelTankLiters: number | null;
+  fuelTypeValue: string | null;
+  fuelTypeLabel: string | null;
   grossWeightKg: number | null;
   id: string;
   inventoryNumber: string | null;
@@ -117,9 +119,11 @@ export function InventoryItemForm({
   item,
   layout = "grid",
   attachmentTypeOptions = [],
+  fuelTypeOptions = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
   attachmentTypeOptions?: string[];
+  fuelTypeOptions?: { label: string; value: string }[];
   categories: {
     dailyReportSection: string;
     id: string;
@@ -419,6 +423,18 @@ export function InventoryItemForm({
                 step="0.01"
                 type="number"
               />
+              <Select
+                defaultValue={item?.fuelTypeValue ?? "__none"}
+                label="Kraftstoffart"
+                name="fuelTypeValue"
+              >
+                <option value="__none">Nicht angegeben</option>
+                {fuelTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
               <Input
                 defaultValue={item?.workMaterialTankLiters?.toString() ?? ""}
                 label="Arbeitsmitteltank l"

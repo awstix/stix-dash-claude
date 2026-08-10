@@ -38,6 +38,21 @@ function optionalId(value: FormDataEntryValue | null) {
   return text === "__none" ? null : text;
 }
 
+async function getAdminOptionLabel(groupKey: string, value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const option = await prisma.adminOption.findFirst({
+    where: {
+      groupKey,
+      value,
+    },
+  });
+
+  return option?.label ?? value;
+}
+
 function optionalInt(value: FormDataEntryValue | null, label: string) {
   const text = optionalString(value);
   if (!text) return null;
@@ -213,7 +228,7 @@ function revalidateInventoryItem(itemId?: string) {
   }
 }
 
-function getInventoryPayload(formData: FormData) {
+async function getInventoryPayload(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
 
   if (!name) {
@@ -225,6 +240,11 @@ function getInventoryPayload(formData: FormData) {
     ? optionalStock(formData.get("openingStock"), "Anfangsbestand")
     : null;
   const constructionDate = optionalDate(formData.get("constructionDate"));
+  const fuelTypeValue = optionalId(formData.get("fuelTypeValue"));
+  const fuelTypeLabel = await getAdminOptionLabel(
+    "vehicle_fuel_type",
+    fuelTypeValue,
+  );
 
   return {
     attachmentType: optionalString(formData.get("attachmentType")),
@@ -241,6 +261,8 @@ function getInventoryPayload(formData: FormData) {
       formData.get("fuelTankLiters"),
       "Kraftstofftank",
     ),
+    fuelTypeValue,
+    fuelTypeLabel,
     grossWeightKg: optionalInt(
       formData.get("grossWeightKg"),
       "Zulässiges Gesamtgewicht",
@@ -339,7 +361,7 @@ function relationUpdate(id: string | null) {
       };
 }
 
-function getInventoryCreateData(formData: FormData) {
+async function getInventoryCreateData(formData: FormData) {
   const {
     categoryId,
     currentProjectId,
@@ -347,7 +369,7 @@ function getInventoryCreateData(formData: FormData) {
     responsibleCrewId,
     responsibleEmployeeId,
     ...payload
-  } = getInventoryPayload(formData);
+  } = await getInventoryPayload(formData);
 
   return {
     ...payload,
@@ -359,7 +381,7 @@ function getInventoryCreateData(formData: FormData) {
   };
 }
 
-function getInventoryUpdateData(formData: FormData) {
+async function getInventoryUpdateData(formData: FormData) {
   const {
     categoryId,
     currentProjectId,
@@ -367,7 +389,7 @@ function getInventoryUpdateData(formData: FormData) {
     responsibleCrewId,
     responsibleEmployeeId,
     ...payload
-  } = getInventoryPayload(formData);
+  } = await getInventoryPayload(formData);
 
   return {
     ...payload,
@@ -878,7 +900,7 @@ export async function createInventoryItem(formData: FormData) {
   const categoryId = optionalId(formData.get("categoryId"));
   const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
   if (!allowsAssignment) clearInventoryAssignmentFields(formData);
-  const payload = getInventoryCreateData(formData);
+  const payload = await getInventoryCreateData(formData);
   const contacts = getInventoryContacts(formData);
   const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
@@ -929,7 +951,7 @@ export async function updateInventoryItem(formData: FormData) {
   const categoryId = optionalId(formData.get("categoryId"));
   const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
   if (!allowsAssignment) clearInventoryAssignmentFields(formData);
-  const payload = getInventoryUpdateData(formData);
+  const payload = await getInventoryUpdateData(formData);
   const contacts = getInventoryContacts(formData);
   const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
 
