@@ -285,6 +285,7 @@ async function getInventoryPayload(formData: FormData) {
       "Letzter Service Betriebsstunden",
     ),
     lastTuvInspectionDate: optionalDate(formData.get("lastTuvInspectionDate")),
+    lastHuInspectionDate: optionalDate(formData.get("lastHuInspectionDate")),
     lastTachographInspectionDate: optionalDate(
       formData.get("lastTachographInspectionDate"),
     ),
@@ -308,6 +309,7 @@ async function getInventoryPayload(formData: FormData) {
       "Nächster Service Betriebsstunden",
     ),
     nextTuvInspectionDate: optionalDate(formData.get("nextTuvInspectionDate")),
+    nextHuInspectionDate: optionalDate(formData.get("nextHuInspectionDate")),
     nextTachographInspectionDate: optionalDate(
       formData.get("nextTachographInspectionDate"),
     ),

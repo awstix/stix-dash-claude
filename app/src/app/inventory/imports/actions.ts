@@ -542,6 +542,7 @@ export async function importInventoryItems(formData: FormData) {
             rowValue(row, "Letzter Service H"),
           ),
           lastTuvInspectionDate: dateValue(rowValue(row, "Letzte TÜV")),
+          lastHuInspectionDate: dateValue(rowValue(row, "Letzte HU")),
           lastTachographInspectionDate: dateValue(
             rowValue(row, "Letzte Tachoprüfung"),
           ),
@@ -558,6 +559,7 @@ export async function importInventoryItems(formData: FormData) {
             rowValue(row, "Nächster Service H"),
           ),
           nextTuvInspectionDate: dateValue(rowValue(row, "Nächste TÜV")),
+          nextHuInspectionDate: dateValue(rowValue(row, "Nächste HU")),
           nextTachographInspectionDate: dateValue(
             rowValue(row, "Nächste Tachoprüfung"),
           ),

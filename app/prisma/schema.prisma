@@ -2246,6 +2246,8 @@ model InventoryItem {
   nextDguvInspectionDate       DateTime?
   lastTuvInspectionDate        DateTime?
   nextTuvInspectionDate        DateTime?
+  lastHuInspectionDate         DateTime?
+  nextHuInspectionDate         DateTime?
   lastTachographInspectionDate DateTime?
   nextTachographInspectionDate DateTime?
   lastSafetyInspectionDate     DateTime?
@@ -2301,6 +2303,7 @@ model InventoryItem {
   @@index([nextServiceAtDate])
   @@index([nextDguvInspectionDate])
   @@index([nextTuvInspectionDate])
+  @@index([nextHuInspectionDate])
   @@index([nextTachographInspectionDate])
   @@index([nextSafetyInspectionDate])
   @@index([nextAdrInspectionDate])

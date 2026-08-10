@@ -51,6 +51,7 @@ export type InventoryItemFormData = {
   lastServiceMileageKm: number | null;
   lastServiceOperatingHours: number | null;
   lastTuvInspectionDate: Date | null;
+  lastHuInspectionDate: Date | null;
   lastTachographInspectionDate: Date | null;
   lastSafetyInspectionDate: Date | null;
   lastAdrInspectionDate: Date | null;
@@ -62,6 +63,7 @@ export type InventoryItemFormData = {
   nextServiceMileageKm: number | null;
   nextServiceOperatingHours: number | null;
   nextTuvInspectionDate: Date | null;
+  nextHuInspectionDate: Date | null;
   nextTachographInspectionDate: Date | null;
   nextSafetyInspectionDate: Date | null;
   nextAdrInspectionDate: Date | null;
@@ -643,54 +645,32 @@ export function InventoryItemForm({
           <div className={fieldGroupClass}>
             {layout === "stacked" ? (
               <FieldGroupHeader
-                description="Letzter bekannter Service-Stand."
-                title="Letzter Service"
+                description="Letzter und nächster Service auf einen Blick."
+                title="Service"
               />
             ) : null}
-            <div className={innerGridClass}>
-              <Input
-                defaultValue={formatNumber(item?.lastServiceOperatingHours ?? null)}
-                label="Betriebsstunden"
-                name="lastServiceOperatingHours"
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <ServiceStatPair
+                lastDefaultValue={formatNumber(item?.lastServiceOperatingHours ?? null)}
+                lastName="lastServiceOperatingHours"
+                nextDefaultValue={formatNumber(item?.nextServiceOperatingHours ?? null)}
+                nextName="nextServiceOperatingHours"
+                title="Betriebsstunden"
               />
-              <Input
-                defaultValue={item?.lastServiceMileageKm ?? ""}
-                label="Kilometer"
-                name="lastServiceMileageKm"
+              <ServiceStatPair
+                lastDefaultValue={item?.lastServiceMileageKm ?? ""}
+                lastName="lastServiceMileageKm"
+                nextDefaultValue={item?.nextServiceMileageKm ?? ""}
+                nextName="nextServiceMileageKm"
+                title="Kilometer"
                 type="number"
               />
-              <Input
-                defaultValue={formatDateInput(item?.lastServiceAtDate ?? null)}
-                label="Datum"
-                name="lastServiceAtDate"
-                type="date"
-              />
-            </div>
-          </div>
-
-          <div className={fieldGroupClass}>
-            {layout === "stacked" ? (
-              <FieldGroupHeader
-                description="Nächster geplanter Service nach Stunden, Kilometer oder Datum."
-                title="Nächster Service"
-              />
-            ) : null}
-            <div className={innerGridClass}>
-              <Input
-                defaultValue={formatNumber(item?.nextServiceOperatingHours ?? null)}
-                label="Betriebsstunden"
-                name="nextServiceOperatingHours"
-              />
-              <Input
-                defaultValue={item?.nextServiceMileageKm ?? ""}
-                label="Kilometer"
-                name="nextServiceMileageKm"
-                type="number"
-              />
-              <Input
-                defaultValue={formatDateInput(item?.nextServiceAtDate ?? null)}
-                label="Datum"
-                name="nextServiceAtDate"
+              <ServiceStatPair
+                lastDefaultValue={formatDateInput(item?.lastServiceAtDate ?? null)}
+                lastName="lastServiceAtDate"
+                nextDefaultValue={formatDateInput(item?.nextServiceAtDate ?? null)}
+                nextName="nextServiceAtDate"
+                title="Datum"
                 type="date"
               />
             </div>
@@ -721,6 +701,13 @@ export function InventoryItemForm({
                 nextName="nextTuvInspectionDate"
                 nextValue={item?.nextTuvInspectionDate ?? null}
                 title="TÜV"
+              />
+              <InspectionDatePair
+                lastName="lastHuInspectionDate"
+                lastValue={item?.lastHuInspectionDate ?? null}
+                nextName="nextHuInspectionDate"
+                nextValue={item?.nextHuInspectionDate ?? null}
+                title="HU"
               />
               <InspectionDatePair
                 lastName="lastTachographInspectionDate"
@@ -880,6 +867,44 @@ function InspectionDatePair({
           label="Nächste"
           name={nextName}
           type="date"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ServiceStatPair({
+  lastDefaultValue,
+  lastName,
+  nextDefaultValue,
+  nextName,
+  title,
+  type = "text",
+}: {
+  lastDefaultValue: string | number;
+  lastName: string;
+  nextDefaultValue: string | number;
+  nextName: string;
+  title: string;
+  type?: React.HTMLInputTypeAttribute;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="text-xs font-bold uppercase tracking-[0.12em] text-gray-700">
+        {title}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <Input
+          defaultValue={lastDefaultValue}
+          label="Letzter"
+          name={lastName}
+          type={type}
+        />
+        <Input
+          defaultValue={nextDefaultValue}
+          label="Nächster"
+          name={nextName}
+          type={type}
         />
       </div>
     </div>

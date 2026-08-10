@@ -1259,7 +1259,7 @@ export default async function InventoryDetailPage({
             <h3 className="text-sm font-bold uppercase tracking-[0.14em] text-gray-700">
               Prüfungen
             </h3>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <InspectionInfo
                 lastDate={item.lastDguvInspectionDate}
                 nextDate={item.nextDguvInspectionDate}
@@ -1269,6 +1269,11 @@ export default async function InventoryDetailPage({
                 lastDate={item.lastTuvInspectionDate}
                 nextDate={item.nextTuvInspectionDate}
                 title="TÜV"
+              />
+              <InspectionInfo
+                lastDate={item.lastHuInspectionDate}
+                nextDate={item.nextHuInspectionDate}
+                title="HU"
               />
               <InspectionInfo
                 lastDate={item.lastTachographInspectionDate}
