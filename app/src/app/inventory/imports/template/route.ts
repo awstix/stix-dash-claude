@@ -42,6 +42,7 @@ const headers = [
   "Antrieb",
   "Aufnahmetyp",
   "Kraftstofftank l",
+  "Kraftstoffart",
   "Arbeitsmitteltank l",
   "Verrechnungssatz EUR je Einheit",
   "Verrechnungssatz stillgelegt EUR je Einheit",
@@ -205,7 +206,7 @@ function patchInventoryTemplateDropdowns(
 }
 
 export async function GET() {
-  const [categories, unitOptions] = await Promise.all([
+  const [categories, unitOptions, fuelTypeOptions] = await Promise.all([
     prisma.inventoryCategory.findMany({
     where: {
       isActive: true,
@@ -231,6 +232,16 @@ export async function GET() {
         isActive: true,
       },
       orderBy: [{ groupKey: "asc" }, { sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        label: true,
+      },
+    }),
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "vehicle_fuel_type",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       select: {
         label: true,
       },
@@ -302,6 +313,7 @@ export async function GET() {
     "Verrechnungssatz EUR je Einheit": "",
     "Verrechnungssatz stillgelegt EUR je Einheit": "",
     "Kraftstofftank l": "",
+    Kraftstoffart: "",
     "Arbeitsmitteltank l": "",
     "ZGG kg": "",
   };
@@ -404,8 +416,17 @@ export async function GET() {
       "Std.",
     ]),
   ).filter(Boolean);
+  const fuelTypes = Array.from(
+    new Set(fuelTypeOptions.map((option) => option.label)),
+  ).filter(Boolean);
   const listRows = Array.from({
-    length: Math.max(categoryNames.length, subcategoryNames.length, units.length, 4),
+    length: Math.max(
+      categoryNames.length,
+      subcategoryNames.length,
+      units.length,
+      fuelTypes.length,
+      4,
+    ),
   }).map((_, index) => ({
     Kategorie: categoryNames[index] ?? "",
     Unterkategorie: subcategoryNames[index] ?? "",
@@ -415,6 +436,7 @@ export async function GET() {
     Verantwortlich: ["Mitarbeiter", "Kolonne"][index] ?? "",
     Antrieb: ["Kette", "Rad", "Rad+Kette", "Anhänger", "Andere"][index] ?? "",
     Anrede: ["Herr", "Frau", "Divers"][index] ?? "",
+    Kraftstoffart: fuelTypes[index] ?? "",
   }));
   const listSheet = XLSX.utils.json_to_sheet(listRows);
   listSheet["!cols"] = [
@@ -426,6 +448,7 @@ export async function GET() {
     { wch: 16 },
     { wch: 18 },
     { wch: 16 },
+    { wch: 18 },
   ];
 
   const workbook = XLSX.utils.book_new();
@@ -445,6 +468,7 @@ export async function GET() {
     Containerobjekt: `Dropdowns!$D$2:$D$${dropdownsRowCount}`,
     Einheit: `Dropdowns!$C$2:$C$${dropdownsRowCount}`,
     Kategorie: `Dropdowns!$A$2:$A$${dropdownsRowCount}`,
+    Kraftstoffart: `Dropdowns!$I$2:$I$${dropdownsRowCount}`,
     Lagerobjekt: `Dropdowns!$D$2:$D$${dropdownsRowCount}`,
     Status: `Dropdowns!$E$2:$E$${dropdownsRowCount}`,
     Unterkategorie: `Dropdowns!$B$2:$B$${dropdownsRowCount}`,

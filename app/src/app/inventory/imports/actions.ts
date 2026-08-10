@@ -114,6 +114,25 @@ function driveType(value: unknown) {
   return null;
 }
 
+function resolveFuelType(
+  value: unknown,
+  options: { label: string; value: string }[],
+) {
+  const raw = text(value);
+  if (!raw) return { fuelTypeLabel: null, fuelTypeValue: null };
+
+  const normalized = raw.toLowerCase();
+  const match = options.find(
+    (option) =>
+      option.label.toLowerCase() === normalized ||
+      option.value.toLowerCase() === normalized,
+  );
+
+  return match
+    ? { fuelTypeLabel: match.label, fuelTypeValue: match.value }
+    : { fuelTypeLabel: null, fuelTypeValue: null };
+}
+
 function rowValue(row: ExcelRow, ...keys: string[]) {
   for (const key of keys) {
     if (row[key] !== undefined && row[key] !== null && String(row[key]).trim()) {
@@ -356,6 +375,17 @@ export async function importInventoryItems(formData: FormData) {
     defval: "",
   });
 
+  const fuelTypeOptions = await prisma.adminOption.findMany({
+    where: {
+      groupKey: "vehicle_fuel_type",
+      isActive: true,
+    },
+    select: {
+      label: true,
+      value: true,
+    },
+  });
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -499,6 +529,7 @@ export async function importInventoryItems(formData: FormData) {
           deliveryNoteNumber: text(rowValue(row, "Lieferscheinnummer")),
           driveType: driveType(rowValue(row, "Antrieb")),
           fuelTankLiters: floatValue(rowValue(row, "Kraftstofftank l")),
+          ...resolveFuelType(rowValue(row, "Kraftstoffart"), fuelTypeOptions),
           grossWeightKg: intValue(rowValue(row, "ZGG kg")),
           inventoryNumber,
           invoiceNumber: text(rowValue(row, "Rechnungsnummer")),
