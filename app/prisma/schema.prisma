@@ -2260,6 +2260,7 @@ model InventoryItem {
   nextAdrInspectionDate        DateTime?
 
   photos                             InventoryPhoto[]
+  documents                          InventoryDocument[]
   contacts                           InventoryContact[]
   usageHistory                       InventoryUsageHistory[]
   idlePeriods                        InventoryIdlePeriod[]
@@ -2403,6 +2404,26 @@ model InventoryPhoto {
 
   @@index([itemId])
   @@index([isPrimary])
+  @@index([createdAt])
+}
+
+model InventoryDocument {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  fileName     String
+  originalName String?
+  url          String
+  mimeType     String?
+  sizeBytes    Int?
+  uploadedBy   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
   @@index([createdAt])
 }
 

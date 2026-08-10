@@ -28,6 +28,7 @@ import { InventoryStockMovementForm } from "../InventoryStockMovementForm";
 import { PersonalInventoryPanel } from "../PersonalInventoryPanel";
 import { InventoryWorkshopFormDialog } from "../InventoryWorkshopFormDialog";
 import {
+  deleteInventoryDocument,
   returnInventoryItemToBaseLocation,
   updateInventoryAssignment,
 } from "../actions";
@@ -55,6 +56,12 @@ function formatMoney(cents: number | null) {
     currency: "EUR",
     style: "currency",
   }).format(cents / 100);
+}
+
+function formatFileSize(sizeBytes: number | null) {
+  if (!sizeBytes) return "";
+  if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatStock(value: number | null, unit: string) {
@@ -338,6 +345,9 @@ export default async function InventoryDetailPage({
       parentItem: true,
       photos: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+      },
+      documents: {
+        orderBy: [{ createdAt: "desc" }],
       },
       personalAssignments: {
         include: { employee: true },
@@ -1413,6 +1423,45 @@ export default async function InventoryDetailPage({
                     ) : null}
                     {contact.notes ? <div>Notiz: {contact.notes}</div> : null}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900">Dokumente</h2>
+          {item.documents.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-500">
+              Noch keine Dokumente hinterlegt.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {item.documents.map((document) => (
+                <div
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
+                  key={document.id}
+                >
+                  <a
+                    className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 hover:underline"
+                    href={document.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {document.originalName ?? document.fileName}
+                  </a>
+                  <span className="shrink-0 text-xs text-gray-500">
+                    {formatFileSize(document.sizeBytes)}
+                  </span>
+                  <form action={deleteInventoryDocument}>
+                    <input name="id" type="hidden" value={document.id} />
+                    <button
+                      className="shrink-0 text-xs font-semibold text-red-700 hover:underline"
+                      type="submit"
+                    >
+                      Löschen
+                    </button>
+                  </form>
                 </div>
               ))}
             </div>

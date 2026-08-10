@@ -22,6 +22,25 @@ const allowedInventoryPhotoTypes = new Map([
   ["image/webp", "webp"],
 ]);
 
+const allowedInventoryDocumentExtensions = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "ppt",
+  "pptx",
+  "txt",
+  "jpg",
+  "jpeg",
+  "png",
+]);
+
+function getInventoryDocumentExtension(fileName: string) {
+  const match = /\.([a-zA-Z0-9]+)$/.exec(fileName);
+  return match ? match[1].toLowerCase() : null;
+}
+
 function optionalString(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
@@ -911,6 +930,40 @@ async function storeInventoryPhotos(itemId: string, formData: FormData) {
   }
 }
 
+async function storeInventoryDocuments(itemId: string, formData: FormData) {
+  const files = formData
+    .getAll("documents")
+    .filter((file): file is File => file instanceof File && file.size > 0);
+
+  for (const file of files) {
+    const extension = getInventoryDocumentExtension(file.name);
+
+    if (!extension || !allowedInventoryDocumentExtensions.has(extension)) {
+      throw new Error(
+        "Bitte Dokumente als PDF, Word, Excel, PowerPoint, TXT, JPG oder PNG hochladen.",
+      );
+    }
+
+    const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${extension}`;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const storagePath = `inventory-documents/${itemId}/${fileName}`;
+    const mimeType = file.type || "application/octet-stream";
+
+    const uploaded = await putFile(STORAGE_BUCKET, storagePath, bytes, mimeType);
+
+    await prisma.inventoryDocument.create({
+      data: {
+        fileName,
+        itemId,
+        mimeType,
+        originalName: file.name,
+        sizeBytes: file.size,
+        url: uploaded.publicUrl,
+      },
+    });
+  }
+}
+
 export async function createInventoryItem(formData: FormData) {
   await requireSession();
   const categoryId = optionalId(formData.get("categoryId"));
@@ -952,6 +1005,7 @@ export async function createInventoryItem(formData: FormData) {
   await syncAsphaltMaterialLinkForInventoryItem(item.id);
   await syncDriverVehicleAssignmentForInventoryItemId(item.id);
   await storeInventoryPhotos(item.id, formData);
+  await storeInventoryDocuments(item.id, formData);
 
   revalidateInventoryItem(item.id);
 }
@@ -1013,6 +1067,7 @@ export async function updateInventoryItem(formData: FormData) {
   await syncAsphaltMaterialLinkForInventoryItem(id);
   await syncDriverVehicleAssignmentForInventoryItemId(id);
   await storeInventoryPhotos(id, formData);
+  await storeInventoryDocuments(id, formData);
 
   revalidateInventoryItem(id);
 }
@@ -1715,6 +1770,28 @@ export async function deleteInventoryPhoto(formData: FormData) {
   revalidateInventoryItem(photo.itemId);
 }
 
+export async function deleteInventoryDocument(formData: FormData) {
+  await requireSession();
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Dokument-ID fehlt.");
+  }
+
+  const document = await prisma.inventoryDocument.delete({
+    where: {
+      id,
+    },
+  });
+
+  await deleteFile(
+    STORAGE_BUCKET,
+    `inventory-documents/${document.itemId}/${document.fileName}`,
+  ).catch(() => undefined);
+
+  revalidateInventoryItem(document.itemId);
+}
+
 export async function recordInventoryScan(formData: FormData) {
   await requireSession();
   const itemId = optionalString(formData.get("itemId"));
@@ -1788,6 +1865,9 @@ export async function deleteCompleteInventory(formData: FormData) {
   });
 
   await deleteFolder(STORAGE_BUCKET, "inventory-items").catch(() => undefined);
+  await deleteFolder(STORAGE_BUCKET, "inventory-documents").catch(
+    () => undefined,
+  );
 
   revalidatePath("/inventory");
   revalidatePath("/inventory/storage");

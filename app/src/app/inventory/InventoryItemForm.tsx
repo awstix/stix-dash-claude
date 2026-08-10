@@ -1,5 +1,6 @@
 import { InventoryContactFields } from "./InventoryContactFields";
 import { InventoryAdditionalEmployeesField } from "./InventoryAdditionalEmployeesField";
+import { InventoryDocumentUploadFields } from "./InventoryDocumentUploadFields";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 import { SearchableInventorySelect } from "./SearchableInventorySelect";
 import {
@@ -82,6 +83,13 @@ export type InventoryItemFormData = {
     id: string;
     isPrimary: boolean;
     originalName: string | null;
+    url: string;
+  }[];
+  documents?: {
+    fileName: string;
+    id: string;
+    originalName: string | null;
+    sizeBytes: number | null;
     url: string;
   }[];
   purchasedAt: Date | null;
@@ -811,6 +819,8 @@ export function InventoryItemForm({
           </label>
 
           <InventoryPhotoUploadFields photos={item?.photos ?? []} />
+
+          <InventoryDocumentUploadFields documents={item?.documents ?? []} />
 
           <InventoryContactFields contacts={item?.contacts ?? []} />
         </div>

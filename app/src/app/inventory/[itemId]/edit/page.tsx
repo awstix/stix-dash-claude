@@ -106,6 +106,9 @@ export default async function EditInventoryItemPage({
           photos: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
           },
+          documents: {
+            orderBy: [{ createdAt: "desc" }],
+          },
         },
       }),
       prisma.inventoryItem.findMany({
