@@ -44,6 +44,7 @@ const statusFilterOptions = [
   { label: "Defekt", value: "DEFECT" },
   { label: "In Wartung", value: "IN_SERVICE" },
   { label: "Gesperrt", value: "LOCKED" },
+  { label: "Gestohlen", value: "STOLEN" },
 ];
 
 const stockFilterOptions = [
@@ -56,6 +57,7 @@ function getInventoryStatusLabel(status: string | null) {
   if (status === "DEFECT") return "Defekt";
   if (status === "LOCKED") return "Gesperrt";
   if (status === "IN_SERVICE") return "In Wartung";
+  if (status === "STOLEN") return "Gestohlen";
   if (status === "INACTIVE" || status === "DELETED") return "Archiviert";
   return "Aktiv";
 }
@@ -64,6 +66,7 @@ function getInventoryStatusClass(status: string | null) {
   if (status === "DEFECT") return "bg-red-100 text-red-900 ring-red-200";
   if (status === "LOCKED") return "bg-orange-100 text-orange-950 ring-orange-200";
   if (status === "IN_SERVICE") return "bg-blue-100 text-blue-900 ring-blue-200";
+  if (status === "STOLEN") return "bg-purple-100 text-purple-900 ring-purple-200";
   if (status === "INACTIVE" || status === "DELETED") {
     return "bg-gray-100 text-gray-700 ring-gray-200";
   }

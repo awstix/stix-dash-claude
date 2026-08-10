@@ -172,7 +172,8 @@ function optionalDate(value: FormDataEntryValue | null) {
 
 function inventoryStatus(value: FormDataEntryValue | null) {
   const text = optionalString(value);
-  return text && ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED"].includes(text)
+  return text &&
+    ["ACTIVE", "DEFECT", "IN_SERVICE", "LOCKED", "STOLEN"].includes(text)
     ? text
     : "ACTIVE";
 }

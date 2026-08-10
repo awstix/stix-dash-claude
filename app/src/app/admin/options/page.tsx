@@ -66,12 +66,17 @@ const optionSections: OptionSection[] = [
   },
   {
     title: "Inventar",
-    description: "Versicherer für Inventarobjekte.",
+    description: "Versicherer und Status für Inventarobjekte.",
     groups: [
       {
         key: "insurance_provider",
         label: "Versicherer",
         hint: "Wird im Inventar bei der Kachel Versicherung beim Feld Versichert bei verwendet.",
+      },
+      {
+        key: "inventory_status",
+        label: "Inventar-Status",
+        hint: "Wird im Inventar beim Feld Status verwendet.",
       },
     ],
   },

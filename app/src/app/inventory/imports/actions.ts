@@ -99,6 +99,7 @@ function statusValue(value: unknown) {
   if (normalized === "defekt") return "DEFECT";
   if (normalized === "in wartung" || normalized === "wartung") return "IN_SERVICE";
   if (normalized === "gesperrt") return "LOCKED";
+  if (normalized === "gestohlen") return "STOLEN";
   return "ACTIVE";
 }
 

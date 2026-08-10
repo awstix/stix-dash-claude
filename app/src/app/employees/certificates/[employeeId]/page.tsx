@@ -93,6 +93,7 @@ function getInventoryStatusLabel(status: string | null) {
   if (status === "DEFECT") return "Defekt";
   if (status === "LOCKED") return "Gesperrt";
   if (status === "IN_SERVICE") return "In Wartung";
+  if (status === "STOLEN") return "Gestohlen";
   return "Aktiv";
 }
 
@@ -100,6 +101,7 @@ function getInventoryStatusClass(status: string | null) {
   if (status === "DEFECT") return "bg-red-50 text-red-800 ring-red-200";
   if (status === "LOCKED") return "bg-gray-100 text-gray-700 ring-gray-300";
   if (status === "IN_SERVICE") return "bg-amber-50 text-amber-800 ring-amber-200";
+  if (status === "STOLEN") return "bg-purple-50 text-purple-800 ring-purple-200";
   return "bg-green-50 text-green-800 ring-green-200";
 }
 

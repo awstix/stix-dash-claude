@@ -97,6 +97,14 @@ export type InventoryItemFormData = {
   vehicleIdentNumber: string | null;
 };
 
+const DEFAULT_STATUS_OPTIONS = [
+  { label: "Aktiv", value: "ACTIVE" },
+  { label: "Defekt", value: "DEFECT" },
+  { label: "In Wartung", value: "IN_SERVICE" },
+  { label: "Gesperrt", value: "LOCKED" },
+  { label: "Gestohlen", value: "STOLEN" },
+];
+
 function formatDateInput(date: Date | null) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
@@ -127,11 +135,13 @@ export function InventoryItemForm({
   attachmentTypeOptions = [],
   fuelTypeOptions = [],
   insuranceProviderOptions = [],
+  statusOptions = DEFAULT_STATUS_OPTIONS,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   attachmentTypeOptions?: string[];
   fuelTypeOptions?: { label: string; value: string }[];
   insuranceProviderOptions?: { label: string; value: string }[];
+  statusOptions?: { label: string; value: string }[];
   categories: {
     dailyReportSection: string;
     id: string;
@@ -256,10 +266,11 @@ export function InventoryItemForm({
                 label="Status"
                 name="status"
               >
-                <option value="ACTIVE">Aktiv</option>
-                <option value="DEFECT">Defekt</option>
-                <option value="IN_SERVICE">In Wartung</option>
-                <option value="LOCKED">Gesperrt</option>
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </Select>
             </div>
           </div>

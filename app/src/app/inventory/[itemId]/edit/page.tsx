@@ -16,6 +16,7 @@ export default async function EditInventoryItemPage({
     attachmentTypeRows,
     fuelTypeRows,
     insuranceProviderRows,
+    statusRows,
     categories,
     crews,
     employees,
@@ -44,6 +45,13 @@ export default async function EditInventoryItemPage({
       prisma.adminOption.findMany({
         where: {
           groupKey: "insurance_provider",
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      }),
+      prisma.adminOption.findMany({
+        where: {
+          groupKey: "inventory_status",
           isActive: true,
         },
         orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
@@ -149,6 +157,10 @@ export default async function EditInventoryItemPage({
           value: row.value,
         }))}
         insuranceProviderOptions={insuranceProviderRows.map((row) => ({
+          label: row.label,
+          value: row.value,
+        }))}
+        statusOptions={statusRows.map((row) => ({
           label: row.label,
           value: row.value,
         }))}

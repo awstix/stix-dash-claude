@@ -211,8 +211,13 @@ function patchInventoryTemplateDropdowns(
 }
 
 export async function GET() {
-  const [categories, unitOptions, fuelTypeOptions, insuranceProviderOptions] =
-    await Promise.all([
+  const [
+    categories,
+    unitOptions,
+    fuelTypeOptions,
+    insuranceProviderOptions,
+    statusOptions,
+  ] = await Promise.all([
     prisma.inventoryCategory.findMany({
     where: {
       isActive: true,
@@ -255,6 +260,16 @@ export async function GET() {
     prisma.adminOption.findMany({
       where: {
         groupKey: "insurance_provider",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        label: true,
+      },
+    }),
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "inventory_status",
         isActive: true,
       },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
@@ -443,6 +458,12 @@ export async function GET() {
   const insuranceProviders = Array.from(
     new Set(insuranceProviderOptions.map((option) => option.label)),
   ).filter(Boolean);
+  const statusLabels =
+    statusOptions.length > 0
+      ? Array.from(new Set(statusOptions.map((option) => option.label))).filter(
+          Boolean,
+        )
+      : ["Aktiv", "Defekt", "In Wartung", "Gesperrt", "Gestohlen"];
   const listRows = Array.from({
     length: Math.max(
       categoryNames.length,
@@ -450,6 +471,7 @@ export async function GET() {
       units.length,
       fuelTypes.length,
       insuranceProviders.length,
+      statusLabels.length,
       4,
     ),
   }).map((_, index) => ({
@@ -457,7 +479,7 @@ export async function GET() {
     Unterkategorie: subcategoryNames[index] ?? "",
     Einheit: units[index] ?? "",
     JaNein: ["Ja", "Nein"][index] ?? "",
-    Status: ["Aktiv", "Defekt", "In Wartung", "Gesperrt"][index] ?? "",
+    Status: statusLabels[index] ?? "",
     Verantwortlich: ["Mitarbeiter", "Kolonne"][index] ?? "",
     Antrieb: ["Kette", "Rad", "Rad+Kette", "Anhänger", "Andere"][index] ?? "",
     Anrede: ["Herr", "Frau", "Divers"][index] ?? "",
