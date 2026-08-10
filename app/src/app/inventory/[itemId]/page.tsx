@@ -793,7 +793,7 @@ export default async function InventoryDetailPage({
               value={item.axleCount !== null ? String(item.axleCount) : "—"}
             />
             <Info
-              label="Zul. Gesamtgewicht"
+              label="Technisch zulässige Gesamtmasse (F1)"
               value={formatKilograms(item.grossWeightKg)}
             />
             <Info label="Nutzlast" value={formatTonsFromKilograms(item.payloadKg)} />
@@ -826,6 +826,10 @@ export default async function InventoryDetailPage({
                   ? String(item.constructionYear)
                   : formatDate(item.constructionDate)
               }
+            />
+            <Info
+              label="Erstzulassung"
+              value={formatDate(item.firstRegistrationDate)}
             />
             <Info label="Erhalten am" value={formatDate(item.receivedAt)} />
             <Info label="Gekauft am" value={formatDate(item.purchasedAt)} />

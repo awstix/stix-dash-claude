@@ -518,6 +518,7 @@ export async function importInventoryItems(formData: FormData) {
             },
           },
           constructionDate: dateValue(rowValue(row, "Baujahr/Datum")),
+          firstRegistrationDate: dateValue(rowValue(row, "Erstzulassung")),
           currentProject: project
             ? {
                 connect: {
@@ -530,7 +531,9 @@ export async function importInventoryItems(formData: FormData) {
           driveType: driveType(rowValue(row, "Antrieb")),
           fuelTankLiters: floatValue(rowValue(row, "Kraftstofftank l")),
           ...resolveFuelType(rowValue(row, "Kraftstoffart"), fuelTypeOptions),
-          grossWeightKg: intValue(rowValue(row, "ZGG kg")),
+          grossWeightKg: intValue(
+            rowValue(row, "Zul. Gesamtmasse (F1) kg", "ZGG kg"),
+          ),
           inventoryNumber,
           invoiceNumber: text(rowValue(row, "Rechnungsnummer")),
           isContainer: bool(rowValue(row, "Containerobjekt")),

@@ -31,13 +31,14 @@ const headers = [
   "Kolonne",
   "Baustelle Projektnummer",
   "Baujahr/Datum",
+  "Erstzulassung",
   "Erhalten am",
   "Gekauft am",
   "Gekauft bei",
   "Rechnungsnummer",
   "Lieferscheinnummer",
   "Achsen",
-  "ZGG kg",
+  "Zul. Gesamtmasse (F1) kg",
   "Nutzlast t",
   "Antrieb",
   "Aufnahmetyp",
@@ -268,6 +269,7 @@ export async function GET() {
     "Anfangsbestand": "",
     "Baustelle Projektnummer": "",
     "Baujahr/Datum": "01.01.2026",
+    Erstzulassung: "",
     Containerobjekt: "Nein",
     Einheit: "Stk.",
     "Erhalten am": "",
@@ -319,7 +321,7 @@ export async function GET() {
     "Kraftstofftank l": "",
     Kraftstoffart: "",
     "Arbeitsmitteltank l": "",
-    "ZGG kg": "",
+    "Zul. Gesamtmasse (F1) kg": "",
   };
   const rows = [exampleRow];
   const inventorySheet = XLSX.utils.json_to_sheet(rows, {

@@ -2191,6 +2191,7 @@ model InventoryItem {
   sourceId               String?
   constructionYear       Int?
   constructionDate       DateTime?
+  firstRegistrationDate  DateTime?
   receivedAt             DateTime?
   purchasedAt            DateTime?
   purchasedFrom          String?

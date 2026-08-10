@@ -254,6 +254,7 @@ async function getInventoryPayload(formData: FormData) {
     categoryId: optionalId(formData.get("categoryId")),
     constructionDate,
     constructionYear: constructionDate ? constructionDate.getUTCFullYear() : null,
+    firstRegistrationDate: optionalDate(formData.get("firstRegistrationDate")),
     currentProjectId: optionalId(formData.get("currentProjectId")),
     currentStock: openingStock,
     driveType: inventoryDriveType(formData.get("driveType")),
@@ -265,7 +266,7 @@ async function getInventoryPayload(formData: FormData) {
     fuelTypeLabel,
     grossWeightKg: optionalInt(
       formData.get("grossWeightKg"),
-      "Zulässiges Gesamtgewicht",
+      "Technisch zulässige Gesamtmasse (F1)",
     ),
     inventoryNumber: optionalString(formData.get("inventoryNumber")),
     objectNumber: optionalObjectNumber(formData.get("objectNumber")),

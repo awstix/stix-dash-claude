@@ -14,6 +14,7 @@ export type InventoryItemFormData = {
   categoryId: string | null;
   constructionDate: Date | null;
   constructionYear: number | null;
+  firstRegistrationDate: Date | null;
   axleCount: number | null;
   contacts?: {
     company: string | null;
@@ -329,6 +330,12 @@ export function InventoryItemForm({
                 type="date"
               />
               <Input
+                defaultValue={formatDateInput(item?.firstRegistrationDate ?? null)}
+                label="Erstzulassung"
+                name="firstRegistrationDate"
+                type="date"
+              />
+              <Input
                 defaultValue={formatDateInput(item?.receivedAt ?? null)}
                 label="Erhalten am"
                 name="receivedAt"
@@ -385,7 +392,7 @@ export function InventoryItemForm({
               />
               <Input
                 defaultValue={item?.grossWeightKg?.toString() ?? ""}
-                label="Zul. Gesamtgewicht kg"
+                label="Technisch zul. Gesamtmasse (F1) kg"
                 name="grossWeightKg"
                 placeholder="z.B. 26000"
                 type="number"
