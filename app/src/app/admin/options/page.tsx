@@ -65,6 +65,17 @@ const optionSections: OptionSection[] = [
     ],
   },
   {
+    title: "Inventar",
+    description: "Versicherer für Inventarobjekte.",
+    groups: [
+      {
+        key: "insurance_provider",
+        label: "Versicherer",
+        hint: "Wird im Inventar bei der Kachel Versicherung beim Feld Versichert bei verwendet.",
+      },
+    ],
+  },
+  {
     title: "Nachunternehmer",
     description: "Fuhrunternehmen und spätere Nachunternehmer-Verwaltung.",
     groups: [

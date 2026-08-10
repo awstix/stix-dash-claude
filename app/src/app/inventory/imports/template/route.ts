@@ -47,6 +47,8 @@ const headers = [
   "Arbeitsmitteltank l",
   "Verrechnungssatz EUR je Einheit",
   "Verrechnungssatz stillgelegt EUR je Einheit",
+  "Versichert bei",
+  "Versicherung p.a. netto EUR",
   "Letzter Service Datum",
   "Letzter Service H",
   "Letzter Service KM",
@@ -209,7 +211,8 @@ function patchInventoryTemplateDropdowns(
 }
 
 export async function GET() {
-  const [categories, unitOptions, fuelTypeOptions] = await Promise.all([
+  const [categories, unitOptions, fuelTypeOptions, insuranceProviderOptions] =
+    await Promise.all([
     prisma.inventoryCategory.findMany({
     where: {
       isActive: true,
@@ -242,6 +245,16 @@ export async function GET() {
     prisma.adminOption.findMany({
       where: {
         groupKey: "vehicle_fuel_type",
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        label: true,
+      },
+    }),
+    prisma.adminOption.findMany({
+      where: {
+        groupKey: "insurance_provider",
         isActive: true,
       },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
@@ -318,6 +331,8 @@ export async function GET() {
     "Verantwortlich Typ": "",
     "Verrechnungssatz EUR je Einheit": "",
     "Verrechnungssatz stillgelegt EUR je Einheit": "",
+    "Versichert bei": "",
+    "Versicherung p.a. netto EUR": "",
     "Kraftstofftank l": "",
     Kraftstoffart: "",
     "Arbeitsmitteltank l": "",
@@ -425,12 +440,16 @@ export async function GET() {
   const fuelTypes = Array.from(
     new Set(fuelTypeOptions.map((option) => option.label)),
   ).filter(Boolean);
+  const insuranceProviders = Array.from(
+    new Set(insuranceProviderOptions.map((option) => option.label)),
+  ).filter(Boolean);
   const listRows = Array.from({
     length: Math.max(
       categoryNames.length,
       subcategoryNames.length,
       units.length,
       fuelTypes.length,
+      insuranceProviders.length,
       4,
     ),
   }).map((_, index) => ({
@@ -443,6 +462,7 @@ export async function GET() {
     Antrieb: ["Kette", "Rad", "Rad+Kette", "Anhänger", "Andere"][index] ?? "",
     Anrede: ["Herr", "Frau", "Divers"][index] ?? "",
     Kraftstoffart: fuelTypes[index] ?? "",
+    Versicherer: insuranceProviders[index] ?? "",
   }));
   const listSheet = XLSX.utils.json_to_sheet(listRows);
   listSheet["!cols"] = [
@@ -455,6 +475,7 @@ export async function GET() {
     { wch: 18 },
     { wch: 16 },
     { wch: 18 },
+    { wch: 22 },
   ];
 
   const workbook = XLSX.utils.book_new();
@@ -479,6 +500,7 @@ export async function GET() {
     Status: `Dropdowns!$E$2:$E$${dropdownsRowCount}`,
     Unterkategorie: `Dropdowns!$B$2:$B$${dropdownsRowCount}`,
     "Verantwortlich Typ": `Dropdowns!$F$2:$F$${dropdownsRowCount}`,
+    "Versichert bei": `Dropdowns!$J$2:$J$${dropdownsRowCount}`,
   };
   const validations = headers
     .map((header, index) => ({

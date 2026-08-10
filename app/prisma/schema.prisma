@@ -2232,10 +2232,13 @@ model InventoryItem {
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
-  billingRateCents     Int?
-  idleBillingRateCents Int?
-  notes                String?
-  status               String  @default("ACTIVE")
+  billingRateCents            Int?
+  idleBillingRateCents        Int?
+  insuranceProviderValue      String?
+  insuranceProviderLabel      String?
+  insuranceAnnualPremiumCents Int?
+  notes                       String?
+  status                      String  @default("ACTIVE")
 
   lastServiceAtDate            DateTime?
   lastServiceOperatingHours    Float?

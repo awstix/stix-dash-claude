@@ -245,11 +245,23 @@ async function getInventoryPayload(formData: FormData) {
     "vehicle_fuel_type",
     fuelTypeValue,
   );
+  const insuranceProviderValue = optionalId(
+    formData.get("insuranceProviderValue"),
+  );
+  const insuranceProviderLabel = await getAdminOptionLabel(
+    "insurance_provider",
+    insuranceProviderValue,
+  );
 
   return {
     attachmentType: optionalString(formData.get("attachmentType")),
     billingRateCents: optionalMoneyCents(formData.get("billingRate")),
     idleBillingRateCents: optionalMoneyCents(formData.get("idleBillingRate")),
+    insuranceProviderValue,
+    insuranceProviderLabel,
+    insuranceAnnualPremiumCents: optionalMoneyCents(
+      formData.get("insuranceAnnualPremium"),
+    ),
     axleCount: optionalInt(formData.get("axleCount"), "Anzahl Achsen"),
     categoryId: optionalId(formData.get("categoryId")),
     constructionDate,

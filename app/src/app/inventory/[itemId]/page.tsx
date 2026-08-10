@@ -851,6 +851,14 @@ export default async function InventoryDetailPage({
               value={formatMoney(item.idleBillingRateCents)}
             />
             <Info
+              label="Versichert bei"
+              value={item.insuranceProviderLabel ?? "—"}
+            />
+            <Info
+              label="Versicherung p.a. netto"
+              value={formatMoney(item.insuranceAnnualPremiumCents)}
+            />
+            <Info
               label="Aktueller Standort"
               value={getCurrentLocationLabel(item)}
             />

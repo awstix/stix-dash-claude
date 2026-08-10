@@ -11,6 +11,9 @@ export type InventoryItemFormData = {
   attachmentType: string | null;
   billingRateCents: number | null;
   idleBillingRateCents: number | null;
+  insuranceProviderValue: string | null;
+  insuranceProviderLabel: string | null;
+  insuranceAnnualPremiumCents: number | null;
   categoryId: string | null;
   constructionDate: Date | null;
   constructionYear: number | null;
@@ -123,10 +126,12 @@ export function InventoryItemForm({
   layout = "grid",
   attachmentTypeOptions = [],
   fuelTypeOptions = [],
+  insuranceProviderOptions = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
   attachmentTypeOptions?: string[];
   fuelTypeOptions?: { label: string; value: string }[];
+  insuranceProviderOptions?: { label: string; value: string }[];
   categories: {
     dailyReportSection: string;
     id: string;
@@ -487,6 +492,40 @@ export function InventoryItemForm({
                 }
                 label="Verrechnungssatz stillgelegt €/Einheit"
                 name="idleBillingRate"
+                step="0.01"
+                type="number"
+              />
+            </div>
+          </div>
+
+          <div className={fieldGroupClass}>
+            {layout === "stacked" ? (
+              <FieldGroupHeader
+                description="Versicherer und jährliche Prämie für das Objekt."
+                title="Versicherung"
+              />
+            ) : null}
+            <div className={innerGridClass}>
+              <Select
+                defaultValue={item?.insuranceProviderValue ?? "__none"}
+                label="Versichert bei"
+                name="insuranceProviderValue"
+              >
+                <option value="__none">Nicht angegeben</option>
+                {insuranceProviderOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                defaultValue={
+                  item?.insuranceAnnualPremiumCents
+                    ? String(item.insuranceAnnualPremiumCents / 100)
+                    : ""
+                }
+                label="Versicherung p.a. netto €"
+                name="insuranceAnnualPremium"
                 step="0.01"
                 type="number"
               />

@@ -14,8 +14,15 @@ export default async function NewInventoryItemPage({
   const params = (await searchParams) ?? {};
   const defaultParentItemId = String(params.containerId ?? "").trim() || null;
 
-  const [attachmentTypeRows, fuelTypeRows, categories, crews, employees, items] =
-    await Promise.all([
+  const [
+    attachmentTypeRows,
+    fuelTypeRows,
+    insuranceProviderRows,
+    categories,
+    crews,
+    employees,
+    items,
+  ] = await Promise.all([
       prisma.inventoryItem.findMany({
         distinct: ["attachmentType"],
         orderBy: [{ attachmentType: "asc" }],
@@ -31,6 +38,13 @@ export default async function NewInventoryItemPage({
       prisma.adminOption.findMany({
         where: {
           groupKey: "vehicle_fuel_type",
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      }),
+      prisma.adminOption.findMany({
+        where: {
+          groupKey: "insurance_provider",
           isActive: true,
         },
         orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
@@ -103,6 +117,10 @@ export default async function NewInventoryItemPage({
         defaultParentItemId={defaultParentItemId}
         employees={employees}
         fuelTypeOptions={fuelTypeRows.map((row) => ({
+          label: row.label,
+          value: row.value,
+        }))}
+        insuranceProviderOptions={insuranceProviderRows.map((row) => ({
           label: row.label,
           value: row.value,
         }))}

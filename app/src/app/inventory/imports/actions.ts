@@ -133,6 +133,25 @@ function resolveFuelType(
     : { fuelTypeLabel: null, fuelTypeValue: null };
 }
 
+function resolveInsuranceProvider(
+  value: unknown,
+  options: { label: string; value: string }[],
+) {
+  const raw = text(value);
+  if (!raw) return { insuranceProviderLabel: null, insuranceProviderValue: null };
+
+  const normalized = raw.toLowerCase();
+  const match = options.find(
+    (option) =>
+      option.label.toLowerCase() === normalized ||
+      option.value.toLowerCase() === normalized,
+  );
+
+  return match
+    ? { insuranceProviderLabel: match.label, insuranceProviderValue: match.value }
+    : { insuranceProviderLabel: null, insuranceProviderValue: null };
+}
+
 function rowValue(row: ExcelRow, ...keys: string[]) {
   for (const key of keys) {
     if (row[key] !== undefined && row[key] !== null && String(row[key]).trim()) {
@@ -385,6 +404,16 @@ export async function importInventoryItems(formData: FormData) {
       value: true,
     },
   });
+  const insuranceProviderOptions = await prisma.adminOption.findMany({
+    where: {
+      groupKey: "insurance_provider",
+      isActive: true,
+    },
+    select: {
+      label: true,
+      value: true,
+    },
+  });
 
   let created = 0;
   let updated = 0;
@@ -511,6 +540,13 @@ export async function importInventoryItems(formData: FormData) {
               "Verrechnungssatz stillgelegt EUR je Einheit",
               "Verrechnungssatz stillgelegt EUR",
             ),
+          ),
+          insuranceAnnualPremiumCents: moneyCents(
+            rowValue(row, "Versicherung p.a. netto EUR"),
+          ),
+          ...resolveInsuranceProvider(
+            rowValue(row, "Versichert bei"),
+            insuranceProviderOptions,
           ),
           category: {
             connect: {
