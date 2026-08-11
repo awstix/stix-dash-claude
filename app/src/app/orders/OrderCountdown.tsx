@@ -22,7 +22,19 @@ function formatTimeLeft(milliseconds: number) {
   ].join(":");
 }
 
-export function OrderCountdown({ deadlineHour }: { deadlineHour: number }) {
+export function OrderCountdown({
+  deadlineHour,
+  activeLabel = "Countdown bis Sperre",
+  activeText = "Bis 16:00 Uhr kann die Bestellung vorbereitet werden.",
+  lockedLabel = "Bearbeitung gesperrt",
+  lockedText = "Die Bestellung ist nach 16:00 Uhr nur noch zur Kontrolle vorgesehen.",
+}: {
+  deadlineHour: number;
+  activeLabel?: string;
+  activeText?: string;
+  lockedLabel?: string;
+  lockedText?: string;
+}) {
   const deadline = useMemo(() => getDeadlineToday(deadlineHour), [deadlineHour]);
   const [now, setNow] = useState(() => new Date());
 
@@ -52,7 +64,7 @@ export function OrderCountdown({ deadlineHour }: { deadlineHour: number }) {
             : "text-sm font-medium text-green-700"
         }
       >
-        {isLocked ? "Bearbeitung gesperrt" : "Countdown bis Sperre"}
+        {isLocked ? lockedLabel : activeLabel}
       </p>
 
       <p
@@ -70,9 +82,7 @@ export function OrderCountdown({ deadlineHour }: { deadlineHour: number }) {
           isLocked ? "mt-2 text-xs text-red-700" : "mt-2 text-xs text-green-700"
         }
       >
-        {isLocked
-          ? "Die Bestellung ist nach 16:00 Uhr nur noch zur Kontrolle vorgesehen."
-          : "Bis 16:00 Uhr kann die Bestellung vorbereitet werden."}
+        {isLocked ? lockedText : activeText}
       </p>
     </div>
   );

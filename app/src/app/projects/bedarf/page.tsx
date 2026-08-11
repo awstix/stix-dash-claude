@@ -65,9 +65,14 @@ export default async function ProjectRequirementsPage({
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">Bedarf erfassen</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Bedarf für morgen muss bis 16:00 Uhr erfasst sein, damit Dispo ihn
-            noch sicher einplanen kann.
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            Trägst du hier etwas für <strong>morgen</strong> ein: Bis 16:00
+            Uhr wird es ganz normal gespeichert. Trägst du es{" "}
+            <strong>nach 16:00 Uhr</strong> für morgen ein, fragt dich das
+            System extra nach, weil die Kollegen in der Disposition dann
+            weniger Zeit haben, es noch einzuplanen. Du kannst dann wählen, ob
+            es trotzdem für morgen gelten soll, ob du es änderst, ob du es
+            löschst, oder ob du es auf übermorgen verschiebst.
           </p>
           <ProjectRequirementForm
             defaultProjectId={selectedProjectId}
@@ -75,7 +80,11 @@ export default async function ProjectRequirementsPage({
           />
         </section>
 
-        <OrderCountdown deadlineHour={16} />
+        <OrderCountdown
+          activeText="Bis 16:00 Uhr kannst du Bedarf für morgen ganz normal eintragen."
+          deadlineHour={16}
+          lockedText="Ab jetzt fragt das System extra nach, wenn du etwas für morgen einträgst."
+        />
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
