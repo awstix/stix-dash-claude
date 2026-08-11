@@ -248,20 +248,21 @@ async function resolveAdditionalEmployees(
   row: ExcelRow,
   primaryEmployeeId: string | null,
 ) {
-  const raw = text(
-    rowValue(
-      row,
-      "Weitere Mitarbeiter / Fahrer",
-      "Weitere Mitarbeiter",
-      "Weitere Fahrer",
-    ),
-  );
-  if (!raw) return [];
+  const requestedNames = ([1, 2, 3] as const)
+    .map((slot) => {
+      const firstName = text(
+        rowValue(row, `Weiterer Mitarbeiter ${slot} Vorname`),
+      );
+      const lastName = text(
+        rowValue(row, `Weiterer Mitarbeiter ${slot} Nachname`),
+      );
+      if (!firstName && !lastName) return null;
+      return `${firstName ?? ""} ${lastName ?? ""}`.trim();
+    })
+    .filter((name): name is string => Boolean(name));
 
-  const requestedNames = raw
-    .split(/[;|]/)
-    .map((name) => name.trim())
-    .filter(Boolean);
+  if (requestedNames.length === 0) return [];
+
   const employees = await prisma.employee.findMany({
     select: {
       firstName: true,
@@ -276,18 +277,11 @@ async function resolveAdditionalEmployees(
 
   for (const requestedName of requestedNames) {
     const normalizedRequestedName = normalize(requestedName);
-    const employee = employees.find((candidate) => {
-      const firstLast = normalize(
-        `${candidate.firstName} ${candidate.lastName}`,
-      );
-      const lastFirst = normalize(
-        `${candidate.lastName}, ${candidate.firstName}`,
-      );
-      return (
-        normalizedRequestedName === firstLast ||
-        normalizedRequestedName === lastFirst
-      );
-    });
+    const employee = employees.find(
+      (candidate) =>
+        normalize(`${candidate.firstName} ${candidate.lastName}`) ===
+        normalizedRequestedName,
+    );
 
     if (!employee) {
       missingNames.push(requestedName);
