@@ -6,7 +6,9 @@ import {
   deleteProjectRequirementItem,
   updateProjectRequirementItem,
 } from "../actions";
+import { OrderCountdown } from "../../orders/OrderCountdown";
 import { ProjectNavigation } from "../ProjectNavigation";
+import { RequirementDeadlineForm } from "../RequirementDeadlineForm";
 import { RequirementDoneCheckbox } from "../RequirementDoneCheckbox";
 import { RequirementReorderList } from "../RequirementReorderList";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
@@ -60,13 +62,21 @@ export default async function ProjectRequirementsPage({
     >
       <ProjectNavigation active="requirements" />
 
-      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">Bedarf erfassen</h2>
-        <ProjectRequirementForm
-          defaultProjectId={selectedProjectId}
-          projects={projects}
-        />
-      </section>
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900">Bedarf erfassen</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Bedarf für morgen muss bis 16:00 Uhr erfasst sein, damit Dispo ihn
+            noch sicher einplanen kann.
+          </p>
+          <ProjectRequirementForm
+            defaultProjectId={selectedProjectId}
+            projects={projects}
+          />
+        </section>
+
+        <OrderCountdown deadlineHour={16} />
+      </div>
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 p-5">
@@ -319,7 +329,10 @@ function ProjectRequirementForm({
   }[];
 }) {
   return (
-    <form action={createProjectRequirementItemAction} className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-6">
+    <RequirementDeadlineForm
+      action={createProjectRequirementItemAction}
+      className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-6"
+    >
       <label className="text-xs font-semibold text-gray-700 lg:col-span-2">
         Projekt
         <select
@@ -378,7 +391,7 @@ function ProjectRequirementForm({
           Bedarf speichern
         </button>
       </div>
-    </form>
+    </RequirementDeadlineForm>
   );
 }
 
@@ -395,7 +408,10 @@ function EditProjectRequirementItemForm({
   };
 }) {
   return (
-    <form action={updateProjectRequirementItemAction} className="grid grid-cols-1 gap-3">
+    <RequirementDeadlineForm
+      action={updateProjectRequirementItemAction}
+      className="grid grid-cols-1 gap-3"
+    >
       <input name="id" type="hidden" value={item.id} />
       <input name="projectId" type="hidden" value={item.projectId} />
       <label className="text-xs font-semibold text-gray-700">
@@ -446,6 +462,6 @@ function EditProjectRequirementItemForm({
       >
         Änderungen speichern
       </button>
-    </form>
+    </RequirementDeadlineForm>
   );
 }
