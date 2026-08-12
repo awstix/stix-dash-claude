@@ -109,6 +109,7 @@ const ALL_MODEL_TABLES = [
   "InventoryPersonalAssignment",
   "InventoryIdlePeriod",
   "InventoryPhoto",
+  "InventoryDocument",
   "InventoryContact",
   "InventoryUsageHistory",
   "InventoryScanLog",
