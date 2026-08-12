@@ -168,6 +168,26 @@ export default async function InventoryImportsPage({
           >
             Excel-Vorlage herunterladen
           </a>
+
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <h3 className="text-sm font-bold text-gray-900">
+              Bestehendes Inventar bearbeiten
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Lädt alle aktiven Objekte mit allen aktuellen Werten im gleichen
+              Format wie die Importvorlage herunter. So kannst du Änderungen
+              (z. B. Verrechnungssatz) direkt in Excel machen und die Datei
+              anschließend hier wieder hochladen, ohne andere Felder zu
+              verlieren.
+            </p>
+            <a
+              className="mt-4 inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              download
+              href="/inventory/imports/export"
+            >
+              Aktuelles Inventar exportieren
+            </a>
+          </div>
         </section>
       </div>
     </AppShell>
