@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { prisma } from "@/lib/prisma";
 import { importInventoryItems } from "./actions";
+import { InventoryImportForm } from "./InventoryImportForm";
 
 export default async function InventoryImportsPage({
   searchParams,
@@ -122,7 +123,10 @@ export default async function InventoryImportsPage({
             Kategorie vergeben.
           </p>
 
-          <form action={importInventoryItems} className="mt-6 space-y-6">
+          <InventoryImportForm
+            action={importInventoryItems}
+            className="mt-6 space-y-6"
+          >
             <label className="block text-sm font-medium text-gray-800">
               Excel-Datei
               <input
@@ -139,7 +143,7 @@ export default async function InventoryImportsPage({
               idleLabel="Inventar importieren"
               pendingLabel="Import läuft … bitte warten"
             />
-          </form>
+          </InventoryImportForm>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

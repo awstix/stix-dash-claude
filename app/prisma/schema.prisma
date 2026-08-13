@@ -3389,3 +3389,19 @@ model PortalRole {
 
   @@index([sortOrder])
 }
+
+/// Fortschritts-Zeile für lange serverseitige Batch-Vorgänge (aktuell der
+/// Inventar-Excel-Import), die der Browser per Polling abfragt, um "Zeile x/y"
+/// anzuzeigen. Der Client erzeugt die id (UUID) selbst vor dem Absenden.
+model ImportProgress {
+  id String @id
+
+  total     Int
+  processed Int    @default(0)
+  status    String @default("running")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}

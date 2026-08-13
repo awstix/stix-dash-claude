@@ -143,6 +143,7 @@ const ALL_MODEL_TABLES = [
   "SafetyDataSheet",
   "PortalPermission",
   "PortalRole",
+  "ImportProgress",
 ] as const;
 
 const BASE_KEEP_TABLES = [

@@ -378,6 +378,7 @@ function getContact(row: ExcelRow) {
 
 export async function importInventoryItems(formData: FormData) {
   const actor = await getInventoryActor();
+  const importRunId = text(formData.get("importRunId"));
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -412,6 +413,14 @@ export async function importInventoryItems(formData: FormData) {
     range: headerRowIndex,
   });
 
+  if (importRunId) {
+    await prisma.importProgress.upsert({
+      where: { id: importRunId },
+      create: { id: importRunId, total: rows.length },
+      update: { processed: 0, status: "running", total: rows.length },
+    });
+  }
+
   const fuelTypeOptions = await prisma.adminOption.findMany({
     where: {
       groupKey: "vehicle_fuel_type",
@@ -439,6 +448,15 @@ export async function importInventoryItems(formData: FormData) {
   const errorRows: Record<string, unknown>[] = [];
 
   for (const [rowIndex, row] of rows.entries()) {
+    if (importRunId && rowIndex % 3 === 0) {
+      await prisma.importProgress
+        .update({
+          where: { id: importRunId },
+          data: { processed: rowIndex },
+        })
+        .catch(() => undefined);
+    }
+
     const excelRow = rowIndex + headerRowIndex + 2;
     const name = text(rowValue(row, "Name", "Objektname"));
 
@@ -742,6 +760,15 @@ export async function importInventoryItems(formData: FormData) {
         ...row,
       });
     }
+  }
+
+  if (importRunId) {
+    await prisma.importProgress
+      .update({
+        where: { id: importRunId },
+        data: { processed: rows.length, status: "done" },
+      })
+      .catch(() => undefined);
   }
 
   let reportUrl = "";
