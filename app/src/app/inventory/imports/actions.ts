@@ -1,5 +1,5 @@
 "use server";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -360,6 +360,25 @@ function getContact(row: ExcelRow) {
   };
 }
 
+// Prisma 7's driver-adapter client doesn't populate the old `meta.target`
+// array on P2002 errors - the actual constraint name/fields live under
+// `meta.driverAdapterError.cause`. Fall back to scanning the message too,
+// so this keeps working if that shape changes again.
+function isObjectNumberConstraintError(
+  error: Prisma.PrismaClientKnownRequestError,
+) {
+  const cause = (
+    error.meta?.driverAdapterError as
+      | { cause?: { constraint?: { fields?: unknown[] } } }
+      | undefined
+  )?.cause;
+  const fields = cause?.constraint?.fields;
+  if (Array.isArray(fields)) {
+    return fields.some((field) => String(field).includes("objectNumber"));
+  }
+  return error.message.includes("objectNumber");
+}
+
 export async function importInventoryItems(formData: FormData) {
   const actor = await getInventoryActor();
   const importRunId = text(formData.get("importRunId"));
@@ -605,7 +624,8 @@ export async function importInventoryItems(formData: FormData) {
         ? (floatValue(rowValue(row, "Aktueller Bestand")) ?? openingStock)
         : null;
 
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const runImportRow = async () => {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existingByObjectNumber = requestedObjectNumber
           ? await tx.inventoryItem.findUnique({
               where: {
@@ -815,7 +835,31 @@ export async function importInventoryItems(formData: FormData) {
           },
         });
         created += 1;
-      });
+        });
+      };
+
+      const maxObjectNumberRetries = requestedObjectNumber ? 1 : 5;
+      for (let attempt = 1; attempt <= maxObjectNumberRetries; attempt += 1) {
+        try {
+          await runImportRow();
+          break;
+        } catch (error) {
+          const isObjectNumberCollision =
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002" &&
+            isObjectNumberConstraintError(error);
+
+          if (!isObjectNumberCollision || attempt >= maxObjectNumberRetries) {
+            throw error;
+          }
+          // Another row (possibly from an overlapping category number
+          // range, or a concurrent/overlapping import run) just grabbed
+          // this exact object number. usedObjectNumbers already has it
+          // marked, so retrying calls getNextInventoryObjectNumberCached
+          // again and simply picks the next free one instead of failing
+          // the whole row.
+        }
+      }
     } catch (error) {
       skipped += 1;
       errorRows.push({
