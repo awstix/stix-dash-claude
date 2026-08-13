@@ -124,6 +124,15 @@ function addDropdownValidationsToSheetXml(
   return xml.replace("</worksheet>", `${validationXml}</worksheet>`);
 }
 
+function stripNonStandardColLevelAttribute(xml: string) {
+  // The xlsx library writes both `level` and `outlineLevel` on <col>
+  // elements for outline grouping, but `level` isn't part of the OOXML
+  // CT_Col schema. Excel flags the unrecognized attribute as invalid
+  // content and offers to repair the file on open, so strip it here and
+  // keep only the valid `outlineLevel` attribute.
+  return xml.replace(/(<col\b[^>]*?)\s+level="\d+"([^>]*>)/g, "$1$2");
+}
+
 function patchInventoryTemplateDropdowns(
   workbookBuffer: Buffer,
   validations: {
@@ -138,14 +147,16 @@ function patchInventoryTemplateDropdowns(
       return entry;
     }
 
+    const withValidations = addDropdownValidationsToSheetXml(
+      Buffer.from(entry.bytes).toString("utf8"),
+      validations,
+      firstDataRow,
+    );
+
     return {
       ...entry,
       bytes: Buffer.from(
-        addDropdownValidationsToSheetXml(
-          Buffer.from(entry.bytes).toString("utf8"),
-          validations,
-          firstDataRow,
-        ),
+        stripNonStandardColLevelAttribute(withValidations),
         "utf8",
       ),
     };
