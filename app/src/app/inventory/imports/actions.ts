@@ -10,9 +10,9 @@ import {
   getNextInventoryObjectNumber,
 } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth-access";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { putFile, signedUrl } from "@/lib/storage";
+import { getInventoryActor } from "../actions";
 
 const STORAGE_BUCKET = "uploads";
 
@@ -235,8 +235,12 @@ async function resolveResponsibleEmployee(row: ExcelRow) {
 
   return prisma.employee.findFirst({
     where: {
-      ...(firstName ? { firstName: { contains: firstName } } : {}),
-      ...(lastName ? { lastName: { contains: lastName } } : {}),
+      ...(firstName
+        ? { firstName: { contains: firstName, mode: "insensitive" } }
+        : {}),
+      ...(lastName
+        ? { lastName: { contains: lastName, mode: "insensitive" } }
+        : {}),
     },
     select: {
       id: true,
@@ -307,6 +311,7 @@ async function resolveResponsibleCrew(row: ExcelRow) {
     where: {
       name: {
         contains: crewName,
+        mode: "insensitive",
       },
     },
     select: {
@@ -372,7 +377,7 @@ function getContact(row: ExcelRow) {
 }
 
 export async function importInventoryItems(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -689,6 +694,8 @@ export async function importInventoryItems(formData: FormData) {
           data: {
             ...data,
             objectNumber: objectNumberToSave,
+            createdByName: actor.name,
+            createdByUserId: actor.userId,
             employeeAssignments: additionalEmployeeIds.length
               ? {
                   create: additionalEmployeeIds.map((employeeId) => ({

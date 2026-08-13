@@ -30,14 +30,16 @@ function formatNumber(value: number | null) {
   }).format(value);
 }
 
-function formatCreatedMeta(date: Date) {
-  return new Intl.DateTimeFormat("de-DE", {
+function formatCreatedMeta(date: Date, createdByName: string | null) {
+  const formattedDate = new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "2-digit",
     year: "2-digit",
   }).format(date);
+
+  return createdByName ? `${formattedDate} von ${createdByName}` : formattedDate;
 }
 
 function getInventoryStatusLabel(status: string | null) {
@@ -686,7 +688,7 @@ export default async function InventoryPage({
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">
-                      {formatCreatedMeta(item.createdAt)}
+                      {formatCreatedMeta(item.createdAt, item.createdByName)}
                     </td>
                     <td className="p-3 text-gray-700">
                       {getInventoryCategoryLabel(item.category)}

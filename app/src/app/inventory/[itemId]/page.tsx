@@ -1635,6 +1635,14 @@ export default async function InventoryDetailPage({
             <span className="font-semibold text-gray-800">Angelegt am:</span>{" "}
             {formatCreatedAt(item.createdAt)}
           </span>
+          {item.createdByName ? (
+            <span>
+              <span className="font-semibold text-gray-800">
+                Angelegt von:
+              </span>{" "}
+              {item.createdByName}
+            </span>
+          ) : null}
         </div>
       </section>
     </AppShell>

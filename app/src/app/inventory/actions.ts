@@ -57,6 +57,31 @@ function optionalId(value: FormDataEntryValue | null) {
   return text === "__none" ? null : text;
 }
 
+export async function getInventoryActor() {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({
+    where: {
+      id: session.user.id,
+    },
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      name: true,
+    },
+  });
+
+  return {
+    name: user?.employee
+      ? `${user.employee.firstName} ${user.employee.lastName}`
+      : user?.name || session.user.name || session.user.email,
+    userId: session.user.id,
+  };
+}
+
 async function getAdminOptionLabel(groupKey: string, value: string | null) {
   if (!value) {
     return null;
@@ -965,7 +990,7 @@ async function storeInventoryDocuments(itemId: string, formData: FormData) {
 }
 
 export async function createInventoryItem(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   const categoryId = optionalId(formData.get("categoryId"));
   const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
   if (!allowsAssignment) clearInventoryAssignmentFields(formData);
@@ -981,6 +1006,8 @@ export async function createInventoryItem(formData: FormData) {
       data: {
         ...payload,
         objectNumber,
+        createdByName: actor.name,
+        createdByUserId: actor.userId,
         contacts: contacts.length
           ? {
               create: contacts,
