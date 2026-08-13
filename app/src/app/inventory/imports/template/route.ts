@@ -99,11 +99,20 @@ function addDropdownValidationsToSheetXml(
     return xml.replace(/<dataValidations[\s\S]*?<\/dataValidations>/, validationXml);
   }
 
+  // The OOXML CT_Worksheet element order is strict: mergeCells must come
+  // before dataValidations, so a <mergeCells>…</mergeCells> block (if
+  // present) needs the validations inserted right after its closing tag,
+  // not before its opening tag like the other markers below.
+  const mergeCellsMatch = xml.match(/<mergeCells[\s\S]*?<\/mergeCells>/);
+  if (mergeCellsMatch) {
+    return xml.replace(mergeCellsMatch[0], `${mergeCellsMatch[0]}${validationXml}`);
+  }
+
   const insertionMarkers = [
-    "<mergeCells",
     "<phoneticPr",
-    "<dataValidations",
-    "<ignoredErrors",
+    "<conditionalFormatting",
+    "<hyperlinks",
+    "<printOptions",
     "<pageMargins",
   ];
   const marker = insertionMarkers.find((candidate) => xml.includes(candidate));
