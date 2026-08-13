@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
+import { LiveSearchInput } from "@/components/LiveSearchInput";
 import {
   getInventoryCategoryLabel,
   getInventoryCategoryOptionLabel,
@@ -133,10 +134,9 @@ export default async function InventoryArchivePage({
         </div>
 
         <form className="mt-6 grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_280px_auto]">
-          <input
+          <input name="q" type="hidden" value={searchQuery} />
+          <LiveSearchInput
             className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            defaultValue={searchQuery}
-            name="q"
             placeholder="Suche nach Objekt-ID, Name, Kennzeichen..."
           />
           <select

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { DismissibleDetails } from "@/components/DismissibleDetails";
+import { LiveSearchInput } from "@/components/LiveSearchInput";
 import {
   getInventoryCategoryLabel,
   getInventoryCategoryOptionLabel,
@@ -325,35 +326,12 @@ export default async function InventoryStoragePage({
         </div>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <form className="flex min-w-0 flex-1 gap-2 lg:max-w-xl">
-            {categoryFilter ? (
-              <input name="category" type="hidden" value={categoryFilter} />
-            ) : null}
-            {projectFilter ? (
-              <input name="project" type="hidden" value={projectFilter} />
-            ) : null}
-            {statusFilter ? (
-              <input name="status" type="hidden" value={statusFilter} />
-            ) : null}
-            {stockFilter ? (
-              <input name="stock" type="hidden" value={stockFilter} />
-            ) : null}
-            {containerFilter ? (
-              <input name="container" type="hidden" value={containerFilter} />
-            ) : null}
-            <input
+          <div className="flex min-w-0 flex-1 gap-2 lg:max-w-xl">
+            <LiveSearchInput
               className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              defaultValue={searchQuery}
-              name="q"
               placeholder="Suche nach Objekt-ID, Name, Kennzeichen..."
             />
-            <button
-              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-              type="submit"
-            >
-              Suchen
-            </button>
-          </form>
+          </div>
 
           <DismissibleDetails className="relative inline-block">
             <summary className="inline-flex cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
