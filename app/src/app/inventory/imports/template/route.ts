@@ -2,11 +2,15 @@ import * as XLSX from "xlsx";
 import { inflateRawSync } from "node:zlib";
 import { prisma } from "@/lib/prisma";
 import { createZipArchive } from "@/lib/zip";
-import { INVENTORY_IMPORT_HEADERS } from "../inventoryImportHeaders";
+import { sortInventoryCategoriesForSelect } from "@/lib/inventory-categories";
+import {
+  INVENTORY_IMPORT_COLUMN_GROUPS,
+  INVENTORY_IMPORT_HEADERS,
+} from "../inventoryImportHeaders";
 
 export const runtime = "nodejs";
 
-const headers = [...INVENTORY_IMPORT_HEADERS];
+const headers: string[] = [...INVENTORY_IMPORT_HEADERS];
 
 type ZipEntry = {
   bytes: Uint8Array;
@@ -153,6 +157,7 @@ export async function GET() {
     include: {
       parentCategory: {
         select: {
+          id: true,
           name: true,
         },
       },
@@ -206,6 +211,8 @@ export async function GET() {
       },
     }),
   ]);
+
+  const sortedCategories = sortInventoryCategoriesForSelect(categories);
 
   const exampleRow = {
     "Ansprechpartner Anrede": "Herr",
@@ -290,11 +297,20 @@ export async function GET() {
   const inventorySheet = XLSX.utils.json_to_sheet(rows, {
     header: headers,
   });
+  const columnGroupLevelByHeader = new Map<string, number>();
+  for (const group of INVENTORY_IMPORT_COLUMN_GROUPS) {
+    const fromIndex = headers.indexOf(group.from);
+    const toIndex = headers.indexOf(group.to);
+    for (let i = fromIndex; i <= toIndex; i += 1) {
+      columnGroupLevelByHeader.set(headers[i], 1);
+    }
+  }
   inventorySheet["!cols"] = headers.map((header) => ({
+    level: columnGroupLevelByHeader.get(header) ?? 0,
     wch: Math.max(14, Math.min(32, header.length + 4)),
   }));
 
-  const categoryRows = categories.map((category) => ({
+  const categoryRows = sortedCategories.map((category) => ({
     Kategorie: category.parentCategory?.name ?? category.name,
     Nummernkreis: `${formatObjectNumber(
       category.objectNumberStart,
@@ -361,14 +377,14 @@ export async function GET() {
 
   const categoryNames = Array.from(
     new Set(
-      categories
+      sortedCategories
         .filter((category) => !category.parentCategory)
         .map((category) => category.name),
     ),
   );
   const subcategoryNames = Array.from(
     new Set(
-      categories
+      sortedCategories
         .filter((category) => category.parentCategory)
         .map((category) => category.name),
     ),

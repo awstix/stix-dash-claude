@@ -77,3 +77,41 @@ export const INVENTORY_IMPORT_HEADERS = [
   "Ansprechpartner Webseite",
   "Ansprechpartner Notizen",
 ] as const;
+
+// Contiguous column ranges (by header name) that get grouped into a
+// collapsible Excel column outline. Kept in sync with the header order
+// above by referencing header text rather than indexes. Columns not
+// covered by any range stay ungrouped (always visible), namely the core
+// identity fields and Status.
+export const INVENTORY_IMPORT_COLUMN_GROUPS: {
+  label: string;
+  from: string;
+  to: string;
+}[] = [
+  { label: "Kategorie", from: "Kategorie", to: "Unterkategorie" },
+  { label: "Hersteller / Kennzeichnung", from: "Hersteller", to: "Kennzeichen" },
+  {
+    label: "Lager / Container",
+    from: "Lagerobjekt",
+    to: "Liegt in Container Objekt-ID",
+  },
+  {
+    label: "Zuordnung",
+    from: "Verantwortlich Typ",
+    to: "Baustelle Projektnummer",
+  },
+  {
+    label: "Daten / Beschaffung",
+    from: "Baujahr/Datum",
+    to: "Lieferscheinnummer",
+  },
+  { label: "Technische Daten", from: "Achsen", to: "Arbeitsmitteltank l" },
+  {
+    label: "Kosten / Versicherung",
+    from: "Verrechnungssatz EUR je Einheit",
+    to: "Versicherung p.a. netto EUR",
+  },
+  { label: "Service", from: "Letzter Service Datum", to: "Nächster Service KM" },
+  { label: "Prüfungen", from: "Letzte DGUV", to: "Nächste ADR" },
+  { label: "Notizen / Kontakt", from: "Notizen", to: "Ansprechpartner Notizen" },
+];
