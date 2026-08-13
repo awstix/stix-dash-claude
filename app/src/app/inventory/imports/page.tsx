@@ -5,6 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { importInventoryItems } from "./actions";
 import { InventoryImportForm } from "./InventoryImportForm";
 
+// Large Excel imports (hundreds of rows, each doing a couple of DB round
+// trips for object-number assignment etc.) can run well past Vercel's
+// default Server Action timeout. Vercel caps this at whatever the plan
+// allows regardless of this value, so it's safe to ask for the max here.
+export const maxDuration = 300;
+
 export default async function InventoryImportsPage({
   searchParams,
 }: {
