@@ -31,13 +31,13 @@ function formatNumber(value: number | null) {
 }
 
 function formatCreatedMeta(date: Date) {
-  return `${new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     month: "2-digit",
     year: "2-digit",
-  }).format(date)} von Benutzer`;
+  }).format(date);
 }
 
 function getInventoryStatusLabel(status: string | null) {
