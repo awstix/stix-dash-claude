@@ -5,10 +5,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
-import {
-  formatInventoryObjectNumber,
-  getNextInventoryObjectNumber,
-} from "@/lib/inventory-object-numbers";
+import { formatInventoryObjectNumber } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { putFile, signedUrl } from "@/lib/storage";
@@ -166,6 +163,7 @@ function rowValue(row: ExcelRow, ...keys: string[]) {
 type ImportCategoryRecord = {
   id: string;
   name: string;
+  nextObjectNumber: number | null;
   objectNumberEnd: number | null;
   objectNumberStart: number | null;
   useInTeamManagement: boolean;
@@ -439,6 +437,7 @@ export async function importInventoryItems(formData: FormData) {
     select: {
       id: true,
       name: true,
+      nextObjectNumber: true,
       objectNumberEnd: true,
       objectNumberStart: true,
       useInTeamManagement: true,
@@ -451,6 +450,52 @@ export async function importInventoryItems(formData: FormData) {
       parentCategoryId: true,
     },
   });
+  // Highest already-assigned object number per category, fetched once
+  // instead of per row - objectNumber is a fixed-width zero-padded string,
+  // so string max and numeric max agree.
+  const lastAssignedByCategory = new Map<string, number>(
+    (
+      await prisma.inventoryItem.groupBy({
+        by: ["categoryId"],
+        _max: { objectNumber: true },
+        where: { categoryId: { not: null } },
+      })
+    )
+      .filter(
+        (row): row is typeof row & { categoryId: string } =>
+          row.categoryId !== null && row._max.objectNumber !== null,
+      )
+      .map((row) => [
+        row.categoryId,
+        Number.parseInt(row._max.objectNumber as string, 10),
+      ]),
+  );
+  const nextObjectNumberCache = new Map<string, number>();
+
+  function getNextInventoryObjectNumberCached(category: ImportCategoryRecord) {
+    const rangeStart = category.objectNumberStart!;
+    const rangeEnd = category.objectNumberEnd!;
+    let candidate =
+      nextObjectNumberCache.get(category.id) ??
+      category.nextObjectNumber ??
+      rangeStart;
+    const lastAssigned = lastAssignedByCategory.get(category.id);
+
+    if (lastAssigned !== undefined) {
+      candidate = Math.max(candidate, lastAssigned + 1);
+    }
+
+    if (candidate > rangeEnd) {
+      throw new Error(
+        `Der Nummernkreis der Kategorie „${category.name}“ ist voll. Bitte im Admin-Menü erweitern.`,
+      );
+    }
+
+    nextObjectNumberCache.set(category.id, candidate + 1);
+    lastAssignedByCategory.set(category.id, candidate);
+
+    return formatInventoryObjectNumber(candidate);
+  }
   const allEmployees = await prisma.employee.findMany({
     select: {
       firstName: true,
@@ -600,7 +645,7 @@ export async function importInventoryItems(formData: FormData) {
           requestedObjectNumber ??
           (existingItem
             ? undefined
-            : await getNextInventoryObjectNumber(tx, category.id));
+            : getNextInventoryObjectNumberCached(category));
 
         const data = {
           attachmentType: text(rowValue(row, "Aufnahmetyp")),
@@ -783,6 +828,18 @@ export async function importInventoryItems(formData: FormData) {
         ...row,
       });
     }
+  }
+
+  // Only the handful of categories actually touched by this import, not
+  // all of them - persists the in-memory counters advanced during the
+  // loop above so future imports/creates continue from the right number.
+  for (const [categoryId, nextNumber] of nextObjectNumberCache.entries()) {
+    await prisma.inventoryCategory
+      .update({
+        where: { id: categoryId },
+        data: { nextObjectNumber: nextNumber },
+      })
+      .catch(() => undefined);
   }
 
   if (importRunId) {
