@@ -47,15 +47,15 @@ export default async function InventoryArchivePage({
     ...(searchQuery
       ? {
           OR: [
-            { name: { contains: searchQuery } },
-            { manufacturer: { contains: searchQuery } },
-            { model: { contains: searchQuery } },
-            { objectNumber: { contains: searchQuery } },
-            { stixId: { contains: searchQuery } },
-            { licensePlate: { contains: searchQuery } },
-            { serialNumber: { contains: searchQuery } },
-            { inventoryNumber: { contains: searchQuery } },
-            { category: { name: { contains: searchQuery } } },
+            { name: { contains: searchQuery, mode: "insensitive" } },
+            { manufacturer: { contains: searchQuery, mode: "insensitive" } },
+            { model: { contains: searchQuery, mode: "insensitive" } },
+            { objectNumber: { contains: searchQuery, mode: "insensitive" } },
+            { stixId: { contains: searchQuery, mode: "insensitive" } },
+            { licensePlate: { contains: searchQuery, mode: "insensitive" } },
+            { serialNumber: { contains: searchQuery, mode: "insensitive" } },
+            { inventoryNumber: { contains: searchQuery, mode: "insensitive" } },
+            { category: { name: { contains: searchQuery, mode: "insensitive" } } },
           ],
         }
       : {}),
