@@ -163,31 +163,21 @@ function rowValue(row: ExcelRow, ...keys: string[]) {
   return null;
 }
 
-async function resolveCategory(row: ExcelRow) {
+type ImportCategoryRecord = {
+  id: string;
+  name: string;
+  objectNumberEnd: number | null;
+  objectNumberStart: number | null;
+  useInTeamManagement: boolean;
+  parentCategory: { name: string; useInTeamManagement: boolean } | null;
+  parentCategoryId: string | null;
+};
+
+function resolveCategory(row: ExcelRow, categories: ImportCategoryRecord[]) {
   const categoryName = text(rowValue(row, "Kategorie"));
   const subcategoryName = text(rowValue(row, "Unterkategorie"));
 
   if (!categoryName && !subcategoryName) return null;
-
-  const categories = await prisma.inventoryCategory.findMany({
-    where: {
-      isActive: true,
-    },
-    select: {
-      id: true,
-      name: true,
-      objectNumberEnd: true,
-      objectNumberStart: true,
-      useInTeamManagement: true,
-      parentCategory: {
-        select: {
-          name: true,
-          useInTeamManagement: true,
-        },
-      },
-      parentCategoryId: true,
-    },
-  });
 
   const selectedCategory =
     subcategoryName && categoryName
@@ -227,30 +217,35 @@ async function resolveCategory(row: ExcelRow) {
   return selectedCategory;
 }
 
-async function resolveResponsibleEmployee(row: ExcelRow) {
+type ImportEmployeeRecord = { firstName: string; id: string; lastName: string };
+
+function resolveResponsibleEmployee(
+  row: ExcelRow,
+  employees: ImportEmployeeRecord[],
+) {
   const firstName = text(rowValue(row, "Mitarbeiter Vorname"));
   const lastName = text(rowValue(row, "Mitarbeiter Nachname"));
 
   if (!firstName && !lastName) return null;
 
-  return prisma.employee.findFirst({
-    where: {
-      ...(firstName
-        ? { firstName: { contains: firstName, mode: "insensitive" } }
-        : {}),
-      ...(lastName
-        ? { lastName: { contains: lastName, mode: "insensitive" } }
-        : {}),
-    },
-    select: {
-      id: true,
-    },
-  });
+  const normalizedFirstName = firstName?.toLowerCase();
+  const normalizedLastName = lastName?.toLowerCase();
+
+  return (
+    employees.find(
+      (candidate) =>
+        (!normalizedFirstName ||
+          candidate.firstName.toLowerCase().includes(normalizedFirstName)) &&
+        (!normalizedLastName ||
+          candidate.lastName.toLowerCase().includes(normalizedLastName)),
+    ) ?? null
+  );
 }
 
-async function resolveAdditionalEmployees(
+function resolveAdditionalEmployees(
   row: ExcelRow,
   primaryEmployeeId: string | null,
+  employees: ImportEmployeeRecord[],
 ) {
   const requestedNames = ([1, 2, 3] as const)
     .map((slot) => {
@@ -267,13 +262,6 @@ async function resolveAdditionalEmployees(
 
   if (requestedNames.length === 0) return [];
 
-  const employees = await prisma.employee.findMany({
-    select: {
-      firstName: true,
-      id: true,
-      lastName: true,
-    },
-  });
   const normalize = (value: string) =>
     value.trim().toLowerCase().replace(/\s+/g, " ");
   const resolvedIds: string[] = [];
@@ -303,21 +291,19 @@ async function resolveAdditionalEmployees(
   return Array.from(new Set(resolvedIds));
 }
 
-async function resolveResponsibleCrew(row: ExcelRow) {
+function resolveResponsibleCrew(
+  row: ExcelRow,
+  crews: { id: string; name: string }[],
+) {
   const crewName = text(rowValue(row, "Kolonne"));
   if (!crewName) return null;
 
-  return prisma.crew.findFirst({
-    where: {
-      name: {
-        contains: crewName,
-        mode: "insensitive",
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
+  const normalizedCrewName = crewName.toLowerCase();
+
+  return (
+    crews.find((crew) => crew.name.toLowerCase().includes(normalizedCrewName)) ??
+    null
+  );
 }
 
 async function resolveProject(row: ExcelRow) {
@@ -442,6 +428,43 @@ export async function importInventoryItems(formData: FormData) {
     },
   });
 
+  // Fetched once instead of on every row - the previous per-row lookups
+  // (especially re-fetching all categories and all employees on every
+  // single row) added up to minutes for a few hundred rows and reliably
+  // timed out / crashed the import.
+  const allCategories = await prisma.inventoryCategory.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      objectNumberEnd: true,
+      objectNumberStart: true,
+      useInTeamManagement: true,
+      parentCategory: {
+        select: {
+          name: true,
+          useInTeamManagement: true,
+        },
+      },
+      parentCategoryId: true,
+    },
+  });
+  const allEmployees = await prisma.employee.findMany({
+    select: {
+      firstName: true,
+      id: true,
+      lastName: true,
+    },
+  });
+  const allCrews = await prisma.crew.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -471,7 +494,7 @@ export async function importInventoryItems(formData: FormData) {
     }
 
     try {
-      const category = await resolveCategory(row);
+      const category = resolveCategory(row, allCategories);
       if (!category) {
         skipped += 1;
         errorRows.push({
@@ -506,14 +529,14 @@ export async function importInventoryItems(formData: FormData) {
       const allowsAssignment = inventoryCategoryAllowsAssignment(category);
       const responsibleEmployee =
         allowsAssignment && responsibleType === "mitarbeiter"
-          ? await resolveResponsibleEmployee(row)
+          ? resolveResponsibleEmployee(row, allEmployees)
           : null;
       const responsibleCrew =
         allowsAssignment && responsibleType === "kolonne"
-          ? await resolveResponsibleCrew(row)
+          ? resolveResponsibleCrew(row, allCrews)
           : null;
       const additionalEmployeeIds = allowsAssignment
-        ? await resolveAdditionalEmployees(row, responsibleEmployee?.id ?? null)
+        ? resolveAdditionalEmployees(row, responsibleEmployee?.id ?? null, allEmployees)
         : [];
       const project = await resolveProject(row);
       const parentObjectNumber = objectNumber(
