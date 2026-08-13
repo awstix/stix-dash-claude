@@ -400,6 +400,9 @@ export async function GET() {
       "Kategorie und Unterkategorie müssen exakt zu den in Dashboard gepflegten Inventarkategorien passen.",
     ],
     [
+      "„Verantwortlich Typ“ muss nicht ausgefüllt werden, wenn Mitarbeiter Vorname/Nachname oder Kolonne eingetragen sind – das System erkennt den Typ dann automatisch. Nur bei Bedarf zur Klarstellung ausfüllen.",
+    ],
+    [
       "Wenn Objekt-ID leer bleibt, vergibt das System automatisch die nächste freie ID aus dem Nummernkreis der Kategorie/Unterkategorie.",
     ],
     [

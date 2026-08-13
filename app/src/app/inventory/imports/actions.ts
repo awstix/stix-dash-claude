@@ -467,16 +467,31 @@ export async function importInventoryItems(formData: FormData) {
       const requestedObjectNumber = objectNumber(rowValue(row, "Objekt-ID"));
       const inventoryNumber = text(rowValue(row, "Inventarnummer"));
       const stixId = text(rowValue(row, "STIX-ID"));
-      const responsibleType = lower(rowValue(row, "Verantwortlich Typ"));
+      const responsibleTypeRaw = lower(rowValue(row, "Verantwortlich Typ"));
+      const hasMitarbeiterName =
+        Boolean(text(rowValue(row, "Mitarbeiter Vorname"))) ||
+        Boolean(text(rowValue(row, "Mitarbeiter Nachname")));
+      const hasKolonneName = Boolean(text(rowValue(row, "Kolonne")));
+      // "Verantwortlich Typ" wins if it's set explicitly; otherwise infer it
+      // from whichever of "Mitarbeiter …" / "Kolonne" columns actually has a
+      // value, so people don't have to fill in a separate type column too.
+      const responsibleType =
+        responsibleTypeRaw === "mitarbeiter" || responsibleTypeRaw === "person"
+          ? "mitarbeiter"
+          : responsibleTypeRaw === "kolonne" || responsibleTypeRaw === "team"
+            ? "kolonne"
+            : hasMitarbeiterName
+              ? "mitarbeiter"
+              : hasKolonneName
+                ? "kolonne"
+                : "";
       const allowsAssignment = inventoryCategoryAllowsAssignment(category);
       const responsibleEmployee =
-        allowsAssignment &&
-        (responsibleType === "mitarbeiter" || responsibleType === "person")
+        allowsAssignment && responsibleType === "mitarbeiter"
           ? await resolveResponsibleEmployee(row)
           : null;
       const responsibleCrew =
-        allowsAssignment &&
-        (responsibleType === "kolonne" || responsibleType === "team")
+        allowsAssignment && responsibleType === "kolonne"
           ? await resolveResponsibleCrew(row)
           : null;
       const additionalEmployeeIds = allowsAssignment
