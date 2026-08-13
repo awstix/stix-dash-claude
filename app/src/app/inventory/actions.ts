@@ -1872,23 +1872,11 @@ export async function deleteCompleteInventory(formData: FormData) {
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryItem.deleteMany();
 
-    const categories = await tx.inventoryCategory.findMany({
-      select: {
-        id: true,
-        objectNumberStart: true,
-      },
-    });
-
-    for (const category of categories) {
-      await tx.inventoryCategory.update({
-        where: {
-          id: category.id,
-        },
-        data: {
-          nextObjectNumber: category.objectNumberStart,
-        },
-      });
-    }
+    // One bulk statement instead of fetching every category and updating
+    // them one by one - the per-category loop did dozens of sequential
+    // round trips against Supabase and reliably blew Prisma's default 5s
+    // transaction timeout, crashing the request.
+    await tx.$executeRaw`UPDATE "InventoryCategory" SET "nextObjectNumber" = "objectNumberStart"`;
   });
 
   await deleteFolder(STORAGE_BUCKET, "inventory-items").catch(() => undefined);
