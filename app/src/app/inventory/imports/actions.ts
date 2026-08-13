@@ -385,8 +385,26 @@ export async function importInventoryItems(formData: FormData) {
   });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
+
+  // Newer template downloads have a group-title row above the actual field
+  // headers ("Kennzeichnung", "Zuordnung", …); older already-filled files
+  // still have the field headers directly in row 1. Detect which row the
+  // real headers are in instead of assuming a fixed position.
+  const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    defval: "",
+    header: 1,
+  });
+  const looksLikeHeaderRow = (row: unknown[] | undefined) =>
+    Array.isArray(row) && row.includes("Objekt-ID") && row.includes("Name");
+  const headerRowIndex = looksLikeHeaderRow(rawRows[0])
+    ? 0
+    : looksLikeHeaderRow(rawRows[1])
+      ? 1
+      : 0;
+
   const rows = XLSX.utils.sheet_to_json<ExcelRow>(sheet, {
     defval: "",
+    range: headerRowIndex,
   });
 
   const fuelTypeOptions = await prisma.adminOption.findMany({
@@ -416,7 +434,7 @@ export async function importInventoryItems(formData: FormData) {
   const errorRows: Record<string, unknown>[] = [];
 
   for (const [rowIndex, row] of rows.entries()) {
-    const excelRow = rowIndex + 2;
+    const excelRow = rowIndex + headerRowIndex + 2;
     const name = text(rowValue(row, "Name", "Objektname"));
 
     if (!name) {

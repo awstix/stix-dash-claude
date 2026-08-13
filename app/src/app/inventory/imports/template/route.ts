@@ -84,11 +84,12 @@ function addDropdownValidationsToSheetXml(
     column: string;
     formula: string;
   }[],
+  firstDataRow: number,
 ) {
   const validationXml = `<dataValidations count="${validations.length}">${validations
     .map(
       (validation) =>
-        `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${validation.column}2:${validation.column}1000"><formula1>${xmlEscape(
+        `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${validation.column}${firstDataRow}:${validation.column}1000"><formula1>${xmlEscape(
           validation.formula,
         )}</formula1></dataValidation>`,
     )
@@ -120,6 +121,7 @@ function patchInventoryTemplateDropdowns(
     column: string;
     formula: string;
   }[],
+  firstDataRow: number,
 ) {
   const entries = readZipEntries(workbookBuffer);
   const patchedEntries = entries.map((entry) => {
@@ -133,6 +135,7 @@ function patchInventoryTemplateDropdowns(
         addDropdownValidationsToSheetXml(
           Buffer.from(entry.bytes).toString("utf8"),
           validations,
+          firstDataRow,
         ),
         "utf8",
       ),
@@ -293,18 +296,34 @@ export async function GET() {
     "Arbeitsmitteltank l": "",
     "Zul. Gesamtmasse (F1) kg": "",
   };
-  const rows = [exampleRow];
-  const inventorySheet = XLSX.utils.json_to_sheet(rows, {
-    header: headers,
-  });
+  const groupTitleRow: string[] = new Array(headers.length).fill("");
+  const groupMerges: { s: { r: number; c: number }; e: { r: number; c: number } }[] =
+    [];
   const columnGroupLevelByHeader = new Map<string, number>();
   for (const group of INVENTORY_IMPORT_COLUMN_GROUPS) {
     const fromIndex = headers.indexOf(group.from);
     const toIndex = headers.indexOf(group.to);
+    groupTitleRow[fromIndex] = group.label;
+    if (toIndex > fromIndex) {
+      groupMerges.push({
+        e: { c: toIndex, r: 0 },
+        s: { c: fromIndex, r: 0 },
+      });
+    }
     for (let i = fromIndex; i <= toIndex; i += 1) {
       columnGroupLevelByHeader.set(headers[i], 1);
     }
   }
+
+  const dataRow = headers.map(
+    (header) => (exampleRow as Record<string, string>)[header] ?? "",
+  );
+  const inventorySheet = XLSX.utils.aoa_to_sheet([
+    groupTitleRow,
+    headers,
+    dataRow,
+  ]);
+  inventorySheet["!merges"] = groupMerges;
   inventorySheet["!cols"] = headers.map((header) => ({
     level: columnGroupLevelByHeader.get(header) ?? 0,
     wch: Math.max(14, Math.min(32, header.length + 4)),
@@ -354,6 +373,9 @@ export async function GET() {
 
   const hintSheet = XLSX.utils.aoa_to_sheet([
     ["Hinweis"],
+    [
+      "Zeile 1 gruppiert die Spalten zu Themenbereichen (wie im Formular). Zeile 2 sind die eigentlichen Spaltennamen, ab Zeile 3 stehen die Daten. Über den Spaltenbuchstaben lassen sich einzelne Bereiche mit den +/- Symbolen ein-/ausklappen.",
+    ],
     [
       "Kategorie und Unterkategorie müssen exakt zu den in Dashboard gepflegten Inventarkategorien passen.",
     ],
@@ -482,7 +504,7 @@ export async function GET() {
       (validation): validation is { column: string; formula: string } =>
         Boolean(validation.formula),
     );
-  const buffer = patchInventoryTemplateDropdowns(rawBuffer, validations);
+  const buffer = patchInventoryTemplateDropdowns(rawBuffer, validations, 3);
 
   return new Response(new Uint8Array(buffer), {
     headers: {

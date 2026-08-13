@@ -78,20 +78,31 @@ export const INVENTORY_IMPORT_HEADERS = [
   "Ansprechpartner Notizen",
 ] as const;
 
-// Contiguous column ranges (by header name) that get grouped into a
-// collapsible Excel column outline. Kept in sync with the header order
-// above by referencing header text rather than indexes. Columns not
-// covered by any range stay ungrouped (always visible), namely the core
-// identity fields and Status.
+// Contiguous column ranges (by header name), labeled with the exact same
+// tile/section names used in the Inventarobjekt-Formular (InventoryItemForm.tsx),
+// so the spreadsheet groups read the same as the app. Kept in sync with the
+// header order above by referencing header text rather than indexes.
+//
+// Because the Excel column order can't be changed (existing filled-in files
+// depend on it) while the form's field order differs, two app tiles end up
+// split into two separate ranges each: "Hersteller / Modell" and
+// "Kennzeichnung" both appear twice below, once for each place their fields
+// land in the fixed column order. Columns not covered by any range stay
+// always visible (not collapsible): the core identity fields and Status.
 export const INVENTORY_IMPORT_COLUMN_GROUPS: {
   label: string;
   from: string;
   to: string;
 }[] = [
   { label: "Kategorie", from: "Kategorie", to: "Unterkategorie" },
-  { label: "Hersteller / Kennzeichnung", from: "Hersteller", to: "Kennzeichen" },
+  { label: "Hersteller / Modell", from: "Hersteller", to: "Typ/Modell" },
   {
-    label: "Lager / Container",
+    label: "Kennzeichnung",
+    from: "Seriennummer",
+    to: "Kennzeichen",
+  },
+  {
+    label: "Einheit, Container und Lager",
     from: "Lagerobjekt",
     to: "Liegt in Container Objekt-ID",
   },
@@ -101,17 +112,31 @@ export const INVENTORY_IMPORT_COLUMN_GROUPS: {
     to: "Baustelle Projektnummer",
   },
   {
-    label: "Daten / Beschaffung",
+    label: "Hersteller / Modell",
     from: "Baujahr/Datum",
+    to: "Erhalten am",
+  },
+  {
+    label: "Beschaffung",
+    from: "Gekauft am",
     to: "Lieferscheinnummer",
   },
-  { label: "Technische Daten", from: "Achsen", to: "Arbeitsmitteltank l" },
   {
-    label: "Kosten / Versicherung",
+    label: "Fahrzeug-, LKW- und Gerätedaten",
+    from: "Achsen",
+    to: "Arbeitsmitteltank l",
+  },
+  {
+    label: "Controlling",
     from: "Verrechnungssatz EUR je Einheit",
+    to: "Verrechnungssatz stillgelegt EUR je Einheit",
+  },
+  {
+    label: "Versicherung",
+    from: "Versichert bei",
     to: "Versicherung p.a. netto EUR",
   },
   { label: "Service", from: "Letzter Service Datum", to: "Nächster Service KM" },
   { label: "Prüfungen", from: "Letzte DGUV", to: "Nächste ADR" },
-  { label: "Notizen / Kontakt", from: "Notizen", to: "Ansprechpartner Notizen" },
+  { label: "Dokumentation", from: "Notizen", to: "Ansprechpartner Notizen" },
 ];
