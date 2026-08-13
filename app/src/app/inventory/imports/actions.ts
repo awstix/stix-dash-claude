@@ -450,25 +450,21 @@ export async function importInventoryItems(formData: FormData) {
       parentCategoryId: true,
     },
   });
-  // Highest already-assigned object number per category, fetched once
-  // instead of per row - objectNumber is a fixed-width zero-padded string,
-  // so string max and numeric max agree.
-  const lastAssignedByCategory = new Map<string, number>(
+  // objectNumber is unique across ALL items, not per category - and
+  // category ranges nest (a parent category's range fully contains its
+  // subcategories' narrower ranges), so tracking "next free number" per
+  // category alone isn't enough: a row on the parent and a row on a child
+  // can both think the same number is free. Keep one global set of
+  // already-used numbers (seeded from the DB, updated as rows get
+  // assigned) and check every candidate against it, same as the original
+  // per-row DB check did - just in memory instead of a round trip.
+  const usedObjectNumbers = new Set(
     (
-      await prisma.inventoryItem.groupBy({
-        by: ["categoryId"],
-        _max: { objectNumber: true },
-        where: { categoryId: { not: null } },
+      await prisma.inventoryItem.findMany({
+        where: { objectNumber: { not: null } },
+        select: { objectNumber: true },
       })
-    )
-      .filter(
-        (row): row is typeof row & { categoryId: string } =>
-          row.categoryId !== null && row._max.objectNumber !== null,
-      )
-      .map((row) => [
-        row.categoryId,
-        Number.parseInt(row._max.objectNumber as string, 10),
-      ]),
+    ).map((row) => row.objectNumber as string),
   );
   const nextObjectNumberCache = new Map<string, number>();
 
@@ -479,10 +475,12 @@ export async function importInventoryItems(formData: FormData) {
       nextObjectNumberCache.get(category.id) ??
       category.nextObjectNumber ??
       rangeStart;
-    const lastAssigned = lastAssignedByCategory.get(category.id);
 
-    if (lastAssigned !== undefined) {
-      candidate = Math.max(candidate, lastAssigned + 1);
+    while (
+      candidate <= rangeEnd &&
+      usedObjectNumbers.has(formatInventoryObjectNumber(candidate))
+    ) {
+      candidate += 1;
     }
 
     if (candidate > rangeEnd) {
@@ -491,10 +489,11 @@ export async function importInventoryItems(formData: FormData) {
       );
     }
 
+    const objectNumber = formatInventoryObjectNumber(candidate);
+    usedObjectNumbers.add(objectNumber);
     nextObjectNumberCache.set(category.id, candidate + 1);
-    lastAssignedByCategory.set(category.id, candidate);
 
-    return formatInventoryObjectNumber(candidate);
+    return objectNumber;
   }
   const allEmployees = await prisma.employee.findMany({
     select: {
