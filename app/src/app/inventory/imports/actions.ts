@@ -160,6 +160,12 @@ function rowValue(row: ExcelRow, ...keys: string[]) {
   return null;
 }
 
+type RowOutcome = {
+  action: "created" | "updated";
+  matchedBy: string | null;
+  objectNumber: string | null;
+};
+
 type ImportCategoryRecord = {
   id: string;
   name: string;
@@ -532,6 +538,10 @@ export async function importInventoryItems(formData: FormData) {
   let updated = 0;
   let skipped = 0;
   const errorRows: Record<string, unknown>[] = [];
+  // Every processed row (created/updated/skipped), independent of whether
+  // there were any errors - so the report is always worth downloading, not
+  // just when something went wrong.
+  const resultRows: Record<string, unknown>[] = [];
 
   for (const [rowIndex, row] of rows.entries()) {
     if (importRunId && rowIndex % 3 === 0) {
@@ -553,6 +563,13 @@ export async function importInventoryItems(formData: FormData) {
         Fehler: "Name / Objektname fehlt.",
         ...row,
       });
+      resultRows.push({
+        "Excel-Zeile": excelRow,
+        Name: "",
+        "Objekt-ID": "",
+        Aktion: "Übersprungen",
+        Abgleich: "Name / Objektname fehlt.",
+      });
       continue;
     }
 
@@ -564,6 +581,13 @@ export async function importInventoryItems(formData: FormData) {
           "Excel-Zeile": excelRow,
           Fehler: "Kategorie oder Unterkategorie fehlt.",
           ...row,
+        });
+        resultRows.push({
+          "Excel-Zeile": excelRow,
+          Name: name,
+          "Objekt-ID": "",
+          Aktion: "Übersprungen",
+          Abgleich: "Kategorie oder Unterkategorie fehlt.",
         });
         continue;
       }
@@ -625,7 +649,7 @@ export async function importInventoryItems(formData: FormData) {
         : null;
 
       const runImportRow = async () => {
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existingByObjectNumber = requestedObjectNumber
           ? await tx.inventoryItem.findUnique({
               where: {
@@ -633,6 +657,7 @@ export async function importInventoryItems(formData: FormData) {
               },
               select: {
                 id: true,
+                objectNumber: true,
               },
             })
           : null;
@@ -644,6 +669,7 @@ export async function importInventoryItems(formData: FormData) {
                 },
                 select: {
                   id: true,
+                  objectNumber: true,
                 },
               })
             : null;
@@ -655,11 +681,19 @@ export async function importInventoryItems(formData: FormData) {
                 },
                 select: {
                   id: true,
+                  objectNumber: true,
                 },
               })
             : null;
         const existingItem =
           existingByObjectNumber ?? existingByInventoryNumber ?? existingByStixId;
+        const matchedBy = existingByObjectNumber
+          ? "Objekt-ID"
+          : existingByInventoryNumber
+            ? "Inventarnummer"
+            : existingByStixId
+              ? "STIX-ID"
+              : null;
         const objectNumberToSave =
           requestedObjectNumber ??
           (existingItem
@@ -807,7 +841,11 @@ export async function importInventoryItems(formData: FormData) {
             });
           }
           updated += 1;
-          return;
+          return {
+            action: "updated" as const,
+            matchedBy,
+            objectNumber: existingItem.objectNumber,
+          };
         }
 
         await tx.inventoryItem.create({
@@ -835,13 +873,19 @@ export async function importInventoryItems(formData: FormData) {
           },
         });
         created += 1;
+        return {
+          action: "created" as const,
+          matchedBy: null,
+          objectNumber: objectNumberToSave ?? null,
+        };
         });
       };
 
+      let rowOutcome: RowOutcome | null = null;
       const maxObjectNumberRetries = requestedObjectNumber ? 1 : 5;
       for (let attempt = 1; attempt <= maxObjectNumberRetries; attempt += 1) {
         try {
-          await runImportRow();
+          rowOutcome = await runImportRow();
           break;
         } catch (error) {
           const isObjectNumberCollision =
@@ -860,15 +904,33 @@ export async function importInventoryItems(formData: FormData) {
           // the whole row.
         }
       }
+
+      if (rowOutcome) {
+        resultRows.push({
+          "Excel-Zeile": excelRow,
+          Name: name,
+          "Objekt-ID": rowOutcome.objectNumber ?? "",
+          Aktion: rowOutcome.action === "created" ? "Angelegt" : "Aktualisiert",
+          Abgleich: rowOutcome.matchedBy ?? "Neue Objekt-ID vergeben",
+        });
+      }
     } catch (error) {
       skipped += 1;
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unbekannter Fehler beim Import.";
       errorRows.push({
         "Excel-Zeile": excelRow,
-        Fehler:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler beim Import.",
+        Fehler: message,
         ...row,
+      });
+      resultRows.push({
+        "Excel-Zeile": excelRow,
+        Name: name,
+        "Objekt-ID": "",
+        Aktion: "Übersprungen",
+        Abgleich: message,
       });
     }
   }
@@ -885,28 +947,31 @@ export async function importInventoryItems(formData: FormData) {
       .catch(() => undefined);
   }
 
-  if (importRunId) {
-    await prisma.importProgress
-      .update({
-        where: { id: importRunId },
-        data: { processed: rows.length, status: "done" },
-      })
-      .catch(() => undefined);
+  // Always build a report, not just when something failed - "2 rows got
+  // updated" is useless on its own without saying which ones and why.
+  const reportWorkbook = XLSX.utils.book_new();
+  if (resultRows.length > 0) {
+    const resultSheet = XLSX.utils.json_to_sheet(resultRows);
+    resultSheet["!cols"] = Object.keys(resultRows[0]).map((key) => ({
+      wch: Math.max(14, Math.min(48, key.length + 4)),
+    }));
+    XLSX.utils.book_append_sheet(reportWorkbook, resultSheet, "Ergebnis");
   }
-
-  let reportUrl = "";
   if (errorRows.length > 0) {
-    const reportWorkbook = XLSX.utils.book_new();
     const reportSheet = XLSX.utils.json_to_sheet(errorRows);
     reportSheet["!cols"] = Object.keys(errorRows[0]).map((key) => ({
       wch: Math.max(14, Math.min(48, key.length + 4)),
     }));
     XLSX.utils.book_append_sheet(reportWorkbook, reportSheet, "Importfehler");
+  }
 
-    const reportFileName = `inventar-importfehler-${new Date()
+  let reportUrl = "";
+  let reportStoragePath: string | null = null;
+  if (reportWorkbook.SheetNames.length > 0) {
+    const reportFileName = `inventar-importbericht-${new Date()
       .toISOString()
       .slice(0, 10)}-${randomUUID().slice(0, 8)}.xlsx`;
-    const reportStoragePath = `inventory-import-errors/${reportFileName}`;
+    reportStoragePath = `inventory-import-reports/${reportFileName}`;
     await putFile(
       STORAGE_BUCKET,
       reportStoragePath,
@@ -917,6 +982,22 @@ export async function importInventoryItems(formData: FormData) {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     reportUrl = await signedUrl(STORAGE_BUCKET, reportStoragePath, 60 * 60);
+  }
+
+  if (importRunId) {
+    await prisma.importProgress
+      .update({
+        where: { id: importRunId },
+        data: {
+          processed: rows.length,
+          status: "done",
+          created,
+          updated,
+          skipped,
+          reportStoragePath,
+        },
+      })
+      .catch(() => undefined);
   }
 
   revalidatePath("/inventory");

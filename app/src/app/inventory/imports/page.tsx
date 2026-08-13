@@ -21,11 +21,24 @@ export default async function InventoryImportsPage({
     updated?: string;
   }>;
 }) {
-  const [params, categoryCount] = await Promise.all([
+  const [params, categoryCount, lastImportRun] = await Promise.all([
     searchParams,
     prisma.inventoryCategory.count({
       where: {
         isActive: true,
+      },
+    }),
+    prisma.importProgress.findFirst({
+      where: {
+        status: "done",
+        reportStoragePath: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        created: true,
+        updated: true,
+        skipped: true,
+        updatedAt: true,
       },
     }),
   ]);
@@ -61,13 +74,38 @@ export default async function InventoryImportsPage({
           </p>
           {params.report ? (
             <a
-              className="mt-4 inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50"
+              className="mt-4 inline-flex rounded-xl border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-900 hover:bg-green-100"
               download
               href={params.report}
             >
-              Fehlerbericht herunterladen
+              Importbericht herunterladen
             </a>
           ) : null}
+        </div>
+      ) : null}
+
+      {lastImportRun ? (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Letzter Importbericht
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            {new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(lastImportRun.updatedAt)}
+            {" · "}
+            Angelegt: <strong>{lastImportRun.created}</strong> · Aktualisiert:{" "}
+            <strong>{lastImportRun.updated}</strong> · Übersprungen:{" "}
+            <strong>{lastImportRun.skipped}</strong>
+          </p>
+          <a
+            className="mt-4 inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            download
+            href="/inventory/imports/last-report"
+          >
+            Bericht herunterladen
+          </a>
         </div>
       ) : null}
 

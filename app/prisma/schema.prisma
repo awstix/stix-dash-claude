@@ -3400,6 +3400,12 @@ model ImportProgress {
   processed Int    @default(0)
   status    String @default("running")
 
+  created Int @default(0)
+  updated Int @default(0)
+  skipped Int @default(0)
+
+  reportStoragePath String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
