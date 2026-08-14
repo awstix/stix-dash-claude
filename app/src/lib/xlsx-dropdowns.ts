@@ -93,12 +93,36 @@ function addDropdownValidationsToSheetXml(
     return xml.replace(mergeCellsMatch[0], `${mergeCellsMatch[0]}${validationXml}`);
   }
 
+  // Every other CT_Worksheet child element that comes after dataValidations
+  // in the OOXML schema order, so inserting right before whichever of these
+  // appears first keeps the document validly ordered. `ignoredErrors` in
+  // particular is written by the `xlsx` library whenever a cell looks like
+  // a number stored as text (e.g. "0" in a free-text money column) - a
+  // template with none of the other markers but that flag set was falling
+  // through to the final "before </worksheet>" fallback below, landing
+  // dataValidations after ignoredErrors and corrupting the file.
   const insertionMarkers = [
     "<phoneticPr",
     "<conditionalFormatting",
     "<hyperlinks",
     "<printOptions",
     "<pageMargins",
+    "<pageSetup",
+    "<headerFooter",
+    "<rowBreaks",
+    "<colBreaks",
+    "<customProperties",
+    "<cellWatches",
+    "<ignoredErrors",
+    "<smartTags",
+    "<drawing",
+    "<legacyDrawing",
+    "<picture",
+    "<oleObjects",
+    "<controls",
+    "<webPublishItems",
+    "<tableParts",
+    "<extLst",
   ];
   const marker = insertionMarkers.find((candidate) => xml.includes(candidate));
 
