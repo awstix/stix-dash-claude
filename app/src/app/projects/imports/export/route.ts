@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { parseConstructionManagersJson } from "@/lib/construction-managers";
 import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
+import { getConstructionManagerCandidateNames } from "../constructionManagerCandidates";
 import { PROJECT_IMPORT_HEADERS } from "../projectImportHeaders";
 import { appendProjectDropdownSheet, projectDropdownValidations } from "../projectDropdowns";
 
@@ -24,18 +25,12 @@ function statusLabel(value: string) {
 }
 
 export async function GET() {
-  const [projects, employees] = await Promise.all([
+  const [projects, employeeNames] = await Promise.all([
     prisma.project.findMany({
       orderBy: { projectNumber: "asc" },
     }),
-    prisma.employee.findMany({
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      select: { firstName: true, lastName: true },
-    }),
+    getConstructionManagerCandidateNames(),
   ]);
-  const employeeNames = employees.map(
-    (employee) => `${employee.firstName} ${employee.lastName}`,
-  );
 
   const rows = projects.map((project) => {
     const managers = parseConstructionManagersJson(project.constructionManagersJson);

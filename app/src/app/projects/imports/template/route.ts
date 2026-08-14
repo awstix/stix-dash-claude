@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
-import { prisma } from "@/lib/prisma";
 import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
+import { getConstructionManagerCandidateNames } from "../constructionManagerCandidates";
 import { PROJECT_IMPORT_HEADERS } from "../projectImportHeaders";
 import { appendProjectDropdownSheet, projectDropdownValidations } from "../projectDropdowns";
 
@@ -36,13 +36,7 @@ const exampleRow: Record<string, string> = {
 };
 
 export async function GET() {
-  const employees = await prisma.employee.findMany({
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: { firstName: true, lastName: true },
-  });
-  const employeeNames = employees.map(
-    (employee) => `${employee.firstName} ${employee.lastName}`,
-  );
+  const employeeNames = await getConstructionManagerCandidateNames();
 
   const dataRow = headers.map((header) => exampleRow[header] ?? "");
   const projectSheet = XLSX.utils.aoa_to_sheet([headers, dataRow]);
