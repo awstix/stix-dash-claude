@@ -31,15 +31,46 @@ export function bool(value: unknown) {
   return ["1", "ja", "j", "true", "wahr", "x"].includes(normalized);
 }
 
+// Excel cells with genuine numeric type arrive as JS numbers (or as their
+// plain `toString()`, e.g. "298512.4" - a period there is a decimal point,
+// never a thousands separator). Cells typed/pasted as German-formatted text
+// (e.g. "289.512,40") arrive as strings with a comma - there, "." is a
+// thousands separator and must be stripped before swapping "," for ".".
+// The comma's presence is what disambiguates the two cases; without it we
+// leave periods alone so plain CSV decimals ("298512.4") keep working.
+function normalizeNumberString(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : null;
+  }
+
+  const raw = text(value);
+  if (!raw) return null;
+
+  if (raw.includes(",")) {
+    return raw.replaceAll(".", "").replace(",", ".");
+  }
+
+  // No comma: a "." is normally a decimal point (plain CSV/JS-stringified
+  // numbers like "298512.4"). The one unambiguous exception is a whole
+  // number grouped strictly into 3-digit blocks ("120.000" km, "1.234.567")
+  // - real EUR-cent decimals never have exactly 3 digits after the point,
+  // so this can't misfire on money values.
+  if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
+    return raw.replaceAll(".", "");
+  }
+
+  return raw;
+}
+
 export function intValue(value: unknown) {
-  const normalized = text(value)?.replace(",", ".");
+  const normalized = normalizeNumberString(value);
   if (!normalized) return null;
   const number = Number(normalized);
   return Number.isFinite(number) ? Math.round(number) : null;
 }
 
 export function floatValue(value: unknown) {
-  const normalized = text(value)?.replace(",", ".");
+  const normalized = normalizeNumberString(value);
   if (!normalized) return null;
   const number = Number(normalized);
   return Number.isFinite(number) ? number : null;

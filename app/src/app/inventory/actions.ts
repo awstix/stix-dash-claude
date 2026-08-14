@@ -98,10 +98,13 @@ async function getAdminOptionLabel(groupKey: string, value: string | null) {
 }
 
 function optionalInt(value: FormDataEntryValue | null, label: string) {
-  const text = optionalString(value);
+  // German thousands separator ("120.000" km) - parseInt would silently
+  // truncate this to 120 at the first ".", so strip separators first
+  // instead of using parseInt's lenient prefix-parsing.
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
-  const number = Number.parseInt(text, 10);
+  const number = Number(text);
 
   if (!Number.isInteger(number)) {
     throw new Error(`${label} muss eine ganze Zahl sein.`);
@@ -111,7 +114,7 @@ function optionalInt(value: FormDataEntryValue | null, label: string) {
 }
 
 function optionalTonsToKilograms(value: FormDataEntryValue | null, label: string) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const number = Number(text);
@@ -135,7 +138,7 @@ function optionalObjectNumber(value: FormDataEntryValue | null) {
 }
 
 function optionalMoneyCents(value: FormDataEntryValue | null) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const number = Number(text);
@@ -158,7 +161,7 @@ function requiredDate(value: FormDataEntryValue | null, label: string) {
 }
 
 function optionalStock(value: FormDataEntryValue | null, label: string) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const number = Number(text);
@@ -181,7 +184,7 @@ function requiredStock(value: FormDataEntryValue | null, label: string) {
 }
 
 function optionalFloat(value: FormDataEntryValue | null, label: string) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const number = Number(text);
@@ -194,7 +197,7 @@ function optionalFloat(value: FormDataEntryValue | null, label: string) {
 }
 
 function optionalRawFloat(value: FormDataEntryValue | null) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const number = Number(text);

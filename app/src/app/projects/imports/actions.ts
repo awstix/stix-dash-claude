@@ -10,6 +10,7 @@ import { putFile, signedUrl } from "@/lib/storage";
 import {
   bool,
   dateValue,
+  floatValue,
   moneyCents,
   rowValue,
   text,
@@ -147,8 +148,7 @@ export async function importProjects(formData: FormData) {
         paymentsNet: moneyCents(rowValue(row, "Zahlungen netto EUR")) ?? 0,
         plannedEnd: dateValue(rowValue(row, "Geplantes Ende")),
         plannedStart: dateValue(rowValue(row, "Geplanter Start")),
-        progressPercent:
-          Number(text(rowValue(row, "Fortschritt %"))?.replace(",", ".")) || 0,
+        progressPercent: floatValue(rowValue(row, "Fortschritt %")) ?? 0,
         remainingConstructionTime: text(rowValue(row, "Verbleibende Bauzeit")),
         siteAddress: text(rowValue(row, "Baustellenadresse")),
         status: statusValue(rowValue(row, "Status")),
