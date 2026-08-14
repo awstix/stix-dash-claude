@@ -112,7 +112,12 @@ type ImportCategoryRecord = {
   objectNumberEnd: number | null;
   objectNumberStart: number | null;
   useInTeamManagement: boolean;
-  parentCategory: { name: string; useInTeamManagement: boolean } | null;
+  useInTruckDispatchSelection: boolean;
+  parentCategory: {
+    name: string;
+    useInTeamManagement: boolean;
+    useInTruckDispatchSelection: boolean;
+  } | null;
   parentCategoryId: string | null;
 };
 
@@ -405,10 +410,12 @@ export async function importInventoryItems(formData: FormData) {
       objectNumberEnd: true,
       objectNumberStart: true,
       useInTeamManagement: true,
+      useInTruckDispatchSelection: true,
       parentCategory: {
         select: {
           name: true,
           useInTeamManagement: true,
+          useInTruckDispatchSelection: true,
         },
       },
       parentCategoryId: true,
@@ -530,6 +537,16 @@ export async function importInventoryItems(formData: FormData) {
         });
         continue;
       }
+
+      // Checked once here (from the already-loaded category list, no extra
+      // query) so the driver-vehicle sync below - which does its own DB
+      // round trips - only runs for the minority of rows that actually
+      // qualify, instead of on every single row. Skipping it for the rest
+      // is what keeps a few-hundred-row import inside Vercel's timeout.
+      const allowsTruckDispatchSelection = Boolean(
+        category.useInTruckDispatchSelection ||
+          category.parentCategory?.useInTruckDispatchSelection,
+      );
 
       const requestedObjectNumber = objectNumber(rowValue(row, "Objekt-ID"));
       const inventoryNumber = text(rowValue(row, "Inventarnummer"));
@@ -779,8 +796,13 @@ export async function importInventoryItems(formData: FormData) {
               })),
             });
           }
-          await ensureVehicleForInventoryItem(tx, existingItem.id);
-          await syncDriverVehicleAssignmentForInventoryItem(tx, existingItem.id);
+          if (allowsTruckDispatchSelection) {
+            await ensureVehicleForInventoryItem(tx, existingItem.id);
+            await syncDriverVehicleAssignmentForInventoryItem(
+              tx,
+              existingItem.id,
+            );
+          }
           updated += 1;
           return {
             action: "updated" as const,
@@ -813,8 +835,13 @@ export async function importInventoryItems(formData: FormData) {
               : undefined,
           },
         });
-        await ensureVehicleForInventoryItem(tx, createdItem.id);
-        await syncDriverVehicleAssignmentForInventoryItem(tx, createdItem.id);
+        if (allowsTruckDispatchSelection) {
+          await ensureVehicleForInventoryItem(tx, createdItem.id);
+          await syncDriverVehicleAssignmentForInventoryItem(
+            tx,
+            createdItem.id,
+          );
+        }
         created += 1;
         return {
           action: "created" as const,
