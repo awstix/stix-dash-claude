@@ -1,3 +1,4 @@
+import { SearchableSelect } from "./SearchableSelect";
 import { getEquipmentVehicleSelectLabel } from "./equipment-vehicle-labels";
 
 export function EquipmentAssignmentForm({
@@ -64,57 +65,46 @@ export function EquipmentAssignmentForm({
       ) : (
         <label className="block text-sm font-medium text-gray-800">
           Gerät / Maschine
-          <select
-            name="inventoryItemId"
-            required
+          <SearchableSelect
             defaultValue={selectedInventoryItemId}
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          >
-            <option value="" disabled>
-              Inventarobjekt wählen
-            </option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.inventoryItemId}>
-                {getEquipmentVehicleSelectLabel(vehicle)}
-              </option>
-            ))}
-          </select>
+            name="inventoryItemId"
+            options={vehicles.map((vehicle) => ({
+              label: getEquipmentVehicleSelectLabel(vehicle),
+              value: vehicle.inventoryItemId,
+            }))}
+            placeholderOption="Inventarobjekt wählen"
+            required
+            searchPlaceholder="Gerät suchen..."
+          />
         </label>
       )}
 
       <label className="block text-sm font-medium text-gray-800">
         Baustelle
-        <select
-          name="projectId"
-          required
+        <SearchableSelect
           defaultValue={defaultProjectId}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          <option value="" disabled>
-            Baustelle wählen
-          </option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.projectNumber} · {project.name}
-            </option>
-          ))}
-        </select>
+          name="projectId"
+          options={projects.map((project) => ({
+            label: `${project.projectNumber} · ${project.name}`,
+            value: project.id,
+          }))}
+          placeholderOption="Baustelle wählen"
+          required
+          searchPlaceholder="Baustelle suchen..."
+        />
       </label>
 
       <label className="block text-sm font-medium text-gray-800">
         Kolonne / Polier optional
-        <select
-          name="crewId"
+        <SearchableSelect
           defaultValue={defaultCrewId}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          <option value="">Keine Kolonne gewählt</option>
-          {crews.map((crew) => (
-            <option key={crew.id} value={crew.id}>
-              {crew.name}
-            </option>
-          ))}
-        </select>
+          name="crewId"
+          options={[
+            { label: "Keine Kolonne gewählt", value: "" },
+            ...crews.map((crew) => ({ label: crew.name, value: crew.id })),
+          ]}
+          searchPlaceholder="Kolonne suchen..."
+        />
       </label>
 
       <div className="grid grid-cols-2 gap-3">
