@@ -118,6 +118,8 @@ export function ProjectManager({
   const [form, setForm] = useState<ProjectFormInput>(emptyProject);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [originalConstructionManagers, setOriginalConstructionManagers] =
+    useState<ProjectFormInput["constructionManagers"]>([]);
   const [deleteCandidate, setDeleteCandidate] = useState<Project | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
@@ -186,12 +188,14 @@ export function ProjectManager({
   function resetForm() {
     setForm(emptyProject);
     setEditingId(null);
+    setOriginalConstructionManagers([]);
     setShowForm(false);
   }
 
   function startCreate() {
     setForm(emptyProject);
     setEditingId(null);
+    setOriginalConstructionManagers([]);
     setShowForm(true);
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({
@@ -204,6 +208,7 @@ export function ProjectManager({
   function startEdit(project: Project) {
     setForm(project);
     setEditingId(project.id);
+    setOriginalConstructionManagers(project.constructionManagers);
     setShowForm(true);
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({
@@ -214,12 +219,37 @@ export function ProjectManager({
   }
 
   function saveProject() {
+    const currentManagerIds = new Set(
+      form.constructionManagers
+        .map((manager) => manager.employeeId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const removedManagers = originalConstructionManagers.filter(
+      (manager) =>
+        manager.employeeId && !currentManagerIds.has(manager.employeeId),
+    );
+
+    let revokeAccessForEmployeeIds: string[] = [];
+    if (editingId && removedManagers.length > 0) {
+      const names = removedManagers.map((manager) => manager.name).join(", ");
+      const question =
+        removedManagers.length === 1
+          ? `${names} wurde als Bauleiter entfernt. Soll diese Person die Baustelle im eigenen Portalkonto (falls Zugriff besteht) auch nicht mehr sehen?`
+          : `${names} wurden als Bauleiter entfernt. Sollen diese Personen die Baustelle im eigenen Portalkonto (falls Zugriff besteht) auch nicht mehr sehen?`;
+      if (confirm(question)) {
+        revokeAccessForEmployeeIds = removedManagers
+          .map((manager) => manager.employeeId)
+          .filter((id): id is string => Boolean(id));
+      }
+    }
+
     startTransition(async () => {
       try {
         if (editingId) {
           await updateProject({
             ...form,
             id: editingId,
+            revokeAccessForEmployeeIds,
           });
         } else {
           await createProject(form);

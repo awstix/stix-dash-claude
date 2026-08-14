@@ -17,7 +17,10 @@ import {
   primaryConstructionManagerName,
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
-import { syncUserProjectAccessForConstructionManagers } from "@/lib/project-access-sync";
+import {
+  revokeUserProjectAccessForEmployees,
+  syncUserProjectAccessForConstructionManagers,
+} from "@/lib/project-access-sync";
 import {
   getProjectFormPresetOptions,
   PROJECT_FORM_FIELD_TYPES,
@@ -45,6 +48,11 @@ export type ProjectFormInput = {
   name: string;
   client: string;
   constructionManagers: ConstructionManagerEntry[];
+  /** employeeIds of Bauleiter just removed from constructionManagers whose
+   * project access (if any) should also be revoked - only set when the
+   * admin confirmed that in the "diese Person nicht mehr sehen lassen?"
+   * prompt on save. */
+  revokeAccessForEmployeeIds?: string[];
   plannedStart: string;
   plannedEnd: string;
   actualStart: string;
@@ -589,6 +597,13 @@ export async function updateProject(input: ProjectFormInput) {
       },
     });
     await syncUserProjectAccessForConstructionManagers(tx, projectId);
+    if (input.revokeAccessForEmployeeIds?.length) {
+      await revokeUserProjectAccessForEmployees(
+        tx,
+        projectId,
+        input.revokeAccessForEmployeeIds,
+      );
+    }
   });
 
   revalidateProjectViews(input.id);
