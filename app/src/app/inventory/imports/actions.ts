@@ -360,7 +360,7 @@ export async function importInventoryItems(formData: FormData) {
   if (importRunId) {
     await prisma.importProgress.upsert({
       where: { id: importRunId },
-      create: { id: importRunId, total: rows.length },
+      create: { id: importRunId, kind: "inventory", total: rows.length },
       update: { processed: 0, status: "running", total: rows.length },
     });
   }

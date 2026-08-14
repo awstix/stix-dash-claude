@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { ImportForm } from "@/components/ImportForm";
+import { prisma } from "@/lib/prisma";
 import { importProjects } from "./actions";
 
 export const maxDuration = 300;
@@ -15,7 +17,23 @@ export default async function ProjectImportsPage({
     updated?: string;
   }>;
 }) {
-  const params = await searchParams;
+  const [params, lastImportRun] = await Promise.all([
+    searchParams,
+    prisma.importProgress.findFirst({
+      where: {
+        kind: "project",
+        status: "done",
+        reportStoragePath: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        created: true,
+        updated: true,
+        skipped: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
   const hasResult = params.created || params.updated || params.skipped;
 
   return (
@@ -52,6 +70,31 @@ export default async function ProjectImportsPage({
         </div>
       ) : null}
 
+      {lastImportRun ? (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Letzter Importbericht
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            {new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(lastImportRun.updatedAt)}
+            {" · "}
+            Angelegt: <strong>{lastImportRun.created}</strong> · Aktualisiert:{" "}
+            <strong>{lastImportRun.updated}</strong> · Übersprungen:{" "}
+            <strong>{lastImportRun.skipped}</strong>
+          </p>
+          <a
+            className="mt-4 inline-flex rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            download
+            href="/projects/imports/last-report"
+          >
+            Bericht herunterladen
+          </a>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">
@@ -63,7 +106,11 @@ export default async function ProjectImportsPage({
             bestehende Projekt aktualisiert, sonst neu angelegt.
           </p>
 
-          <form action={importProjects} className="mt-6 space-y-6">
+          <ImportForm
+            action={importProjects}
+            className="mt-6 space-y-6"
+            progressEndpoint="/projects/imports/progress"
+          >
             <label className="block text-sm font-medium text-gray-800">
               Excel-Datei
               <input
@@ -80,7 +127,7 @@ export default async function ProjectImportsPage({
               idleLabel="Projekte importieren"
               pendingLabel="Import läuft … bitte warten"
             />
-          </form>
+          </ImportForm>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

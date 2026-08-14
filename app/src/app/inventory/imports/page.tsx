@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { ImportForm } from "@/components/ImportForm";
 import { prisma } from "@/lib/prisma";
 import { importInventoryItems } from "./actions";
-import { InventoryImportForm } from "./InventoryImportForm";
 
 // Large Excel imports (hundreds of rows, each doing a couple of DB round
 // trips for object-number assignment etc.) can run well past Vercel's
@@ -30,6 +30,7 @@ export default async function InventoryImportsPage({
     }),
     prisma.importProgress.findFirst({
       where: {
+        kind: "inventory",
         status: "done",
         reportStoragePath: { not: null },
       },
@@ -167,9 +168,10 @@ export default async function InventoryImportsPage({
             Kategorie vergeben.
           </p>
 
-          <InventoryImportForm
+          <ImportForm
             action={importInventoryItems}
             className="mt-6 space-y-6"
+            progressEndpoint="/inventory/imports/progress"
           >
             <label className="block text-sm font-medium text-gray-800">
               Excel-Datei
@@ -187,7 +189,7 @@ export default async function InventoryImportsPage({
               idleLabel="Inventar importieren"
               pendingLabel="Import läuft … bitte warten"
             />
-          </InventoryImportForm>
+          </ImportForm>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

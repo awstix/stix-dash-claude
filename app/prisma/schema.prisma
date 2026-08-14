@@ -3396,6 +3396,11 @@ model PortalRole {
 model ImportProgress {
   id String @id
 
+  // Which import feature this run belongs to (e.g. "inventory", "project") -
+  // several features share this one table, and "last report" lookups need
+  // to filter by kind so one feature's page doesn't show another's report.
+  kind String @default("inventory")
+
   total     Int
   processed Int    @default(0)
   status    String @default("running")

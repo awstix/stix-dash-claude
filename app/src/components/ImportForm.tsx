@@ -9,7 +9,13 @@ type ProgressState = {
   total: number;
 };
 
-function ImportProgressStatus({ importRunId }: { importRunId: string }) {
+function ImportProgressStatus({
+  importRunId,
+  progressEndpoint,
+}: {
+  importRunId: string;
+  progressEndpoint: string;
+}) {
   const { pending } = useFormStatus();
   const [progress, setProgress] = useState<ProgressState | null>(null);
 
@@ -21,7 +27,7 @@ function ImportProgressStatus({ importRunId }: { importRunId: string }) {
     const poll = async () => {
       try {
         const response = await fetch(
-          `/inventory/imports/progress?id=${importRunId}`,
+          `${progressEndpoint}?id=${importRunId}`,
           { cache: "no-store" },
         );
         if (!response.ok) return;
@@ -39,7 +45,7 @@ function ImportProgressStatus({ importRunId }: { importRunId: string }) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [pending, importRunId]);
+  }, [pending, importRunId, progressEndpoint]);
 
   if (!pending) return null;
 
@@ -65,14 +71,19 @@ function ImportProgressStatus({ importRunId }: { importRunId: string }) {
   );
 }
 
-export function InventoryImportForm({
+/** Wraps an import `<form>` with a live "Zeile X von Y" progress bar, backed
+ * by the shared `ImportProgress` model. Give each import feature its own
+ * `progressEndpoint` GET route (id -> {processed, total, status}). */
+export function ImportForm({
   action,
   children,
   className,
+  progressEndpoint,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   children: ReactNode;
   className?: string;
+  progressEndpoint: string;
 }) {
   const importRunIdRef = useRef<HTMLInputElement>(null);
   const [importRunId, setImportRunId] = useState(() => crypto.randomUUID());
@@ -94,7 +105,10 @@ export function InventoryImportForm({
         type="hidden"
       />
       {children}
-      <ImportProgressStatus importRunId={importRunId} />
+      <ImportProgressStatus
+        importRunId={importRunId}
+        progressEndpoint={progressEndpoint}
+      />
     </form>
   );
 }

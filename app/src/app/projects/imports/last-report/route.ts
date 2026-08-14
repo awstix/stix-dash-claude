@@ -9,7 +9,7 @@ const STORAGE_BUCKET = "uploads";
 export async function GET() {
   const lastRun = await prisma.importProgress.findFirst({
     where: {
-      kind: "inventory",
+      kind: "project",
       status: "done",
       reportStoragePath: { not: null },
     },
