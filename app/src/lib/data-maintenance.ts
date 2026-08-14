@@ -32,6 +32,7 @@ export type LegacyMasterDataCleanupResult = {
 // Modellnamen).
 const ALL_MODEL_TABLES = [
   "CompanyInfo",
+  "EmailSettings",
   "TimeTrackingSettings",
   "DispositionCategoryCredit",
   "Project",
@@ -149,6 +150,7 @@ const ALL_MODEL_TABLES = [
 const BASE_KEEP_TABLES = [
   "AdminOption",
   "CompanyInfo",
+  "EmailSettings",
   "InventoryLabelTemplate",
   "ProjectFormTemplate",
   "WorkTimePreset",

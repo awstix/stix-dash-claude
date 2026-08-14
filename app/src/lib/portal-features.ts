@@ -149,6 +149,7 @@ export const portalModules: PortalModule[] = [
       { key: "kolonnen", label: "Kolonnen", path: "/admin/crews", group: "Mitarbeiter" },
       { key: "zeiterfassung_regeln", label: "Zeiterfassung (Freigabe-Regeln)", path: "/admin/time-tracking", group: "Mitarbeiter" },
       { key: "taetigkeiten", label: "Tätigkeiten für Zeiterfassung", path: "/admin/working-time/taetigkeiten", group: "Mitarbeiter" },
+      { key: "email_versand", label: "E-Mail-Versand", path: "/admin/email-settings", group: "Mitarbeiter" },
       { key: "fahrer", label: "Fahrer", path: "/admin/drivers", group: "Fuhrpark & LKW" },
       { key: "fahrer_fahrzeug", label: "Fahrer-Fahrzeug-Zuordnung", path: "/admin/driver-vehicles", group: "Fuhrpark & LKW" },
       { key: "inventarkategorien", label: "Inventarkategorien", path: "/admin/inventory-categories", group: "Inventar" },

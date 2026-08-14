@@ -75,6 +75,12 @@ const adminSections: AdminSection[] = [
           "Katalog der Tätigkeiten, die Poliere/Mitarbeiter bei einer Kolonnen-Buchung auswählen (z. B. Arbeiten).",
         href: "/admin/working-time/taetigkeiten",
       },
+      {
+        title: "E-Mail-Versand",
+        description:
+          "SMTP-Zugangsdaten für Einladungs- und Passwort-E-Mails an neue Portalnutzer einrichten und testen.",
+        href: "/admin/email-settings",
+      },
     ],
   },
   {

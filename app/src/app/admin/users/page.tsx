@@ -3,15 +3,16 @@ import { AppShell } from "@/components/AppShell";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 import { getPortalRoles } from "@/lib/portal-roles";
+import { getEmailSettings, isEmailConfigured } from "@/lib/mailer";
 import {
   approvePortalUser,
-  createPortalUser,
   updateLeaveApprovalPermission,
 } from "./actions";
+import { CreatePortalUserForm } from "./CreatePortalUserForm";
 
 export default async function PortalUsersPage() {
   await requireAdmin();
-  const [users, employees, portalRoles] = await Promise.all([
+  const [users, employees, portalRoles, emailSettings] = await Promise.all([
     prisma.user.findMany({
       include: { employee: true },
       orderBy: { name: "asc" },
@@ -24,7 +25,9 @@ export default async function PortalUsersPage() {
       },
     }),
     getPortalRoles(),
+    getEmailSettings(),
   ]);
+  const emailConfigured = isEmailConfigured(emailSettings);
   const inputClass =
     "mt-2 w-full rounded-xl border border-gray-400 bg-white px-3 py-2 text-gray-950";
 
@@ -43,59 +46,22 @@ export default async function PortalUsersPage() {
           <summary className="inline-flex cursor-pointer list-none rounded-xl bg-gray-950 px-4 py-2 font-bold text-white">
             + Portalkonto anlegen
           </summary>
-          <form action={createPortalUser} className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-bold">
-              Mitarbeiter
-              <select className={inputClass} name="employeeId" required>
-                <option value="">Mitarbeiter auswählen …</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.lastName}, {employee.firstName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-3 pt-7 text-sm font-bold">
-              <input
-                className="h-5 w-5 accent-gray-950"
-                name="canApproveLeaveRequests"
-                type="checkbox"
-              />
-              Darf Urlaubsanträge freigeben
-            </label>
-            <fieldset className="md:col-span-2">
-              <legend className="text-sm font-bold">Rollen (kombinierbar)</legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {portalRoles.map((role) => (
-                  <label className="flex items-center gap-2 rounded-xl border border-gray-400 p-3 font-bold text-gray-950" key={role.key}>
-                    <input
-                      className="h-5 w-5 accent-gray-950"
-                      defaultChecked={role.key === "employee"}
-                      name="role"
-                      type="checkbox"
-                      value={role.key}
-                    />
-                    {role.label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <label className="text-sm font-bold">
-              E-Mail (optional)
-              <input className={inputClass} name="email" type="email" />
-            </label>
-            <label className="text-sm font-bold">
-              Startpasswort
-              <input className={inputClass} minLength={10} name="password" required type="password" />
-            </label>
-            <p className="text-sm font-semibold text-gray-700 md:col-span-2">
-              Der Benutzername entsteht automatisch aus Nachname und den ersten
-              drei Buchstaben des Vornamens.
+          {!emailConfigured ? (
+            <p className="mt-4 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
+              E-Mail-Versand ist noch nicht eingerichtet - Konten bekommen
+              aktuell ein von dir vergebenes Startpasswort statt einer
+              Einladung.{" "}
+              <Link className="underline" href="/admin/email-settings">
+                Jetzt einrichten
+              </Link>
             </p>
-            <button className="w-fit rounded-xl bg-gray-950 px-4 py-2.5 font-bold text-white">
-              Konto anlegen
-            </button>
-          </form>
+          ) : null}
+          <CreatePortalUserForm
+            emailConfigured={emailConfigured}
+            employees={employees}
+            inputClass={inputClass}
+            portalRoles={portalRoles}
+          />
         </details>
       </section>
 

@@ -1,11 +1,13 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 import { getPortalRoleKeys } from "@/lib/portal-roles";
+import { isEmailConfigured, getEmailSettings } from "@/lib/mailer";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -37,6 +39,7 @@ async function usernameFor(firstName: string, lastName: string) {
 export async function createPortalUser(formData: FormData) {
   await requireAdmin();
   const employeeId = text(formData, "employeeId");
+  const inviteViaEmail = formData.get("inviteViaEmail") === "on";
   const password = text(formData, "password");
   const validRoleKeys = await getPortalRoleKeys();
   const roles = formData
@@ -46,7 +49,7 @@ export async function createPortalUser(formData: FormData) {
   const role = roles.length ? roles.join(",") : "employee";
   const canApproveLeaveRequests =
     formData.get("canApproveLeaveRequests") === "on";
-  if (password.length < 10) {
+  if (!inviteViaEmail && password.length < 10) {
     throw new Error("Das Startpasswort muss mindestens 10 Zeichen lang sein.");
   }
   const employee = await prisma.employee.findUnique({
@@ -58,13 +61,32 @@ export async function createPortalUser(formData: FormData) {
   }
   const username = await usernameFor(employee.firstName, employee.lastName);
   const realEmail = text(formData, "email").toLowerCase() || employee.email?.toLowerCase() || "";
+
+  if (inviteViaEmail) {
+    if (!realEmail) {
+      throw new Error(
+        "Für eine Einladung per E-Mail wird eine echte E-Mail-Adresse benötigt.",
+      );
+    }
+    if (!isEmailConfigured(await getEmailSettings())) {
+      throw new Error(
+        "E-Mail-Versand ist nicht konfiguriert. Bitte zuerst unter Admin > E-Mail-Versand einrichten.",
+      );
+    }
+  }
+
   const email = realEmail || `${username}@accounts.stix.invalid`;
+  // Wird nie angezeigt oder mitgeteilt - der Nutzer setzt sein eigenes
+  // Passwort über den Einladungslink, bevor er sich je damit anmeldet.
+  const startPassword = inviteViaEmail
+    ? randomBytes(24).toString("base64url")
+    : password;
   const result = await auth.api.createUser({
     body: {
       data: { displayUsername: username, username },
       email,
       name: `${employee.firstName} ${employee.lastName}`,
-      password,
+      password: startPassword,
       role: roles.includes("admin") ? "admin" : "user",
     },
   });
@@ -78,6 +100,15 @@ export async function createPortalUser(formData: FormData) {
     },
     where: { id: result.user.id },
   });
+
+  if (inviteViaEmail) {
+    await auth.api.requestPasswordReset({
+      body: {
+        email,
+        redirectTo: `${process.env.BETTER_AUTH_URL}/reset-password`,
+      },
+    });
+  }
   revalidatePath("/admin/users");
 }
 
