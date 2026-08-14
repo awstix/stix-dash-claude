@@ -8,17 +8,42 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
+import { parseConstructionManagersJson } from "@/lib/construction-managers";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
 
 type ProjectSortOption = "newest" | "oldest" | "alphabet";
+type TriStateFilter = "" | "ja" | "nein";
+type PercentOperator = "" | "gt" | "lt";
+
+function getTriStateFilter(value: string | undefined): TriStateFilter {
+  return value === "ja" || value === "nein" ? value : "";
+}
+
+function getPercentOperator(value: string | undefined): PercentOperator {
+  return value === "gt" || value === "lt" ? value : "";
+}
+
+function getPercentValue(value: string | undefined) {
+  if (!value) return null;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    billingOperator?: string;
+    billingValue?: string;
+    constructionManager?: string;
+    dvgw?: string;
+    guetezeichenKanalbau?: string;
+    lieferscheine?: string;
+    progressOperator?: string;
+    progressValue?: string;
     q?: string;
     sort?: string;
   }>;
@@ -26,6 +51,14 @@ export default async function ProjectsPage({
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
   const sortOption = getProjectSortOption(params.sort);
+  const constructionManagerFilter = String(params.constructionManager ?? "").trim();
+  const dvgwFilter = getTriStateFilter(params.dvgw);
+  const guetezeichenKanalbauFilter = getTriStateFilter(params.guetezeichenKanalbau);
+  const lieferscheineFilter = getTriStateFilter(params.lieferscheine);
+  const progressOperator = getPercentOperator(params.progressOperator);
+  const progressValue = getPercentValue(params.progressValue);
+  const billingOperator = getPercentOperator(params.billingOperator);
+  const billingValue = getPercentValue(params.billingValue);
   const accessibleProjectIds = await getAccessibleProjectIds();
 
   const projects = await prisma.project.findMany({
@@ -183,6 +216,11 @@ export default async function ProjectsPage({
     const totalContract = project.contractValueNet + project.changeOrdersNet;
     const performanceValue = totalContract * (project.progressPercent / 100);
     const difference = project.paymentsNet - performanceValue;
+    const billingPercent =
+      totalContract > 0 ? (project.paymentsNet / totalContract) * 100 : 0;
+    const constructionManagerNames = parseConstructionManagersJson(
+      project.constructionManagersJson,
+    ).map((entry) => entry.name);
     const truckCount =
       project.shortHaulAssignments.length +
       project.truckLongHaulEntries.reduce(
@@ -194,6 +232,8 @@ export default async function ProjectsPage({
       project,
       totalContract,
       performanceValue,
+      billingPercent,
+      constructionManagerNames,
       difference,
       people: Array.from(people.values()).sort((a, b) =>
         a.localeCompare(b, "de-DE"),
@@ -212,6 +252,36 @@ export default async function ProjectsPage({
       return normalizeProjectSearchText(
         `${item.project.projectNumber} ${item.project.name}`,
       ).includes(normalizedSearchQuery);
+    })
+    .filter((item) => {
+      if (!constructionManagerFilter) return true;
+      return item.constructionManagerNames.includes(constructionManagerFilter);
+    })
+    .filter((item) => {
+      if (!dvgwFilter) return true;
+      return item.project.dvgw === (dvgwFilter === "ja");
+    })
+    .filter((item) => {
+      if (!guetezeichenKanalbauFilter) return true;
+      return (
+        item.project.guetezeichenKanalbau === (guetezeichenKanalbauFilter === "ja")
+      );
+    })
+    .filter((item) => {
+      if (!lieferscheineFilter) return true;
+      return item.project.lieferscheine === (lieferscheineFilter === "ja");
+    })
+    .filter((item) => {
+      if (!progressOperator || progressValue === null) return true;
+      return progressOperator === "gt"
+        ? item.project.progressPercent > progressValue
+        : item.project.progressPercent < progressValue;
+    })
+    .filter((item) => {
+      if (!billingOperator || billingValue === null) return true;
+      return billingOperator === "gt"
+        ? item.billingPercent > billingValue
+        : item.billingPercent < billingValue;
     })
     .sort((a, b) => {
       if (sortOption === "oldest") {
@@ -241,7 +311,14 @@ export default async function ProjectsPage({
       });
     });
   const activeProjectFilterCount =
-    Number(Boolean(searchQuery)) + Number(sortOption !== "newest");
+    Number(Boolean(searchQuery)) +
+    Number(sortOption !== "newest") +
+    Number(Boolean(constructionManagerFilter)) +
+    Number(Boolean(dvgwFilter)) +
+    Number(Boolean(guetezeichenKanalbauFilter)) +
+    Number(Boolean(lieferscheineFilter)) +
+    Number(Boolean(progressOperator) && progressValue !== null) +
+    Number(Boolean(billingOperator) && billingValue !== null);
 
   return (
     <AppShell
@@ -321,6 +398,119 @@ export default async function ProjectsPage({
                       <option value="alphabet">Alphabetisch</option>
                     </select>
                   </label>
+
+                  <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                    Bauleiter
+                    <select
+                      name="constructionManager"
+                      defaultValue={constructionManagerFilter}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                    >
+                      <option value="">Alle</option>
+                      {constructionManagerOptions.map((option) => (
+                        <option key={option.employeeId} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      DVGW
+                      <select
+                        name="dvgw"
+                        defaultValue={dvgwFilter}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      >
+                        <option value="">Alle</option>
+                        <option value="ja">Ja</option>
+                        <option value="nein">Nein</option>
+                      </select>
+                    </label>
+
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      Gütezeichen
+                      <select
+                        name="guetezeichenKanalbau"
+                        defaultValue={guetezeichenKanalbauFilter}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      >
+                        <option value="">Alle</option>
+                        <option value="ja">Ja</option>
+                        <option value="nein">Nein</option>
+                      </select>
+                    </label>
+
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      Lieferscheine
+                      <select
+                        name="lieferscheine"
+                        defaultValue={lieferscheineFilter}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      >
+                        <option value="">Alle</option>
+                        <option value="ja">Ja</option>
+                        <option value="nein">Nein</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-[auto_1fr] items-end gap-2">
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      Leistungsstand
+                      <select
+                        name="progressOperator"
+                        defaultValue={progressOperator}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      >
+                        <option value="">Alle</option>
+                        <option value="gt">größer als</option>
+                        <option value="lt">kleiner als</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      %
+                      <input
+                        name="progressValue"
+                        defaultValue={params.progressValue ?? ""}
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="z. B. 50"
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-[auto_1fr] items-end gap-2">
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      Abrechnungsstand
+                      <select
+                        name="billingOperator"
+                        defaultValue={billingOperator}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      >
+                        <option value="">Alle</option>
+                        <option value="gt">größer als</option>
+                        <option value="lt">kleiner als</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-semibold text-gray-800">
+                      %
+                      <input
+                        name="billingValue"
+                        defaultValue={params.billingValue ?? ""}
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="z. B. 50"
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
+                      />
+                    </label>
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     <button
