@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
+import { getInventoryActor } from "@/app/inventory/actions";
 
 function text(value: FormDataEntryValue | null) {
   const result = String(value ?? "").trim();
@@ -85,9 +86,10 @@ function redirectWithNotice(
     notice: message,
   });
   if (year) params.set("year", year);
-  if (anchor === "rate-archive") {
-    params.set("archive", "1");
-  }
+  // Keeps the section the user was just working in expanded and scrolls
+  // back to it instead of resetting to the top of the page after every
+  // single save - each anchor id matches a RateDetails section's id.
+  if (anchor) params.set("open", anchor);
 
   redirect(`/controlling/rates?${params.toString()}${anchor ? `#${anchor}` : ""}`);
 }
@@ -103,9 +105,7 @@ function redirectWithError(
     noticeType: "error",
   });
   if (year) params.set("year", year);
-  if (anchor === "rate-archive") {
-    params.set("archive", "1");
-  }
+  if (anchor) params.set("open", anchor);
 
   redirect(`/controlling/rates?${params.toString()}${anchor ? `#${anchor}` : ""}`);
 }
@@ -134,7 +134,7 @@ function handleRateActionError(error: unknown, anchor?: string): never {
 }
 
 export async function saveEmployeeGroupRate(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const id = text(formData.get("id"));
@@ -198,6 +198,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
       });
 
   await logRateChange({
+    changedByName: actor.name,
     fieldName: "employee-group-rates",
     newValueCents: realRateCents,
     previousValueCents: existing?.realRateCents ?? null,
@@ -207,146 +208,329 @@ export async function saveEmployeeGroupRate(formData: FormData) {
   });
 
   revalidateRates();
-  redirectWithNotice(`Mitarbeitergruppe „${saved.name}“ wurde gespeichert.`, undefined, formData.get("year"));
+  redirectWithNotice(`Mitarbeitergruppe „${saved.name}“ wurde gespeichert.`, "employee-group-rates", formData.get("year"));
   } catch (error) {
     handleRateActionError(error);
   }
 }
 
-export async function saveInventoryCategoryRate(formData: FormData) {
-  await requireSession();
+/** Saves every existing Mitarbeitergruppe row in one submit, so changes
+ * across several rows can be entered first and saved together instead of
+ * clicking "Speichern" once per row. Rows are submitted as parallel
+ * same-name field arrays (id/year/realRate/internalRate/description),
+ * index-aligned - same pattern as the inline subcategory rows on
+ * /admin/inventory-categories. */
+export async function saveAllEmployeeGroupRates(formData: FormData) {
+  const actor = await getInventoryActor();
   try {
-  const rateSetId = text(formData.get("rateSetId"));
-  const id = String(formData.get("id") ?? "");
-  const realRateCents = moneyCents(formData.get("realRate"), "Normaler Satz");
-  const idleRateCents = moneyCents(formData.get("idleRate"), "Stillstandssatz");
+  const ids = formData.getAll("id").map((value) => String(value ?? ""));
+  const years = formData.getAll("year");
+  const realRates = formData.getAll("realRate");
+  const internalRates = formData.getAll("internalRate");
+  const descriptions = formData.getAll("description");
 
-  if (!rateSetId) {
-    throw new Error("Satzstand fehlt.");
-  }
-  const effectiveRateSetId = rateSetId;
-
-  const existing = await prisma.inventoryCategory.findUniqueOrThrow({
+  const existingRates = await prisma.controllingEmployeeGroupRate.findMany({
     where: {
-      id,
-    },
-  });
-
-  const rate = await prisma.controllingInventoryCategoryRate.upsert({
-    create: {
-      billingRateCents: realRateCents || null,
-      categoryId: id,
-      idleBillingRateCents: idleRateCents || null,
-      rateSetId,
-    },
-    update: {
-      billingRateCents: realRateCents || null,
-      idleBillingRateCents: idleRateCents || null,
-    },
-    where: {
-      rateSetId_categoryId: {
-        categoryId: id,
-        rateSetId: effectiveRateSetId,
+      id: {
+        in: ids,
       },
     },
   });
+  const existingById = new Map(existingRates.map((rate) => [rate.id, rate]));
 
-  await Promise.all([
-    logRateChange({
-      fieldName: "billingRateCents",
-      newValueCents: realRateCents || null,
-      previousValueCents: rate.billingRateCents,
-      targetId: rate.id,
+  let changedCount = 0;
+
+  for (const [index, id] of ids.entries()) {
+    const existing = existingById.get(id);
+    if (!existing) continue;
+
+    const year = optionalYear(years[index] ?? null);
+    const description = text(descriptions[index] ?? null);
+    const realRateCents = moneyCents(realRates[index] ?? null, `EK real (${existing.name})`);
+    const internalRateCents = moneyCents(
+      internalRates[index] ?? null,
+      `Interner Satz (${existing.name})`,
+    );
+    const validFrom = yearStart(year);
+    const validTo = yearEnd(year);
+
+    const unchanged =
+      realRateCents === existing.realRateCents &&
+      internalRateCents === existing.internalRateCents &&
+      description === existing.description &&
+      (validFrom?.getTime() ?? null) === (existing.validFrom?.getTime() ?? null) &&
+      (validTo?.getTime() ?? null) === (existing.validTo?.getTime() ?? null);
+
+    if (unchanged) continue;
+
+    await prisma.controllingEmployeeGroupRate.update({
+      data: {
+        description,
+        internalRateCents,
+        isActive: true,
+        realRateCents,
+        validFrom,
+        validTo,
+        visibilityLevel: "CONTROLLING",
+      },
+      where: {
+        id: existing.id,
+      },
+    });
+
+    const changed = await logRateChange({
+      changedByName: actor.name,
+      fieldName: "employee-group-rates",
+      newValueCents: realRateCents,
+      previousValueCents: existing.realRateCents,
+      targetId: existing.id,
       targetLabel: existing.name,
-      targetType: "INVENTORY_CATEGORY_RATE",
-    }),
-    logRateChange({
-      fieldName: "idleBillingRateCents",
-      newValueCents: idleRateCents || null,
-      previousValueCents: rate.idleBillingRateCents,
-      targetId: rate.id,
-      targetLabel: existing.name,
-      targetType: "INVENTORY_CATEGORY_RATE",
-    }),
-  ]);
+      targetType: "EMPLOYEE_GROUP",
+    });
+    if (changed) changedCount += 1;
+  }
 
   revalidateRates();
-  redirectWithNotice(`Kategorie „${existing.name}“ wurde gespeichert.`, undefined, formData.get("year"));
+  redirectWithNotice(
+    changedCount > 0
+      ? `${changedCount} Mitarbeitergruppe(n) gespeichert.`
+      : "Keine Änderungen zum Speichern gefunden.",
+    "employee-group-rates",
+    formData.get("pageYear"),
+  );
   } catch (error) {
     handleRateActionError(error);
   }
 }
 
-export async function saveInventoryItemRate(formData: FormData) {
-  await requireSession();
+/** Saves every Inventarkategorie/Unterkategorie row in one submit - same
+ * "fill in several fields, then one save" workflow as
+ * saveAllEmployeeGroupRates, and also fixes an invalid-HTML bug: the old
+ * per-row implementation put a <form> directly inside a <tr> (only <td>/
+ * <th> are valid there), which browsers "fix" via foster parenting -
+ * moving the form's content out of the table, which is why rows could
+ * render empty/broken. One <form> wraps the whole <table> now. */
+export async function saveAllInventoryCategoryRates(formData: FormData) {
+  const actor = await getInventoryActor();
   try {
   const rateSetId = text(formData.get("rateSetId"));
-  const id = String(formData.get("id") ?? "");
-  const realRateCents = moneyCents(formData.get("realRate"), "Normaler Satz");
-  const idleRateCents = moneyCents(formData.get("idleRate"), "Stillstandssatz");
-
   if (!rateSetId) {
     throw new Error("Satzstand fehlt.");
   }
-  const effectiveRateSetId = rateSetId;
 
-  const existing = await prisma.inventoryItem.findUniqueOrThrow({
-    where: {
-      id,
-    },
-  });
+  const categoryIds = formData.getAll("categoryId").map((value) => String(value ?? ""));
+  const realRates = formData.getAll("realRate");
+  const idleRates = formData.getAll("idleRate");
 
-  const rate = await prisma.controllingInventoryItemRate.upsert({
-    create: {
-      billingRateCents: realRateCents || null,
-      idleBillingRateCents: idleRateCents || null,
-      itemId: id,
-      rateSetId,
-    },
-    update: {
-      billingRateCents: realRateCents || null,
-      idleBillingRateCents: idleRateCents || null,
-    },
-    where: {
-      rateSetId_itemId: {
-        itemId: id,
-        rateSetId: effectiveRateSetId,
+  const [categories, existingRates] = await Promise.all([
+    prisma.inventoryCategory.findMany({
+      where: {
+        id: {
+          in: categoryIds,
+        },
       },
-    },
-  });
-
-  await Promise.all([
-    logRateChange({
-      fieldName: "billingRateCents",
-      newValueCents: realRateCents || null,
-      previousValueCents: rate.billingRateCents,
-      targetId: rate.id,
-      targetLabel: existing.objectNumber
-        ? `${existing.objectNumber} · ${existing.name}`
-        : existing.name,
-      targetType: "INVENTORY_ITEM_RATE",
     }),
-    logRateChange({
-      fieldName: "idleBillingRateCents",
-      newValueCents: idleRateCents || null,
-      previousValueCents: rate.idleBillingRateCents,
-      targetId: rate.id,
-      targetLabel: existing.objectNumber
-        ? `${existing.objectNumber} · ${existing.name}`
-        : existing.name,
-      targetType: "INVENTORY_ITEM_RATE",
+    prisma.controllingInventoryCategoryRate.findMany({
+      where: {
+        categoryId: {
+          in: categoryIds,
+        },
+        rateSetId,
+      },
     }),
   ]);
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const existingRateByCategoryId = new Map(
+    existingRates.map((rate) => [rate.categoryId, rate]),
+  );
+
+  let changedCount = 0;
+
+  for (const [index, categoryId] of categoryIds.entries()) {
+    const category = categoryById.get(categoryId);
+    if (!category) continue;
+
+    const existingRate = existingRateByCategoryId.get(categoryId) ?? null;
+    const realRateCents = moneyCents(
+      realRates[index] ?? null,
+      `Normaler Satz (${category.name})`,
+    );
+    const idleRateCents = moneyCents(
+      idleRates[index] ?? null,
+      `Stillstandssatz (${category.name})`,
+    );
+    const previousReal = existingRate?.billingRateCents ?? null;
+    const previousIdle = existingRate?.idleBillingRateCents ?? null;
+    const newReal = realRateCents || null;
+    const newIdle = idleRateCents || null;
+
+    if (newReal === previousReal && newIdle === previousIdle) continue;
+
+    const rate = await prisma.controllingInventoryCategoryRate.upsert({
+      create: {
+        billingRateCents: newReal,
+        categoryId,
+        idleBillingRateCents: newIdle,
+        rateSetId,
+      },
+      update: {
+        billingRateCents: newReal,
+        idleBillingRateCents: newIdle,
+      },
+      where: {
+        rateSetId_categoryId: {
+          categoryId,
+          rateSetId,
+        },
+      },
+    });
+
+    const [realChanged, idleChanged] = await Promise.all([
+      logRateChange({
+        changedByName: actor.name,
+        fieldName: "billingRateCents",
+        newValueCents: newReal,
+        previousValueCents: previousReal,
+        targetId: rate.id,
+        targetLabel: category.name,
+        targetType: "INVENTORY_CATEGORY_RATE",
+      }),
+      logRateChange({
+        changedByName: actor.name,
+        fieldName: "idleBillingRateCents",
+        newValueCents: newIdle,
+        previousValueCents: previousIdle,
+        targetId: rate.id,
+        targetLabel: category.name,
+        targetType: "INVENTORY_CATEGORY_RATE",
+      }),
+    ]);
+    if (realChanged || idleChanged) changedCount += 1;
+  }
 
   revalidateRates();
-  redirectWithNotice(`Objekt „${existing.name}“ wurde gespeichert.`, undefined, formData.get("year"));
+  redirectWithNotice(
+    changedCount > 0
+      ? `${changedCount} Kategorie(n) gespeichert.`
+      : "Keine Änderungen zum Speichern gefunden.",
+    "inventory-category-rates",
+    formData.get("pageYear"),
+  );
+  } catch (error) {
+    handleRateActionError(error);
+  }
+}
+
+/** Same pattern as saveAllInventoryCategoryRates, for Inventarobjekte. */
+export async function saveAllInventoryItemRates(formData: FormData) {
+  const actor = await getInventoryActor();
+  try {
+  const rateSetId = text(formData.get("rateSetId"));
+  if (!rateSetId) {
+    throw new Error("Satzstand fehlt.");
+  }
+
+  const itemIds = formData.getAll("itemId").map((value) => String(value ?? ""));
+  const realRates = formData.getAll("realRate");
+  const idleRates = formData.getAll("idleRate");
+
+  const [items, existingRates] = await Promise.all([
+    prisma.inventoryItem.findMany({
+      where: {
+        id: {
+          in: itemIds,
+        },
+      },
+    }),
+    prisma.controllingInventoryItemRate.findMany({
+      where: {
+        itemId: {
+          in: itemIds,
+        },
+        rateSetId,
+      },
+    }),
+  ]);
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const existingRateByItemId = new Map(existingRates.map((rate) => [rate.itemId, rate]));
+
+  let changedCount = 0;
+
+  for (const [index, itemId] of itemIds.entries()) {
+    const item = itemById.get(itemId);
+    if (!item) continue;
+
+    const itemLabel = item.objectNumber ? `${item.objectNumber} · ${item.name}` : item.name;
+    const existingRate = existingRateByItemId.get(itemId) ?? null;
+    const realRateCents = moneyCents(realRates[index] ?? null, `Normaler Satz (${itemLabel})`);
+    const idleRateCents = moneyCents(
+      idleRates[index] ?? null,
+      `Stillstandssatz (${itemLabel})`,
+    );
+    const previousReal = existingRate?.billingRateCents ?? null;
+    const previousIdle = existingRate?.idleBillingRateCents ?? null;
+    const newReal = realRateCents || null;
+    const newIdle = idleRateCents || null;
+
+    if (newReal === previousReal && newIdle === previousIdle) continue;
+
+    const rate = await prisma.controllingInventoryItemRate.upsert({
+      create: {
+        billingRateCents: newReal,
+        idleBillingRateCents: newIdle,
+        itemId,
+        rateSetId,
+      },
+      update: {
+        billingRateCents: newReal,
+        idleBillingRateCents: newIdle,
+      },
+      where: {
+        rateSetId_itemId: {
+          itemId,
+          rateSetId,
+        },
+      },
+    });
+
+    const [realChanged, idleChanged] = await Promise.all([
+      logRateChange({
+        changedByName: actor.name,
+        fieldName: "billingRateCents",
+        newValueCents: newReal,
+        previousValueCents: previousReal,
+        targetId: rate.id,
+        targetLabel: itemLabel,
+        targetType: "INVENTORY_ITEM_RATE",
+      }),
+      logRateChange({
+        changedByName: actor.name,
+        fieldName: "idleBillingRateCents",
+        newValueCents: newIdle,
+        previousValueCents: previousIdle,
+        targetId: rate.id,
+        targetLabel: itemLabel,
+        targetType: "INVENTORY_ITEM_RATE",
+      }),
+    ]);
+    if (realChanged || idleChanged) changedCount += 1;
+  }
+
+  revalidateRates();
+  redirectWithNotice(
+    changedCount > 0
+      ? `${changedCount} Objekt(e) gespeichert.`
+      : "Keine Änderungen zum Speichern gefunden.",
+    "inventory-item-rates",
+    formData.get("pageYear"),
+  );
   } catch (error) {
     handleRateActionError(error);
   }
 }
 
 export async function raiseRates(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   try {
   const rateSetId = text(formData.get("rateSetId"));
   const targetType = String(formData.get("targetType") ?? "");
@@ -426,6 +610,7 @@ export async function raiseRates(formData: FormData) {
         const changed = await logRateChange({
           batchId,
           batchLabel,
+          changedByName: actor.name,
           changeReason: reason,
           changeType: "RAISE",
           fieldName: field,
@@ -501,6 +686,7 @@ export async function raiseRates(formData: FormData) {
         const changed = await logRateChange({
           batchId,
           batchLabel,
+          changedByName: actor.name,
           changeReason: reason,
           changeType: "RAISE",
           fieldName: field,
@@ -575,6 +761,7 @@ export async function raiseRates(formData: FormData) {
         const changed = await logRateChange({
           batchId,
           batchLabel,
+          changedByName: actor.name,
           changeReason: reason,
           changeType: "RAISE",
           fieldName: field,
@@ -610,12 +797,19 @@ export async function raiseRates(formData: FormData) {
     }
   }
 
+  const raiseAnchor =
+    targetType === "EMPLOYEE_GROUP"
+      ? "employee-group-rates"
+      : targetType === "INVENTORY_CATEGORY"
+        ? "inventory-category-rates"
+        : "inventory-item-rates";
+
   revalidateRates();
   redirectWithNotice(
     changedCount > 0
       ? `${changedCount} Verrechnungssätze wurden geändert.`
       : "Keine Verrechnungssätze geändert, weil die neuen Werte identisch waren.",
-    undefined,
+    raiseAnchor,
     formData.get("year"),
   );
   } catch (error) {
@@ -990,6 +1184,7 @@ function descendantCategoryIds(
 async function logRateChange({
   batchId,
   batchLabel,
+  changedByName,
   changeReason,
   changeType = "UPDATE",
   fieldName,
@@ -1001,6 +1196,7 @@ async function logRateChange({
 }: {
   batchId?: string | null;
   batchLabel?: string | null;
+  changedByName?: string | null;
   changeReason?: string | null;
   changeType?: string;
   fieldName: string;
@@ -1016,6 +1212,7 @@ async function logRateChange({
     data: {
       batchId,
       batchLabel,
+      changedByName,
       changeReason,
       changeType,
       fieldName,

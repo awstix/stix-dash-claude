@@ -6,9 +6,10 @@ import {
   deleteRateSet,
   revertRateChange,
   revertRateChangeBatch,
+  saveAllEmployeeGroupRates,
+  saveAllInventoryCategoryRates,
+  saveAllInventoryItemRates,
   saveEmployeeGroupRate,
-  saveInventoryCategoryRate,
-  saveInventoryItemRate,
 } from "./actions";
 import { RaiseRatesPanel } from "./RaiseRatesPanel";
 
@@ -19,11 +20,13 @@ export default async function ControllingRatesPage({
     archive?: string;
     notice?: string;
     noticeType?: string;
+    open?: string;
     year?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
-  const showArchive = params.archive === "1";
+  const showArchive = params.archive === "1" || params.open === "rate-archive";
+  const openSection = params.open;
   const notice = typeof params.notice === "string" ? params.notice : null;
   const noticeType = params.noticeType === "error" ? "error" : "success";
   const rateSets = await prisma.controllingRateSet.findMany({
@@ -129,6 +132,46 @@ export default async function ControllingRatesPage({
       idleBillingRateCents: rate?.idleBillingRateCents ?? item.idleBillingRateCents,
     };
   });
+
+  // "Zuletzt geändert" per row - keyed by the id of the actual rate record
+  // (ControllingEmployeeGroupRate / ControllingInventoryCategoryRate /
+  // ControllingInventoryItemRate), not the employee group/category/item
+  // itself. Only known once those are loaded above, so this is a second
+  // query rather than part of the first Promise.all.
+  const rateTargetIds = [
+    ...employeeGroupRates.map((rate) => rate.id),
+    ...categoryRates.map((rate) => rate.id),
+    ...itemRates.map((rate) => rate.id),
+  ];
+  const latestChangeLogs = rateTargetIds.length
+    ? await prisma.controllingRateChangeLog.findMany({
+        where: {
+          targetId: {
+            in: rateTargetIds,
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          changedByName: true,
+          createdAt: true,
+          targetId: true,
+        },
+      })
+    : [];
+  const lastChangeByTargetId = new Map<
+    string,
+    { changedByName: string | null; createdAt: Date }
+  >();
+  for (const log of latestChangeLogs) {
+    if (!lastChangeByTargetId.has(log.targetId)) {
+      lastChangeByTargetId.set(log.targetId, {
+        changedByName: log.changedByName,
+        createdAt: log.createdAt,
+      });
+    }
+  }
 
   return (
     <AppShell
@@ -269,7 +312,9 @@ export default async function ControllingRatesPage({
       <div className="mt-6 space-y-5">
         <RateDetails
           count={employeeGroupRates.length}
+          defaultOpen={openSection === "employee-group-rates"}
           description="Sätze je Mitarbeitergruppe. Über das Jahr können Sätze sauber getrennt gepflegt werden."
+          id="employee-group-rates"
           title="Mitarbeitergruppen"
         >
           <div className="space-y-3">
@@ -277,140 +322,170 @@ export default async function ControllingRatesPage({
               rateSetId={selectedRateSet?.id ?? ""}
               year={selectedYear}
             />
-            <div className="rounded-xl border border-gray-200 bg-white text-sm text-gray-900">
-              <div className="hidden grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] gap-2 rounded-t-xl bg-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-950 lg:grid">
-                <span>Gruppe</span>
-                <span>Jahr</span>
-                <span>EK real €/h</span>
-                <span>Interner Satz €/h</span>
-                <span>Beschreibung</span>
-                <span>Aktion</span>
+            <form action={saveAllEmployeeGroupRates}>
+              <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+              <input name="pageYear" type="hidden" value={selectedYear} />
+              <div className="rounded-xl border border-gray-200 bg-white text-sm text-gray-900">
+                <div className="hidden grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr] gap-2 rounded-t-xl bg-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-950 lg:grid">
+                  <span>Gruppe</span>
+                  <span>Jahr</span>
+                  <span>EK real €/h</span>
+                  <span>Interner Satz €/h</span>
+                  <span>Beschreibung</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {employeeGroupRates.map((rate) => (
+                    <EmployeeGroupRateRow
+                      key={rate.id}
+                      lastChange={lastChangeByTargetId.get(rate.id)}
+                      rate={rate}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="divide-y divide-gray-100">
-                {employeeGroupRates.map((rate) => (
-                  <EmployeeGroupRateForm
-                    key={rate.id}
-                    rate={rate}
-                    rateSetId={selectedRateSet?.id ?? ""}
-                    year={selectedYear}
-                  />
-                ))}
-              </div>
-            </div>
+              {employeeGroupRates.length > 0 ? (
+                <button
+                  className={`${primaryButtonClassName} mt-3`}
+                  type="submit"
+                >
+                  Alle Mitarbeitergruppen speichern
+                </button>
+              ) : null}
+            </form>
           </div>
         </RateDetails>
 
         <RateDetails
           count={categories.length}
+          defaultOpen={openSection === "inventory-category-rates"}
           description="Normale und Stillstandssätze je Kategorie oder Unterkategorie."
+          id="inventory-category-rates"
           title="Inventarkategorien / Unterkategorien"
         >
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full min-w-[900px] text-left text-sm text-gray-900">
-              <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
-                <tr>
-                  <th className="px-3 py-2">Kategorie</th>
-                  <th className="px-3 py-2">Übergeordnet</th>
-                  <th className="px-3 py-2">Normal €/Einheit</th>
-                  <th className="px-3 py-2">Stillstand €/Einheit</th>
-                  <th className="px-3 py-2">Aktion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categoriesWithRates.map((category) => (
-                  <tr className="border-t border-gray-100" key={category.id}>
-                    <form action={saveInventoryCategoryRate}>
-                      <td className="px-3 py-2 font-semibold text-gray-950">
-                        <input name="id" type="hidden" value={category.id} />
-                        <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
-                        <input name="year" type="hidden" value={selectedYear} />
-                        {category.name}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {category.parentCategory?.name || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className={inputClassName}
-                          defaultValue={formatMoneyInput(category.billingRateCents)}
-                          name="realRate"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className={inputClassName}
-                          defaultValue={formatMoneyInput(category.idleBillingRateCents)}
-                          name="idleRate"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <button className={smallButtonClassName} type="submit">
-                          Speichern
-                        </button>
-                      </td>
-                    </form>
+          <form action={saveAllInventoryCategoryRates}>
+            <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+            <input name="pageYear" type="hidden" value={selectedYear} />
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full min-w-[900px] text-left text-sm text-gray-900">
+                <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
+                  <tr>
+                    <th className="px-3 py-2">Kategorie</th>
+                    <th className="px-3 py-2">Übergeordnet</th>
+                    <th className="px-3 py-2">Normal €/Einheit</th>
+                    <th className="px-3 py-2">Stillstand €/Einheit</th>
+                    <th className="px-3 py-2">Zuletzt geändert</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {categoriesWithRates.map((category) => {
+                    const rate = categoryRateById.get(category.id);
+                    const lastChange = rate ? lastChangeByTargetId.get(rate.id) : undefined;
+
+                    return (
+                      <tr className="border-t border-gray-100" key={category.id}>
+                        <td className="px-3 py-2 font-semibold text-gray-950">
+                          <input name="categoryId" type="hidden" value={category.id} />
+                          {category.name}
+                        </td>
+                        <td className="px-3 py-2 text-gray-800">
+                          {category.parentCategory?.name || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            className={inputClassName}
+                            defaultValue={formatMoneyInput(category.billingRateCents)}
+                            name="realRate"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            className={inputClassName}
+                            defaultValue={formatMoneyInput(category.idleBillingRateCents)}
+                            name="idleRate"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500">
+                          {formatLastChange(lastChange)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {categories.length > 0 ? (
+              <button className={`${primaryButtonClassName} mt-3`} type="submit">
+                Alle Kategorien speichern
+              </button>
+            ) : null}
+          </form>
         </RateDetails>
 
         <RateDetails
           count={items.length}
+          defaultOpen={openSection === "inventory-item-rates"}
           description="Einzelne Objekte können eigene Sätze haben. Diese überschreiben später den Kategoriesatz."
+          id="inventory-item-rates"
           title="Inventarobjekte"
         >
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full min-w-[1050px] text-left text-sm text-gray-900">
-              <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
-                <tr>
-                  <th className="px-3 py-2">Objekt</th>
-                  <th className="px-3 py-2">Kategorie</th>
-                  <th className="px-3 py-2">Normal €/Einheit</th>
-                  <th className="px-3 py-2">Stillstand €/Einheit</th>
-                  <th className="px-3 py-2">Aktion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itemsWithRates.map((item) => (
-                  <tr className="border-t border-gray-100" key={item.id}>
-                    <form action={saveInventoryItemRate}>
-                      <td className="px-3 py-2 font-semibold text-gray-950">
-                        <input name="id" type="hidden" value={item.id} />
-                        <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
-                        <input name="year" type="hidden" value={selectedYear} />
-                        {item.objectNumber ? `${item.objectNumber} · ` : ""}
-                        {item.name}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {item.category?.name || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className={inputClassName}
-                          defaultValue={formatMoneyInput(item.billingRateCents)}
-                          name="realRate"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className={inputClassName}
-                          defaultValue={formatMoneyInput(item.idleBillingRateCents)}
-                          name="idleRate"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <button className={smallButtonClassName} type="submit">
-                          Speichern
-                        </button>
-                      </td>
-                    </form>
+          <form action={saveAllInventoryItemRates}>
+            <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+            <input name="pageYear" type="hidden" value={selectedYear} />
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full min-w-[1050px] text-left text-sm text-gray-900">
+                <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
+                  <tr>
+                    <th className="px-3 py-2">Objekt</th>
+                    <th className="px-3 py-2">Kategorie</th>
+                    <th className="px-3 py-2">Normal €/Einheit</th>
+                    <th className="px-3 py-2">Stillstand €/Einheit</th>
+                    <th className="px-3 py-2">Zuletzt geändert</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {itemsWithRates.map((item) => {
+                    const rate = itemRateById.get(item.id);
+                    const lastChange = rate ? lastChangeByTargetId.get(rate.id) : undefined;
+
+                    return (
+                      <tr className="border-t border-gray-100" key={item.id}>
+                        <td className="px-3 py-2 font-semibold text-gray-950">
+                          <input name="itemId" type="hidden" value={item.id} />
+                          {item.objectNumber ? `${item.objectNumber} · ` : ""}
+                          {item.name}
+                        </td>
+                        <td className="px-3 py-2 text-gray-800">
+                          {item.category?.name || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            className={inputClassName}
+                            defaultValue={formatMoneyInput(item.billingRateCents)}
+                            name="realRate"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            className={inputClassName}
+                            defaultValue={formatMoneyInput(item.idleBillingRateCents)}
+                            name="idleRate"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500">
+                          {formatLastChange(lastChange)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {items.length > 0 ? (
+              <button className={`${primaryButtonClassName} mt-3`} type="submit">
+                Alle Objekte speichern
+              </button>
+            ) : null}
+          </form>
         </RateDetails>
 
         {showArchive ? (
@@ -640,11 +715,54 @@ function archiveGroupTitle(change: {
 }
 
 function EmployeeGroupRateForm({
-  rate,
   rateSetId,
   year,
 }: {
-  rate?: {
+  rateSetId: string;
+  year: number;
+}) {
+  return (
+    <form
+      action={saveEmployeeGroupRate}
+      className="grid gap-3 rounded-xl border border-gray-200 bg-white p-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] lg:items-end"
+    >
+      <input name="rateSetId" type="hidden" value={rateSetId} />
+      <CompactInput
+        defaultValue=""
+        label="Gruppe"
+        name="name"
+        placeholder="Gruppe"
+      />
+      <CompactInput defaultValue={String(year)} label="Jahr" name="year" placeholder="Jahr" />
+      <CompactInput defaultValue="" label="EK real €/h" name="realRate" placeholder="EK real €/h" />
+      <CompactInput
+        defaultValue=""
+        label="Interner Satz €/h"
+        name="internalRate"
+        placeholder="Interner Satz €/h"
+      />
+      <CompactInput
+        defaultValue=""
+        label="Beschreibung"
+        name="description"
+        placeholder="Beschreibung"
+      />
+      <button className={`${smallButtonClassName} w-full lg:w-auto`} type="submit">
+        Neuen Satz speichern
+      </button>
+    </form>
+  );
+}
+
+/** Existing-row variant, deliberately not a <form> - all rows share ONE
+ * wrapping form (rendered by the caller) so they can be edited and saved
+ * together instead of one submit per row. */
+function EmployeeGroupRateRow({
+  lastChange,
+  rate,
+}: {
+  lastChange?: { changedByName: string | null; createdAt: Date };
+  rate: {
     description: string | null;
     id: string;
     internalRateCents: number;
@@ -652,55 +770,39 @@ function EmployeeGroupRateForm({
     realRateCents: number;
     validFrom: Date | null;
   };
-  rateSetId: string;
-  year: number;
 }) {
   return (
-    <form
-      action={saveEmployeeGroupRate}
-      className={
-        rate
-          ? "grid gap-2 px-3 py-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] lg:items-center"
-          : "grid gap-3 rounded-xl border border-gray-200 bg-white p-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] lg:items-end"
-      }
-    >
-      {rate ? <input name="id" type="hidden" value={rate.id} /> : null}
-      <input name="rateSetId" type="hidden" value={rateSetId} />
+    <div className="grid gap-2 px-3 py-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr] lg:items-center">
+      <input name="id" type="hidden" value={rate.id} />
+      <div>
+        <CompactInput defaultValue={rate.name} label="Gruppe" name="name" placeholder="Gruppe" readOnly />
+        <p className="mt-1 text-[11px] text-gray-500">{formatLastChange(lastChange)}</p>
+      </div>
       <CompactInput
-        defaultValue={rate?.name ?? ""}
-        label="Gruppe"
-        name="name"
-        placeholder="Gruppe"
-        readOnly={Boolean(rate)}
-      />
-      <CompactInput
-        defaultValue={rate?.validFrom ? String(rate.validFrom.getUTCFullYear()) : String(year)}
+        defaultValue={rate.validFrom ? String(rate.validFrom.getUTCFullYear()) : ""}
         label="Jahr"
         name="year"
         placeholder="Jahr"
       />
       <CompactInput
-        defaultValue={formatMoneyInput(rate?.realRateCents)}
+        defaultValue={formatMoneyInput(rate.realRateCents)}
         label="EK real €/h"
         name="realRate"
         placeholder="EK real €/h"
       />
       <CompactInput
-        defaultValue={formatMoneyInput(rate?.internalRateCents)}
+        defaultValue={formatMoneyInput(rate.internalRateCents)}
         label="Interner Satz €/h"
         name="internalRate"
         placeholder="Interner Satz €/h"
       />
       <CompactInput
-        defaultValue={rate?.description ?? ""}
+        defaultValue={rate.description ?? ""}
         label="Beschreibung"
         name="description"
         placeholder="Beschreibung"
       />
-      <button className={`${smallButtonClassName} w-full lg:w-auto`} type="submit">
-        {rate ? "Speichern" : "Neuen Satz speichern"}
-      </button>
-    </form>
+    </div>
   );
 }
 
@@ -736,17 +838,20 @@ function RateDetails({
   count,
   defaultOpen = false,
   description,
+  id,
   title,
 }: {
   children: React.ReactNode;
   count: number;
   defaultOpen?: boolean;
   description: string;
+  id?: string;
   title: string;
 }) {
   return (
     <details
-      className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      className="group scroll-mt-28 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      id={id}
       open={defaultOpen}
     >
       <summary className="cursor-pointer list-none">
@@ -792,6 +897,21 @@ const compactInputClassName =
   "mt-1 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-950 outline-none focus:border-gray-900 lg:mt-0";
 const smallButtonClassName =
   "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50";
+const primaryButtonClassName =
+  "inline-flex items-center justify-center rounded-xl bg-gray-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800";
+
+function formatLastChange(
+  entry?: { changedByName: string | null; createdAt: Date },
+) {
+  if (!entry) return "—";
+
+  const date = new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(entry.createdAt);
+
+  return entry.changedByName ? `${date} · ${entry.changedByName}` : date;
+}
 
 function formatMoneyInput(cents?: number | null) {
   if (!cents) return "";
