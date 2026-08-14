@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
 import { SearchableSelect } from "./SearchableSelect";
 import { getEquipmentVehicleSelectLabel } from "./equipment-vehicle-labels";
 
@@ -47,12 +50,42 @@ export function EquipmentAssignmentForm({
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
   const selectedInventoryItemId = selectedVehicle?.inventoryItemId ?? "";
 
+  // SearchableSelect's actual value lives in a hidden input rather than a
+  // native <select>, so it can't rely on the browser's own "required"
+  // validation/focus - tracked here instead so a missing required field
+  // shows a clear inline message instead of either silently submitting an
+  // empty value or letting the server throw into a generic error page.
+  const [vehicleValue, setVehicleValue] = useState(selectedInventoryItemId);
+  const [projectValue, setProjectValue] = useState(defaultProjectId);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!fixedVehicleId && !vehicleValue) {
+      event.preventDefault();
+      setValidationError("Bitte ein Gerät / eine Maschine auswählen.");
+      return;
+    }
+    if (!projectValue) {
+      event.preventDefault();
+      setValidationError("Bitte eine Baustelle auswählen.");
+      return;
+    }
+    setValidationError(null);
+  }
+
   return (
     <form
       action={action}
       className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2"
+      onSubmit={handleSubmit}
     >
       {id ? <input type="hidden" name="id" value={id} /> : null}
+
+      {validationError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 md:col-span-2">
+          {validationError}
+        </div>
+      ) : null}
 
       {fixedVehicleId ? (
         <label className="block text-sm font-medium text-gray-800">
@@ -68,6 +101,7 @@ export function EquipmentAssignmentForm({
           <SearchableSelect
             defaultValue={selectedInventoryItemId}
             name="inventoryItemId"
+            onValueChange={setVehicleValue}
             options={vehicles.map((vehicle) => ({
               label: getEquipmentVehicleSelectLabel(vehicle),
               value: vehicle.inventoryItemId,
@@ -84,6 +118,7 @@ export function EquipmentAssignmentForm({
         <SearchableSelect
           defaultValue={defaultProjectId}
           name="projectId"
+          onValueChange={setProjectValue}
           options={projects.map((project) => ({
             label: `${project.projectNumber} · ${project.name}`,
             value: project.id,
