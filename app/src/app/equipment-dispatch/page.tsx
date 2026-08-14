@@ -18,7 +18,9 @@ import {
   updateEquipmentDispatchAssignment,
 } from "./actions";
 import { EquipmentAssignmentBar } from "./EquipmentAssignmentBar";
+import { EquipmentAssignmentForm } from "./EquipmentAssignmentForm";
 import { EquipmentTimelineScroll } from "./EquipmentTimelineScroll";
+import { getVehicleLabel } from "./equipment-vehicle-labels";
 
 type TimelineUnit = {
   key: string;
@@ -563,87 +565,6 @@ function buildEquipmentDispatchHref({
   }
 
   return `/equipment-dispatch?${params.toString()}`;
-}
-
-function buildEquipmentQuickAddHref({
-  fromDate,
-  toDate,
-  view,
-  showWeekend,
-  equipmentOverview,
-  filters,
-  vehicleId,
-  startDate,
-  endDate,
-}: {
-  fromDate: Date;
-  toDate: Date;
-  view: TimelineView;
-  showWeekend: boolean;
-  equipmentOverview?: boolean;
-  filters: EquipmentDispatchFilters;
-  vehicleId: string;
-  startDate: Date;
-  endDate: Date;
-}) {
-  const baseHref = buildEquipmentDispatchHref({
-    fromDate,
-    toDate,
-    view,
-    showWeekend,
-    equipmentOverview,
-    focusDate: startDate,
-    filters,
-  });
-
-  const separator = baseHref.includes("?") ? "&" : "?";
-
-  return `${baseHref}${separator}quickVehicleId=${encodeURIComponent(
-    vehicleId,
-  )}&quickStart=${formatDateInput(startDate)}&quickEnd=${formatDateInput(
-    endDate,
-  )}#equipment-quick-add`;
-}
-
-function getVehicleLabel(vehicle: {
-  vehicleNumber: string;
-  licensePlate: string | null;
-  vehicleType: string;
-  category: string;
-}) {
-  return [
-    vehicle.vehicleNumber,
-    vehicle.licensePlate,
-    vehicle.category,
-    vehicle.vehicleType,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function getEquipmentVehicleSelectLabel(vehicle: {
-  vehicleNumber: string;
-  licensePlate: string | null;
-  vehicleType: string;
-  category: string;
-} & VehicleWithInventoryLink) {
-  const inventoryItem = getVehicleInventoryItem(vehicle);
-
-  if (!inventoryItem) {
-    return getVehicleLabel(vehicle);
-  }
-
-  return [
-    inventoryItem.objectNumber ?? vehicle.vehicleNumber,
-    inventoryItem.name,
-    inventoryItem.manufacturer,
-    inventoryItem.model,
-    inventoryItem.licensePlate ?? vehicle.licensePlate,
-    inventoryItem.category?.parentCategory?.name,
-    inventoryItem.category?.name,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 function getEquipmentListRowMinHeight(
@@ -1443,9 +1364,6 @@ export default async function EquipmentDispatchPage({
     showCars?: string | string[];
     showSpecialVehicles?: string | string[];
     showTrucks?: string | string[];
-    quickVehicleId?: string;
-    quickStart?: string;
-    quickEnd?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -1477,14 +1395,6 @@ export default async function EquipmentDispatchPage({
   const focusDateFromParams = params.focus
     ? parseDateParam(params.focus)
     : fromDate;
-
-  const quickVehicleId = String(params.quickVehicleId ?? "").trim();
-  const quickStartDate = params.quickStart
-    ? parseDateParam(params.quickStart)
-    : fromDate;
-  const quickEndDate = params.quickEnd
-    ? parseDateParam(params.quickEnd)
-    : quickStartDate;
 
   const { timelineFromDate, timelineToDate } = getVisibleDateRange({
     fromDate,
@@ -1866,10 +1776,6 @@ export default async function EquipmentDispatchPage({
     equipmentOverview,
     filters,
   });
-
-  const quickVehicle = quickVehicleId
-    ? vehicles.find((vehicle) => vehicle.id === quickVehicleId) ?? null
-    : null;
 
   const manualBars: EquipmentRowBar[] = equipmentAssignments.map(
     (assignment) => ({
@@ -2341,39 +2247,27 @@ export default async function EquipmentDispatchPage({
         </Link>
       </div>
 
-      <details
-        id="equipment-quick-add"
-        open={Boolean(quickVehicle)}
-        className={
-          quickVehicle
-            ? "mb-6 scroll-mt-24 rounded-2xl border border-blue-300 bg-blue-50 p-6 shadow-sm ring-2 ring-blue-100"
-            : "mb-6 scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      <AnchoredPopover
+        triggerClassName="mb-6 block w-full rounded-2xl border border-gray-200 bg-white p-6 text-left text-xl font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+        trigger="+ Gerät auf Baustelle disponieren"
+        variant="center"
+        panelClassName="z-[var(--z-modal)] max-h-[88vh] w-[92vw] max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+        panel={
+          <>
+            <h3 className="text-xl font-semibold text-gray-900">
+              + Gerät auf Baustelle disponieren
+            </h3>
+            <EquipmentAssignmentForm
+              action={createEquipmentDispatchAssignment}
+              vehicles={vehicles}
+              projects={projects}
+              crews={crews}
+              defaultStartDate={formatDateInput(fromDate)}
+              defaultEndDate={formatDateInput(fromDate)}
+            />
+          </>
         }
-      >
-        <summary className="cursor-pointer text-xl font-semibold text-gray-900">
-          {quickVehicle
-            ? `+ ${getVehicleLabel(quickVehicle)} disponieren`
-            : "+ Gerät auf Baustelle disponieren"}
-        </summary>
-
-        {quickVehicle ? (
-          <div className="mt-4 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-950">
-            Gerät und Datum sind aus dem angeklickten Plus-Feld vorbelegt. Bitte nur noch Baustelle wählen und speichern.
-          </div>
-        ) : null}
-
-        <EquipmentAssignmentForm
-          action={createEquipmentDispatchAssignment}
-          vehicles={vehicles}
-          projects={projects}
-          crews={crews}
-          fixedVehicleId={quickVehicle?.id}
-          fixedVehicleLabel={quickVehicle ? getVehicleLabel(quickVehicle) : undefined}
-          defaultVehicleId={quickVehicle?.id ?? ""}
-          defaultStartDate={formatDateInput(quickStartDate)}
-          defaultEndDate={formatDateInput(quickEndDate)}
-        />
-      </details>
+      />
 
       <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm font-semibold text-blue-950">
         Blaue Balken sind manuelle Gerätedispositionen und haben Vorrang. Graue
@@ -3006,25 +2900,47 @@ export default async function EquipmentDispatchPage({
                         }}
                       >
                         {equipmentOverview ? null : (
-                          <Link
-                            href={buildEquipmentQuickAddHref({
-                              fromDate,
-                              toDate,
-                              view,
-                              showWeekend,
-                              equipmentOverview,
-                              filters,
-                              vehicleId: vehicle.id,
-                              startDate: unit.startDate,
-                              endDate: addDays(unit.endDateExclusive, -1),
-                            })}
-                            className={getPlusButtonClass(unitCount)}
-                            title={`+ Gerät disponieren: ${getVehicleLabel(
-                              vehicle,
-                            )} · ${unit.label} ${unit.subLabel}`}
-                          >
-                            +
-                          </Link>
+                          <AnchoredPopover
+                            triggerClassName={getPlusButtonClass(unitCount)}
+                            trigger={
+                              <span
+                                title={`+ Gerät disponieren: ${getVehicleLabel(
+                                  vehicle,
+                                )} · ${unit.label} ${unit.subLabel}`}
+                              >
+                                +
+                              </span>
+                            }
+                            variant="center"
+                            panelClassName="z-[var(--z-modal)] max-h-[88vh] w-[92vw] max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+                            panel={
+                              <>
+                                <h3 className="text-xl font-semibold text-gray-900">
+                                  + {getVehicleLabel(vehicle)} disponieren
+                                </h3>
+                                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
+                                  Gerät und Datum sind aus dem angeklickten
+                                  Plus-Feld vorbelegt. Bitte nur noch
+                                  Baustelle wählen und speichern.
+                                </div>
+                                <EquipmentAssignmentForm
+                                  action={createEquipmentDispatchAssignment}
+                                  vehicles={vehicles}
+                                  projects={projects}
+                                  crews={crews}
+                                  fixedVehicleId={vehicle.id}
+                                  fixedVehicleLabel={getVehicleLabel(vehicle)}
+                                  defaultVehicleId={vehicle.id}
+                                  defaultStartDate={formatDateInput(
+                                    unit.startDate,
+                                  )}
+                                  defaultEndDate={formatDateInput(
+                                    addDays(unit.endDateExclusive, -1),
+                                  )}
+                                />
+                              </>
+                            }
+                          />
                         )}
                       </div>
                     ))}
@@ -3343,169 +3259,6 @@ function EquipmentFilterHiddenInputs({
           ))
         : null}
     </>
-  );
-}
-
-function EquipmentAssignmentForm({
-  action,
-  id,
-  vehicles,
-  projects,
-  crews,
-  defaultVehicleId = "",
-  fixedVehicleId,
-  fixedVehicleLabel,
-  defaultProjectId = "",
-  defaultCrewId = "",
-  defaultStartDate,
-  defaultEndDate,
-  defaultNotes = "",
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  id?: string;
-  vehicles: {
-    id: string;
-    inventoryItemId: string;
-    vehicleNumber: string;
-    licensePlate: string | null;
-    vehicleType: string;
-    category: string;
-  }[];
-  projects: {
-    id: string;
-    projectNumber: string;
-    name: string;
-  }[];
-  crews: {
-    id: string;
-    name: string;
-  }[];
-  defaultVehicleId?: string;
-  fixedVehicleId?: string;
-  fixedVehicleLabel?: string;
-  defaultProjectId?: string;
-  defaultCrewId?: string;
-  defaultStartDate: string;
-  defaultEndDate: string;
-  defaultNotes?: string;
-}) {
-  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === defaultVehicleId);
-  const selectedInventoryItemId = selectedVehicle?.inventoryItemId ?? "";
-
-  return (
-    <form
-      action={action}
-      className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2"
-    >
-      {id ? <input type="hidden" name="id" value={id} /> : null}
-
-      {fixedVehicleId ? (
-        <label className="block text-sm font-medium text-gray-800">
-          Gerät / Maschine
-          <input type="hidden" name="vehicleId" value={fixedVehicleId} />
-          <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-900">
-            {fixedVehicleLabel ?? "festes Gerät"}
-          </div>
-        </label>
-      ) : (
-        <label className="block text-sm font-medium text-gray-800">
-          Gerät / Maschine
-          <select
-            name="inventoryItemId"
-            required
-            defaultValue={selectedInventoryItemId}
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          >
-            <option value="" disabled>
-              Inventarobjekt wählen
-            </option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.inventoryItemId}>
-                {getEquipmentVehicleSelectLabel(vehicle)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label className="block text-sm font-medium text-gray-800">
-        Baustelle
-        <select
-          name="projectId"
-          required
-          defaultValue={defaultProjectId}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          <option value="" disabled>
-            Baustelle wählen
-          </option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.projectNumber} · {project.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="block text-sm font-medium text-gray-800">
-        Kolonne / Polier optional
-        <select
-          name="crewId"
-          defaultValue={defaultCrewId}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        >
-          <option value="">Keine Kolonne gewählt</option>
-          {crews.map((crew) => (
-            <option key={crew.id} value={crew.id}>
-              {crew.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block text-sm font-medium text-gray-800">
-          Von
-          <input
-            name="startDate"
-            type="date"
-            required
-            defaultValue={defaultStartDate}
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
-        </label>
-
-        <label className="block text-sm font-medium text-gray-800">
-          Bis
-          <input
-            name="endDate"
-            type="date"
-            required
-            defaultValue={defaultEndDate}
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-          />
-        </label>
-      </div>
-
-      <label className="block text-sm font-medium text-gray-800 md:col-span-2">
-        Bemerkung
-        <textarea
-          name="notes"
-          rows={3}
-          defaultValue={defaultNotes}
-          className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-        />
-      </label>
-
-      <div className="md:col-span-2">
-        <button
-          type="submit"
-          className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-        >
-          Speichern
-        </button>
-      </div>
-    </form>
   );
 }
 
