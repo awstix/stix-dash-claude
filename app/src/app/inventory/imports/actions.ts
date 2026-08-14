@@ -9,79 +9,24 @@ import { formatInventoryObjectNumber } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import { putFile, signedUrl } from "@/lib/storage";
+import {
+  bool,
+  dateValue,
+  floatValue,
+  intValue,
+  lower,
+  moneyCents,
+  rowValue,
+  text,
+  type ExcelRow,
+} from "@/lib/import-value-parsing";
 import { getInventoryActor } from "../actions";
 
 const STORAGE_BUCKET = "uploads";
 
-type ExcelRow = Record<string, unknown>;
-
-function text(value: unknown) {
-  const stringValue = String(value ?? "").trim();
-  return stringValue.length > 0 ? stringValue : null;
-}
-
-function lower(value: unknown) {
-  return text(value)?.toLowerCase() ?? "";
-}
-
-function bool(value: unknown) {
-  const normalized = lower(value);
-  return ["1", "ja", "j", "true", "wahr", "x"].includes(normalized);
-}
-
-function intValue(value: unknown) {
-  const normalized = text(value)?.replace(",", ".");
-  if (!normalized) return null;
-  const number = Number(normalized);
-  return Number.isFinite(number) ? Math.round(number) : null;
-}
-
-function floatValue(value: unknown) {
-  const normalized = text(value)?.replace(",", ".");
-  if (!normalized) return null;
-  const number = Number(normalized);
-  return Number.isFinite(number) ? number : null;
-}
-
-function moneyCents(value: unknown) {
-  const number = floatValue(value);
-  return number === null ? null : Math.round(number * 100);
-}
-
 function tonsToKilograms(value: unknown) {
   const number = floatValue(value);
   return number === null ? null : Math.round(number * 1000);
-}
-
-function dateValue(value: unknown) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return null;
-
-    return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
-  }
-
-  const raw = text(value);
-  if (!raw) return null;
-
-  const germanDate = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-  if (germanDate) {
-    const day = Number(germanDate[1]);
-    const month = Number(germanDate[2]);
-    const year =
-      germanDate[3].length === 2
-        ? Number(`20${germanDate[3]}`)
-        : Number(germanDate[3]);
-
-    return new Date(Date.UTC(year, month - 1, day));
-  }
-
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function objectNumber(value: unknown) {
@@ -148,16 +93,6 @@ function resolveInsuranceProvider(
   return match
     ? { insuranceProviderLabel: match.label, insuranceProviderValue: match.value }
     : { insuranceProviderLabel: null, insuranceProviderValue: null };
-}
-
-function rowValue(row: ExcelRow, ...keys: string[]) {
-  for (const key of keys) {
-    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim()) {
-      return row[key];
-    }
-  }
-
-  return null;
 }
 
 type RowOutcome = {

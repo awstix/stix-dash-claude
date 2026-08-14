@@ -274,6 +274,12 @@ export default async function ProjectsPage({
             <ProjectCreateDialog
               constructionManagerOptions={constructionManagerOptions}
             />
+            <Link
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href="/projects/imports"
+            >
+              Projekte importieren
+            </Link>
             <DismissibleDetails className="relative inline-block">
               <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
                 🔎 Filter

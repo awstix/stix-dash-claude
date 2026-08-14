@@ -42,6 +42,7 @@ export const portalModules: PortalModule[] = [
       { key: "formulare", label: "Formulare", path: "/projects/formulare" },
       { key: "formularbuilder", label: "Formularbuilder", path: "/form-builder?scope=PROJECT" },
       { key: "leistung", label: "Leistung", path: "/projects/performance" },
+      { key: "projekte_importieren", label: "Projekte importieren", path: "/projects/imports" },
     ],
   },
   {

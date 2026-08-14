@@ -1,8 +1,7 @@
 import * as XLSX from "xlsx";
-import { inflateRawSync } from "node:zlib";
 import { prisma } from "@/lib/prisma";
-import { createZipArchive } from "@/lib/zip";
 import { sortInventoryCategoriesForSelect } from "@/lib/inventory-categories";
+import { columnLetter, patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
 import {
   INVENTORY_IMPORT_COLUMN_GROUPS,
   INVENTORY_IMPORT_HEADERS,
@@ -12,157 +11,8 @@ export const runtime = "nodejs";
 
 const headers: string[] = [...INVENTORY_IMPORT_HEADERS];
 
-type ZipEntry = {
-  bytes: Uint8Array;
-  fileName: string;
-};
-
 function formatObjectNumber(value: number | null) {
   return value === null ? "" : String(value).padStart(6, "0");
-}
-
-function columnLetter(index: number) {
-  let letter = "";
-  let current = index + 1;
-
-  while (current > 0) {
-    const remainder = (current - 1) % 26;
-    letter = String.fromCharCode(65 + remainder) + letter;
-    current = Math.floor((current - 1) / 26);
-  }
-
-  return letter;
-}
-
-function readZipEntries(bytes: Buffer): ZipEntry[] {
-  const entries: ZipEntry[] = [];
-  let offset = 0;
-
-  while (offset + 30 <= bytes.length && bytes.readUInt32LE(offset) === 0x04034b50) {
-    const flags = bytes.readUInt16LE(offset + 6);
-    const compressionMethod = bytes.readUInt16LE(offset + 8);
-    const compressedSize = bytes.readUInt32LE(offset + 18);
-    const fileNameLength = bytes.readUInt16LE(offset + 26);
-    const extraLength = bytes.readUInt16LE(offset + 28);
-    const fileName = bytes
-      .subarray(offset + 30, offset + 30 + fileNameLength)
-      .toString("utf8");
-    const dataStart = offset + 30 + fileNameLength + extraLength;
-    const dataEnd = dataStart + compressedSize;
-    const compressedData = bytes.subarray(dataStart, dataEnd);
-
-    if ((flags & 0x08) !== 0) {
-      throw new Error("XLSX-Datei nutzt Data Descriptor und kann nicht gepatcht werden.");
-    }
-
-    const data =
-      compressionMethod === 8
-        ? inflateRawSync(compressedData)
-        : Buffer.from(compressedData);
-
-    entries.push({
-      bytes: data,
-      fileName,
-    });
-    offset = dataEnd;
-  }
-
-  return entries;
-}
-
-function xmlEscape(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function addDropdownValidationsToSheetXml(
-  xml: string,
-  validations: {
-    column: string;
-    formula: string;
-  }[],
-  firstDataRow: number,
-) {
-  const validationXml = `<dataValidations count="${validations.length}">${validations
-    .map(
-      (validation) =>
-        `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${validation.column}${firstDataRow}:${validation.column}1000"><formula1>${xmlEscape(
-          validation.formula,
-        )}</formula1></dataValidation>`,
-    )
-    .join("")}</dataValidations>`;
-
-  if (xml.includes("<dataValidations")) {
-    return xml.replace(/<dataValidations[\s\S]*?<\/dataValidations>/, validationXml);
-  }
-
-  // The OOXML CT_Worksheet element order is strict: mergeCells must come
-  // before dataValidations, so a <mergeCells>…</mergeCells> block (if
-  // present) needs the validations inserted right after its closing tag,
-  // not before its opening tag like the other markers below.
-  const mergeCellsMatch = xml.match(/<mergeCells[\s\S]*?<\/mergeCells>/);
-  if (mergeCellsMatch) {
-    return xml.replace(mergeCellsMatch[0], `${mergeCellsMatch[0]}${validationXml}`);
-  }
-
-  const insertionMarkers = [
-    "<phoneticPr",
-    "<conditionalFormatting",
-    "<hyperlinks",
-    "<printOptions",
-    "<pageMargins",
-  ];
-  const marker = insertionMarkers.find((candidate) => xml.includes(candidate));
-
-  if (marker) {
-    return xml.replace(marker, `${validationXml}${marker}`);
-  }
-
-  return xml.replace("</worksheet>", `${validationXml}</worksheet>`);
-}
-
-function stripNonStandardColLevelAttribute(xml: string) {
-  // The xlsx library writes both `level` and `outlineLevel` on <col>
-  // elements for outline grouping, but `level` isn't part of the OOXML
-  // CT_Col schema. Excel flags the unrecognized attribute as invalid
-  // content and offers to repair the file on open, so strip it here and
-  // keep only the valid `outlineLevel` attribute.
-  return xml.replace(/(<col\b[^>]*?)\s+level="\d+"([^>]*>)/g, "$1$2");
-}
-
-function patchInventoryTemplateDropdowns(
-  workbookBuffer: Buffer,
-  validations: {
-    column: string;
-    formula: string;
-  }[],
-  firstDataRow: number,
-) {
-  const entries = readZipEntries(workbookBuffer);
-  const patchedEntries = entries.map((entry) => {
-    if (entry.fileName !== "xl/worksheets/sheet1.xml") {
-      return entry;
-    }
-
-    const withValidations = addDropdownValidationsToSheetXml(
-      Buffer.from(entry.bytes).toString("utf8"),
-      validations,
-      firstDataRow,
-    );
-
-    return {
-      ...entry,
-      bytes: Buffer.from(
-        stripNonStandardColLevelAttribute(withValidations),
-        "utf8",
-      ),
-    };
-  });
-
-  return createZipArchive(patchedEntries);
 }
 
 export async function GET() {
@@ -527,7 +377,7 @@ export async function GET() {
       (validation): validation is { column: string; formula: string } =>
         Boolean(validation.formula),
     );
-  const buffer = patchInventoryTemplateDropdowns(rawBuffer, validations, 3);
+  const buffer = patchWorkbookDropdowns(rawBuffer, validations, 3);
 
   return new Response(new Uint8Array(buffer), {
     headers: {

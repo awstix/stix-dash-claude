@@ -34,6 +34,7 @@ const projectNavigation = [
   { name: "Fotos", href: "/projects/fotos" },
   { name: "Leistung", href: "/projects/performance" },
   { name: "Notizen", href: "/projects/notizen" },
+  { name: "Projekte importieren", href: "/projects/imports" },
   { name: "Projektübersicht", href: "/projects" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
