@@ -22,7 +22,7 @@ function date(formData: FormData, name: string) {
 function density(formData: FormData) {
   const value = text(formData, "densityTonPerCubicMeter");
   if (!value) return null;
-  const parsed = Number(value.replace(",", "."));
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error("Bitte eine gültige Dichte in t/m³ eingeben.");
   }

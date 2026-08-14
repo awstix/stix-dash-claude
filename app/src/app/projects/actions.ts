@@ -3166,7 +3166,7 @@ function cleanProjectFormSubmissionValues(
     if (
       field.type === "number" &&
       value &&
-      !Number.isFinite(Number(value.replace(",", ".")))
+      !Number.isFinite(Number(value.replace(/\./g, "").replace(",", ".")))
     ) {
       throw new Error(`"${field.label}" muss eine Zahl sein.`);
     }

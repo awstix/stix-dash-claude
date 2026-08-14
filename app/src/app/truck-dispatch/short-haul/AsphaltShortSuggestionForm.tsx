@@ -66,7 +66,7 @@ function formatTons(value: number) {
 }
 
 function parseNumber(value: string) {
-  const number = Number(String(value).replace(",", "."));
+  const number = Number(String(value).replace(/\./g, "").replace(",", "."));
   return Number.isNaN(number) ? 0 : number;
 }
 

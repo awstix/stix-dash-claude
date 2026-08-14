@@ -122,7 +122,7 @@ function getWeeklySchedulePayload(formData: FormData) {
 
 function readManualMonthlyHours(formData: FormData) {
   if (formData.get("useManualMonthlyHours") !== "on") return null;
-  const raw = text(formData.get("manualMonthlyHours")).replace(",", ".");
+  const raw = text(formData.get("manualMonthlyHours")).replace(/\./g, "").replace(",", ".");
   const value = Number(raw);
   if (!raw || !Number.isFinite(value) || value < 0) {
     throw new Error("Manuelle Monatsstunden müssen eine gültige Zahl sein.");

@@ -1127,7 +1127,7 @@ function getNewTemplateStartBlocks() {
 }
 
 function parseCentimetersToMillimeters(value: string) {
-  const parsed = Number.parseFloat(value.replace(",", "."));
+  const parsed = Number.parseFloat(value.replace(/\./g, "").replace(",", "."));
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return null;

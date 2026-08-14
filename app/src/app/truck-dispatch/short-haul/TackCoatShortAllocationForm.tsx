@@ -142,7 +142,7 @@ export function TackCoatShortAllocationForm({
     : null;
 
   const calculatedTotal = useMemo(() => {
-    const liters = Number(String(litersPerTour).replace(",", "."));
+    const liters = Number(String(litersPerTour).replace(/\./g, "").replace(",", "."));
 
     if (Number.isNaN(liters)) return 0;
 
@@ -152,7 +152,7 @@ export function TackCoatShortAllocationForm({
   const tankWarning =
     selectedVehicle &&
     selectedVehicle.tackCoatTankLiters > 0 &&
-    Number(String(litersPerTour).replace(",", ".")) >
+    Number(String(litersPerTour).replace(/\./g, "").replace(",", ".")) >
       selectedVehicle.tackCoatTankLiters;
 
   const openWarning = calculatedTotal > position.openLiters;

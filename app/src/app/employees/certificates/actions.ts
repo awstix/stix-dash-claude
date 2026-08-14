@@ -9,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
 import { deleteFile, putFile, signedUrl } from "@/lib/storage";
+import { floatValue } from "@/lib/import-value-parsing";
 
 const STORAGE_BUCKET = "uploads";
 
@@ -110,13 +111,14 @@ function getOptionalCell(row: ExcelRow, aliases: string[]) {
 }
 
 function getOptionalNumberCell(row: ExcelRow, aliases: string[]) {
-  const value = getCell(row, aliases).replace(",", ".");
+  const direct = floatValue(getRawCell(row, aliases));
+  if (direct !== null) return direct;
 
-  if (!value) return null;
-
+  // Fallback: cell has extra text around the number (e.g. "5 Jahre") - pull
+  // the first number-like substring out and parse that instead.
+  const value = getCell(row, aliases);
   const match = value.match(/[-+]?\d+(?:\.\d+)?/);
-  const number = match ? Number(match[0]) : Number(value);
-  return Number.isFinite(number) ? number : null;
+  return match ? floatValue(match[0]) : null;
 }
 
 function parseDateValue(value: unknown) {
@@ -263,7 +265,7 @@ function optionalDate(value: FormDataEntryValue | null) {
 }
 
 function optionalNumber(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim().replace(",", ".");
+  const text = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
 
   if (!text) return null;
 

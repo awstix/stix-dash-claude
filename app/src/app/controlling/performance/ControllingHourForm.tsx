@@ -272,12 +272,12 @@ function FormPanel({
 }
 
 function parseMoney(value: string) {
-  const parsed = Number(value.replace(".", "").replace(",", "."));
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function parseEmployeeCount(value: string) {
-  const parsed = Number(value.replace(",", "."));
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 1;

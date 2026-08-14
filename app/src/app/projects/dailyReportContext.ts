@@ -1906,7 +1906,7 @@ function cleanNumber(value: unknown, fallback: number) {
     typeof value === "number"
       ? value
       : typeof value === "string"
-        ? Number(value.replace(",", "."))
+        ? Number(value.replace(/\./g, "").replace(",", "."))
         : NaN;
 
   return Number.isFinite(numberValue) ? Math.max(0, numberValue) : fallback;

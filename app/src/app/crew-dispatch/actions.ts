@@ -26,7 +26,7 @@ function optionalString(value: FormDataEntryValue | null) {
 }
 
 function optionalNumber(value: FormDataEntryValue | null, fieldName: string) {
-  const text = String(value ?? "").trim().replace(",", ".");
+  const text = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
 
   if (!text) {
     return null;

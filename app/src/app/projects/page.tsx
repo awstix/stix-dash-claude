@@ -28,7 +28,7 @@ function getPercentOperator(value: string | undefined): PercentOperator {
 
 function getPercentValue(value: string | undefined) {
   if (!value) return null;
-  const parsed = Number(value.replace(",", "."));
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : null;
 }
 

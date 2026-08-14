@@ -6,6 +6,7 @@ import {
   HAZARD_REGISTER_TEMPLATE,
   HAZARD_SYMBOLS,
 } from "@/lib/hazard-register-constants";
+import { floatValue } from "@/lib/import-value-parsing";
 
 export type HazardRegisterRow = {
   dataSheets: Array<{
@@ -71,11 +72,7 @@ function text(value: unknown) {
 }
 
 function number(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  const valueText = text(value);
-  if (!valueText) return null;
-  const parsed = Number(valueText.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
+  return floatValue(value);
 }
 
 function excelDate(value: unknown) {

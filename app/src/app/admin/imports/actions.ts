@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-access";
 import { putFile, signedUrl } from "@/lib/storage";
+import { floatValue } from "@/lib/import-value-parsing";
 
 const STORAGE_BUCKET = "uploads";
 
@@ -126,15 +127,7 @@ function getOptionalBoolean(row: ExcelRow, aliases: string[]) {
 }
 
 function getOptionalNumber(row: ExcelRow, aliases: string[]) {
-  const value = getCell(row, aliases).replace(",", ".");
-
-  if (!value) {
-    return null;
-  }
-
-  const parsed = Number(value);
-
-  return Number.isNaN(parsed) ? null : parsed;
+  return floatValue(getRawCell(row, aliases));
 }
 
 function splitFullName(fullName: string) {

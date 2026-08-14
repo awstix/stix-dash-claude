@@ -43,7 +43,7 @@ export async function updateDispositionCategoryCredits(formData: FormData) {
 
   await Promise.all(
     employeeDispositionTypes.map((type) => {
-      const raw = String(formData.get(`credit_${type.value}`) ?? "").trim().replace(",", ".");
+      const raw = String(formData.get(`credit_${type.value}`) ?? "").trim().replace(/\./g, "").replace(",", ".");
       const creditedHours = raw === "" ? null : Number(raw);
       const validHours =
         creditedHours !== null && Number.isFinite(creditedHours) && creditedHours >= 0

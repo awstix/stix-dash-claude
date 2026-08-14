@@ -32,7 +32,7 @@ function optionalString(value: FormDataEntryValue | null) {
 }
 
 function parseOptionalNumber(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim().replace(",", ".");
+  const text = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
 
   if (!text) return null;
 

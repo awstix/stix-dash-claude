@@ -1619,7 +1619,7 @@ function parseOptionalNumber(value: string) {
   const cleaned = value.trim();
   if (!cleaned) return 0;
 
-  return Number(cleaned.replace(",", ".")) || 0;
+  return Number(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
 function formatEditableNumber(value: number) {

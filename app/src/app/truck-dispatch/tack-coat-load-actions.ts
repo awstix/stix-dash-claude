@@ -32,7 +32,7 @@ function parseDate(value: FormDataEntryValue | null) {
 }
 
 function parseNumber(value: FormDataEntryValue | null) {
-  const result = Number(text(value).replace(",", "."));
+  const result = Number(text(value).replace(/\./g, "").replace(",", "."));
 
   if (Number.isNaN(result)) {
     return 0;

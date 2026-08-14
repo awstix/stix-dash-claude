@@ -23,7 +23,7 @@ function absenceValues(formData: FormData) {
       : "VACATION";
   const timeHours =
     absenceType === "TIME_ACCOUNT"
-      ? Number(String(formData.get("timeHours") ?? "").replace(",", "."))
+      ? Number(String(formData.get("timeHours") ?? "").replace(/\./g, "").replace(",", "."))
       : null;
   if (absenceType === "TIME_ACCOUNT" && (!timeHours || timeHours <= 0)) {
     throw new Error("Beim Zeitkonto müssen positive Stunden eingetragen werden.");

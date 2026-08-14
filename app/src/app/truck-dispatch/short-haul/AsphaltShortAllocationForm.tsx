@@ -139,7 +139,7 @@ export function AsphaltShortAllocationForm({
     : null;
 
   const calculatedTotal = useMemo(() => {
-    const tons = Number(String(tonsPerTour).replace(",", "."));
+    const tons = Number(String(tonsPerTour).replace(/\./g, "").replace(",", "."));
 
     if (Number.isNaN(tons)) return 0;
 
@@ -149,7 +149,7 @@ export function AsphaltShortAllocationForm({
   const payloadWarning =
     selectedVehicle &&
     selectedVehicle.asphaltPayloadTons > 0 &&
-    Number(String(tonsPerTour).replace(",", ".")) >
+    Number(String(tonsPerTour).replace(/\./g, "").replace(",", ".")) >
       selectedVehicle.asphaltPayloadTons;
 
   const openWarning = calculatedTotal > position.openTons;

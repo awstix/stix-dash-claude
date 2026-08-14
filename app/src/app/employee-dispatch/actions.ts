@@ -30,7 +30,7 @@ function parseTime(value: FormDataEntryValue | null, fallback: string) {
 }
 
 function parseHours(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim().replace(",", ".");
+  const text = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
   if (!text) return null;
 
   const hours = Number(text);

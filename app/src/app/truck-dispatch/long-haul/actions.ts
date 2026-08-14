@@ -38,7 +38,7 @@ function addDays(date: Date, days: number) {
 }
 
 function parseNumber(value: FormDataEntryValue | null) {
-  const number = Number(String(value ?? "0").replace(",", "."));
+  const number = Number(String(value ?? "0").replace(/\./g, "").replace(",", "."));
   return Number.isNaN(number) ? 0 : number;
 }
 

@@ -60,7 +60,7 @@ function checked(value: FormDataEntryValue | null) {
 }
 
 function optionalNumber(value: FormDataEntryValue | null) {
-  const text = optionalString(value)?.replace(",", ".");
+  const text = optionalString(value)?.replace(/\./g, "").replace(",", ".");
   if (!text) return null;
   const number = Number(text);
   return Number.isFinite(number) ? number : null;
