@@ -3,6 +3,7 @@ import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { LiveSearchInput } from "@/components/LiveSearchInput";
 import {
+  expandInventoryCategoryFilterIds,
   getInventoryCategoryLabel,
   getInventoryCategoryOptionLabel,
   sortInventoryCategoriesForSelect,
@@ -33,18 +34,42 @@ export default async function InventoryArchivePage({
   searchParams,
 }: {
   searchParams?: Promise<{
-    category?: string;
+    category?: string | string[];
     q?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
-  const categoryFilter = String(params.category ?? "").trim();
+  const categoryFilterIds = ([] as string[])
+    .concat(params.category ?? [])
+    .filter(Boolean);
+
+  const categories = await prisma.inventoryCategory.findMany({
+    where: {
+      isActive: true,
+    },
+    include: {
+      parentCategory: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  const expandedCategoryIds = expandInventoryCategoryFilterIds(
+    categoryFilterIds,
+    categories,
+  );
+
   const where: Prisma.InventoryItemWhereInput = {
     status: {
       in: ["INACTIVE", "DELETED"],
     },
-    ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+    ...(expandedCategoryIds.length
+      ? { categoryId: { in: expandedCategoryIds } }
+      : {}),
     ...(searchQuery
       ? {
           OR: [
@@ -62,21 +87,7 @@ export default async function InventoryArchivePage({
       : {}),
   };
 
-  const [categories, items, totalArchivedItems] = await Promise.all([
-    prisma.inventoryCategory.findMany({
-      where: {
-        isActive: true,
-      },
-      include: {
-        parentCategory: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
+  const [items, totalArchivedItems] = await Promise.all([
     prisma.inventoryItem.findMany({
       where,
       include: {
@@ -133,30 +144,47 @@ export default async function InventoryArchivePage({
           </Link>
         </div>
 
-        <form className="mt-6 grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_280px_auto]">
-          <input name="q" type="hidden" value={searchQuery} />
-          <LiveSearchInput
-            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            placeholder="Suche nach Objekt-ID, Name, Kennzeichen..."
-          />
-          <select
-            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-            defaultValue={categoryFilter}
-            name="category"
-          >
-            <option value="">Alle Kategorien</option>
-            {sortedCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {getInventoryCategoryOptionLabel(category)}
-              </option>
-            ))}
-          </select>
-          <button
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-            type="submit"
-          >
-            Filtern
-          </button>
+        <form className="mt-6 grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <input name="q" type="hidden" value={searchQuery} />
+            <LiveSearchInput
+              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              placeholder="Suche nach Objekt-ID, Name, Kennzeichen..."
+            />
+            <button
+              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              type="submit"
+            >
+              Filtern
+            </button>
+          </div>
+
+          <fieldset>
+            <legend className="text-sm font-semibold text-gray-800">
+              Kategorie
+            </legend>
+            <p className="mt-1 text-xs text-gray-500">
+              Mehrfachauswahl möglich. Eine Oberkategorie zeigt auch alle
+              ihre Unterkategorien.
+            </p>
+            <div className="mt-2 flex max-h-40 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded-xl border border-gray-300 bg-white p-3">
+              {sortedCategories.map((category) => (
+                <label
+                  className="flex items-center gap-2 text-sm font-normal text-gray-800"
+                  key={category.id}
+                >
+                  <input
+                    className="h-4 w-4 rounded border-gray-300"
+                    defaultChecked={categoryFilterIds.includes(category.id)}
+                    name="category"
+                    type="checkbox"
+                    value={category.id}
+                  />
+                  {getInventoryCategoryOptionLabel(category)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </form>
       </section>
 

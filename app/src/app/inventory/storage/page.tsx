@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { DismissibleDetails } from "@/components/DismissibleDetails";
 import { LiveSearchInput } from "@/components/LiveSearchInput";
 import {
+  expandInventoryCategoryFilterIds,
   getInventoryCategoryLabel,
   getInventoryCategoryOptionLabel,
   sortInventoryCategoriesForSelect,
@@ -151,7 +152,7 @@ export default async function InventoryStoragePage({
   searchParams,
 }: {
   searchParams?: Promise<{
-    category?: string;
+    category?: string | string[];
     project?: string;
     q?: string;
     status?: string;
@@ -161,54 +162,15 @@ export default async function InventoryStoragePage({
 }) {
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
-  const categoryFilter = String(params.category ?? "").trim();
+  const categoryFilterIds = ([] as string[])
+    .concat(params.category ?? [])
+    .filter(Boolean);
   const projectFilter = String(params.project ?? "").trim();
   const statusFilter = String(params.status ?? "").trim();
   const stockFilter = String(params.stock ?? "").trim();
   const containerFilter = String(params.container ?? "").trim();
-  const where: Prisma.InventoryItemWhereInput = {
-    isStockManaged: true,
-    ...(categoryFilter ? { categoryId: categoryFilter } : {}),
-    ...(projectFilter === "__none"
-      ? { currentProjectId: null }
-      : projectFilter
-        ? { currentProjectId: projectFilter }
-        : {}),
-    ...(statusFilter
-      ? { status: statusFilter }
-      : { status: { notIn: ["INACTIVE", "DELETED"] } }),
-    ...getStockWhere(stockFilter),
-    ...(containerFilter === "only"
-      ? { isContainer: true }
-      : containerFilter === "contained"
-        ? { parentItemId: { not: null } }
-        : containerFilter === "exclude"
-          ? { isContainer: false }
-          : containerFilter === "unassigned"
-            ? { isContainer: false, parentItemId: null }
-            : {}),
-    ...(searchQuery
-      ? {
-          OR: [
-            { name: { contains: searchQuery, mode: "insensitive" } },
-            { manufacturer: { contains: searchQuery, mode: "insensitive" } },
-            { model: { contains: searchQuery, mode: "insensitive" } },
-            { attachmentType: { contains: searchQuery, mode: "insensitive" } },
-            { objectNumber: { contains: searchQuery, mode: "insensitive" } },
-            { stixId: { contains: searchQuery, mode: "insensitive" } },
-            { licensePlate: { contains: searchQuery, mode: "insensitive" } },
-            { serialNumber: { contains: searchQuery, mode: "insensitive" } },
-            { vehicleIdentNumber: { contains: searchQuery, mode: "insensitive" } },
-            { inventoryNumber: { contains: searchQuery, mode: "insensitive" } },
-            { category: { name: { contains: searchQuery, mode: "insensitive" } } },
-            { currentProject: { name: { contains: searchQuery, mode: "insensitive" } } },
-            { currentProject: { projectNumber: { contains: searchQuery, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
-  };
 
-  const [categories, projects, employees, items, totalItems] = await Promise.all([
+  const [categories, projects, employees] = await Promise.all([
     prisma.inventoryCategory.findMany({
       where: {
         isActive: true,
@@ -253,6 +215,57 @@ export default async function InventoryStoragePage({
         lastName: true,
       },
     }),
+  ]);
+  const expandedCategoryIds = expandInventoryCategoryFilterIds(
+    categoryFilterIds,
+    categories,
+  );
+
+  const where: Prisma.InventoryItemWhereInput = {
+    isStockManaged: true,
+    ...(expandedCategoryIds.length
+      ? { categoryId: { in: expandedCategoryIds } }
+      : {}),
+    ...(projectFilter === "__none"
+      ? { currentProjectId: null }
+      : projectFilter
+        ? { currentProjectId: projectFilter }
+        : {}),
+    ...(statusFilter
+      ? { status: statusFilter }
+      : { status: { notIn: ["INACTIVE", "DELETED"] } }),
+    ...getStockWhere(stockFilter),
+    ...(containerFilter === "only"
+      ? { isContainer: true }
+      : containerFilter === "contained"
+        ? { parentItemId: { not: null } }
+        : containerFilter === "exclude"
+          ? { isContainer: false }
+          : containerFilter === "unassigned"
+            ? { isContainer: false, parentItemId: null }
+            : {}),
+    ...(searchQuery
+      ? {
+          OR: [
+            { name: { contains: searchQuery, mode: "insensitive" } },
+            { manufacturer: { contains: searchQuery, mode: "insensitive" } },
+            { model: { contains: searchQuery, mode: "insensitive" } },
+            { attachmentType: { contains: searchQuery, mode: "insensitive" } },
+            { objectNumber: { contains: searchQuery, mode: "insensitive" } },
+            { stixId: { contains: searchQuery, mode: "insensitive" } },
+            { licensePlate: { contains: searchQuery, mode: "insensitive" } },
+            { serialNumber: { contains: searchQuery, mode: "insensitive" } },
+            { vehicleIdentNumber: { contains: searchQuery, mode: "insensitive" } },
+            { inventoryNumber: { contains: searchQuery, mode: "insensitive" } },
+            { category: { name: { contains: searchQuery, mode: "insensitive" } } },
+            { currentProject: { name: { contains: searchQuery, mode: "insensitive" } } },
+            { currentProject: { projectNumber: { contains: searchQuery, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [items, totalItems] = await Promise.all([
     prisma.inventoryItem.findMany({
       where,
       include: {
@@ -291,13 +304,11 @@ export default async function InventoryStoragePage({
       },
     }),
   ]);
-  const activeFilterCount = [
-    categoryFilter,
-    projectFilter,
-    statusFilter,
-    stockFilter,
-    containerFilter,
-  ].filter(Boolean).length;
+  const activeFilterCount =
+    Number(categoryFilterIds.length > 0) +
+    [projectFilter, statusFilter, stockFilter, containerFilter].filter(
+      Boolean,
+    ).length;
   const inventoryManagers = employees.filter(
     (employee) => employee.canManagePersonalInventory,
   );
@@ -414,21 +425,34 @@ export default async function InventoryStoragePage({
                   </select>
                 </label>
 
-                <label className="text-sm font-semibold text-gray-800">
-                  Kategorie
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                    defaultValue={categoryFilter}
-                    name="category"
-                  >
-                    <option value="">Alle Kategorien</option>
+                <fieldset>
+                  <legend className="text-sm font-semibold text-gray-800">
+                    Kategorie
+                  </legend>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Mehrfachauswahl möglich. Eine Oberkategorie zeigt auch
+                    alle ihre Unterkategorien.
+                  </p>
+                  <div className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-gray-300 bg-white p-3">
                     {sortInventoryCategoriesForSelect(categories).map((category) => (
-                      <option key={category.id} value={category.id}>
+                      <label
+                        className="flex items-center gap-2 text-sm font-normal text-gray-800"
+                        key={category.id}
+                      >
+                        <input
+                          className="h-4 w-4 rounded border-gray-300"
+                          defaultChecked={categoryFilterIds.includes(
+                            category.id,
+                          )}
+                          name="category"
+                          type="checkbox"
+                          value={category.id}
+                        />
                         {getInventoryCategoryOptionLabel(category)}
-                      </option>
+                      </label>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                </fieldset>
 
                 <label className="text-sm font-semibold text-gray-800 md:col-span-2">
                   Baustelle

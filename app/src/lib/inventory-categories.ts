@@ -62,6 +62,27 @@ export function sortInventoryCategoriesForSelect<
   return result;
 }
 
+/** Expands a set of selected category ids so that choosing a parent
+ * category also matches every item filed under its subcategories - items
+ * are normally assigned directly to a leaf/subcategory, never the parent,
+ * so filtering by the parent's id alone would otherwise match nothing. */
+export function expandInventoryCategoryFilterIds<
+  TCategory extends InventoryCategoryWithParent,
+>(selectedIds: string[], categories: TCategory[]) {
+  const expanded = new Set<string>();
+
+  for (const id of selectedIds) {
+    expanded.add(id);
+    for (const category of categories) {
+      if (category.parentCategoryId === id) {
+        expanded.add(category.id);
+      }
+    }
+  }
+
+  return [...expanded];
+}
+
 function compareCategoryNames(
   left: InventoryCategoryWithParent,
   right: InventoryCategoryWithParent,

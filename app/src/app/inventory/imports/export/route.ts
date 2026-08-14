@@ -1,6 +1,12 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
+import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
 import { INVENTORY_IMPORT_HEADERS } from "../inventoryImportHeaders";
+import {
+  appendInventoryDropdownSheets,
+  fetchInventoryDropdownData,
+  inventoryDropdownValidations,
+} from "../inventoryDropdowns";
 
 export const runtime = "nodejs";
 
@@ -36,7 +42,8 @@ function responsibleTypeLabel(value: string | null) {
 }
 
 export async function GET() {
-  const items = await prisma.inventoryItem.findMany({
+  const [items, dropdownData] = await Promise.all([
+    prisma.inventoryItem.findMany({
     include: {
       category: {
         include: {
@@ -77,7 +84,9 @@ export async function GET() {
         notIn: ["INACTIVE", "DELETED"],
       },
     },
-  });
+    }),
+    fetchInventoryDropdownData(),
+  ]);
 
   const rows = items.map((item) => {
     const contact = item.contacts[0] ?? null;
@@ -177,11 +186,20 @@ export async function GET() {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Inventarexport");
+  const dropdownsRowCount = appendInventoryDropdownSheets(
+    workbook,
+    dropdownData,
+  );
 
-  const buffer = XLSX.write(workbook, {
+  const rawBuffer = XLSX.write(workbook, {
     bookType: "xlsx",
     type: "buffer",
   }) as Buffer;
+  const validations = inventoryDropdownValidations(
+    INVENTORY_IMPORT_HEADERS,
+    dropdownsRowCount,
+  );
+  const buffer = patchWorkbookDropdowns(rawBuffer, validations, 2);
 
   const dateStamp = new Date().toISOString().slice(0, 10);
 

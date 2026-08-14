@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { DismissibleDetails } from "@/components/DismissibleDetails";
 import { LiveSearchInput } from "@/components/LiveSearchInput";
 import {
+  expandInventoryCategoryFilterIds,
   getInventoryCategoryLabel,
   getInventoryCategoryOptionLabel,
   sortInventoryCategoriesForSelect,
@@ -162,7 +163,7 @@ export default async function InventoryPage({
   searchParams,
 }: {
   searchParams?: Promise<{
-    category?: string;
+    category?: string | string[];
     project?: string;
     q?: string;
     responsibleEmployee?: string;
@@ -173,14 +174,57 @@ export default async function InventoryPage({
 }) {
   const params = (await searchParams) ?? {};
   const searchQuery = String(params.q ?? "").trim();
-  const categoryFilter = String(params.category ?? "").trim();
+  const categoryFilterIds = ([] as string[])
+    .concat(params.category ?? [])
+    .filter(Boolean);
   const projectFilter = String(params.project ?? "").trim();
   const responsibleEmployeeFilter = String(params.responsibleEmployee ?? "").trim();
   const statusFilter = String(params.status ?? "").trim();
   const stockManagedFilter = String(params.stockManaged ?? "").trim();
   const containerFilter = String(params.container ?? "").trim();
+
+  const [categories, projects] = await Promise.all([
+    prisma.inventoryCategory.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        parentCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.project.findMany({
+      where: {
+        status: {
+          in: [
+            ProjectStatus.ACTIVE,
+            ProjectStatus.NOT_STARTED,
+            ProjectStatus.PAUSED,
+          ],
+        },
+      },
+      orderBy: [{ projectNumber: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        projectNumber: true,
+      },
+    }),
+  ]);
+  const expandedCategoryIds = expandInventoryCategoryFilterIds(
+    categoryFilterIds,
+    categories,
+  );
+
   const where: Prisma.InventoryItemWhereInput = {
-    ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+    ...(expandedCategoryIds.length
+      ? { categoryId: { in: expandedCategoryIds } }
+      : {}),
     ...(projectFilter === "__none"
       ? { currentProjectId: null }
       : projectFilter
@@ -227,39 +271,8 @@ export default async function InventoryPage({
       : {}),
   };
 
-  const [categories, projects, items, totalItems] =
+  const [items, totalItems] =
     await Promise.all([
-      prisma.inventoryCategory.findMany({
-        where: {
-          isActive: true,
-        },
-        include: {
-          parentCategory: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.project.findMany({
-        where: {
-          status: {
-            in: [
-              ProjectStatus.ACTIVE,
-              ProjectStatus.NOT_STARTED,
-              ProjectStatus.PAUSED,
-            ],
-          },
-        },
-        orderBy: [{ projectNumber: "desc" }],
-        select: {
-          id: true,
-          name: true,
-          projectNumber: true,
-        },
-      }),
       prisma.inventoryItem.findMany({
         where,
         include: {
@@ -300,14 +313,15 @@ export default async function InventoryPage({
 
   const filteredItems = items;
   const sortedCategories = sortInventoryCategoriesForSelect(categories);
-  const activeFilterCount = [
-    categoryFilter,
-    projectFilter,
-    responsibleEmployeeFilter,
-    statusFilter,
-    stockManagedFilter,
-    containerFilter,
-  ].filter(Boolean).length;
+  const activeFilterCount =
+    Number(categoryFilterIds.length > 0) +
+    [
+      projectFilter,
+      responsibleEmployeeFilter,
+      statusFilter,
+      stockManagedFilter,
+      containerFilter,
+    ].filter(Boolean).length;
 
   const stockManagedCount = await prisma.inventoryItem.count({
     where: {
@@ -479,21 +493,34 @@ export default async function InventoryPage({
                     </select>
                   </label>
 
-                  <label className="text-sm font-semibold text-gray-800">
-                    Kategorie
-                    <select
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                      defaultValue={categoryFilter}
-                      name="category"
-                    >
-                      <option value="">Alle Kategorien</option>
+                  <fieldset>
+                    <legend className="text-sm font-semibold text-gray-800">
+                      Kategorie
+                    </legend>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Mehrfachauswahl möglich. Eine Oberkategorie zeigt auch
+                      alle ihre Unterkategorien.
+                    </p>
+                    <div className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-gray-300 bg-white p-3">
                       {sortedCategories.map((category) => (
-                        <option key={category.id} value={category.id}>
+                        <label
+                          className="flex items-center gap-2 text-sm font-normal text-gray-800"
+                          key={category.id}
+                        >
+                          <input
+                            className="h-4 w-4 rounded border-gray-300"
+                            defaultChecked={categoryFilterIds.includes(
+                              category.id,
+                            )}
+                            name="category"
+                            type="checkbox"
+                            value={category.id}
+                          />
                           {getInventoryCategoryOptionLabel(category)}
-                        </option>
+                        </label>
                       ))}
-                    </select>
-                  </label>
+                    </div>
+                  </fieldset>
 
                   <label className="text-sm font-semibold text-gray-800">
                     Baustelle
