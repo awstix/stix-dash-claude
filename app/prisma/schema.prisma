@@ -2165,6 +2165,11 @@ model InventoryCategory {
   useInTruckDispatchMaterial     Boolean             @default(false)
   useInTruckDispatchObject       Boolean             @default(false)
   useInTruckDispatchSelection    Boolean             @default(false)
+  // Separate from useInTruckDispatchSelection on purpose: this only
+  // triggers the InventoryItem <-> Vehicle sync (so items show up in
+  // Gerätedisposition), it must NOT make items selectable in LKW-Dispo /
+  // Fahrer-Fahrzeug-Zuordnung, which stays keyed off useInTruckDispatchSelection.
+  useInEquipmentDispatch         Boolean             @default(false)
   useInSpecialVehicleDisposition Boolean             @default(false)
   useInTeamManagement            Boolean             @default(false)
   useInEmployeeFile              Boolean             @default(false)

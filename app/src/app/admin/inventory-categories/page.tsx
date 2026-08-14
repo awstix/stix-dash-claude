@@ -46,6 +46,7 @@ export default async function InventoryCategoriesPage() {
           useInTeamManagement: true,
           useInEmployeeFile: true,
           useInTruckDispatchSelection: true,
+          useInEquipmentDispatch: true,
         },
       },
     },
@@ -272,6 +273,7 @@ function InventoryCategoryForm({
       useInEmployeeFile: boolean;
       isPersonalInventory: boolean;
       useInTruckDispatchSelection: boolean;
+      useInEquipmentDispatch: boolean;
     }[];
     useInDailyReports: boolean;
     useInInventory: boolean;
@@ -279,6 +281,7 @@ function InventoryCategoryForm({
     useInTeamManagement: boolean;
     useInEmployeeFile: boolean;
     useInTruckDispatchSelection: boolean;
+    useInEquipmentDispatch: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
     useInTruckDisposition: boolean;
@@ -437,6 +440,7 @@ function InventoryCategoryForm({
           useInEmployeeFile: childCategory.useInEmployeeFile,
           useInTruckDispatchSelection:
             childCategory.useInTruckDispatchSelection,
+          useInEquipmentDispatch: childCategory.useInEquipmentDispatch,
         }))}
       />
 
@@ -499,6 +503,11 @@ function InventoryCategoryForm({
             defaultChecked={category?.useInTruckDispatchSelection ?? false}
             label="In Fahrer-Fahrzeug-Zuordnung wählbar"
             name="useInTruckDispatchSelection"
+          />
+          <Checkbox
+            defaultChecked={category?.useInEquipmentDispatch ?? false}
+            label="In Gerätedisposition wählbar"
+            name="useInEquipmentDispatch"
           />
         </div>
       </div>
@@ -608,6 +617,7 @@ function UsageBadges({
     useInEmployeeFile: boolean;
     isPersonalInventory: boolean;
     useInTruckDispatchSelection: boolean;
+    useInEquipmentDispatch: boolean;
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
     useInTruckDisposition: boolean;
@@ -644,6 +654,10 @@ function UsageBadges({
 
   if (category.useInTruckDispatchSelection) {
     badges.push({ label: "Fahrer-Fahrzeug", tone: "sky" });
+  }
+
+  if (category.useInEquipmentDispatch) {
+    badges.push({ label: "Gerätedisposition", tone: "teal" });
   }
 
   if (category.asphaltDispositionUsage === "ASPHALT_MIX") {

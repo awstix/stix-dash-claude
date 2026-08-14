@@ -18,6 +18,7 @@ type SubcategoryRow = {
   useInTeamManagement: boolean;
   useInEmployeeFile: boolean;
   useInTruckDispatchSelection: boolean;
+  useInEquipmentDispatch: boolean;
 };
 
 export function InventorySubcategoryRows({
@@ -46,6 +47,7 @@ export function InventorySubcategoryRows({
         useInTeamManagement: false,
         useInEmployeeFile: false,
         useInTruckDispatchSelection: false,
+        useInEquipmentDispatch: false,
       },
     ]);
   }
@@ -150,6 +152,11 @@ export function InventorySubcategoryRows({
               name="subcategoryUseInTruckDispatchSelection"
               type="hidden"
               value={row.useInTruckDispatchSelection ? "1" : "0"}
+            />
+            <input
+              name="subcategoryUseInEquipmentDispatch"
+              type="hidden"
+              value={row.useInEquipmentDispatch ? "1" : "0"}
             />
             <label className="text-xs font-semibold text-gray-700 md:col-span-3">
               Name
@@ -331,6 +338,19 @@ export function InventorySubcategoryRows({
                     type="checkbox"
                   />
                   Fahrer-Fahrzeug-Zuordnung
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-teal-800">
+                  <input
+                    checked={row.useInEquipmentDispatch}
+                    className="h-4 w-4 rounded border-gray-300"
+                    onChange={(event) =>
+                      updateRow(row.id, {
+                        useInEquipmentDispatch: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  Gerätedisposition
                 </label>
               </div>
               <button

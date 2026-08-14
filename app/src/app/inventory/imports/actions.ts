@@ -111,10 +111,12 @@ type ImportCategoryRecord = {
   nextObjectNumber: number | null;
   objectNumberEnd: number | null;
   objectNumberStart: number | null;
+  useInEquipmentDispatch: boolean;
   useInTeamManagement: boolean;
   useInTruckDispatchSelection: boolean;
   parentCategory: {
     name: string;
+    useInEquipmentDispatch: boolean;
     useInTeamManagement: boolean;
     useInTruckDispatchSelection: boolean;
   } | null;
@@ -464,11 +466,13 @@ export async function importInventoryItems(formData: FormData) {
       nextObjectNumber: true,
       objectNumberEnd: true,
       objectNumberStart: true,
+      useInEquipmentDispatch: true,
       useInTeamManagement: true,
       useInTruckDispatchSelection: true,
       parentCategory: {
         select: {
           name: true,
+          useInEquipmentDispatch: true,
           useInTeamManagement: true,
           useInTruckDispatchSelection: true,
         },
@@ -590,9 +594,14 @@ export async function importInventoryItems(formData: FormData) {
       // round trips - only runs for the minority of rows that actually
       // qualify, instead of on every single row. Skipping it for the rest
       // is what keeps a few-hundred-row import inside Vercel's timeout.
-      const allowsTruckDispatchSelection = Boolean(
+      // Covers both flags that need a synced Vehicle row (LKW-Dispo and
+      // Gerätedisposition) - syncDriverVehicleAssignmentForInventoryItem
+      // itself narrows back down to LKW-only before touching driver data.
+      const allowsVehicleSync = Boolean(
         category.useInTruckDispatchSelection ||
-          category.parentCategory?.useInTruckDispatchSelection,
+          category.parentCategory?.useInTruckDispatchSelection ||
+          category.useInEquipmentDispatch ||
+          category.parentCategory?.useInEquipmentDispatch,
       );
 
       const requestedObjectNumber = objectNumber(rowValue(row, "Objekt-ID"));
@@ -843,7 +852,7 @@ export async function importInventoryItems(formData: FormData) {
               })),
             });
           }
-          if (allowsTruckDispatchSelection) {
+          if (allowsVehicleSync) {
             await ensureVehicleForInventoryItem(tx, existingItem.id);
             await syncDriverVehicleAssignmentForInventoryItem(
               tx,
@@ -882,7 +891,7 @@ export async function importInventoryItems(formData: FormData) {
               : undefined,
           },
         });
-        if (allowsTruckDispatchSelection) {
+        if (allowsVehicleSync) {
           await ensureVehicleForInventoryItem(tx, createdItem.id);
           await syncDriverVehicleAssignmentForInventoryItem(
             tx,

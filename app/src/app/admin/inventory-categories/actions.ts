@@ -124,6 +124,7 @@ type SubcategoryPayload = ObjectNumberRange & {
   useInTeamManagement: boolean;
   useInEmployeeFile: boolean;
   useInTruckDispatchSelection: boolean;
+  useInEquipmentDispatch: boolean;
 };
 
 async function validateCategoryHierarchy({
@@ -254,6 +255,9 @@ function getSubcategoryPayloads(formData: FormData) {
   const truckDispatchSelectionValues = formData.getAll(
     "subcategoryUseInTruckDispatchSelection",
   );
+  const equipmentDispatchValues = formData.getAll(
+    "subcategoryUseInEquipmentDispatch",
+  );
   const asphaltUsageValues = formData.getAll(
     "subcategoryAsphaltDispositionUsage",
   );
@@ -331,6 +335,8 @@ function getSubcategoryPayloads(formData: FormData) {
         String(employeeFileValues[index] ?? "0") === "1",
       useInTruckDispatchSelection:
         String(truckDispatchSelectionValues[index] ?? "0") === "1",
+      useInEquipmentDispatch:
+        String(equipmentDispatchValues[index] ?? "0") === "1",
     } satisfies SubcategoryPayload;
   });
 }
@@ -576,6 +582,7 @@ async function syncInlineSubcategories({
     useInTruckDispatchMaterial: boolean;
     useInTruckDispatchObject: boolean;
     useInTruckDispatchSelection: boolean;
+    useInEquipmentDispatch: boolean;
     useInTruckDisposition: boolean;
     useInSpecialVehicleDisposition: boolean;
     useInTeamManagement: boolean;
@@ -639,6 +646,7 @@ async function syncInlineSubcategories({
       useInTeamManagement: subcategory.useInTeamManagement,
       useInEmployeeFile: subcategory.useInEmployeeFile,
       useInTruckDispatchSelection: subcategory.useInTruckDispatchSelection,
+      useInEquipmentDispatch: subcategory.useInEquipmentDispatch,
     };
 
     if (subcategory.id) {
@@ -710,6 +718,8 @@ async function createInventoryCategoryInternal(formData: FormData) {
     isPersonalInventory: formData.get("isPersonalInventory") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
+    useInEquipmentDispatch:
+      formData.get("useInEquipmentDispatch") === "on",
     useInInventory: true,
     ...getTruckDispatchUsage(formData),
   };
@@ -799,6 +809,8 @@ async function updateInventoryCategoryInternal(formData: FormData) {
     isPersonalInventory: formData.get("isPersonalInventory") === "on",
     useInTruckDispatchSelection:
       formData.get("useInTruckDispatchSelection") === "on",
+    useInEquipmentDispatch:
+      formData.get("useInEquipmentDispatch") === "on",
     useInInventory: true,
     ...getTruckDispatchUsage(formData),
   };

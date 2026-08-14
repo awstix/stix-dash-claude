@@ -28,12 +28,19 @@ export async function ensureVehicleForInventoryItem(
     return;
   }
 
-  const allowsTruckDispatchSelection = Boolean(
+  // Both flags need a synced Vehicle row - LKW-Dispo/Fahrer-Zuordnung via
+  // useInTruckDispatchSelection, Gerätedisposition via useInEquipmentDispatch.
+  // Which of the two is set determines whether the item is ALSO eligible
+  // for driver-assignment sync, checked separately in
+  // syncDriverVehicleAssignmentForInventoryItem below.
+  const allowsVehicleSync = Boolean(
     item.category?.useInTruckDispatchSelection ||
-      item.category?.parentCategory?.useInTruckDispatchSelection,
+      item.category?.parentCategory?.useInTruckDispatchSelection ||
+      item.category?.useInEquipmentDispatch ||
+      item.category?.parentCategory?.useInEquipmentDispatch,
   );
 
-  if (!allowsTruckDispatchSelection) {
+  if (!allowsVehicleSync) {
     return;
   }
 
@@ -223,11 +230,29 @@ export async function syncDriverVehicleAssignmentForInventoryItem(
       id: itemId,
     },
     include: {
+      category: {
+        include: {
+          parentCategory: true,
+        },
+      },
       responsibleEmployee: true,
     },
   });
 
   if (!item?.vehicleId) {
+    return;
+  }
+
+  // Deliberately narrower than ensureVehicleForInventoryItem's vehicle-sync
+  // gate: a Vehicle row can now also exist purely for Gerätedisposition
+  // (useInEquipmentDispatch), and those items must NOT turn into driver
+  // assignments in LKW-Dispo / Fahrer-Fahrzeug-Zuordnung.
+  const allowsTruckDispatchSelection = Boolean(
+    item.category?.useInTruckDispatchSelection ||
+      item.category?.parentCategory?.useInTruckDispatchSelection,
+  );
+
+  if (!allowsTruckDispatchSelection) {
     return;
   }
 
@@ -326,6 +351,12 @@ export async function syncVehiclesFromInventory() {
         {
           category: {
             parentCategory: { useInTruckDispatchSelection: true },
+          },
+        },
+        { category: { useInEquipmentDispatch: true } },
+        {
+          category: {
+            parentCategory: { useInEquipmentDispatch: true },
           },
         },
       ],
