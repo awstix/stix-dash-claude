@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
 import {
@@ -113,7 +113,6 @@ export function ProjectManager({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const formRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<ProjectFormInput>(emptyProject);
   const [showForm, setShowForm] = useState(false);
@@ -163,6 +162,8 @@ export function ProjectManager({
           project.paymentsNet - performanceValueWithoutChangeOrders;
 
         return {
+          contractValueNet: sum.contractValueNet + project.contractValueNet,
+          changeOrdersNet: sum.changeOrdersNet + project.changeOrdersNet,
           totalContract: sum.totalContract + totalContract,
           performanceValue: sum.performanceValue + performanceValue,
           performanceValueWithoutChangeOrders:
@@ -175,6 +176,8 @@ export function ProjectManager({
         };
       },
       {
+        contractValueNet: 0,
+        changeOrdersNet: 0,
         totalContract: 0,
         performanceValue: 0,
         performanceValueWithoutChangeOrders: 0,
@@ -197,12 +200,6 @@ export function ProjectManager({
     setEditingId(null);
     setOriginalConstructionManagers([]);
     setShowForm(true);
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
   }
 
   function startEdit(project: Project) {
@@ -210,12 +207,6 @@ export function ProjectManager({
     setEditingId(project.id);
     setOriginalConstructionManagers(project.constructionManagers);
     setShowForm(true);
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
   }
 
   function saveProject() {
@@ -407,7 +398,15 @@ export function ProjectManager({
         </div>
       ) : null}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <SummaryCard
+          label="Summe Aufträge ohne Nachträge"
+          value={formatEuro(totals.contractValueNet)}
+        />
+        <SummaryCard
+          label="Summe Nachträge"
+          value={formatEuro(totals.changeOrdersNet)}
+        />
         <SummaryCard
           label="Schnellstand Auftrag inkl. Nachträge"
           value={formatEuro(totals.totalContract)}
@@ -499,12 +498,28 @@ export function ProjectManager({
 
       {showForm ? (
         <div
-          ref={formRef}
-          className="mb-6 scroll-mt-28 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isPending) {
+              resetForm();
+            }
+          }}
         >
-          <h3 className="text-lg font-semibold text-gray-900">
-            {editingId ? "Projekt bearbeiten" : "Neues Projekt anlegen"}
-          </h3>
+        <div className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-y-auto rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {editingId ? "Projekt bearbeiten" : "Neues Projekt anlegen"}
+            </h3>
+            <button
+              aria-label="Schließen"
+              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              disabled={isPending}
+              onClick={resetForm}
+              type="button"
+            >
+              <ActionIcon name="close" className="h-4 w-4" />
+            </button>
+          </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <TextField
@@ -748,6 +763,7 @@ export function ProjectManager({
                   : "Projekt speichern"}
             </button>
           </div>
+        </div>
         </div>
       ) : null}
 
