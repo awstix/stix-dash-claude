@@ -16,12 +16,13 @@ export default async function InventoryImportsPage({
 }: {
   searchParams: Promise<{
     created?: string;
+    error?: string;
     report?: string;
     skipped?: string;
     updated?: string;
   }>;
 }) {
-  const [params, categoryCount, lastImportRun] = await Promise.all([
+  const [params, categoryCount, lastImportRun, latestRun] = await Promise.all([
     searchParams,
     prisma.inventoryCategory.count({
       where: {
@@ -39,6 +40,20 @@ export default async function InventoryImportsPage({
         created: true,
         updated: true,
         skipped: true,
+        updatedAt: true,
+      },
+    }),
+    // Read regardless of status so the page still shows where a run stands
+    // even after a reload (which loses the client-side progress polling).
+    prisma.importProgress.findFirst({
+      where: { kind: "inventory" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        errorMessage: true,
+        processed: true,
+        reportStoragePath: true,
+        status: true,
+        total: true,
         updatedAt: true,
       },
     }),
@@ -65,7 +80,23 @@ export default async function InventoryImportsPage({
         </Link>
       </div>
 
-      {hasResult ? (
+      {params.error ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-950">
+          <h2 className="text-lg font-semibold">
+            Import abgebrochen
+          </h2>
+          <p className="mt-2 text-sm leading-6">{params.error}</p>
+          {params.report ? (
+            <a
+              className="mt-4 inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-950 hover:bg-red-100"
+              download
+              href={params.report}
+            >
+              Bericht der bereits verarbeiteten Zeilen herunterladen
+            </a>
+          ) : null}
+        </div>
+      ) : hasResult ? (
         <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-6 text-green-900">
           <h2 className="text-lg font-semibold">Inventarimport abgeschlossen</h2>
           <p className="mt-2 text-sm">
@@ -80,6 +111,40 @@ export default async function InventoryImportsPage({
               href={params.report}
             >
               Importbericht herunterladen
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
+      {latestRun && latestRun.status !== "done" && !params.error && !hasResult ? (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+          <h2 className="text-lg font-semibold">
+            {latestRun.status === "running"
+              ? "Ein Import läuft möglicherweise noch"
+              : "Letzter Import wurde nicht sauber abgeschlossen"}
+          </h2>
+          <p className="mt-2 text-sm leading-6">
+            {new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(latestRun.updatedAt)}
+            {" · "}
+            Zuletzt gemeldet: Zeile {latestRun.processed} von{" "}
+            {latestRun.total}
+            {latestRun.status === "running"
+              ? " · Falls das Fenster mit dem Import geschlossen oder neu geladen wurde, kann der Import trotzdem im Hintergrund fertig laufen oder bereits an einem Server-Zeitlimit gescheitert sein – bei Unklarheit diese Seite in ein bis zwei Minuten erneut aufrufen."
+              : ""}
+          </p>
+          {latestRun.errorMessage ? (
+            <p className="mt-2 text-sm leading-6">{latestRun.errorMessage}</p>
+          ) : null}
+          {latestRun.reportStoragePath ? (
+            <a
+              className="mt-4 inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+              download
+              href="/inventory/imports/last-report"
+            >
+              Bericht der bereits verarbeiteten Zeilen herunterladen
             </a>
           ) : null}
         </div>

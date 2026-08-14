@@ -3432,6 +3432,10 @@ model ImportProgress {
   updated Int @default(0)
   skipped Int @default(0)
 
+  // Set when status is "error" or "timed_out" - shown to the user instead of
+  // leaving them looking at a run stuck on "running" forever after a crash.
+  errorMessage String?
+
   reportStoragePath String?
 
   createdAt DateTime @default(now())

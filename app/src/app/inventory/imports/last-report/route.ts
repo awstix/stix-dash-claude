@@ -7,10 +7,13 @@ export const runtime = "nodejs";
 const STORAGE_BUCKET = "uploads";
 
 export async function GET() {
+  // Not restricted to status "done" - a run that errored out or hit the
+  // platform timeout partway through still writes a report for whatever
+  // rows it did manage to process before dying, and that should stay
+  // reachable here too instead of only successful runs.
   const lastRun = await prisma.importProgress.findFirst({
     where: {
       kind: "inventory",
-      status: "done",
       reportStoragePath: { not: null },
     },
     orderBy: { createdAt: "desc" },

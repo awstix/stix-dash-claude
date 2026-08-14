@@ -18,13 +18,26 @@ function ImportProgressStatus({
 }) {
   const { pending } = useFormStatus();
   const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!pending) return;
+    if (!pending) {
+      startedAtRef.current = null;
+      return;
+    }
+    if (startedAtRef.current === null) {
+      startedAtRef.current = Date.now();
+    }
 
     let cancelled = false;
 
     const poll = async () => {
+      if (startedAtRef.current !== null) {
+        setElapsedSeconds(
+          Math.floor((Date.now() - startedAtRef.current) / 1000),
+        );
+      }
       try {
         const response = await fetch(
           `${progressEndpoint}?id=${importRunId}`,
@@ -52,6 +65,11 @@ function ImportProgressStatus({
   const total = progress?.total ?? 0;
   const processed = Math.min(progress?.processed ?? 0, total);
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+  // The server has a hard platform time limit; well past that point a
+  // request that hasn't finished is very likely dead even though this tab
+  // has no way to know for sure. Say so instead of spinning forever, since
+  // that's what reads as "the page crashed".
+  const runningUnusuallyLong = elapsedSeconds > 240;
 
   return (
     <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
@@ -67,6 +85,15 @@ function ImportProgressStatus({
           style={{ width: `${percent}%` }}
         />
       </div>
+      {runningUnusuallyLong ? (
+        <p className="mt-3 text-xs leading-5 text-blue-900">
+          Das dauert ungewöhnlich lange – möglich ist ein Server-Zeitlimit.
+          Der Fortschritt wird laufend gespeichert, bereits verarbeitete
+          Zeilen gehen nicht verloren. Bitte diese Seite in ein bis zwei
+          Minuten neu laden (nicht die Datei erneut hochladen) – dort steht
+          dann der aktuelle Stand.
+        </p>
+      ) : null}
     </div>
   );
 }

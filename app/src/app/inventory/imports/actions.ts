@@ -2,7 +2,7 @@
 import { Prisma } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { formatInventoryObjectNumber } from "@/lib/inventory-object-numbers";
@@ -374,6 +374,61 @@ export async function importInventoryItems(formData: FormData) {
     });
   }
 
+  // Hoisted above the try/catch below so that if something throws partway
+  // through, whatever was already processed is still available to write a
+  // partial report instead of losing it.
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errorRows: Record<string, unknown>[] = [];
+  // Every processed row (created/updated/skipped), independent of whether
+  // there were any errors - so the report is always worth downloading, not
+  // just when something went wrong.
+  const resultRows: Record<string, unknown>[] = [];
+  let lastSeenExcelRow: number | null = null;
+
+  // Shared by the normal end-of-import report and the partial report written
+  // from the catch block below, so a run that dies partway through still
+  // produces a downloadable file for whatever rows did get processed.
+  async function buildAndUploadReport() {
+    const reportWorkbook = XLSX.utils.book_new();
+    if (resultRows.length > 0) {
+      const resultSheet = XLSX.utils.json_to_sheet(resultRows);
+      resultSheet["!cols"] = Object.keys(resultRows[0]).map((key) => ({
+        wch: Math.max(14, Math.min(48, key.length + 4)),
+      }));
+      XLSX.utils.book_append_sheet(reportWorkbook, resultSheet, "Ergebnis");
+    }
+    if (errorRows.length > 0) {
+      const reportSheet = XLSX.utils.json_to_sheet(errorRows);
+      reportSheet["!cols"] = Object.keys(errorRows[0]).map((key) => ({
+        wch: Math.max(14, Math.min(48, key.length + 4)),
+      }));
+      XLSX.utils.book_append_sheet(reportWorkbook, reportSheet, "Importfehler");
+    }
+
+    if (reportWorkbook.SheetNames.length === 0) {
+      return { reportStoragePath: null, reportUrl: "" };
+    }
+
+    const reportFileName = `inventar-importbericht-${new Date()
+      .toISOString()
+      .slice(0, 10)}-${randomUUID().slice(0, 8)}.xlsx`;
+    const reportStoragePath = `inventory-import-reports/${reportFileName}`;
+    await putFile(
+      STORAGE_BUCKET,
+      reportStoragePath,
+      XLSX.write(reportWorkbook, {
+        bookType: "xlsx",
+        type: "buffer",
+      }),
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    const reportUrl = await signedUrl(STORAGE_BUCKET, reportStoragePath, 60 * 60);
+    return { reportStoragePath, reportUrl };
+  }
+
+  try {
   const fuelTypeOptions = await prisma.adminOption.findMany({
     where: {
       groupKey: "vehicle_fuel_type",
@@ -480,15 +535,6 @@ export async function importInventoryItems(formData: FormData) {
     },
   });
 
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
-  const errorRows: Record<string, unknown>[] = [];
-  // Every processed row (created/updated/skipped), independent of whether
-  // there were any errors - so the report is always worth downloading, not
-  // just when something went wrong.
-  const resultRows: Record<string, unknown>[] = [];
-
   for (const [rowIndex, row] of rows.entries()) {
     if (importRunId && rowIndex % 3 === 0) {
       await prisma.importProgress
@@ -500,6 +546,7 @@ export async function importInventoryItems(formData: FormData) {
     }
 
     const excelRow = rowIndex + headerRowIndex + 2;
+    lastSeenExcelRow = excelRow;
     const name = text(rowValue(row, "Name", "Objektname"));
 
     if (!name) {
@@ -919,40 +966,7 @@ export async function importInventoryItems(formData: FormData) {
 
   // Always build a report, not just when something failed - "2 rows got
   // updated" is useless on its own without saying which ones and why.
-  const reportWorkbook = XLSX.utils.book_new();
-  if (resultRows.length > 0) {
-    const resultSheet = XLSX.utils.json_to_sheet(resultRows);
-    resultSheet["!cols"] = Object.keys(resultRows[0]).map((key) => ({
-      wch: Math.max(14, Math.min(48, key.length + 4)),
-    }));
-    XLSX.utils.book_append_sheet(reportWorkbook, resultSheet, "Ergebnis");
-  }
-  if (errorRows.length > 0) {
-    const reportSheet = XLSX.utils.json_to_sheet(errorRows);
-    reportSheet["!cols"] = Object.keys(errorRows[0]).map((key) => ({
-      wch: Math.max(14, Math.min(48, key.length + 4)),
-    }));
-    XLSX.utils.book_append_sheet(reportWorkbook, reportSheet, "Importfehler");
-  }
-
-  let reportUrl = "";
-  let reportStoragePath: string | null = null;
-  if (reportWorkbook.SheetNames.length > 0) {
-    const reportFileName = `inventar-importbericht-${new Date()
-      .toISOString()
-      .slice(0, 10)}-${randomUUID().slice(0, 8)}.xlsx`;
-    reportStoragePath = `inventory-import-reports/${reportFileName}`;
-    await putFile(
-      STORAGE_BUCKET,
-      reportStoragePath,
-      XLSX.write(reportWorkbook, {
-        bookType: "xlsx",
-        type: "buffer",
-      }),
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
-    reportUrl = await signedUrl(STORAGE_BUCKET, reportStoragePath, 60 * 60);
-  }
+  const { reportStoragePath, reportUrl } = await buildAndUploadReport();
 
   if (importRunId) {
     await prisma.importProgress
@@ -977,4 +991,58 @@ export async function importInventoryItems(formData: FormData) {
       reportUrl ? `&report=${encodeURIComponent(reportUrl)}` : ""
     }`,
   );
+  } catch (error) {
+    // Server actions signal navigation (redirect/notFound/etc.) by throwing
+    // a special error - let that pass straight through instead of treating
+    // it as an import failure below.
+    unstable_rethrow(error);
+
+    // A genuine crash (as opposed to a per-row problem, which is already
+    // caught above and recorded in errorRows/resultRows without aborting
+    // the run). This is the only path left that can still land the user on
+    // Next's generic error page, so give them a specific, actionable
+    // message and whatever partial report exists instead.
+    const message =
+      error instanceof Error ? error.message : "Unbekannter Fehler beim Import.";
+    const rowHint =
+      lastSeenExcelRow === null
+        ? ""
+        : ` (zuletzt bearbeitete Excel-Zeile: ${lastSeenExcelRow})`;
+    const errorMessage = `Der Import wurde abgebrochen: ${message}${rowHint}. Bereits verarbeitete Zeilen (${created} angelegt, ${updated} aktualisiert, ${skipped} übersprungen) wurden gespeichert.`;
+
+    let reportStoragePath: string | null = null;
+    let reportUrl = "";
+    try {
+      const report = await buildAndUploadReport();
+      reportStoragePath = report.reportStoragePath;
+      reportUrl = report.reportUrl;
+    } catch {
+      // Report upload itself failed too - still fall through and mark the
+      // run as errored so the user isn't left staring at "running" forever.
+    }
+
+    if (importRunId) {
+      await prisma.importProgress
+        .update({
+          where: { id: importRunId },
+          data: {
+            status: "error",
+            errorMessage,
+            created,
+            updated,
+            skipped,
+            reportStoragePath,
+          },
+        })
+        .catch(() => undefined);
+    }
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/storage");
+    redirect(
+      `/inventory/imports?created=${created}&updated=${updated}&skipped=${skipped}&error=${encodeURIComponent(
+        errorMessage,
+      )}${reportUrl ? `&report=${encodeURIComponent(reportUrl)}` : ""}`,
+    );
+  }
 }
