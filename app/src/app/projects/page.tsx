@@ -9,28 +9,19 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
 import { parseConstructionManagersJson } from "@/lib/construction-managers";
+import { getConstructionManagerOptions } from "@/lib/construction-manager-options";
+import {
+  getPercentOperator,
+  getPercentValue,
+  getTriStateFilter,
+  normalizeProjectSearchText,
+} from "@/lib/project-filters";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
 
 type ProjectSortOption = "newest" | "oldest" | "alphabet";
-type TriStateFilter = "" | "ja" | "nein";
-type PercentOperator = "" | "gt" | "lt";
-
-function getTriStateFilter(value: string | undefined): TriStateFilter {
-  return value === "ja" || value === "nein" ? value : "";
-}
-
-function getPercentOperator(value: string | undefined): PercentOperator {
-  return value === "gt" || value === "lt" ? value : "";
-}
-
-function getPercentValue(value: string | undefined) {
-  if (!value) return null;
-  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 export default async function ProjectsPage({
   searchParams,
@@ -127,41 +118,7 @@ export default async function ProjectsPage({
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
-  const constructionManagerEmployees = await prisma.employee.findMany({
-    include: {
-      positions: {
-        orderBy: [{ sortOrder: "asc" }, { positionLabel: "asc" }],
-      },
-    },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    where: {
-      statusValue: "active",
-    },
-  });
-  const constructionManagerOptions = constructionManagerEmployees
-    .flatMap((employee) => {
-      const positionsLabel = employee.positions
-        .map((position) => position.positionLabel)
-        .join(", ");
-      const searchablePositionText = employee.positions
-        .map((position) => `${position.positionLabel} ${position.positionValue}`)
-        .join(" ")
-        .toLowerCase();
-      const isConstructionManager =
-        searchablePositionText.includes("bauleit");
-
-      if (!isConstructionManager) {
-        return [];
-      }
-
-      return [{
-        employeeId: employee.id,
-        label: `${employee.firstName} ${employee.lastName}`,
-        positionsLabel,
-        value: `${employee.firstName} ${employee.lastName}`,
-      }];
-    })
-    .sort((a, b) => a.label.localeCompare(b.label, "de-DE"));
+  const constructionManagerOptions = await getConstructionManagerOptions();
 
   const projectSummaries = projects.map((project) => {
     const people = new Map<string, string>();
@@ -726,14 +683,6 @@ function getProjectSortOption(value: string | undefined): ProjectSortOption {
   }
 
   return "newest";
-}
-
-function normalizeProjectSearchText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim();
 }
 
 function getToneClass(tone: "negative" | "neutral" | "positive") {
