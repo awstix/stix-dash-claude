@@ -1,7 +1,10 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
-import { INVENTORY_IMPORT_HEADERS } from "../inventoryImportHeaders";
+import {
+  INVENTORY_IMPORT_COLUMN_GROUPS,
+  INVENTORY_IMPORT_HEADERS,
+} from "../inventoryImportHeaders";
 import {
   appendInventoryDropdownSheets,
   fetchInventoryDropdownData,
@@ -177,10 +180,36 @@ export async function GET() {
     };
   });
 
-  const sheet = XLSX.utils.json_to_sheet(rows, {
-    header: [...INVENTORY_IMPORT_HEADERS],
-  });
-  sheet["!cols"] = INVENTORY_IMPORT_HEADERS.map((header) => ({
+  // Same group-title row + collapsible column groups as the import
+  // template (INVENTORY_IMPORT_COLUMN_GROUPS), so an exported-and-edited
+  // file matches what you get from "Excel-Vorlage herunterladen".
+  const headers: string[] = [...INVENTORY_IMPORT_HEADERS];
+  const groupTitleRow: string[] = new Array(headers.length).fill("");
+  const groupMerges: { s: { r: number; c: number }; e: { r: number; c: number } }[] =
+    [];
+  const columnGroupLevelByHeader = new Map<string, number>();
+  for (const group of INVENTORY_IMPORT_COLUMN_GROUPS) {
+    const fromIndex = headers.indexOf(group.from);
+    const toIndex = headers.indexOf(group.to);
+    groupTitleRow[fromIndex] = group.label;
+    if (toIndex > fromIndex) {
+      groupMerges.push({
+        e: { c: toIndex, r: 0 },
+        s: { c: fromIndex, r: 0 },
+      });
+    }
+    for (let i = fromIndex; i <= toIndex; i += 1) {
+      columnGroupLevelByHeader.set(headers[i], 1);
+    }
+  }
+
+  const dataRows = rows.map((row) =>
+    headers.map((header) => (row as Record<string, unknown>)[header] ?? ""),
+  );
+  const sheet = XLSX.utils.aoa_to_sheet([groupTitleRow, headers, ...dataRows]);
+  sheet["!merges"] = groupMerges;
+  sheet["!cols"] = headers.map((header) => ({
+    level: columnGroupLevelByHeader.get(header) ?? 0,
     wch: Math.max(14, Math.min(32, header.length + 4)),
   }));
 
@@ -195,11 +224,8 @@ export async function GET() {
     bookType: "xlsx",
     type: "buffer",
   }) as Buffer;
-  const validations = inventoryDropdownValidations(
-    INVENTORY_IMPORT_HEADERS,
-    dropdownsRowCount,
-  );
-  const buffer = patchWorkbookDropdowns(rawBuffer, validations, 2);
+  const validations = inventoryDropdownValidations(headers, dropdownsRowCount);
+  const buffer = patchWorkbookDropdowns(rawBuffer, validations, 3);
 
   const dateStamp = new Date().toISOString().slice(0, 10);
 
