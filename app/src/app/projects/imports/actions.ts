@@ -11,7 +11,6 @@ import {
   bool,
   dateValue,
   floatValue,
-  moneyCents,
   rowValue,
   text,
   type ExcelRow,
@@ -19,6 +18,15 @@ import {
 import type { ConstructionManagerEntry } from "@/lib/construction-managers";
 
 const STORAGE_BUCKET = "uploads";
+
+// Unlike inventory's *Cents fields, Project.contractValueNet/changeOrdersNet/
+// paymentsNet/finalInvoiceNet store whole euros (see formatEuro() usage
+// throughout ProjectManager.tsx and controlling/auftraege/page.tsx, which
+// never divides by 100) - so money values here are rounded, not ×100'd.
+function wholeEuro(value: unknown) {
+  const parsed = floatValue(value);
+  return parsed === null ? null : Math.round(parsed);
+}
 
 function statusValue(value: unknown): ProjectStatus {
   const normalized = text(value)?.toLowerCase() ?? "";
@@ -128,24 +136,24 @@ export async function importProjects(formData: FormData) {
       const data = {
         actualEnd: dateValue(rowValue(row, "Tatsächliches Ende")),
         actualStart: dateValue(rowValue(row, "Tatsächlicher Start")),
-        changeOrdersNet: moneyCents(rowValue(row, "Nachträge netto EUR")) ?? 0,
+        changeOrdersNet: wholeEuro(rowValue(row, "Nachträge netto EUR")) ?? 0,
         client: text(rowValue(row, "Auftraggeber")),
         constructionManager:
           constructionManagers[0]?.name ?? null,
         constructionManagersJson: JSON.stringify(constructionManagers),
         contractValueNet:
-          moneyCents(rowValue(row, "Auftragssumme netto EUR")) ?? 0,
+          wholeEuro(rowValue(row, "Auftragssumme netto EUR")) ?? 0,
         dvgw: bool(rowValue(row, "DVGW")),
         finalInvoiceCreated,
         finalInvoiceNet: finalInvoiceCreated
-          ? moneyCents(rowValue(row, "Schlussrechnung netto EUR"))
+          ? wholeEuro(rowValue(row, "Schlussrechnung netto EUR"))
           : null,
         finalInvoiceNumber: text(rowValue(row, "Schlussrechnungsnummer")),
         guetezeichenKanalbau: bool(rowValue(row, "Gütezeichen Kanalbau")),
         lieferscheine: bool(rowValue(row, "Lieferscheine")),
         name,
         notes: text(rowValue(row, "Notizen")),
-        paymentsNet: moneyCents(rowValue(row, "Zahlungen netto EUR")) ?? 0,
+        paymentsNet: wholeEuro(rowValue(row, "Zahlungen netto EUR")) ?? 0,
         plannedEnd: dateValue(rowValue(row, "Geplantes Ende")),
         plannedStart: dateValue(rowValue(row, "Geplanter Start")),
         progressPercent: floatValue(rowValue(row, "Fortschritt %")) ?? 0,

@@ -59,7 +59,7 @@ export async function GET() {
       "Status: noch nicht begonnen, aktiv, ruht, beendet, storniert. Ja/Nein-Felder: Ja, Nein, X oder leer (= Nein).",
     ],
     [
-      "Datum am besten als TT.MM.JJJJ eintragen. Geldbeträge netto in EUR, z. B. 12500,50.",
+      "Datum am besten als TT.MM.JJJJ eintragen. Geldbeträge netto in ganzen EUR ohne Cent, z. B. 12500.",
     ],
     [
       "Schlussrechnung netto EUR wird nur übernommen, wenn „Schlussrechnung erstellt“ auf Ja steht.",

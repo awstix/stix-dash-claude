@@ -8,8 +8,10 @@ import { appendProjectDropdownSheet, projectDropdownValidations } from "../proje
 
 export const runtime = "nodejs";
 
-function money(cents: number | null) {
-  return cents === null ? "" : cents / 100;
+// Project money fields (contractValueNet etc.) store whole euros, not
+// cents - see the note in ../actions.ts.
+function money(euros: number | null) {
+  return euros === null ? "" : euros;
 }
 
 function bool(value: boolean) {
