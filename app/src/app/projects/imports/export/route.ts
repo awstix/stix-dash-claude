@@ -24,9 +24,18 @@ function statusLabel(value: string) {
 }
 
 export async function GET() {
-  const projects = await prisma.project.findMany({
-    orderBy: { projectNumber: "asc" },
-  });
+  const [projects, employees] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: { projectNumber: "asc" },
+    }),
+    prisma.employee.findMany({
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { firstName: true, lastName: true },
+    }),
+  ]);
+  const employeeNames = employees.map(
+    (employee) => `${employee.firstName} ${employee.lastName}`,
+  );
 
   const rows = projects.map((project) => {
     const managers = parseConstructionManagersJson(project.constructionManagersJson);
@@ -68,7 +77,7 @@ export async function GET() {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Projektexport");
-  const dropdownsRowCount = appendProjectDropdownSheet(workbook);
+  const dropdownsRowCount = appendProjectDropdownSheet(workbook, employeeNames);
 
   const rawBuffer = XLSX.write(workbook, {
     bookType: "xlsx",

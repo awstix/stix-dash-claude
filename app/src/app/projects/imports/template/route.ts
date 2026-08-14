@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { prisma } from "@/lib/prisma";
 import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
 import { PROJECT_IMPORT_HEADERS } from "../projectImportHeaders";
 import { appendProjectDropdownSheet, projectDropdownValidations } from "../projectDropdowns";
@@ -35,6 +36,14 @@ const exampleRow: Record<string, string> = {
 };
 
 export async function GET() {
+  const employees = await prisma.employee.findMany({
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: { firstName: true, lastName: true },
+  });
+  const employeeNames = employees.map(
+    (employee) => `${employee.firstName} ${employee.lastName}`,
+  );
+
   const dataRow = headers.map((header) => exampleRow[header] ?? "");
   const projectSheet = XLSX.utils.aoa_to_sheet([headers, dataRow]);
   projectSheet["!cols"] = headers.map((header) => ({
@@ -50,7 +59,7 @@ export async function GET() {
       "Projektnummer ist der eindeutige Schlüssel: Ist die Projektnummer schon vorhanden, wird das bestehende Projekt aktualisiert, sonst neu angelegt.",
     ],
     [
-      "Bauleiter 1–3 werden mit Mitarbeitern verknüpft, wenn Vor- und Nachname exakt zu einem Mitarbeiter passen, sonst als freier Text gespeichert. Alle drei Spalten dürfen leer bleiben.",
+      "Bauleiter 1–3: per Dropdown aus den Mitarbeitern wählen, dann wird automatisch verknüpft. Freier Text geht auch, wird dann aber nur als Name gespeichert (ohne Verknüpfung zum Mitarbeiter). Alle drei Spalten dürfen leer bleiben.",
     ],
     [
       "Status: noch nicht begonnen, aktiv, ruht, beendet, storniert. Ja/Nein-Felder: Ja, Nein, X oder leer (= Nein).",
@@ -66,7 +75,7 @@ export async function GET() {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, projectSheet, "Projektimport");
-  const dropdownsRowCount = appendProjectDropdownSheet(workbook);
+  const dropdownsRowCount = appendProjectDropdownSheet(workbook, employeeNames);
   XLSX.utils.book_append_sheet(workbook, hintSheet, "Hinweise");
 
   const rawBuffer = XLSX.write(workbook, {
