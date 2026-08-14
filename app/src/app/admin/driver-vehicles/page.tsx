@@ -7,6 +7,7 @@ import {
   DismissibleDetailsCloseButton,
 } from "@/components/DismissibleDetails";
 import { prisma } from "@/lib/prisma";
+import { syncVehiclesFromInventory } from "@/lib/driver-vehicle-inventory-sync";
 import {
   createDriverVehicleAssignment,
   deleteDriverVehicleAssignment,
@@ -284,6 +285,7 @@ export default async function DriverVehiclesPage({
 }: {
   searchParams: Promise<DriverVehiclesSearchParams>;
 }) {
+  await syncVehiclesFromInventory();
   const params = await searchParams;
   const searchText = normalizeSearch(params.q);
   const filterPersonText = normalizeSearch(params.person);

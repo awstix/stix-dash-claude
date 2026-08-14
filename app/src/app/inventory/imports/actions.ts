@@ -8,6 +8,10 @@ import * as XLSX from "xlsx";
 import { formatInventoryObjectNumber } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
+import {
+  ensureVehicleForInventoryItem,
+  syncDriverVehicleAssignmentForInventoryItem,
+} from "@/lib/driver-vehicle-inventory-sync";
 import { putFile, signedUrl } from "@/lib/storage";
 import {
   bool,
@@ -775,6 +779,8 @@ export async function importInventoryItems(formData: FormData) {
               })),
             });
           }
+          await ensureVehicleForInventoryItem(tx, existingItem.id);
+          await syncDriverVehicleAssignmentForInventoryItem(tx, existingItem.id);
           updated += 1;
           return {
             action: "updated" as const,
@@ -783,7 +789,7 @@ export async function importInventoryItems(formData: FormData) {
           };
         }
 
-        await tx.inventoryItem.create({
+        const createdItem = await tx.inventoryItem.create({
           data: {
             ...data,
             objectNumber: objectNumberToSave,
@@ -807,6 +813,8 @@ export async function importInventoryItems(formData: FormData) {
               : undefined,
           },
         });
+        await ensureVehicleForInventoryItem(tx, createdItem.id);
+        await syncDriverVehicleAssignmentForInventoryItem(tx, createdItem.id);
         created += 1;
         return {
           action: "created" as const,

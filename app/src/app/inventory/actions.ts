@@ -4,7 +4,10 @@ import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { syncDriverVehicleAssignmentForInventoryItem } from "@/lib/driver-vehicle-inventory-sync";
+import {
+  ensureVehicleForInventoryItem,
+  syncDriverVehicleAssignmentForInventoryItem,
+} from "@/lib/driver-vehicle-inventory-sync";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
 import {
   formatInventoryObjectNumber,
@@ -264,6 +267,7 @@ function revalidateInventory() {
 
 async function syncDriverVehicleAssignmentForInventoryItemId(itemId: string) {
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await ensureVehicleForInventoryItem(tx, itemId);
     await syncDriverVehicleAssignmentForInventoryItem(tx, itemId);
   });
 }

@@ -1,4 +1,108 @@
 import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+/** Every InventoryItem whose category is flagged for truck-dispatch
+ * selection needs a linked `Vehicle` row - the whole
+ * Inventory-Verantwortlicher <-> Fahrer-Fahrzeug-Zuordnung <-> LKW-Dispo
+ * sync chain is keyed off `InventoryItem.vehicleId`, which nothing else
+ * ever sets. Call this before syncDriverVehicleAssignmentForInventoryItem
+ * so that chain actually has something to work with. */
+export async function ensureVehicleForInventoryItem(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+) {
+  const item = await tx.inventoryItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    include: {
+      category: {
+        include: {
+          parentCategory: true,
+        },
+      },
+    },
+  });
+
+  if (!item || item.status === "DELETED" || !item.objectNumber) {
+    return;
+  }
+
+  const allowsTruckDispatchSelection = Boolean(
+    item.category?.useInTruckDispatchSelection ||
+      item.category?.parentCategory?.useInTruckDispatchSelection,
+  );
+
+  if (!allowsTruckDispatchSelection) {
+    return;
+  }
+
+  const isSpecialVehicle = Boolean(
+    item.category?.useInSpecialVehicleDisposition ||
+      item.category?.parentCategory?.useInSpecialVehicleDisposition,
+  );
+  const categoryName = item.category?.name ?? "Fahrzeug";
+  const vehicleType = item.model || item.manufacturer || categoryName;
+  const dailyReportMachineLabel =
+    item.category?.dailyReportMachineLabel ??
+    item.category?.parentCategory?.dailyReportMachineLabel ??
+    null;
+  const asphaltPayloadTons = item.payloadKg ? item.payloadKg / 1000 : 0;
+  const tackCoatTankLiters = item.workMaterialTankLiters ?? 0;
+  const isActive = item.status !== "INACTIVE";
+
+  // licensePlate is unique on Vehicle - guard against two inventory items
+  // sharing one (a real data issue, not something this sync should crash
+  // on) by only carrying it over when no other vehicle already claims it.
+  let licensePlate = item.licensePlate || null;
+  if (licensePlate) {
+    const conflict = await tx.vehicle.findFirst({
+      where: {
+        licensePlate,
+        NOT: { vehicleNumber: item.objectNumber },
+      },
+      select: { id: true },
+    });
+    if (conflict) {
+      licensePlate = null;
+    }
+  }
+
+  const vehicle = await tx.vehicle.upsert({
+    where: {
+      vehicleNumber: item.objectNumber,
+    },
+    create: {
+      vehicleNumber: item.objectNumber,
+      licensePlate,
+      vehicleType,
+      category: categoryName,
+      isSpecialVehicle,
+      isActive,
+      dailyReportMachineLabel,
+      asphaltPayloadTons,
+      tackCoatTankLiters,
+      notes: "Automatisch aus Inventarobjekt erstellt.",
+    },
+    update: {
+      licensePlate,
+      vehicleType,
+      category: categoryName,
+      isSpecialVehicle,
+      isActive,
+      dailyReportMachineLabel,
+      asphaltPayloadTons,
+      tackCoatTankLiters,
+    },
+  });
+
+  if (item.vehicleId !== vehicle.id) {
+    await tx.inventoryItem.update({
+      where: { id: item.id },
+      data: { vehicleId: vehicle.id },
+    });
+  }
+}
 
 export async function ensureDriverForEmployee(
   tx: Prisma.TransactionClient,
@@ -204,4 +308,35 @@ export async function syncDriverVehicleAssignmentForInventoryItem(
   }
 
   await normalizePrimaryAssignmentForDriver(tx, driverId);
+}
+
+/** Lazy backfill, same pattern as syncDriversFromEmployees() on
+ * /admin/drivers: runs on every /admin/driver-vehicles page load so
+ * inventory items that predate this sync (or were touched by a script)
+ * still end up with a linked Vehicle and, where applicable, a
+ * DriverVehicleAssignment. One transaction per item, not one giant
+ * transaction, to avoid the timeout issues bulk operations hit earlier. */
+export async function syncVehiclesFromInventory() {
+  const items = await prisma.inventoryItem.findMany({
+    where: {
+      status: { not: "DELETED" },
+      objectNumber: { not: null },
+      OR: [
+        { category: { useInTruckDispatchSelection: true } },
+        {
+          category: {
+            parentCategory: { useInTruckDispatchSelection: true },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  for (const item of items) {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await ensureVehicleForInventoryItem(tx, item.id);
+      await syncDriverVehicleAssignmentForInventoryItem(tx, item.id);
+    });
+  }
 }
