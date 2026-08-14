@@ -17,6 +17,7 @@ import {
   primaryConstructionManagerName,
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
+import { syncUserProjectAccessForConstructionManagers } from "@/lib/project-access-sync";
 import {
   getProjectFormPresetOptions,
   PROJECT_FORM_FIELD_TYPES,
@@ -508,34 +509,37 @@ export async function createProject(input: ProjectFormInput) {
     throw new Error("Projektnummer und Projektname sind Pflichtfelder.");
   }
 
-  await prisma.project.create({
-    data: {
-      projectNumber: input.projectNumber,
-      name: input.name,
-      client: input.client || null,
-      ...constructionManagerData(input),
-      plannedStart: parseDate(input.plannedStart),
-      plannedEnd: parseDate(input.plannedEnd),
-      actualStart: parseDate(input.actualStart),
-      actualEnd: parseDate(input.actualEnd),
-      remainingConstructionTime: input.remainingConstructionTime || null,
-      status: input.status,
-      dvgw: input.dvgw,
-      guetezeichenKanalbau: input.guetezeichenKanalbau,
-      lieferscheine: input.lieferscheine,
-      contractValueNet: cleanNumber(input.contractValueNet),
-      changeOrdersNet: cleanNumber(input.changeOrdersNet),
-      progressPercent: cleanNumber(input.progressPercent),
-      paymentsNet: cleanNumber(input.paymentsNet),
-      finalInvoiceCreated: input.finalInvoiceCreated,
-      finalInvoiceNumber: input.finalInvoiceNumber || null,
-      finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
-      notes: input.notes || null,
-      autoApproveTimeEntriesOverride: parseTriStateOverride(
-        input.autoApproveTimeEntriesOverride,
-      ),
-      ...timeReminderOverrideData(input),
-    },
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const project = await tx.project.create({
+      data: {
+        projectNumber: input.projectNumber,
+        name: input.name,
+        client: input.client || null,
+        ...constructionManagerData(input),
+        plannedStart: parseDate(input.plannedStart),
+        plannedEnd: parseDate(input.plannedEnd),
+        actualStart: parseDate(input.actualStart),
+        actualEnd: parseDate(input.actualEnd),
+        remainingConstructionTime: input.remainingConstructionTime || null,
+        status: input.status,
+        dvgw: input.dvgw,
+        guetezeichenKanalbau: input.guetezeichenKanalbau,
+        lieferscheine: input.lieferscheine,
+        contractValueNet: cleanNumber(input.contractValueNet),
+        changeOrdersNet: cleanNumber(input.changeOrdersNet),
+        progressPercent: cleanNumber(input.progressPercent),
+        paymentsNet: cleanNumber(input.paymentsNet),
+        finalInvoiceCreated: input.finalInvoiceCreated,
+        finalInvoiceNumber: input.finalInvoiceNumber || null,
+        finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
+        notes: input.notes || null,
+        autoApproveTimeEntriesOverride: parseTriStateOverride(
+          input.autoApproveTimeEntriesOverride,
+        ),
+        ...timeReminderOverrideData(input),
+      },
+    });
+    await syncUserProjectAccessForConstructionManagers(tx, project.id);
   });
 
   revalidateProjectViews();
@@ -545,42 +549,46 @@ export async function updateProject(input: ProjectFormInput) {
   if (!input.id) {
     throw new Error("Projekt-ID fehlt.");
   }
+  const projectId = input.id;
 
   if (!input.projectNumber || !input.name) {
     throw new Error("Projektnummer und Projektname sind Pflichtfelder.");
   }
 
-  await prisma.project.update({
-    where: {
-      id: input.id,
-    },
-    data: {
-      projectNumber: input.projectNumber,
-      name: input.name,
-      client: input.client || null,
-      ...constructionManagerData(input),
-      plannedStart: parseDate(input.plannedStart),
-      plannedEnd: parseDate(input.plannedEnd),
-      actualStart: parseDate(input.actualStart),
-      actualEnd: parseDate(input.actualEnd),
-      remainingConstructionTime: input.remainingConstructionTime || null,
-      status: input.status,
-      dvgw: input.dvgw,
-      guetezeichenKanalbau: input.guetezeichenKanalbau,
-      lieferscheine: input.lieferscheine,
-      contractValueNet: cleanNumber(input.contractValueNet),
-      changeOrdersNet: cleanNumber(input.changeOrdersNet),
-      progressPercent: cleanNumber(input.progressPercent),
-      paymentsNet: cleanNumber(input.paymentsNet),
-      finalInvoiceCreated: input.finalInvoiceCreated,
-      finalInvoiceNumber: input.finalInvoiceNumber || null,
-      finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
-      notes: input.notes || null,
-      autoApproveTimeEntriesOverride: parseTriStateOverride(
-        input.autoApproveTimeEntriesOverride,
-      ),
-      ...timeReminderOverrideData(input),
-    },
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.project.update({
+      where: {
+        id: projectId,
+      },
+      data: {
+        projectNumber: input.projectNumber,
+        name: input.name,
+        client: input.client || null,
+        ...constructionManagerData(input),
+        plannedStart: parseDate(input.plannedStart),
+        plannedEnd: parseDate(input.plannedEnd),
+        actualStart: parseDate(input.actualStart),
+        actualEnd: parseDate(input.actualEnd),
+        remainingConstructionTime: input.remainingConstructionTime || null,
+        status: input.status,
+        dvgw: input.dvgw,
+        guetezeichenKanalbau: input.guetezeichenKanalbau,
+        lieferscheine: input.lieferscheine,
+        contractValueNet: cleanNumber(input.contractValueNet),
+        changeOrdersNet: cleanNumber(input.changeOrdersNet),
+        progressPercent: cleanNumber(input.progressPercent),
+        paymentsNet: cleanNumber(input.paymentsNet),
+        finalInvoiceCreated: input.finalInvoiceCreated,
+        finalInvoiceNumber: input.finalInvoiceNumber || null,
+        finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
+        notes: input.notes || null,
+        autoApproveTimeEntriesOverride: parseTriStateOverride(
+          input.autoApproveTimeEntriesOverride,
+        ),
+        ...timeReminderOverrideData(input),
+      },
+    });
+    await syncUserProjectAccessForConstructionManagers(tx, projectId);
   });
 
   revalidateProjectViews(input.id);

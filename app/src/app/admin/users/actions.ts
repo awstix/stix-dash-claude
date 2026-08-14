@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 import { getPortalRoleKeys } from "@/lib/portal-roles";
 import { isEmailConfigured, getEmailSettings } from "@/lib/mailer";
+import { syncUserProjectAccessForEmployee } from "@/lib/project-access-sync";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -100,6 +101,9 @@ export async function createPortalUser(formData: FormData) {
     },
     where: { id: result.user.id },
   });
+  await prisma.$transaction((tx) =>
+    syncUserProjectAccessForEmployee(tx, employeeId),
+  );
 
   if (inviteViaEmail) {
     await auth.api.requestPasswordReset({

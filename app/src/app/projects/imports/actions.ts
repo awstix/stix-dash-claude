@@ -16,6 +16,7 @@ import {
   type ExcelRow,
 } from "@/lib/import-value-parsing";
 import type { ConstructionManagerEntry } from "@/lib/construction-managers";
+import { syncUserProjectAccessForConstructionManagers } from "@/lib/project-access-sync";
 
 const STORAGE_BUCKET = "uploads";
 
@@ -167,19 +168,24 @@ export async function importProjects(formData: FormData) {
         select: { id: true },
       });
 
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const project = existing
+          ? await tx.project.update({
+              where: { id: existing.id },
+              data,
+            })
+          : await tx.project.create({
+              data: {
+                ...data,
+                projectNumber,
+              },
+            });
+        await syncUserProjectAccessForConstructionManagers(tx, project.id);
+      });
+
       if (existing) {
-        await prisma.project.update({
-          where: { id: existing.id },
-          data,
-        });
         updated += 1;
       } else {
-        await prisma.project.create({
-          data: {
-            ...data,
-            projectNumber,
-          },
-        });
         created += 1;
       }
 
