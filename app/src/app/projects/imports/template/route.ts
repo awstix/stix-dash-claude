@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
-import { columnLetter, patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
+import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
 import { PROJECT_IMPORT_HEADERS } from "../projectImportHeaders";
+import { appendProjectDropdownSheet, projectDropdownValidations } from "../projectDropdowns";
 
 export const runtime = "nodejs";
 
@@ -40,22 +41,6 @@ export async function GET() {
     wch: Math.max(16, Math.min(32, header.length + 4)),
   }));
 
-  const statusLabels = [
-    "noch nicht begonnen",
-    "aktiv",
-    "ruht",
-    "beendet",
-    "storniert",
-  ];
-  const yesNo = ["Ja", "Nein"];
-  const listRowCount = Math.max(statusLabels.length, yesNo.length);
-  const listRows = Array.from({ length: listRowCount }).map((_, index) => ({
-    JaNein: yesNo[index] ?? "",
-    Status: statusLabels[index] ?? "",
-  }));
-  const listSheet = XLSX.utils.json_to_sheet(listRows);
-  listSheet["!cols"] = [{ wch: 20 }, { wch: 14 }];
-
   const hintSheet = XLSX.utils.aoa_to_sheet([
     ["Hinweis"],
     [
@@ -81,7 +66,7 @@ export async function GET() {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, projectSheet, "Projektimport");
-  XLSX.utils.book_append_sheet(workbook, listSheet, "Dropdowns");
+  const dropdownsRowCount = appendProjectDropdownSheet(workbook);
   XLSX.utils.book_append_sheet(workbook, hintSheet, "Hinweise");
 
   const rawBuffer = XLSX.write(workbook, {
@@ -89,23 +74,7 @@ export async function GET() {
     type: "buffer",
   }) as Buffer;
 
-  const dropdownsRowCount = listRows.length + 1;
-  const validationByHeader: Record<string, string> = {
-    DVGW: `Dropdowns!$A$2:$A$${dropdownsRowCount}`,
-    "Gütezeichen Kanalbau": `Dropdowns!$A$2:$A$${dropdownsRowCount}`,
-    Lieferscheine: `Dropdowns!$A$2:$A$${dropdownsRowCount}`,
-    "Schlussrechnung erstellt": `Dropdowns!$A$2:$A$${dropdownsRowCount}`,
-    Status: `Dropdowns!$B$2:$B$${dropdownsRowCount}`,
-  };
-  const validations = headers
-    .map((header, index) => ({
-      column: columnLetter(index),
-      formula: validationByHeader[header],
-    }))
-    .filter(
-      (validation): validation is { column: string; formula: string } =>
-        Boolean(validation.formula),
-    );
+  const validations = projectDropdownValidations(headers, dropdownsRowCount);
   const buffer = patchWorkbookDropdowns(rawBuffer, validations, 2);
 
   return new Response(new Uint8Array(buffer), {

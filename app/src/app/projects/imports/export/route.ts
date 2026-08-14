@@ -1,7 +1,9 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { parseConstructionManagersJson } from "@/lib/construction-managers";
+import { patchWorkbookDropdowns } from "@/lib/xlsx-dropdowns";
 import { PROJECT_IMPORT_HEADERS } from "../projectImportHeaders";
+import { appendProjectDropdownSheet, projectDropdownValidations } from "../projectDropdowns";
 
 export const runtime = "nodejs";
 
@@ -66,11 +68,18 @@ export async function GET() {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Projektexport");
+  const dropdownsRowCount = appendProjectDropdownSheet(workbook);
 
-  const buffer = XLSX.write(workbook, {
+  const rawBuffer = XLSX.write(workbook, {
     bookType: "xlsx",
     type: "buffer",
   }) as Buffer;
+
+  const validations = projectDropdownValidations(
+    [...PROJECT_IMPORT_HEADERS],
+    dropdownsRowCount,
+  );
+  const buffer = patchWorkbookDropdowns(rawBuffer, validations, 2);
 
   const dateStamp = new Date().toISOString().slice(0, 10);
 
