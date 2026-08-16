@@ -51,3 +51,48 @@ export async function getConstructionManagerOptions(): Promise<
     })
     .sort((a, b) => a.label.localeCompare(b.label, "de-DE"));
 }
+
+/** Active employees with a Vorarbeiter/Polier position - same pattern as
+ * getConstructionManagerOptions, matched by position text containing
+ * "vorarbeit" or "polier". */
+export async function getForemanOptions(): Promise<ConstructionManagerOption[]> {
+  const employees = await prisma.employee.findMany({
+    include: {
+      positions: {
+        orderBy: [{ sortOrder: "asc" }, { positionLabel: "asc" }],
+      },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    where: {
+      statusValue: "active",
+    },
+  });
+
+  return employees
+    .flatMap((employee) => {
+      const positionsLabel = employee.positions
+        .map((position) => position.positionLabel)
+        .join(", ");
+      const searchablePositionText = employee.positions
+        .map((position) => `${position.positionLabel} ${position.positionValue}`)
+        .join(" ")
+        .toLowerCase();
+
+      if (
+        !searchablePositionText.includes("vorarbeit") &&
+        !searchablePositionText.includes("polier")
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          employeeId: employee.id,
+          label: `${employee.firstName} ${employee.lastName}`,
+          positionsLabel,
+          value: `${employee.firstName} ${employee.lastName}`,
+        },
+      ];
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "de-DE"));
+}

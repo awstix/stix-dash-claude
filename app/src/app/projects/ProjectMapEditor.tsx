@@ -5,24 +5,34 @@ import { useRouter } from "next/navigation";
 import { updateProjectMap } from "./actions";
 import { ProjectMap } from "./ProjectMap";
 
+type ForemanOption = {
+  employeeId: string;
+  label: string;
+  positionsLabel: string;
+};
+
 type ProjectMapEditorProps = {
-  projectId: string;
-  siteAddress: string | null;
-  siteDirectionsNote: string | null;
+  foremanOptions?: ForemanOption[];
   mapLatitude: number | null;
   mapLongitude: number | null;
   mapZoom: number | null;
+  projectId: string;
+  siteAddress: string | null;
   siteBoundaryGeoJson: string | null;
+  siteDirectionsNote: string | null;
+  siteForemanEmployeeId: string | null;
 };
 
 export function ProjectMapEditor({
-  projectId,
-  siteAddress,
-  siteDirectionsNote,
+  foremanOptions = [],
   mapLatitude,
   mapLongitude,
   mapZoom,
+  projectId,
+  siteAddress,
   siteBoundaryGeoJson,
+  siteDirectionsNote,
+  siteForemanEmployeeId,
 }: ProjectMapEditorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -33,6 +43,7 @@ export function ProjectMapEditor({
   const [form, setForm] = useState({
     siteAddress: siteAddress ?? "",
     siteDirectionsNote: siteDirectionsNote ?? "",
+    siteForemanEmployeeId: siteForemanEmployeeId ?? "",
     mapLatitude: mapLatitude?.toString() ?? "",
     mapLongitude: mapLongitude?.toString() ?? "",
     mapZoom: mapZoom?.toString() ?? "17",
@@ -63,6 +74,7 @@ export function ProjectMapEditor({
     setForm({
       siteAddress: siteAddress ?? "",
       siteDirectionsNote: siteDirectionsNote ?? "",
+      siteForemanEmployeeId: siteForemanEmployeeId ?? "",
       mapLatitude: mapLatitude?.toString() ?? "",
       mapLongitude: mapLongitude?.toString() ?? "",
       mapZoom: mapZoom?.toString() ?? "17",
@@ -185,6 +197,14 @@ export function ProjectMapEditor({
               Route zur Baustelle öffnen
             </a>
           ) : null}
+          <a
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+            href={`/projects/${projectId}/directions/pdf`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Wegbeschreibung als PDF
+          </a>
           <button
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
             onClick={() => setIsEditing((current) => !current)}
@@ -293,6 +313,33 @@ export function ProjectMapEditor({
                 rows={3}
                 value={form.siteDirectionsNote}
               />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Verantwortlicher Vorarbeiter / Polier
+              </label>
+              <p className="mt-1 text-xs text-gray-500">
+                Erscheint mit Handynummer auf der Wegbeschreibung als PDF.
+              </p>
+              <select
+                className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    siteForemanEmployeeId: event.target.value,
+                  }))
+                }
+                value={form.siteForemanEmployeeId}
+              >
+                <option value="">Keine Auswahl</option>
+                {foremanOptions.map((option) => (
+                  <option key={option.employeeId} value={option.employeeId}>
+                    {option.label}
+                    {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

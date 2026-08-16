@@ -134,6 +134,7 @@ export type ProjectMapInput = {
   id: string;
   siteAddress: string;
   siteDirectionsNote: string;
+  siteForemanEmployeeId: string;
   mapLatitude: string;
   mapLongitude: string;
   mapZoom: string;
@@ -626,6 +627,7 @@ export async function updateProjectMap(input: ProjectMapInput) {
     data: {
       siteAddress: input.siteAddress || null,
       siteDirectionsNote: input.siteDirectionsNote || null,
+      siteForemanEmployeeId: input.siteForemanEmployeeId || null,
       mapLatitude: cleanOptionalFloat(input.mapLatitude),
       mapLongitude: cleanOptionalFloat(input.mapLongitude),
       mapZoom: cleanOptionalInt(input.mapZoom),

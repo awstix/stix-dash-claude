@@ -19,7 +19,7 @@ type MapView = {
   zoom: number;
 };
 
-type SiteMarkerType = "ZUFAHRT" | "AUSFAHRT" | "ZUFAHRT_AUSFAHRT" | "BELADEFLAECHE";
+type SiteMarkerType = "ZUFAHRT" | "AUSFAHRT" | "ZUFAHRT_AUSFAHRT" | "BAUSTELLENEINRICHTUNG";
 
 type SiteMarker = {
   id: string;
@@ -33,14 +33,14 @@ type EditMode = "boundary" | SiteMarkerType;
 
 const SITE_MARKER_LABELS: Record<SiteMarkerType, string> = {
   AUSFAHRT: "Ausfahrt",
-  BELADEFLAECHE: "Beladefläche",
+  BAUSTELLENEINRICHTUNG: "Baustelleneinrichtung",
   ZUFAHRT: "Zufahrt",
   ZUFAHRT_AUSFAHRT: "Zufahrt & Ausfahrt",
 };
 
 const SITE_MARKER_COLORS: Record<SiteMarkerType, string> = {
   AUSFAHRT: "#dc2626",
-  BELADEFLAECHE: "#b45309",
+  BAUSTELLENEINRICHTUNG: "#b45309",
   ZUFAHRT: "#16a34a",
   ZUFAHRT_AUSFAHRT: "#7c3aed",
 };
@@ -50,7 +50,7 @@ const EDIT_MODE_OPTIONS: { label: string; mode: EditMode }[] = [
   { label: "Zufahrt", mode: "ZUFAHRT" },
   { label: "Ausfahrt", mode: "AUSFAHRT" },
   { label: "Zufahrt & Ausfahrt", mode: "ZUFAHRT_AUSFAHRT" },
-  { label: "Beladefläche", mode: "BELADEFLAECHE" },
+  { label: "Baustelleneinrichtung", mode: "BAUSTELLENEINRICHTUNG" },
 ];
 
 type ProjectMapProps = {
@@ -535,7 +535,7 @@ export function ProjectMap({
             : null}
 
           {mapData.siteMarkerPoints.map((marker) => {
-            const isArrow = marker.type !== "BELADEFLAECHE";
+            const isArrow = marker.type !== "BAUSTELLENEINRICHTUNG";
             const color = SITE_MARKER_COLORS[marker.type];
             const isSelected = marker.id === selectedSiteMarkerId;
 
@@ -564,7 +564,7 @@ export function ProjectMap({
                     strokeWidth={2}
                   />
                 ) : null}
-                {marker.type === "BELADEFLAECHE" ? (
+                {marker.type === "BAUSTELLENEINRICHTUNG" ? (
                   <rect
                     fill={color}
                     height={18}
@@ -798,7 +798,7 @@ export function ProjectMap({
                   Löschen
                 </button>
               </div>
-              {selectedSiteMarker.type !== "BELADEFLAECHE" ? (
+              {selectedSiteMarker.type !== "BAUSTELLENEINRICHTUNG" ? (
                 <label className="mt-2 block text-xs font-semibold text-gray-700">
                   Richtung ({Math.round(selectedSiteMarker.rotationDegrees)}°)
                   <input
@@ -912,7 +912,7 @@ function isSiteMarkerType(value: unknown): value is SiteMarkerType {
     value === "ZUFAHRT" ||
     value === "AUSFAHRT" ||
     value === "ZUFAHRT_AUSFAHRT" ||
-    value === "BELADEFLAECHE"
+    value === "BAUSTELLENEINRICHTUNG"
   );
 }
 
