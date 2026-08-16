@@ -32,12 +32,18 @@ export function primaryConstructionManagerName(entries: ConstructionManagerEntry
 }
 
 export type SiteContactEntry = {
-  employeeId: string;
+  /** null for manually typed-in contacts (no employee record to link to) -
+   * phone/role are then taken from the entry itself instead of looked up. */
+  employeeId: string | null;
   name: string;
+  phone: string | null;
+  role: string | null;
 };
 
 /** Same JSON-array-of-entries pattern as construction managers, for the
- * project's Baufeld "Kontaktpersonen" (Wegbeschreibung PDF). */
+ * project's Baufeld "Kontaktpersonen" (Wegbeschreibung PDF). Supports both
+ * employee-linked entries and freely typed-in ones (e.g. a Bauleiter or
+ * subcontractor contact without an employee record). */
 export function parseSiteContactsJson(
   value: string | null | undefined,
 ): SiteContactEntry[] {
@@ -48,10 +54,15 @@ export function parseSiteContactsJson(
     return parsed
       .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
       .map((entry) => ({
-        employeeId: String(entry.employeeId ?? "").trim(),
+        employeeId:
+          typeof entry.employeeId === "string" && entry.employeeId.trim()
+            ? entry.employeeId.trim()
+            : null,
         name: String(entry.name ?? "").trim(),
+        phone: String(entry.phone ?? "").trim() || null,
+        role: String(entry.role ?? "").trim() || null,
       }))
-      .filter((entry) => entry.employeeId.length > 0 && entry.name.length > 0);
+      .filter((entry) => entry.name.length > 0);
   } catch {
     return [];
   }

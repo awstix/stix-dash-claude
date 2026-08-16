@@ -227,10 +227,10 @@ export function ProjectMapEditor({
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Kontaktpersonen
           </p>
-          {siteContacts.map((contact) => (
+          {siteContacts.map((contact, index) => (
             <span
               className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800"
-              key={contact.employeeId}
+              key={`${contact.employeeId ?? "manuell"}-${contact.name}-${index}`}
             >
               {contact.name}
             </span>

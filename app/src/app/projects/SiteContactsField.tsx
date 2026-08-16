@@ -6,7 +6,9 @@ import type { SiteContactOption } from "@/lib/construction-manager-options";
 
 /** Picker for the Baufeld "Kontaktpersonen": choose a category (Abteilung)
  * then an employee within it, or search by name directly across all
- * employees - either way, "+" adds the pending pick to the chip list. */
+ * employees - either way, "+" adds the pending pick to the chip list.
+ * Also supports typing in someone by hand (e.g. a Bauleiter or
+ * subcontractor contact who has no employee record). */
 export function SiteContactsField({
   onChange,
   options,
@@ -19,6 +21,9 @@ export function SiteContactsField({
   const [category, setCategory] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [search, setSearch] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualRole, setManualRole] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
 
   const categories = useMemo(
     () =>
@@ -43,13 +48,30 @@ export function SiteContactsField({
   function addContact(option: SiteContactOption | undefined) {
     if (!option) return;
     if (value.some((entry) => entry.employeeId === option.employeeId)) return;
-    onChange([...value, { employeeId: option.employeeId, name: option.name }]);
+    onChange([...value, { employeeId: option.employeeId, name: option.name, phone: null, role: null }]);
     setEmployeeId("");
     setSearch("");
   }
 
-  function removeContact(entryEmployeeId: string) {
-    onChange(value.filter((entry) => entry.employeeId !== entryEmployeeId));
+  function addManualContact() {
+    const name = manualName.trim();
+    if (!name) return;
+    onChange([
+      ...value,
+      {
+        employeeId: null,
+        name,
+        phone: manualPhone.trim() || null,
+        role: manualRole.trim() || null,
+      },
+    ]);
+    setManualName("");
+    setManualRole("");
+    setManualPhone("");
+  }
+
+  function removeContact(index: number) {
+    onChange(value.filter((_, entryIndex) => entryIndex !== index));
   }
 
   return (
@@ -127,17 +149,55 @@ export function SiteContactsField({
         ) : null}
       </div>
 
+      <details className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-gray-700">
+          Oder manuell eintragen (z. B. Bauleiter/Polier ohne Mitarbeiterakte)
+        </summary>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1.2fr_1fr_1fr_auto]">
+          <input
+            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+            onChange={(event) => setManualName(event.target.value)}
+            placeholder="Name"
+            type="text"
+            value={manualName}
+          />
+          <input
+            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+            onChange={(event) => setManualRole(event.target.value)}
+            placeholder="Rolle (z. B. Bauleiter)"
+            type="text"
+            value={manualRole}
+          />
+          <input
+            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+            onChange={(event) => setManualPhone(event.target.value)}
+            placeholder="Handynummer"
+            type="text"
+            value={manualPhone}
+          />
+          <button
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+            disabled={!manualName.trim()}
+            onClick={addManualContact}
+            type="button"
+          >
+            + Hinzufügen
+          </button>
+        </div>
+      </details>
+
       {value.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {value.map((entry) => (
+          {value.map((entry, index) => (
             <span
               className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800"
-              key={entry.employeeId}
+              key={`${entry.employeeId ?? "manuell"}-${entry.name}-${index}`}
             >
               {entry.name}
+              {entry.role ? ` · ${entry.role}` : ""}
               <button
                 className="text-gray-500 hover:text-gray-900"
-                onClick={() => removeContact(entry.employeeId)}
+                onClick={() => removeContact(index)}
                 type="button"
               >
                 ×
