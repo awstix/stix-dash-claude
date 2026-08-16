@@ -1,3 +1,4 @@
+import type { ChangelogEntry } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
@@ -14,6 +15,24 @@ function formatDateTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(value);
+}
+
+function ChangelogCard({ admin, entry }: { admin: boolean; entry: ChangelogEntry }) {
+  return (
+    <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-xs font-semibold text-gray-500">
+          {formatDateTime(entry.createdAt)}
+          {entry.authorName ? ` · ${entry.authorName}` : ""}
+        </p>
+        {admin ? <ChangelogDeleteButton id={entry.id} /> : null}
+      </div>
+      <h3 className="mt-1 text-sm font-bold text-gray-900">{entry.title}</h3>
+      {entry.description ? (
+        <p className="mt-1 whitespace-pre-line text-sm text-gray-700">{entry.description}</p>
+      ) : null}
+    </article>
+  );
 }
 
 export default async function NotificationsPage({
@@ -58,6 +77,11 @@ export default async function NotificationsPage({
       : Promise.resolve([]),
   ]);
 
+  const changelogCutoff = new Date();
+  changelogCutoff.setDate(changelogCutoff.getDate() - 5);
+  const recentEntries = changelogEntries.filter((entry) => entry.createdAt >= changelogCutoff);
+  const olderEntries = changelogEntries.filter((entry) => entry.createdAt < changelogCutoff);
+
   return (
     <AppShell
       title="Benachrichtigungen"
@@ -72,28 +96,24 @@ export default async function NotificationsPage({
               Noch keine Einträge.
             </div>
           ) : (
-            changelogEntries.map((entry) => (
-              <article
-                className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
-                key={entry.id}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="text-xs font-semibold text-gray-500">
-                    {formatDateTime(entry.createdAt)}
-                    {entry.authorName ? ` · ${entry.authorName}` : ""}
-                  </p>
-                  {admin ? <ChangelogDeleteButton id={entry.id} /> : null}
-                </div>
-                <h3 className="mt-1 text-sm font-bold text-gray-900">{entry.title}</h3>
-                {entry.description ? (
-                  <p className="mt-1 whitespace-pre-line text-sm text-gray-700">
-                    {entry.description}
-                  </p>
-                ) : null}
-              </article>
+            recentEntries.map((entry) => (
+              <ChangelogCard admin={admin} entry={entry} key={entry.id} />
             ))
           )}
         </div>
+
+        {olderEntries.length > 0 ? (
+          <details className="mt-3 rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-600">
+              {olderEntries.length} ältere Eintrag{olderEntries.length === 1 ? "" : "e"} (älter als 5 Tage)
+            </summary>
+            <div className="space-y-3 border-t border-gray-100 p-4">
+              {olderEntries.map((entry) => (
+                <ChangelogCard admin={admin} entry={entry} key={entry.id} />
+              ))}
+            </div>
+          </details>
+        ) : null}
       </section>
 
       {admin ? (
