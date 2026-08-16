@@ -2,18 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => {
-  detect(source: HTMLVideoElement): Promise<Array<{ rawValue: string }>>;
-};
-
-type BarcodeDetectorWindow = typeof window & {
-  BarcodeDetector?: BarcodeDetectorConstructor & {
-    getSupportedFormats?: () => Promise<string[]>;
-  };
-};
+import type { IScannerControls } from "@zxing/browser";
 
 function getInventoryTarget(value: string) {
   const text = value.trim();
@@ -69,11 +58,9 @@ function getInventoryItemIdFromTarget(target: string) {
 
 export function InventoryScannerClient() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanTimeoutRef = useRef<number | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
-  const [detectorFormats, setDetectorFormats] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [manualValue, setManualValue] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -86,8 +73,8 @@ export function InventoryScannerClient() {
   const [isSecureContext, setIsSecureContext] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setIsSecureContext(window.isSecureContext);
     const timeout = window.setTimeout(() => {
+      setIsSecureContext(window.isSecureContext);
       void refreshScannerSupport();
     }, 0);
 
@@ -98,17 +85,13 @@ export function InventoryScannerClient() {
   }, []);
 
   async function refreshScannerSupport() {
-    const BarcodeDetector = (window as BarcodeDetectorWindow).BarcodeDetector;
+    // Decoding itself runs in pure JS via @zxing/browser, so it works the
+    // same everywhere (Safari/iOS included) once the browser can hand us a
+    // camera stream at all - no more native-BarcodeDetector dependency,
+    // which only Chromium browsers implemented and left iPhones stuck on
+    // the photo-only fallback.
     const hasCameraApi = Boolean(navigator.mediaDevices?.getUserMedia);
-    const hasDetector = Boolean(BarcodeDetector);
-    setIsSupported(hasCameraApi && hasDetector);
-
-    if (BarcodeDetector?.getSupportedFormats) {
-      const formats = await BarcodeDetector.getSupportedFormats().catch(() => []);
-      setDetectorFormats(formats);
-    } else {
-      setDetectorFormats(hasDetector ? ["qr_code"] : []);
-    }
+    setIsSupported(hasCameraApi);
 
     if (navigator.mediaDevices?.enumerateDevices) {
       const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -117,12 +100,11 @@ export function InventoryScannerClient() {
   }
 
   function stopCamera() {
-    if (scanTimeoutRef.current) {
-      window.clearTimeout(scanTimeoutRef.current);
-      scanTimeoutRef.current = null;
-    }
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    // controls.stop() (from @zxing/browser) stops the scan loop, stops all
+    // media tracks and detaches the video element's srcObject - no manual
+    // stream/track bookkeeping needed here anymore.
+    controlsRef.current?.stop();
+    controlsRef.current = null;
     setIsScanning(false);
   }
 
@@ -215,72 +197,61 @@ export function InventoryScannerClient() {
       return;
     }
 
-    const BarcodeDetector = (window as BarcodeDetectorWindow).BarcodeDetector;
-
-    if (!BarcodeDetector || !navigator.mediaDevices) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setIsSupported(false);
       setError(
-        "Dieser Browser unterstützt den Kamera-Scanner nicht sauber. Bitte Chrome/Android testen oder die Objekt-ID manuell eingeben.",
+        "Dieser Browser unterstützt den Kamera-Scanner nicht. Bitte „Code fotografieren“ oder die Objekt-ID manuell eingeben.",
       );
       return;
     }
 
     try {
       stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: selectedCameraId
-          ? {
-              deviceId: {
-                exact: selectedCameraId,
-              },
-            }
-          : {
-              facingMode: {
-                ideal: "environment",
-              },
-            },
-      });
-      streamRef.current = stream;
-      await refreshScannerSupport();
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType, NotFoundException }] =
+        await Promise.all([import("@zxing/browser"), import("@zxing/library")]);
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.DATA_MATRIX,
+      ]);
+      const reader = new BrowserMultiFormatReader(hints, {
+        delayBetweenScanAttempts: 300,
+        delayBetweenScanSuccess: 1500,
+      });
 
       setIsScanning(true);
-      const supportedFormats = BarcodeDetector.getSupportedFormats
-        ? await BarcodeDetector.getSupportedFormats().catch(() => [])
-        : detectorFormats;
-      const desiredFormats = ["data_matrix", "qr_code"].filter(
-        (format) => supportedFormats.length === 0 || supportedFormats.includes(format),
-      );
-      const detector = new BarcodeDetector({
-        formats: desiredFormats.length > 0 ? desiredFormats : ["qr_code"],
-      });
 
-      const scan = async () => {
-        if (!streamRef.current || !videoRef.current) return;
-
-        try {
-          const codes = await detector.detect(videoRef.current);
-          const firstCode = codes[0]?.rawValue;
-
-          if (firstCode) {
-            void openTarget(firstCode);
+      const controls = await reader.decodeFromConstraints(
+        {
+          audio: false,
+          video: selectedCameraId
+            ? { deviceId: { exact: selectedCameraId } }
+            : { facingMode: { ideal: "environment" } },
+        },
+        videoRef.current ?? undefined,
+        (result, decodeError, scanControls) => {
+          if (result) {
+            scanControls.stop();
+            controlsRef.current = null;
+            setIsScanning(false);
+            void openTarget(result.getText());
             return;
           }
-        } catch {
-          setError(
-            "Code konnte gerade nicht gelesen werden. Etikett näher ran, gerade halten oder manuelle Objekt-ID nutzen.",
-          );
-        }
 
-        scanTimeoutRef.current = window.setTimeout(scan, 450);
-      };
+          // NotFoundException just means "no code in this frame yet" -
+          // fires constantly while scanning and is not an actual error.
+          if (decodeError && !(decodeError instanceof NotFoundException)) {
+            setError(
+              "Code konnte gerade nicht gelesen werden. Etikett näher ran, gerade halten oder manuelle Objekt-ID nutzen.",
+            );
+          }
+        },
+      );
 
-      scanTimeoutRef.current = window.setTimeout(scan, 650);
+      controlsRef.current = controls;
+      await refreshScannerSupport();
     } catch {
       setError(
         "Kamera konnte nicht geöffnet werden. Bitte Berechtigung prüfen, andere Kamera wählen oder manuelle Eingabe nutzen.",
@@ -325,9 +296,10 @@ export function InventoryScannerClient() {
           <div>
             <h2 className="text-xl font-semibold text-gray-900">QR-Code scannen</h2>
             <p className="mt-2 text-sm leading-6 text-gray-600">
-              Kamera öffnen, Etikett scannen und direkt zum Inventarobjekt springen.
-              Wenn der Browser ECC200/DataMatrix nicht kann, bleiben QR-Code
-              oder Objekt-ID als stabiler Fallback.
+              Kamera öffnen, Etikett scannen und direkt zum Inventarobjekt
+              springen. Funktioniert auf iPhone und Android. Falls die Kamera
+              mal nicht mitspielt, bleiben „Code fotografieren“ oder die
+              Objekt-ID als stabiler Fallback.
             </p>
           </div>
           <span
@@ -361,16 +333,7 @@ export function InventoryScannerClient() {
           <div className="font-semibold text-gray-800">
             Unterstützte Codes
             <div className="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
-              {detectorFormats.length > 0
-                ? detectorFormats
-                    .filter((format) => ["data_matrix", "qr_code"].includes(format))
-                    .map((format) =>
-                      format === "data_matrix" ? "ECC200/DataMatrix" : "QR-Code",
-                    )
-                    .join(" · ") || "keine passenden Formate"
-                : isSupported === false
-                  ? "nicht verfügbar"
-                  : "wird nach Kamerastart geprüft"}
+              {isSupported === false ? "nicht verfügbar" : "QR-Code · ECC200/DataMatrix"}
             </div>
           </div>
         </div>
