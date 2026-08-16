@@ -102,11 +102,15 @@ export async function GET(
   );
 
   const contactBoxes: { label: string; name: string | null; phone: string | null }[] = [
-    {
-      label: "Zuständiger Bauleiter",
-      name: primaryManager?.name ?? null,
-      phone: managerEmployee?.mobilePhone ?? null,
-    },
+    ...(primaryManager?.name
+      ? [
+          {
+            label: "Zuständiger Bauleiter",
+            name: primaryManager.name,
+            phone: managerEmployee?.mobilePhone ?? null,
+          },
+        ]
+      : []),
     ...siteContacts.map((contact) => {
       const employee = contact.employeeId
         ? siteContactEmployeeById.get(contact.employeeId)
