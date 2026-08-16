@@ -169,6 +169,9 @@ model Project {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  lastModifiedByUserId String?
+  lastModifiedByName   String?
 }
 
 model ProjectNote {

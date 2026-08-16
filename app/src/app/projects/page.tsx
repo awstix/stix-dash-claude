@@ -523,6 +523,14 @@ export default async function ProjectsPage({
                         {formatDate(item.project.plannedStart)} –{" "}
                         {formatDate(item.project.plannedEnd)}
                       </p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Zuletzt geändert
+                        {item.project.lastModifiedByName
+                          ? ` von ${item.project.lastModifiedByName}`
+                          : ""}
+                        {" · "}
+                        {formatDateTime(item.project.updatedAt)}
+                      </p>
                     </div>
                     <StatusBadge status={item.project.status} />
                   </div>
@@ -708,4 +716,11 @@ function formatEuro(value: number) {
 function formatDate(value: Date | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("de-DE").format(value);
+}
+
+function formatDateTime(value: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
 }

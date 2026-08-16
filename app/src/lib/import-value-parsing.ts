@@ -111,3 +111,21 @@ export function dateValue(value: unknown) {
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+
+/** For "Baujahr/Datum"-style columns where a bare number almost always means
+ * the user just typed the year: dateValue() treats any number as an Excel
+ * date serial (days since 1899-12-30), so typing e.g. "2005" as a plain
+ * number cell silently becomes 1905-06-27 - a real Baujahr year (1800..next
+ * year) is nowhere near a plausible serial for a real recent date, so it's
+ * unambiguous which one the user meant. Date-formatted cells (already a JS
+ * Date via cellDates) and dd.mm.yyyy text still go through dateValue(). */
+export function yearOrDateValue(value: unknown) {
+  if (typeof value === "number" && Number.isInteger(value)) {
+    const currentYear = new Date().getUTCFullYear();
+    if (value >= 1800 && value <= currentYear + 1) {
+      return new Date(Date.UTC(value, 0, 1));
+    }
+  }
+
+  return dateValue(value);
+}

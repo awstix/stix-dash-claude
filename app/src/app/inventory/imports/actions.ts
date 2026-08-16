@@ -22,6 +22,7 @@ import {
   moneyCents,
   rowValue,
   text,
+  yearOrDateValue,
   type ExcelRow,
 } from "@/lib/import-value-parsing";
 import { getInventoryActor } from "../actions";
@@ -711,6 +712,7 @@ export async function importInventoryItems(formData: FormData) {
           (existingItem
             ? undefined
             : getNextInventoryObjectNumberCached(category));
+        const constructionDate = yearOrDateValue(rowValue(row, "Baujahr/Datum"));
 
         const data = {
           attachmentType: text(rowValue(row, "Aufnahmetyp")),
@@ -737,7 +739,8 @@ export async function importInventoryItems(formData: FormData) {
               id: category.id,
             },
           },
-          constructionDate: dateValue(rowValue(row, "Baujahr/Datum")),
+          constructionDate,
+          constructionYear: constructionDate?.getUTCFullYear() ?? null,
           firstRegistrationDate: dateValue(rowValue(row, "Erstzulassung")),
           currentProject: project
             ? {

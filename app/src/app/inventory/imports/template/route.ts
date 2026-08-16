@@ -158,6 +158,9 @@ export async function GET() {
     [
       "Datum am besten als TT.MM.JJJJ eintragen. Lagerobjekte bekommen Einheit und Bestand.",
     ],
+    [
+      "Baujahr/Datum: entweder ein volles Datum (TT.MM.JJJJ) oder nur die Jahreszahl (z. B. 2018) eintragen - beides wird korrekt erkannt.",
+    ],
   ]);
   hintSheet["!cols"] = [{ wch: 120 }];
 

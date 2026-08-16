@@ -519,6 +519,7 @@ export async function createProject(input: ProjectFormInput) {
   if (!input.projectNumber || !input.name) {
     throw new Error("Projektnummer und Projektname sind Pflichtfelder.");
   }
+  const actor = await getProjectActor();
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const project = await tx.project.create({
@@ -526,6 +527,8 @@ export async function createProject(input: ProjectFormInput) {
         projectNumber: input.projectNumber,
         name: input.name,
         client: input.client || null,
+        lastModifiedByUserId: actor.userId,
+        lastModifiedByName: actor.name,
         ...constructionManagerData(input),
         plannedStart: parseDate(input.plannedStart),
         plannedEnd: parseDate(input.plannedEnd),
@@ -565,6 +568,8 @@ export async function updateProject(input: ProjectFormInput) {
   if (!input.projectNumber || !input.name) {
     throw new Error("Projektnummer und Projektname sind Pflichtfelder.");
   }
+  await requireProjectAccess(projectId);
+  const actor = await getProjectActor();
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.project.update({
@@ -575,6 +580,8 @@ export async function updateProject(input: ProjectFormInput) {
         projectNumber: input.projectNumber,
         name: input.name,
         client: input.client || null,
+        lastModifiedByUserId: actor.userId,
+        lastModifiedByName: actor.name,
         ...constructionManagerData(input),
         plannedStart: parseDate(input.plannedStart),
         plannedEnd: parseDate(input.plannedEnd),
@@ -620,6 +627,7 @@ export async function updateProjectMap(input: ProjectMapInput) {
   }
 
   await requireProjectAccess(input.id);
+  const actor = await getProjectActor();
 
   const siteContacts = parseSiteContactsJson(input.siteContactsJson);
 
@@ -635,6 +643,8 @@ export async function updateProjectMap(input: ProjectMapInput) {
       mapLongitude: cleanOptionalFloat(input.mapLongitude),
       mapZoom: cleanOptionalInt(input.mapZoom),
       siteBoundaryGeoJson: cleanBoundaryGeoJson(input.siteBoundaryGeoJson),
+      lastModifiedByUserId: actor.userId,
+      lastModifiedByName: actor.name,
     },
   });
 
@@ -2730,12 +2740,17 @@ export async function deleteProjectFormSubmission(
 }
 
 export async function cancelProject(id: string) {
+  await requireProjectAccess(id);
+  const actor = await getProjectActor();
+
   await prisma.project.update({
     where: {
       id,
     },
     data: {
       status: ProjectStatus.CANCELLED,
+      lastModifiedByUserId: actor.userId,
+      lastModifiedByName: actor.name,
     },
   });
 

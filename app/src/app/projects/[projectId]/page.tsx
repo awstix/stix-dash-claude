@@ -1386,6 +1386,12 @@ export default async function ProjectDetailPage({
           reports={dailyReportOverviewItems}
         />
       </div>
+
+      <p className="mt-6 text-center text-xs text-gray-400">
+        Zuletzt geändert{project.lastModifiedByName ? ` von ${project.lastModifiedByName}` : ""}
+        {" · "}
+        {formatDateTime(project.updatedAt)}
+      </p>
     </AppShell>
   );
 }
@@ -3249,6 +3255,13 @@ function formatPercent(value: number) {
 function formatDate(value: Date | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("de-DE").format(value);
+}
+
+function formatDateTime(value: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
 }
 
 function toDateKey(value: Date) {
