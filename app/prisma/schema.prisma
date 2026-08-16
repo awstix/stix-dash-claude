@@ -121,6 +121,7 @@ model Project {
   finalInvoiceNet     Int?
 
   siteAddress         String?
+  siteDirectionsNote  String?
   mapLatitude         Float?
   mapLongitude        Float?
   mapZoom             Int?

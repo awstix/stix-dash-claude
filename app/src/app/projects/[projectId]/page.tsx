@@ -1023,6 +1023,7 @@ export default async function ProjectDetailPage({
               projectId={project.id}
               siteAddress={project.siteAddress}
               siteBoundaryGeoJson={project.siteBoundaryGeoJson}
+              siteDirectionsNote={project.siteDirectionsNote}
             />
           </div>
         </div>

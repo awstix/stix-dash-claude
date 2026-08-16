@@ -8,6 +8,7 @@ import { ProjectMap } from "./ProjectMap";
 type ProjectMapEditorProps = {
   projectId: string;
   siteAddress: string | null;
+  siteDirectionsNote: string | null;
   mapLatitude: number | null;
   mapLongitude: number | null;
   mapZoom: number | null;
@@ -17,6 +18,7 @@ type ProjectMapEditorProps = {
 export function ProjectMapEditor({
   projectId,
   siteAddress,
+  siteDirectionsNote,
   mapLatitude,
   mapLongitude,
   mapZoom,
@@ -30,6 +32,7 @@ export function ProjectMapEditor({
   const [locationInput, setLocationInput] = useState("");
   const [form, setForm] = useState({
     siteAddress: siteAddress ?? "",
+    siteDirectionsNote: siteDirectionsNote ?? "",
     mapLatitude: mapLatitude?.toString() ?? "",
     mapLongitude: mapLongitude?.toString() ?? "",
     mapZoom: mapZoom?.toString() ?? "17",
@@ -45,10 +48,21 @@ export function ProjectMapEditor({
           previewZoom ?? 17,
         )}/${previewLatitude}/${previewLongitude}`
       : null;
+  // Uses coordinates when available (most precise), falls back to the
+  // address text otherwise. This is a plain https link, so it works the
+  // same everywhere: opens the Google Maps app if installed (iOS/Android),
+  // otherwise Google Maps in the browser - the OS decides, not us.
+  const directionsHref =
+    mapLatitude !== null && mapLongitude !== null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${mapLatitude},${mapLongitude}`
+      : siteAddress
+        ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(siteAddress)}`
+        : null;
 
   function resetForm() {
     setForm({
       siteAddress: siteAddress ?? "",
+      siteDirectionsNote: siteDirectionsNote ?? "",
       mapLatitude: mapLatitude?.toString() ?? "",
       mapLongitude: mapLongitude?.toString() ?? "",
       mapZoom: mapZoom?.toString() ?? "17",
@@ -156,18 +170,39 @@ export function ProjectMapEditor({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm font-semibold text-gray-900">
           Kartenausschnitt
         </div>
-        <button
-          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-          onClick={() => setIsEditing((current) => !current)}
-          type="button"
-        >
-          {isEditing ? "Bearbeitung schließen" : "Karte bearbeiten"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {directionsHref ? (
+            <a
+              className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+              href={directionsHref}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Route zur Baustelle öffnen
+            </a>
+          ) : null}
+          <button
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+            onClick={() => setIsEditing((current) => !current)}
+            type="button"
+          >
+            {isEditing ? "Bearbeitung schließen" : "Karte bearbeiten"}
+          </button>
+        </div>
       </div>
+
+      {!isEditing && siteDirectionsNote ? (
+        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Wegbeschreibung
+          </p>
+          <p className="mt-1 whitespace-pre-line">{siteDirectionsNote}</p>
+        </div>
+      ) : null}
 
       <ProjectMap
         address={isEditing ? form.siteAddress : siteAddress}
@@ -236,6 +271,28 @@ export function ProjectMapEditor({
                   Gefunden: {addressSearchResult}
                 </p>
               ) : null}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Wegbeschreibung
+              </label>
+              <p className="mt-1 text-xs text-gray-500">
+                Freitext für Details, die eine Adresse nicht abdeckt, z. B.
+                Zufahrt über Feldweg, Tor-Code, Ansprechpartner vor Ort.
+              </p>
+              <textarea
+                className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    siteDirectionsNote: event.target.value,
+                  }))
+                }
+                placeholder="z. B. Zufahrt über den Feldweg hinter der Scheune, Tor-Code 1234"
+                rows={3}
+                value={form.siteDirectionsNote}
+              />
             </div>
 
             <div>

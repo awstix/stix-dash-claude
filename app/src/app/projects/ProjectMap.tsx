@@ -19,6 +19,40 @@ type MapView = {
   zoom: number;
 };
 
+type SiteMarkerType = "ZUFAHRT" | "AUSFAHRT" | "ZUFAHRT_AUSFAHRT" | "BELADEFLAECHE";
+
+type SiteMarker = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  rotationDegrees: number;
+  type: SiteMarkerType;
+};
+
+type EditMode = "boundary" | SiteMarkerType;
+
+const SITE_MARKER_LABELS: Record<SiteMarkerType, string> = {
+  AUSFAHRT: "Ausfahrt",
+  BELADEFLAECHE: "Beladefläche",
+  ZUFAHRT: "Zufahrt",
+  ZUFAHRT_AUSFAHRT: "Zufahrt & Ausfahrt",
+};
+
+const SITE_MARKER_COLORS: Record<SiteMarkerType, string> = {
+  AUSFAHRT: "#dc2626",
+  BELADEFLAECHE: "#b45309",
+  ZUFAHRT: "#16a34a",
+  ZUFAHRT_AUSFAHRT: "#7c3aed",
+};
+
+const EDIT_MODE_OPTIONS: { label: string; mode: EditMode }[] = [
+  { label: "Baufeld-Punkt", mode: "boundary" },
+  { label: "Zufahrt", mode: "ZUFAHRT" },
+  { label: "Ausfahrt", mode: "AUSFAHRT" },
+  { label: "Zufahrt & Ausfahrt", mode: "ZUFAHRT_AUSFAHRT" },
+  { label: "Beladefläche", mode: "BELADEFLAECHE" },
+];
+
 type ProjectMapProps = {
   address?: string | null;
   boundaryGeoJson?: string | null;
@@ -61,6 +95,21 @@ export function ProjectMap({
     width: DEFAULT_MAP_WIDTH,
   });
   const [selectedMarkerIndex, setSelectedMarkerIndex] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState<EditMode>("boundary");
+  const [selectedSiteMarkerId, setSelectedSiteMarkerId] = useState<string | null>(null);
+  const [wasEditable, setWasEditable] = useState(editable);
+
+  // Reset the marker-drawing mode/selection when leaving edit mode - done
+  // during render (comparing against the previous editable value) rather
+  // than in an effect, so it doesn't trigger an extra render pass.
+  if (editable !== wasEditable) {
+    setWasEditable(editable);
+    if (!editable) {
+      setEditMode("boundary");
+      setSelectedSiteMarkerId(null);
+    }
+  }
+
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [popupPlacement, setPopupPlacement] = useState<{ left: number; top: number } | null>(null);
   const boundaryRef = useRef(boundaryGeoJson ?? "");
@@ -171,6 +220,14 @@ export function ProjectMap({
         origin,
       ),
     }));
+    const siteMarkerPoints = boundary.siteMarkers.map((marker) => ({
+      ...marker,
+      point: lngLatToMapPoint(
+        [marker.longitude, marker.latitude],
+        normalizedZoom,
+        origin,
+      ),
+    }));
 
     return {
       editPoints,
@@ -178,6 +235,7 @@ export function ProjectMap({
       markerPoints,
       origin,
       rings,
+      siteMarkerPoints,
       tiles,
     };
   }, [
@@ -194,6 +252,10 @@ export function ProjectMap({
   const selectedMarker =
     selectedMarkerIndex !== null
       ? mapData?.markerPoints[selectedMarkerIndex] ?? null
+      : null;
+  const selectedSiteMarker =
+    selectedSiteMarkerId !== null
+      ? mapData?.siteMarkerPoints.find((marker) => marker.id === selectedSiteMarkerId) ?? null
       : null;
 
   useLayoutEffect(() => {
@@ -230,14 +292,32 @@ export function ProjectMap({
       normalizedZoom,
       mapData.origin,
     );
-    const currentPoints = parseBoundaryGeoJson(boundaryRef.current).editPoints;
-    const nextBoundaryGeoJson = createBoundaryGeoJson([
-      ...currentPoints,
-      newPoint,
-    ]);
+    const current = parseBoundaryGeoJson(boundaryRef.current);
 
+    if (editMode === "boundary") {
+      const nextBoundaryGeoJson = createBoundaryGeoJson(
+        [...current.editPoints, newPoint],
+        current.siteMarkers,
+      );
+      boundaryRef.current = nextBoundaryGeoJson;
+      onBoundaryChange(nextBoundaryGeoJson);
+      return;
+    }
+
+    const newMarker: SiteMarker = {
+      id: createMarkerId(),
+      latitude: newPoint[1],
+      longitude: newPoint[0],
+      rotationDegrees: 0,
+      type: editMode,
+    };
+    const nextBoundaryGeoJson = createBoundaryGeoJson(current.editPoints, [
+      ...current.siteMarkers,
+      newMarker,
+    ]);
     boundaryRef.current = nextBoundaryGeoJson;
     onBoundaryChange(nextBoundaryGeoJson);
+    setSelectedSiteMarkerId(newMarker.id);
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -314,9 +394,10 @@ export function ProjectMap({
   function removeLastPoint() {
     if (!onBoundaryChange) return;
 
-    const currentPoints = parseBoundaryGeoJson(boundaryRef.current).editPoints;
+    const current = parseBoundaryGeoJson(boundaryRef.current);
     const nextBoundaryGeoJson = createBoundaryGeoJson(
-      currentPoints.slice(0, -1),
+      current.editPoints.slice(0, -1),
+      current.siteMarkers,
     );
 
     boundaryRef.current = nextBoundaryGeoJson;
@@ -324,8 +405,40 @@ export function ProjectMap({
   }
 
   function clearBoundary() {
-    boundaryRef.current = "";
-    onBoundaryChange?.("");
+    if (!onBoundaryChange) return;
+
+    const current = parseBoundaryGeoJson(boundaryRef.current);
+    const nextBoundaryGeoJson = createBoundaryGeoJson([], current.siteMarkers);
+
+    boundaryRef.current = nextBoundaryGeoJson;
+    onBoundaryChange(nextBoundaryGeoJson);
+  }
+
+  function updateSiteMarkerRotation(id: string, rotationDegrees: number) {
+    if (!onBoundaryChange) return;
+
+    const current = parseBoundaryGeoJson(boundaryRef.current);
+    const nextMarkers = current.siteMarkers.map((marker) =>
+      marker.id === id
+        ? { ...marker, rotationDegrees: normalizeRotation(rotationDegrees) }
+        : marker,
+    );
+    const nextBoundaryGeoJson = createBoundaryGeoJson(current.editPoints, nextMarkers);
+
+    boundaryRef.current = nextBoundaryGeoJson;
+    onBoundaryChange(nextBoundaryGeoJson);
+  }
+
+  function removeSiteMarker(id: string) {
+    if (!onBoundaryChange) return;
+
+    const current = parseBoundaryGeoJson(boundaryRef.current);
+    const nextMarkers = current.siteMarkers.filter((marker) => marker.id !== id);
+    const nextBoundaryGeoJson = createBoundaryGeoJson(current.editPoints, nextMarkers);
+
+    boundaryRef.current = nextBoundaryGeoJson;
+    onBoundaryChange(nextBoundaryGeoJson);
+    setSelectedSiteMarkerId(null);
   }
 
   const editPointCount = parseBoundaryGeoJson(boundaryGeoJson).editPoints.length;
@@ -420,6 +533,69 @@ export function ProjectMap({
                 />
               ))
             : null}
+
+          {mapData.siteMarkerPoints.map((marker) => {
+            const isArrow = marker.type !== "BELADEFLAECHE";
+            const color = SITE_MARKER_COLORS[marker.type];
+            const isSelected = marker.id === selectedSiteMarkerId;
+
+            return (
+              <g
+                className={editable ? "cursor-pointer" : ""}
+                data-map-marker="true"
+                key={marker.id}
+                onClick={(event) => {
+                  if (!editable) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSelectedSiteMarkerId(marker.id);
+                }}
+                pointerEvents={editable ? "auto" : "none"}
+                transform={`translate(${marker.point.x},${marker.point.y}) rotate(${
+                  isArrow ? marker.rotationDegrees : 0
+                })`}
+              >
+                {isSelected ? (
+                  <circle
+                    fill="none"
+                    r={16}
+                    stroke={color}
+                    strokeDasharray="3 3"
+                    strokeWidth={2}
+                  />
+                ) : null}
+                {marker.type === "BELADEFLAECHE" ? (
+                  <rect
+                    fill={color}
+                    height={18}
+                    rx={4}
+                    stroke="white"
+                    strokeWidth={2}
+                    width={18}
+                    x={-9}
+                    y={-9}
+                  />
+                ) : marker.type === "ZUFAHRT_AUSFAHRT" ? (
+                  <path
+                    d="M 0 -14 L 8 -2 L 3 -2 L 3 2 L 8 2 L 0 14 L -8 2 L -3 2 L -3 -2 L -8 -2 Z"
+                    fill={color}
+                    stroke="white"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <path
+                    d="M 0 -14 L 8 2 L 3 2 L 3 12 L -3 12 L -3 2 L -8 2 Z"
+                    fill={color}
+                    stroke="white"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
+                )}
+              </g>
+            );
+          })}
+
           {mapData.markerPoints.map((marker, index) => (
             <g
               className="cursor-pointer"
@@ -556,31 +732,93 @@ export function ProjectMap({
         : null}
 
       {editable ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-          <span className="font-semibold text-gray-800">
-            Baufeldpunkte: {editPointCount}
-          </span>
-          {onViewChange ? (
-            <span className="text-gray-500">
-              Karte ziehen zum Verschieben, klicken zum Baufeld setzen
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-700">Modus:</span>
+            {EDIT_MODE_OPTIONS.map((option) => (
+              <button
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                  editMode === option.mode
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+                key={option.mode}
+                onClick={() => {
+                  setEditMode(option.mode);
+                  setSelectedSiteMarkerId(null);
+                }}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            <span className="font-semibold text-gray-800">
+              Baufeldpunkte: {editPointCount}
             </span>
+            <span className="text-gray-500">
+              {editMode === "boundary"
+                ? "Karte ziehen zum Verschieben, klicken zum Baufeld setzen"
+                : `Karte ziehen zum Verschieben, klicken zum Setzen von „${SITE_MARKER_LABELS[editMode]}“`}
+            </span>
+            <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              disabled={editPointCount === 0}
+              onClick={removeLastPoint}
+              type="button"
+            >
+              Punkt zurück
+            </button>
+            <button
+              className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              disabled={editPointCount === 0}
+              onClick={clearBoundary}
+              type="button"
+            >
+              Baufeld löschen
+            </button>
+          </div>
+
+          {selectedSiteMarker ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: SITE_MARKER_COLORS[selectedSiteMarker.type] }}
+                >
+                  {SITE_MARKER_LABELS[selectedSiteMarker.type]}
+                </span>
+                <button
+                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                  onClick={() => removeSiteMarker(selectedSiteMarker.id)}
+                  type="button"
+                >
+                  Löschen
+                </button>
+              </div>
+              {selectedSiteMarker.type !== "BELADEFLAECHE" ? (
+                <label className="mt-2 block text-xs font-semibold text-gray-700">
+                  Richtung ({Math.round(selectedSiteMarker.rotationDegrees)}°)
+                  <input
+                    className="mt-1 w-full"
+                    max={359}
+                    min={0}
+                    onChange={(event) =>
+                      updateSiteMarkerRotation(
+                        selectedSiteMarker.id,
+                        Number(event.target.value),
+                      )
+                    }
+                    step={5}
+                    type="range"
+                    value={selectedSiteMarker.rotationDegrees}
+                  />
+                </label>
+              ) : null}
+            </div>
           ) : null}
-          <button
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            disabled={editPointCount === 0}
-            onClick={removeLastPoint}
-            type="button"
-          >
-            Punkt zurück
-          </button>
-          <button
-            className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-            disabled={editPointCount === 0}
-            onClick={clearBoundary}
-            type="button"
-          >
-            Baufeld löschen
-          </button>
         </div>
       ) : null}
     </div>
@@ -658,22 +896,44 @@ function roundCoordinate(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
 
+function normalizeRotation(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return ((Math.round(value) % 360) + 360) % 360;
+}
+
+function createMarkerId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `marker-${Math.random().toString(36).slice(2)}`;
+}
+
+function isSiteMarkerType(value: unknown): value is SiteMarkerType {
+  return (
+    value === "ZUFAHRT" ||
+    value === "AUSFAHRT" ||
+    value === "ZUFAHRT_AUSFAHRT" ||
+    value === "BELADEFLAECHE"
+  );
+}
+
 function parseBoundaryGeoJson(value: string | null | undefined): {
   editPoints: Coordinate[];
   lines: Coordinate[][];
   rings: Coordinate[][];
+  siteMarkers: SiteMarker[];
 } {
   if (!value?.trim()) {
-    return { editPoints: [], lines: [], rings: [] };
+    return { editPoints: [], lines: [], rings: [], siteMarkers: [] };
   }
 
   try {
     const parsed = JSON.parse(value) as unknown;
-    const geometries = collectGeometries(parsed);
+    const features = collectFeatures(parsed);
     const rings: Coordinate[][] = [];
     const lines: Coordinate[][] = [];
+    const siteMarkers: SiteMarker[] = [];
 
-    for (const geometry of geometries) {
+    for (const { geometry, properties } of features) {
       if (!isRecord(geometry) || typeof geometry.type !== "string") continue;
 
       if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates)) {
@@ -704,31 +964,52 @@ function parseBoundaryGeoJson(value: string | null | undefined): {
           lines.push(line);
         }
       }
+
+      if (
+        geometry.type === "Point" &&
+        properties.kind === "site-marker" &&
+        isSiteMarkerType(properties.markerType)
+      ) {
+        const point = normalizeCoordinate(geometry.coordinates);
+        if (point) {
+          siteMarkers.push({
+            id: typeof properties.id === "string" ? properties.id : createMarkerId(),
+            latitude: point[1],
+            longitude: point[0],
+            rotationDegrees: normalizeRotation(Number(properties.rotationDegrees)),
+            type: properties.markerType,
+          });
+        }
+      }
     }
 
     return {
       editPoints: getEditPoints(rings, lines),
       lines,
       rings,
+      siteMarkers,
     };
   } catch {
-    return { editPoints: [], lines: [], rings: [] };
+    return { editPoints: [], lines: [], rings: [], siteMarkers: [] };
   }
 }
 
-function collectGeometries(value: unknown): unknown[] {
+function collectFeatures(
+  value: unknown,
+): Array<{ geometry: unknown; properties: Record<string, unknown> }> {
   if (!isRecord(value)) return [];
 
   if (value.type === "FeatureCollection" && Array.isArray(value.features)) {
-    return value.features.flatMap((feature) => collectGeometries(feature));
+    return value.features.flatMap((feature) => collectFeatures(feature));
   }
 
   if (value.type === "Feature" && "geometry" in value) {
-    return collectGeometries(value.geometry);
+    const properties = isRecord(value.properties) ? value.properties : {};
+    return [{ geometry: value.geometry, properties }];
   }
 
   if (typeof value.type === "string" && "coordinates" in value) {
-    return [value];
+    return [{ geometry: value, properties: {} }];
   }
 
   return [];
@@ -775,13 +1056,11 @@ function getEditPoints(rings: Coordinate[][], lines: Coordinate[][]) {
   return [];
 }
 
-function createBoundaryGeoJson(points: Coordinate[]) {
-  if (points.length === 0) {
-    return "";
-  }
+function createBoundaryGeoJson(points: Coordinate[], siteMarkers: SiteMarker[] = []) {
+  const features: Record<string, unknown>[] = [];
 
-  if (points.length < 3) {
-    return JSON.stringify({
+  if (points.length === 1 || points.length === 2) {
+    features.push({
       type: "Feature",
       properties: {
         name: "Baufeld",
@@ -791,17 +1070,42 @@ function createBoundaryGeoJson(points: Coordinate[]) {
         coordinates: points,
       },
     });
+  } else if (points.length >= 3) {
+    features.push({
+      type: "Feature",
+      properties: {
+        name: "Baufeld",
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[...points, points[0]]],
+      },
+    });
+  }
+
+  for (const marker of siteMarkers) {
+    features.push({
+      type: "Feature",
+      properties: {
+        id: marker.id,
+        kind: "site-marker",
+        markerType: marker.type,
+        rotationDegrees: marker.rotationDegrees,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [marker.longitude, marker.latitude],
+      },
+    });
+  }
+
+  if (features.length === 0) {
+    return "";
   }
 
   return JSON.stringify({
-    type: "Feature",
-    properties: {
-      name: "Baufeld",
-    },
-    geometry: {
-      type: "Polygon",
-      coordinates: [[...points, points[0]]],
-    },
+    type: "FeatureCollection",
+    features,
   });
 }
 

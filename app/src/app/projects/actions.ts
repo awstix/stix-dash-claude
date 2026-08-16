@@ -133,6 +133,7 @@ function timeReminderOverrideData(input: ProjectFormInput) {
 export type ProjectMapInput = {
   id: string;
   siteAddress: string;
+  siteDirectionsNote: string;
   mapLatitude: string;
   mapLongitude: string;
   mapZoom: string;
@@ -616,12 +617,15 @@ export async function updateProjectMap(input: ProjectMapInput) {
     throw new Error("Projekt-ID fehlt.");
   }
 
+  await requireProjectAccess(input.id);
+
   await prisma.project.update({
     where: {
       id: input.id,
     },
     data: {
       siteAddress: input.siteAddress || null,
+      siteDirectionsNote: input.siteDirectionsNote || null,
       mapLatitude: cleanOptionalFloat(input.mapLatitude),
       mapLongitude: cleanOptionalFloat(input.mapLongitude),
       mapZoom: cleanOptionalInt(input.mapZoom),
