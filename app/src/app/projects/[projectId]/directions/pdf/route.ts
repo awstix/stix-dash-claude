@@ -13,6 +13,12 @@ import {
   loadFormPdfFonts,
   normalizeFormPdfCompany,
 } from "@/lib/formPdf";
+import {
+  renderSiteMapImage,
+  SITE_MARKER_COLORS,
+  SITE_MARKER_LABELS,
+  type SiteMarkerType,
+} from "@/lib/site-map-image";
 
 export const runtime = "nodejs";
 
@@ -22,6 +28,7 @@ const MARGIN = 48;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const HEADER_HEIGHT = 90;
 const FOOTER_RESERVED = 40;
+const MAP_DISPLAY_HEIGHT = 260;
 
 const textColor = rgb(0.08, 0.08, 0.08);
 const mutedColor = rgb(0.38, 0.4, 0.44);
@@ -43,9 +50,11 @@ export async function GET(
       constructionManagersJson: true,
       mapLatitude: true,
       mapLongitude: true,
+      mapZoom: true,
       name: true,
       projectNumber: true,
       siteAddress: true,
+      siteBoundaryGeoJson: true,
       siteContactsJson: true,
       siteDirectionsNote: true,
     },
@@ -115,6 +124,15 @@ export async function GET(
       ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(project.siteAddress)}`
       : null;
 
+  const mapImagePromise = renderSiteMapImage({
+    boundaryGeoJson: project.siteBoundaryGeoJson,
+    height: Math.round(MAP_DISPLAY_HEIGHT * 2),
+    latitude: project.mapLatitude,
+    longitude: project.mapLongitude,
+    width: Math.round(CONTENT_WIDTH * 2),
+    zoom: project.mapZoom,
+  });
+
   const pdfDoc = await PDFDocument.create();
   const { bold, regular } = await loadFormPdfFonts(pdfDoc);
   const companyLogo = await embedCompanyLogo(pdfDoc, companyInfo.logoPublicUrl);
@@ -181,29 +199,95 @@ export async function GET(
 
   y -= 6;
 
-  // Kontaktpersonen (Bauleiter + Kontaktpersonen), two per row
-  const boxGap = 14;
-  const boxWidth = (CONTENT_WIDTH - boxGap) / 2;
-  const boxHeight = 62;
-  for (let index = 0; index < contactBoxes.length; index += 2) {
-    ensureSpace(boxHeight + 12);
-    const row = contactBoxes.slice(index, index + 2);
-    row.forEach((contact, columnIndex) => {
-      drawContactBox(page, {
-        boldFont: bold,
-        font: regular,
-        height: boxHeight,
-        label: contact.label,
-        name: contact.name,
-        phone: contact.phone,
-        width: boxWidth,
-        x: MARGIN + columnIndex * (boxWidth + boxGap),
-        y: y - boxHeight,
-      });
+  // Kontaktpersonen (Bauleiter + Kontaktpersonen), compact - stacked
+  const contactRowHeight = 30;
+  const contactRowGap = 6;
+  for (const contact of contactBoxes) {
+    ensureSpace(contactRowHeight + contactRowGap);
+    drawContactRow(page, {
+      boldFont: bold,
+      font: regular,
+      height: contactRowHeight,
+      label: contact.label,
+      name: contact.name,
+      phone: contact.phone,
+      width: CONTENT_WIDTH,
+      x: MARGIN,
+      y: y - contactRowHeight,
     });
-    y -= boxHeight + 12;
+    y -= contactRowHeight + contactRowGap;
   }
   y -= 14;
+
+  // Kartenausschnitt mit Symbolen + Legende
+  const mapImage = await mapImagePromise;
+  if (mapImage) {
+    ensureSpace(MAP_DISPLAY_HEIGHT + 44);
+    page.drawText("Kartenausschnitt", {
+      color: mutedColor,
+      font: bold,
+      size: 8.5,
+      x: MARGIN,
+      y,
+    });
+    y -= 14;
+    const mapPdfImage = await pdfDoc.embedPng(mapImage.png);
+    page.drawRectangle({
+      borderColor: lineColor,
+      borderWidth: 0.8,
+      height: MAP_DISPLAY_HEIGHT,
+      width: CONTENT_WIDTH,
+      x: MARGIN,
+      y: y - MAP_DISPLAY_HEIGHT,
+    });
+    page.drawImage(mapPdfImage, {
+      height: MAP_DISPLAY_HEIGHT,
+      width: CONTENT_WIDTH,
+      x: MARGIN,
+      y: y - MAP_DISPLAY_HEIGHT,
+    });
+    y -= MAP_DISPLAY_HEIGHT + 10;
+
+    // Legende: Baufeld + alle Symboltypen
+    const legendEntries: { color: string; label: string }[] = [
+      { color: "#ea580c", label: "Baufeld" },
+      ...(Object.keys(SITE_MARKER_LABELS) as SiteMarkerType[]).map((type) => ({
+        color: SITE_MARKER_COLORS[type],
+        label: SITE_MARKER_LABELS[type],
+      })),
+    ];
+    ensureSpace(34);
+    let legendX = MARGIN;
+    let legendY = y - 9;
+    legendEntries.forEach((entry) => {
+      const labelWidth = regular.widthOfTextAtSize(entry.label, 8.5);
+      const entryWidth = 13 + labelWidth + 16;
+      if (legendX + entryWidth - 16 > MARGIN + CONTENT_WIDTH) {
+        legendX = MARGIN;
+        legendY -= 16;
+      }
+      page.drawRectangle({
+        color: rgb(
+          parseInt(entry.color.slice(1, 3), 16) / 255,
+          parseInt(entry.color.slice(3, 5), 16) / 255,
+          parseInt(entry.color.slice(5, 7), 16) / 255,
+        ),
+        height: 9,
+        width: 9,
+        x: legendX,
+        y: legendY,
+      });
+      page.drawText(entry.label, {
+        color: mutedColor,
+        font: regular,
+        size: 8.5,
+        x: legendX + 13,
+        y: legendY + 1,
+      });
+      legendX += entryWidth;
+    });
+    y = legendY - 16;
+  }
 
   // Wegbeschreibung
   if (project.siteDirectionsNote) {
@@ -354,7 +438,7 @@ function drawLine(page: PDFPage, y: number) {
   });
 }
 
-function drawContactBox(
+function drawContactRow(
   page: PDFPage,
   box: {
     x: number;
@@ -377,35 +461,33 @@ function drawContactBox(
     x: box.x,
     y: box.y,
   });
-  page.drawText(box.label, {
-    color: mutedColor,
-    font: box.boldFont,
-    size: 8,
-    x: box.x + 10,
-    y: box.y + box.height - 16,
-  });
-  page.drawText(box.name ?? "Nicht hinterlegt", {
+  const textY = box.y + box.height / 2 - 3.5;
+  const name = box.name ?? "Nicht hinterlegt";
+  page.drawText(name, {
     color: textColor,
     font: box.boldFont,
-    size: 11,
+    size: 10.5,
     x: box.x + 10,
-    y: box.y + box.height - 33,
+    y: textY,
   });
-  if (box.phone) {
-    page.drawText(box.phone, {
-      color: accentColor,
+  const nameWidth = box.boldFont.widthOfTextAtSize(name, 10.5);
+  const labelText = `  ·  ${box.label}`;
+  page.drawText(labelText, {
+    color: mutedColor,
+    font: box.font,
+    size: 8.5,
+    x: box.x + 10 + nameWidth,
+    y: textY + 1,
+  });
+  const phoneText = box.phone ?? (box.name ? "Keine Handynummer hinterlegt" : "");
+  if (phoneText) {
+    const phoneWidth = box.font.widthOfTextAtSize(phoneText, 9);
+    page.drawText(phoneText, {
+      color: box.phone ? accentColor : mutedColor,
       font: box.font,
-      size: 10,
-      x: box.x + 10,
-      y: box.y + box.height - 48,
-    });
-  } else if (box.name) {
-    page.drawText("Keine Handynummer hinterlegt", {
-      color: mutedColor,
-      font: box.font,
-      size: 8.5,
-      x: box.x + 10,
-      y: box.y + box.height - 48,
+      size: 9,
+      x: box.x + box.width - 10 - phoneWidth,
+      y: textY,
     });
   }
 }
