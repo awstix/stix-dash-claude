@@ -10,6 +10,32 @@ export async function requireSession() {
   return session;
 }
 
+/** Current user's display name for "who did this" attribution (audit
+ * trails, PDF footers, sent-email records) - prefers the linked
+ * employee's name, then falls back to the account name/email. */
+export async function resolveActorName() {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      name: true,
+    },
+    where: { id: session.user.id },
+  });
+  return (
+    (user?.employee
+      ? `${user.employee.firstName} ${user.employee.lastName}`
+      : user?.name) ||
+    session.user.name ||
+    session.user.email
+  );
+}
+
 export async function requireAdmin() {
   const session = await requireSession();
   const roles = String(session.user.role ?? "")

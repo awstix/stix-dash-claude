@@ -7,11 +7,14 @@ import { revalidatePath } from "next/cache";
 import { ProjectStatus, type Prisma } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
+import { buildDirectionsPdf } from "@/lib/directions-pdf";
+import { sendEmail } from "@/lib/mailer";
 import { deleteFile, getPublicUrl, moveFile, putFile } from "@/lib/storage";
 import {
   requireProjectAccess,
   requireProjectContentDeleteOwnership,
   requireSession,
+  resolveActorName,
 } from "@/lib/auth-access";
 import {
   parseSiteContactsJson,
@@ -649,6 +652,77 @@ export async function updateProjectMap(input: ProjectMapInput) {
   });
 
   revalidateProjectViews(input.id);
+}
+
+export type SendDirectionsPdfEmailInput = {
+  message: string;
+  projectId: string;
+  recipients: string;
+};
+
+function parseEmailRecipients(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,;\n]/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.includes("@")),
+    ),
+  );
+}
+
+export async function sendDirectionsPdfEmail(input: SendDirectionsPdfEmailInput) {
+  await requireProjectAccess(input.projectId);
+  const actorName = await resolveActorName();
+
+  const recipients = parseEmailRecipients(input.recipients);
+  if (!recipients.length) {
+    throw new Error("Bitte mindestens eine gültige E-Mail-Adresse angeben.");
+  }
+
+  const result = await buildDirectionsPdf(input.projectId, actorName);
+  if (!result) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  const message = input.message.trim();
+  const introLine = `${actorName ?? "Jemand"} hat dir die Wegbeschreibung zur Baustelle ${result.projectLabel} geschickt.`;
+  const textBody = [introLine, message].filter(Boolean).join("\n\n");
+  const htmlBody = [
+    `<p>${escapeHtml(introLine)}</p>`,
+    message ? `<p>${escapeHtml(message).replaceAll("\n", "<br />")}</p>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  await Promise.all(
+    recipients.map((recipient) =>
+      sendEmail({
+        attachments: [
+          {
+            content: Buffer.from(result.bytes),
+            contentType: "application/pdf",
+            filename: result.fileName,
+          },
+        ],
+        html: htmlBody,
+        subject: `Wegbeschreibung zur Baustelle · ${result.projectLabel}`,
+        text: textBody,
+        to: recipient,
+      }),
+    ),
+  );
+
+  return { sentTo: recipients };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 export async function createProjectNote(input: ProjectNoteInput) {
@@ -3303,23 +3377,9 @@ async function getNextProjectDocumentFolderSortOrder(projectId: string) {
 }
 
 async function getProjectActor() {
-  const session = await requireSession();
-  const user = await prisma.user.findUnique({
-    select: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-      name: true,
-    },
-    where: { id: session.user.id },
-  });
+  const [session, name] = await Promise.all([requireSession(), resolveActorName()]);
   return {
-    name: user?.employee
-      ? `${user.employee.firstName} ${user.employee.lastName}`
-      : user?.name || session.user.name || session.user.email,
+    name,
     userId: session.user.id,
   };
 }

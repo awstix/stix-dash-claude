@@ -159,25 +159,6 @@ function lngLatToPixel(lng: number, lat: number, zoom: number) {
   };
 }
 
-function escapeXml(value: string) {
-  return value.replace(/[<>&'"]/g, (char) => {
-    switch (char) {
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case "&":
-        return "&amp;";
-      case "'":
-        return "&apos;";
-      case '"':
-        return "&quot;";
-      default:
-        return char;
-    }
-  });
-}
-
 function markerShapeSvg(type: SiteMarkerType, color: string) {
   if (type === "BAUSTELLENEINRICHTUNG") {
     return `<rect x="-9" y="-9" width="18" height="18" rx="4" fill="${color}" stroke="white" stroke-width="2" />`;
@@ -317,13 +298,14 @@ export async function renderSiteMapImage(input: {
     );
   }
 
+  // Deliberately no <text> here: sharp/librsvg has no reliable system font
+  // in the serverless runtime, so any text baked into this raster renders
+  // as solid boxes instead of glyphs. The "© OpenStreetMap" attribution
+  // is drawn separately as real PDF text by the caller (pdf-lib's embedded
+  // font doesn't have this problem).
   const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${input.width}" height="${input.height}">${svgParts.join(
     "",
-  )}<rect x="0" y="${input.height - 16}" width="190" height="16" fill="rgba(255,255,255,0.78)" /><text x="4" y="${
-    input.height - 5
-  }" font-family="sans-serif" font-size="9" fill="#111827">${escapeXml(
-    "© OpenStreetMap-Mitwirkende",
-  )}</text></svg>`;
+  )}</svg>`;
 
   const png = await sharp({
     create: {

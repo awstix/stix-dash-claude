@@ -1028,6 +1028,7 @@ export default async function ProjectDetailPage({
               mapLongitude={project.mapLongitude}
               mapZoom={project.mapZoom}
               projectId={project.id}
+              projectLabel={`${project.projectNumber} · ${project.name}`}
               siteAddress={project.siteAddress}
               siteBoundaryGeoJson={project.siteBoundaryGeoJson}
               siteContactOptions={siteContactOptions}

@@ -34,11 +34,13 @@ function buildTransport(
  * /admin/email-settings). Throws if email isn't configured or the send
  * fails - callers decide whether that should block the calling action. */
 export async function sendEmail({
+  attachments,
   html,
   subject,
   text,
   to,
 }: {
+  attachments?: { content: Buffer; contentType: string; filename: string }[];
   html: string;
   subject: string;
   text: string;
@@ -57,6 +59,7 @@ export async function sendEmail({
     : settings.fromAddress;
 
   await transport.sendMail({
+    attachments,
     from: fromHeader,
     html,
     subject,
