@@ -1,17 +1,18 @@
 import { NextRequest } from "next/server";
-import {
-  PDFDocument,
-  PDFString,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFPage,
-} from "pdf-lib";
+import { PDFDocument, PDFString, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { requireProjectAccess } from "@/lib/auth-access";
-import { parseConstructionManagersJson } from "@/lib/construction-managers";
-import { normalizeFormPdfCompany } from "@/lib/formPdf";
+import {
+  parseConstructionManagersJson,
+  parseSiteContactsJson,
+} from "@/lib/construction-managers";
+import {
+  drawCompanyHeader,
+  embedCompanyLogo,
+  loadFormPdfFonts,
+  normalizeFormPdfCompany,
+} from "@/lib/formPdf";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,8 @@ const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 48;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const HEADER_HEIGHT = 90;
+const FOOTER_RESERVED = 40;
 
 const textColor = rgb(0.08, 0.08, 0.08);
 const mutedColor = rgb(0.38, 0.4, 0.44);
@@ -43,8 +46,8 @@ export async function GET(
       name: true,
       projectNumber: true,
       siteAddress: true,
+      siteContactsJson: true,
       siteDirectionsNote: true,
-      siteForemanEmployeeId: true,
     },
   });
 
@@ -60,23 +63,50 @@ export async function GET(
     (project.constructionManager
       ? { employeeId: null, name: project.constructionManager }
       : null);
+  const siteContacts = parseSiteContactsJson(project.siteContactsJson);
 
-  const [foreman, managerEmployee, companyInfoRow] = await Promise.all([
-    project.siteForemanEmployeeId
-      ? prisma.employee.findUnique({
-          where: { id: project.siteForemanEmployeeId },
-          select: { firstName: true, lastName: true, mobilePhone: true },
-        })
-      : null,
+  const [managerEmployee, siteContactEmployees, companyInfoRow] = await Promise.all([
     primaryManager?.employeeId
       ? prisma.employee.findUnique({
           where: { id: primaryManager.employeeId },
           select: { mobilePhone: true },
         })
       : null,
+    siteContacts.length
+      ? prisma.employee.findMany({
+          include: {
+            positions: {
+              orderBy: [{ sortOrder: "asc" }, { positionLabel: "asc" }],
+            },
+          },
+          where: { id: { in: siteContacts.map((contact) => contact.employeeId) } },
+        })
+      : [],
     prisma.companyInfo.findUnique({ where: { id: "default" } }),
   ]);
   const companyInfo = normalizeFormPdfCompany(companyInfoRow);
+  const siteContactEmployeeById = new Map(
+    siteContactEmployees.map((employee) => [employee.id, employee]),
+  );
+
+  const contactBoxes: { label: string; name: string | null; phone: string | null }[] = [
+    {
+      label: "Zuständiger Bauleiter",
+      name: primaryManager?.name ?? null,
+      phone: managerEmployee?.mobilePhone ?? null,
+    },
+    ...siteContacts.map((contact) => {
+      const employee = siteContactEmployeeById.get(contact.employeeId);
+      const positionsLabel = employee?.positions
+        .map((position) => position.positionLabel)
+        .join(", ");
+      return {
+        label: positionsLabel || "Kontaktperson",
+        name: contact.name,
+        phone: employee?.mobilePhone ?? null,
+      };
+    }),
+  ];
 
   const hasCoordinates = project.mapLatitude !== null && project.mapLongitude !== null;
   const directionsUrl = hasCoordinates
@@ -86,39 +116,25 @@ export async function GET(
       : null;
 
   const pdfDoc = await PDFDocument.create();
-  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - MARGIN;
+  const { bold, regular } = await loadFormPdfFonts(pdfDoc);
+  const companyLogo = await embedCompanyLogo(pdfDoc, companyInfo.logoPublicUrl);
 
-  // Company header
-  page.drawText(companyInfo.companyName, {
-    color: textColor,
-    font: bold,
-    size: 12,
-    x: MARGIN,
-    y,
-  });
-  const companyLine = [
-    [companyInfo.street, [companyInfo.postalCode, companyInfo.city].filter(Boolean).join(" ")]
-      .filter(Boolean)
-      .join(" · "),
-    companyInfo.phone,
-  ]
-    .filter(Boolean)
-    .join("  ·  ");
-  if (companyLine) {
-    page.drawText(companyLine, {
-      color: mutedColor,
-      font: regular,
-      size: 8,
-      x: MARGIN,
-      y: y - 13,
-    });
+  let page = addPage();
+  let y = PAGE_HEIGHT - MARGIN - HEADER_HEIGHT;
+
+  function addPage() {
+    const nextPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawCompanyHeader(nextPage, bold, regular, MARGIN, PAGE_WIDTH, companyInfo, companyLogo);
+    drawLine(nextPage, PAGE_HEIGHT - MARGIN - HEADER_HEIGHT + 22);
+    return nextPage;
   }
-  y -= 34;
-  drawLine(page, y);
-  y -= 26;
+
+  function ensureSpace(needed: number) {
+    if (y - needed < FOOTER_RESERVED + MARGIN) {
+      page = addPage();
+      y = PAGE_HEIGHT - MARGIN - HEADER_HEIGHT;
+    }
+  }
 
   // Title
   page.drawText("Wegbeschreibung zur Baustelle", {
@@ -165,36 +181,37 @@ export async function GET(
 
   y -= 6;
 
-  // Contact boxes: Bauleiter / Vorarbeiter-Polier
+  // Kontaktpersonen (Bauleiter + Kontaktpersonen), two per row
   const boxGap = 14;
   const boxWidth = (CONTENT_WIDTH - boxGap) / 2;
   const boxHeight = 62;
-  drawContactBox(page, {
-    x: MARGIN,
-    y: y - boxHeight,
-    width: boxWidth,
-    height: boxHeight,
-    label: "Zuständiger Bauleiter",
-    name: primaryManager?.name ?? null,
-    phone: managerEmployee?.mobilePhone ?? null,
-    font: regular,
-    boldFont: bold,
-  });
-  drawContactBox(page, {
-    x: MARGIN + boxWidth + boxGap,
-    y: y - boxHeight,
-    width: boxWidth,
-    height: boxHeight,
-    label: "Zuständiger Vorarbeiter / Polier",
-    name: foreman ? `${foreman.firstName} ${foreman.lastName}` : null,
-    phone: foreman?.mobilePhone ?? null,
-    font: regular,
-    boldFont: bold,
-  });
-  y -= boxHeight + 26;
+  for (let index = 0; index < contactBoxes.length; index += 2) {
+    ensureSpace(boxHeight + 12);
+    const row = contactBoxes.slice(index, index + 2);
+    row.forEach((contact, columnIndex) => {
+      drawContactBox(page, {
+        boldFont: bold,
+        font: regular,
+        height: boxHeight,
+        label: contact.label,
+        name: contact.name,
+        phone: contact.phone,
+        width: boxWidth,
+        x: MARGIN + columnIndex * (boxWidth + boxGap),
+        y: y - boxHeight,
+      });
+    });
+    y -= boxHeight + 12;
+  }
+  y -= 14;
 
   // Wegbeschreibung
   if (project.siteDirectionsNote) {
+    const lines = project.siteDirectionsNote
+      .split("\n")
+      .flatMap((paragraph) => wrapText(paragraph, regular, 10.5, CONTENT_WIDTH - 24));
+    const boxHeightNote = Math.max(40, lines.length * 14 + 20);
+    ensureSpace(boxHeightNote + 34);
     page.drawText("Wegbeschreibung", {
       color: mutedColor,
       font: bold,
@@ -203,10 +220,6 @@ export async function GET(
       y,
     });
     y -= 14;
-    const lines = project.siteDirectionsNote
-      .split("\n")
-      .flatMap((paragraph) => wrapText(paragraph, regular, 10.5, CONTENT_WIDTH - 24));
-    const boxHeightNote = Math.max(40, lines.length * 14 + 20);
     page.drawRectangle({
       borderColor: lineColor,
       borderWidth: 0.8,
@@ -232,6 +245,8 @@ export async function GET(
 
   // QR code + link
   if (directionsUrl) {
+    const qrSize = 120;
+    ensureSpace(qrSize + 16);
     const qrPng = await QRCode.toBuffer(directionsUrl, {
       color: { dark: "#111827", light: "#ffffff" },
       errorCorrectionLevel: "M",
@@ -240,7 +255,6 @@ export async function GET(
       width: 480,
     });
     const qrImage = await pdfDoc.embedPng(qrPng);
-    const qrSize = 120;
     const qrY = y - qrSize;
     page.drawRectangle({
       borderColor: lineColor,
@@ -304,17 +318,19 @@ export async function GET(
     });
   }
 
-  // Footer
+  // Footer on every page
   const generatedAt = new Intl.DateTimeFormat("de-DE", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date());
-  page.drawText(`Erstellt am ${generatedAt}`, {
-    color: mutedColor,
-    font: regular,
-    size: 7.5,
-    x: MARGIN,
-    y: 24,
+  pdfDoc.getPages().forEach((pdfPage) => {
+    pdfPage.drawText(`Erstellt am ${generatedAt}`, {
+      color: mutedColor,
+      font: regular,
+      size: 7.5,
+      x: MARGIN,
+      y: 24,
+    });
   });
 
   const pdfBytes = await pdfDoc.save();

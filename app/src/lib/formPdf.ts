@@ -15,6 +15,24 @@ const textColor = rgb(0.08, 0.08, 0.08);
 const mutedColor = rgb(0.38, 0.4, 0.44);
 const lineColor = rgb(0.82, 0.83, 0.85);
 const lightFill = rgb(0.965, 0.968, 0.972);
+
+/** Montserrat Regular/SemiBold, embedded + subset - the font pair every
+ * branded PDF in the app uses (forms, and the Wegbeschreibung export). */
+export async function loadFormPdfFonts(pdf: PDFDocument) {
+  pdf.registerFontkit(fontkit);
+  const [regularBytes, semiBoldBytes] = await Promise.all([
+    readFile(
+      path.join(process.cwd(), "public", "fonts", "Montserrat-Regular.ttf"),
+    ),
+    readFile(
+      path.join(process.cwd(), "public", "fonts", "Montserrat-SemiBold.ttf"),
+    ),
+  ]);
+  const regular = await pdf.embedFont(regularBytes, { subset: true });
+  const bold = await pdf.embedFont(semiBoldBytes, { subset: true });
+  return { bold, regular };
+}
+
 export async function createFormPdf(input: {
   companyInfo: FormPdfCompanyInfo;
   createdByName: string | null;
@@ -33,27 +51,7 @@ export async function createFormPdf(input: {
   values: Record<string, boolean | string>;
 }) {
   const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const [regularBytes, semiBoldBytes] = await Promise.all([
-    readFile(
-      path.join(
-        process.cwd(),
-        "public",
-        "fonts",
-        "Montserrat-Regular.ttf",
-      ),
-    ),
-    readFile(
-      path.join(
-        process.cwd(),
-        "public",
-        "fonts",
-        "Montserrat-SemiBold.ttf",
-      ),
-    ),
-  ]);
-  const regular = await pdf.embedFont(regularBytes, { subset: true });
-  const bold = await pdf.embedFont(semiBoldBytes, { subset: true });
+  const { bold, regular } = await loadFormPdfFonts(pdf);
   const companyLogo = await embedCompanyLogo(
     pdf,
     input.companyInfo.logoPublicUrl,
@@ -406,7 +404,7 @@ export async function createFormPdf(input: {
 
 }
 
-function drawCompanyHeader(
+export function drawCompanyHeader(
   page: PDFPage,
   bold: PDFFont,
   regular: PDFFont,
@@ -452,7 +450,7 @@ function drawCompanyHeader(
   );
 }
 
-async function embedCompanyLogo(
+export async function embedCompanyLogo(
   pdf: PDFDocument,
   publicUrl: string | null,
 ) {

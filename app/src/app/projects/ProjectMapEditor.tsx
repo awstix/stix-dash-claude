@@ -2,37 +2,34 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { SiteContactEntry } from "@/lib/construction-managers";
+import type { SiteContactOption } from "@/lib/construction-manager-options";
 import { updateProjectMap } from "./actions";
 import { ProjectMap } from "./ProjectMap";
-
-type ForemanOption = {
-  employeeId: string;
-  label: string;
-  positionsLabel: string;
-};
+import { SiteContactsField } from "./SiteContactsField";
 
 type ProjectMapEditorProps = {
-  foremanOptions?: ForemanOption[];
   mapLatitude: number | null;
   mapLongitude: number | null;
   mapZoom: number | null;
   projectId: string;
   siteAddress: string | null;
   siteBoundaryGeoJson: string | null;
+  siteContactOptions?: SiteContactOption[];
+  siteContacts: SiteContactEntry[];
   siteDirectionsNote: string | null;
-  siteForemanEmployeeId: string | null;
 };
 
 export function ProjectMapEditor({
-  foremanOptions = [],
   mapLatitude,
   mapLongitude,
   mapZoom,
   projectId,
   siteAddress,
   siteBoundaryGeoJson,
+  siteContactOptions = [],
+  siteContacts,
   siteDirectionsNote,
-  siteForemanEmployeeId,
 }: ProjectMapEditorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -40,10 +37,10 @@ export function ProjectMapEditor({
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   const [addressSearchResult, setAddressSearchResult] = useState("");
   const [locationInput, setLocationInput] = useState("");
+  const [siteContactsValue, setSiteContactsValue] = useState(siteContacts);
   const [form, setForm] = useState({
     siteAddress: siteAddress ?? "",
     siteDirectionsNote: siteDirectionsNote ?? "",
-    siteForemanEmployeeId: siteForemanEmployeeId ?? "",
     mapLatitude: mapLatitude?.toString() ?? "",
     mapLongitude: mapLongitude?.toString() ?? "",
     mapZoom: mapZoom?.toString() ?? "17",
@@ -74,12 +71,12 @@ export function ProjectMapEditor({
     setForm({
       siteAddress: siteAddress ?? "",
       siteDirectionsNote: siteDirectionsNote ?? "",
-      siteForemanEmployeeId: siteForemanEmployeeId ?? "",
       mapLatitude: mapLatitude?.toString() ?? "",
       mapLongitude: mapLongitude?.toString() ?? "",
       mapZoom: mapZoom?.toString() ?? "17",
       siteBoundaryGeoJson: siteBoundaryGeoJson ?? "",
     });
+    setSiteContactsValue(siteContacts);
     setLocationInput("");
     setAddressSearchResult("");
     setIsEditing(false);
@@ -171,6 +168,7 @@ export function ProjectMapEditor({
         await updateProjectMap({
           id: projectId,
           ...form,
+          siteContactsJson: JSON.stringify(siteContactsValue),
         });
         setIsEditing(false);
         router.refresh();
@@ -221,6 +219,22 @@ export function ProjectMapEditor({
             Wegbeschreibung
           </p>
           <p className="mt-1 whitespace-pre-line">{siteDirectionsNote}</p>
+        </div>
+      ) : null}
+
+      {!isEditing && siteContacts.length ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Kontaktpersonen
+          </p>
+          {siteContacts.map((contact) => (
+            <span
+              className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800"
+              key={contact.employeeId}
+            >
+              {contact.name}
+            </span>
+          ))}
         </div>
       ) : null}
 
@@ -315,32 +329,11 @@ export function ProjectMapEditor({
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Verantwortlicher Vorarbeiter / Polier
-              </label>
-              <p className="mt-1 text-xs text-gray-500">
-                Erscheint mit Handynummer auf der Wegbeschreibung als PDF.
-              </p>
-              <select
-                className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    siteForemanEmployeeId: event.target.value,
-                  }))
-                }
-                value={form.siteForemanEmployeeId}
-              >
-                <option value="">Keine Auswahl</option>
-                {foremanOptions.map((option) => (
-                  <option key={option.employeeId} value={option.employeeId}>
-                    {option.label}
-                    {option.positionsLabel ? ` · ${option.positionsLabel}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SiteContactsField
+              onChange={setSiteContactsValue}
+              options={siteContactOptions}
+              value={siteContactsValue}
+            />
 
             <div>
               <details className="rounded-xl border border-gray-200 bg-gray-50 p-3">

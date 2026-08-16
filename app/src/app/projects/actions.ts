@@ -14,6 +14,7 @@ import {
   requireSession,
 } from "@/lib/auth-access";
 import {
+  parseSiteContactsJson,
   primaryConstructionManagerName,
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
@@ -134,7 +135,7 @@ export type ProjectMapInput = {
   id: string;
   siteAddress: string;
   siteDirectionsNote: string;
-  siteForemanEmployeeId: string;
+  siteContactsJson: string;
   mapLatitude: string;
   mapLongitude: string;
   mapZoom: string;
@@ -620,6 +621,8 @@ export async function updateProjectMap(input: ProjectMapInput) {
 
   await requireProjectAccess(input.id);
 
+  const siteContacts = parseSiteContactsJson(input.siteContactsJson);
+
   await prisma.project.update({
     where: {
       id: input.id,
@@ -627,7 +630,7 @@ export async function updateProjectMap(input: ProjectMapInput) {
     data: {
       siteAddress: input.siteAddress || null,
       siteDirectionsNote: input.siteDirectionsNote || null,
-      siteForemanEmployeeId: input.siteForemanEmployeeId || null,
+      siteContactsJson: siteContacts.length ? JSON.stringify(siteContacts) : null,
       mapLatitude: cleanOptionalFloat(input.mapLatitude),
       mapLongitude: cleanOptionalFloat(input.mapLongitude),
       mapZoom: cleanOptionalInt(input.mapZoom),

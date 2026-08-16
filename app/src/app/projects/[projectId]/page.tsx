@@ -11,8 +11,11 @@ import {
   type VehicleWithInventoryLink,
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
-import { parseConstructionManagersJson } from "@/lib/construction-managers";
-import { getForemanOptions } from "@/lib/construction-manager-options";
+import {
+  parseConstructionManagersJson,
+  parseSiteContactsJson,
+} from "@/lib/construction-managers";
+import { getSiteContactOptions } from "@/lib/construction-manager-options";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
 import {
   CloseDetailsButton,
@@ -410,7 +413,8 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const foremanOptions = await getForemanOptions();
+  const siteContactOptions = await getSiteContactOptions();
+  const siteContacts = parseSiteContactsJson(project.siteContactsJson);
 
   const parsedConstructionManagers = parseConstructionManagersJson(project.constructionManagersJson);
   const constructionManagers = parsedConstructionManagers.length
@@ -1020,15 +1024,15 @@ export default async function ProjectDetailPage({
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <ProjectMapEditor
-              foremanOptions={foremanOptions}
               mapLatitude={project.mapLatitude}
               mapLongitude={project.mapLongitude}
               mapZoom={project.mapZoom}
               projectId={project.id}
               siteAddress={project.siteAddress}
               siteBoundaryGeoJson={project.siteBoundaryGeoJson}
+              siteContactOptions={siteContactOptions}
+              siteContacts={siteContacts}
               siteDirectionsNote={project.siteDirectionsNote}
-              siteForemanEmployeeId={project.siteForemanEmployeeId}
             />
           </div>
         </div>

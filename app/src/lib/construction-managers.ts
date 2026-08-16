@@ -30,3 +30,29 @@ export function joinConstructionManagerNames(entries: ConstructionManagerEntry[]
 export function primaryConstructionManagerName(entries: ConstructionManagerEntry[]) {
   return entries[0]?.name ?? "";
 }
+
+export type SiteContactEntry = {
+  employeeId: string;
+  name: string;
+};
+
+/** Same JSON-array-of-entries pattern as construction managers, for the
+ * project's Baufeld "Kontaktpersonen" (Wegbeschreibung PDF). */
+export function parseSiteContactsJson(
+  value: string | null | undefined,
+): SiteContactEntry[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
+      .map((entry) => ({
+        employeeId: String(entry.employeeId ?? "").trim(),
+        name: String(entry.name ?? "").trim(),
+      }))
+      .filter((entry) => entry.employeeId.length > 0 && entry.name.length > 0);
+  } catch {
+    return [];
+  }
+}

@@ -120,13 +120,13 @@ model Project {
   finalInvoiceNumber  String?
   finalInvoiceNet     Int?
 
-  siteAddress           String?
-  siteDirectionsNote    String?
-  siteForemanEmployeeId String?
-  mapLatitude           Float?
-  mapLongitude          Float?
-  mapZoom               Int?
-  siteBoundaryGeoJson   String?
+  siteAddress         String?
+  siteDirectionsNote  String?
+  siteContactsJson    String?
+  mapLatitude         Float?
+  mapLongitude        Float?
+  mapZoom             Int?
+  siteBoundaryGeoJson String?
 
   notes String?
 
