@@ -1462,9 +1462,15 @@ model ChangelogEntry {
   authorUserId String?
   authorName   String?
 
-  createdAt DateTime @default(now())
+  /// Global read state (admin-toggleable, same pattern as Notification.read
+  /// - not per-user) - a manual way to collapse an entry into "Ältere
+  /// Einträge" before the 5-day auto-collapse kicks in.
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([createdAt])
+  @@index([read])
 }
 
 model LeaveRequest {

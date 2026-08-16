@@ -59,3 +59,30 @@ export async function deleteChangelogEntry(id: string) {
   await prisma.changelogEntry.delete({ where: { id } });
   revalidatePath("/notifications");
 }
+
+export async function markChangelogEntryRead(id: string) {
+  await requireAdmin();
+  await prisma.changelogEntry.update({
+    data: { read: true, readAt: new Date() },
+    where: { id },
+  });
+  revalidatePath("/notifications");
+}
+
+export async function markChangelogEntryUnread(id: string) {
+  await requireAdmin();
+  await prisma.changelogEntry.update({
+    data: { read: false, readAt: null },
+    where: { id },
+  });
+  revalidatePath("/notifications");
+}
+
+export async function markAllChangelogEntriesRead() {
+  await requireAdmin();
+  await prisma.changelogEntry.updateMany({
+    data: { read: true, readAt: new Date() },
+    where: { read: false },
+  });
+  revalidatePath("/notifications");
+}

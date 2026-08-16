@@ -2,9 +2,10 @@ import type { ChangelogEntry } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
-import { markAllNotificationsRead } from "./actions";
+import { markAllChangelogEntriesRead, markAllNotificationsRead } from "./actions";
 import { ChangelogDeleteButton } from "./ChangelogDeleteButton";
 import { ChangelogForm } from "./ChangelogForm";
+import { ChangelogReadCheckbox } from "./ChangelogReadCheckbox";
 import { NotificationReadCheckbox } from "./NotificationReadCheckbox";
 
 function formatDateTime(value: Date) {
@@ -25,7 +26,12 @@ function ChangelogCard({ admin, entry }: { admin: boolean; entry: ChangelogEntry
           {formatDateTime(entry.createdAt)}
           {entry.authorName ? ` · ${entry.authorName}` : ""}
         </p>
-        {admin ? <ChangelogDeleteButton id={entry.id} /> : null}
+        {admin ? (
+          <div className="flex items-center gap-3">
+            <ChangelogReadCheckbox id={entry.id} read={entry.read} />
+            <ChangelogDeleteButton id={entry.id} />
+          </div>
+        ) : null}
       </div>
       <h3 className="mt-1 text-sm font-bold text-gray-900">{entry.title}</h3>
       {entry.description ? (
@@ -79,8 +85,12 @@ export default async function NotificationsPage({
 
   const changelogCutoff = new Date();
   changelogCutoff.setDate(changelogCutoff.getDate() - 5);
-  const recentEntries = changelogEntries.filter((entry) => entry.createdAt >= changelogCutoff);
-  const olderEntries = changelogEntries.filter((entry) => entry.createdAt < changelogCutoff);
+  const recentEntries = changelogEntries.filter(
+    (entry) => !entry.read && entry.createdAt >= changelogCutoff,
+  );
+  const olderEntries = changelogEntries.filter(
+    (entry) => entry.read || entry.createdAt < changelogCutoff,
+  );
 
   return (
     <AppShell
@@ -88,7 +98,19 @@ export default async function NotificationsPage({
       description="Was ist neu im Portal - und, für Admins, Konflikt-Meldungen aus der Personalzeiterfassung."
     >
       <section className="mb-8">
-        <h2 className="mb-3 text-xl font-semibold text-gray-900">Was ist neu</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-gray-900">Was ist neu</h2>
+          {admin && recentEntries.length > 0 ? (
+            <form action={markAllChangelogEntriesRead}>
+              <button
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                type="submit"
+              >
+                Alle als gelesen markieren
+              </button>
+            </form>
+          ) : null}
+        </div>
         {admin ? <ChangelogForm /> : null}
         <div className="space-y-3">
           {changelogEntries.length === 0 ? (
