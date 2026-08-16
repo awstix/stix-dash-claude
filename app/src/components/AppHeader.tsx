@@ -258,22 +258,20 @@ export function AppHeader({
             />
           ) : null}
           <div className="ml-2 flex items-center gap-2 border-l border-gray-300 pl-3">
-            {showAdminLink ? (
-              <Link
-                aria-label={`Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} offen)` : ""}`}
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
-                href="/notifications"
-                onClick={() => setOpenMenu(null)}
-                title="Benachrichtigungen"
-              >
-                <ActionIcon name="bell" className="h-4 w-4" />
-                {unreadNotificationCount > 0 ? (
-                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                    {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
-                  </span>
-                ) : null}
-              </Link>
-            ) : null}
+            <Link
+              aria-label={`Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} offen)` : ""}`}
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
+              href="/notifications"
+              onClick={() => setOpenMenu(null)}
+              title="Benachrichtigungen"
+            >
+              <ActionIcon name="bell" className="h-4 w-4" />
+              {unreadNotificationCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                </span>
+              ) : null}
+            </Link>
             <div className="max-w-40 leading-tight">
               <p className="truncate font-bold text-gray-900" title={currentUserName}>
                 {currentUserName}
@@ -367,15 +365,13 @@ export function AppHeader({
                 onNavigate={() => setMobileMenuOpen(false)}
               />
             ) : null}
-            {showAdminLink ? (
-              <MobileNavigationLink
-                item={{
-                  href: "/notifications",
-                  name: `Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ""}`,
-                }}
-                onNavigate={() => setMobileMenuOpen(false)}
-              />
-            ) : null}
+            <MobileNavigationLink
+              item={{
+                href: "/notifications",
+                name: `Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ""}`,
+              }}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
             <div className="rounded-xl border border-gray-300 bg-gray-50 p-4">
               <p className="truncate font-black">{currentUserName}</p>
               {currentUserRoleLabel ? (

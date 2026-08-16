@@ -311,23 +311,23 @@ export async function buildDirectionsPdf(
     y = legendY - 12;
   }
 
-  // Wegbeschreibung / Bemerkung
+  // Wegbeschreibung / Bemerkung - label is an inline bold prefix on the
+  // first line, not a separate heading above the box.
   if (project.siteDirectionsNote) {
-    ensureSpace(24);
-    page.drawText("Bemerkung:", {
-      color: mutedColor,
-      font: bold,
-      size: 8,
-      x: MARGIN,
-      y,
-    });
-    y -= 12;
-
-    const lines = project.siteDirectionsNote
-      .split("\n")
-      .flatMap((paragraph) => wrapText(paragraph, regular, 9.5, CONTENT_WIDTH - 20));
+    const notePrefix = "Bemerkung: ";
+    const notePrefixWidth = bold.widthOfTextAtSize(notePrefix, 9.5);
+    const noteMaxWidth = CONTENT_WIDTH - 20;
+    const paragraphs = project.siteDirectionsNote.split("\n");
+    const lines = paragraphs.flatMap((paragraph, paragraphIndex) =>
+      wrapText(
+        paragraph,
+        regular,
+        9.5,
+        paragraphIndex === 0 ? noteMaxWidth - notePrefixWidth : noteMaxWidth,
+      ),
+    );
     const boxHeightNote = Math.max(30, lines.length * 12.5 + 14);
-    ensureSpace(boxHeightNote + 22);
+    ensureSpace(boxHeightNote + 14);
     page.drawRectangle({
       borderColor: lineColor,
       borderWidth: 0.8,
@@ -338,12 +338,21 @@ export async function buildDirectionsPdf(
       y: y - boxHeightNote,
     });
     let noteY = y - 12;
-    lines.forEach((line) => {
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex === 0) {
+        page.drawText(notePrefix, {
+          color: mutedColor,
+          font: bold,
+          size: 9.5,
+          x: MARGIN + 10,
+          y: noteY,
+        });
+      }
       page.drawText(line, {
         color: textColor,
         font: regular,
         size: 9.5,
-        x: MARGIN + 10,
+        x: MARGIN + 10 + (lineIndex === 0 ? notePrefixWidth : 0),
         y: noteY,
       });
       noteY -= 12.5;

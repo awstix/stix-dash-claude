@@ -1450,6 +1450,23 @@ model Notification {
   @@index([occurredAt])
 }
 
+/// "Was ist neu" - global changelog feed, visible to every user (unlike
+/// Notification above, which is an admin-only conflict queue). One flat
+/// list, newest first, no per-user read state.
+model ChangelogEntry {
+  id String @id @default(cuid())
+
+  title       String
+  description String?
+
+  authorUserId String?
+  authorName   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model LeaveRequest {
   id String @id @default(cuid())
 

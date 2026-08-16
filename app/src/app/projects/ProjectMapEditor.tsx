@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SiteContactEntry } from "@/lib/construction-managers";
 import type { SiteContactOption } from "@/lib/construction-manager-options";
-import { sendDirectionsPdfEmail, updateProjectMap } from "./actions";
+import { updateProjectMap } from "./actions";
+import { DirectionsShareButtons } from "./DirectionsShareButtons";
 import { ProjectMap } from "./ProjectMap";
 import { SiteContactsField } from "./SiteContactsField";
 
@@ -40,10 +41,6 @@ export function ProjectMapEditor({
   const [addressSearchResult, setAddressSearchResult] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [siteContactsValue, setSiteContactsValue] = useState(siteContacts);
-  const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
-  const [shareRecipients, setShareRecipients] = useState("");
-  const [shareMessage, setShareMessage] = useState("");
-  const [isSending, startSendTransition] = useTransition();
   const [form, setForm] = useState({
     siteAddress: siteAddress ?? "",
     siteDirectionsNote: siteDirectionsNote ?? "",
@@ -184,30 +181,6 @@ export function ProjectMapEditor({
     });
   }
 
-  function shareViaWhatsApp() {
-    const pdfUrl = `${window.location.origin}/projects/${projectId}/directions/pdf`;
-    const text = `Wegbeschreibung zur Baustelle ${projectLabel}: ${pdfUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
-  }
-
-  function sendShareEmail() {
-    startSendTransition(async () => {
-      try {
-        const result = await sendDirectionsPdfEmail({
-          message: shareMessage,
-          projectId,
-          recipients: shareRecipients,
-        });
-        alert(`Wegbeschreibung gesendet an: ${result.sentTo.join(", ")}`);
-        setShareRecipients("");
-        setShareMessage("");
-        setIsSharePanelOpen(false);
-      } catch (error) {
-        alert(error instanceof Error ? error.message : "Fehler beim Versenden.");
-      }
-    });
-  }
-
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -225,28 +198,10 @@ export function ProjectMapEditor({
               Route zur Baustelle öffnen
             </a>
           ) : null}
-          <a
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-            href={`/projects/${projectId}/directions/pdf`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            Wegbeschreibung als PDF
-          </a>
-          <button
-            className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-900 hover:bg-green-100"
-            onClick={shareViaWhatsApp}
-            type="button"
-          >
-            Per WhatsApp teilen
-          </button>
-          <button
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-            onClick={() => setIsSharePanelOpen((current) => !current)}
-            type="button"
-          >
-            {isSharePanelOpen ? "E-Mail schließen" : "Per E-Mail senden"}
-          </button>
+          <DirectionsShareButtons
+            pdfUrl={`/projects/${projectId}/directions/pdf`}
+            projectLabel={projectLabel}
+          />
           <button
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
             onClick={() => setIsEditing((current) => !current)}
@@ -256,41 +211,6 @@ export function ProjectMapEditor({
           </button>
         </div>
       </div>
-
-      {isSharePanelOpen ? (
-        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <label className="text-xs font-semibold text-gray-700">
-            Empfänger (E-Mail, mehrere mit Komma trennen)
-          </label>
-          <input
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            onChange={(event) => setShareRecipients(event.target.value)}
-            placeholder="name@beispiel.de, name2@beispiel.de"
-            type="text"
-            value={shareRecipients}
-          />
-          <label className="mt-2 block text-xs font-semibold text-gray-700">
-            Nachricht (optional)
-          </label>
-          <textarea
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-            onChange={(event) => setShareMessage(event.target.value)}
-            placeholder="z. B. Bitte pünktlich um 7 Uhr auf der Baustelle sein."
-            rows={2}
-            value={shareMessage}
-          />
-          <div className="mt-2 flex justify-end">
-            <button
-              className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
-              disabled={isSending || !shareRecipients.trim()}
-              onClick={sendShareEmail}
-              type="button"
-            >
-              {isSending ? "Sendet..." : "Senden"}
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {!isEditing && siteDirectionsNote ? (
         <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
