@@ -121,6 +121,19 @@ export function ProjectMap({
     startClientX: number;
     startClientY: number;
   } | null>(null);
+  const markerDragRef = useRef<{
+    markerId: string;
+    pointerId: number;
+    rectHeight: number;
+    rectWidth: number;
+    startClientX: number;
+    startClientY: number;
+  } | null>(null);
+  const [markerDragOffset, setMarkerDragOffset] = useState<{
+    dx: number;
+    dy: number;
+    id: string;
+  } | null>(null);
   const suppressClickRef = useRef(false);
 
   useEffect(() => {
@@ -321,8 +334,30 @@ export function ProjectMap({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (!editable || !onViewChange || lat === null || lng === null) return;
-    if (event.button !== 0) return;
+    if (!editable || event.button !== 0) return;
+
+    const siteMarkerElement =
+      event.target instanceof Element
+        ? event.target.closest<Element>("[data-site-marker-id]")
+        : null;
+    const siteMarkerId = siteMarkerElement?.getAttribute("data-site-marker-id");
+
+    if (siteMarkerId && onBoundaryChange) {
+      setSelectedSiteMarkerId(siteMarkerId);
+      const rect = event.currentTarget.getBoundingClientRect();
+      markerDragRef.current = {
+        markerId: siteMarkerId,
+        pointerId: event.pointerId,
+        rectHeight: rect.height,
+        rectWidth: rect.width,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (!onViewChange || lat === null || lng === null) return;
     if (
       event.target instanceof Element &&
       event.target.closest("[data-map-marker='true']")
@@ -344,6 +379,26 @@ export function ProjectMap({
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
+    const markerDrag = markerDragRef.current;
+    if (markerDrag && markerDrag.pointerId === event.pointerId) {
+      const deltaX = event.clientX - markerDrag.startClientX;
+      const deltaY = event.clientY - markerDrag.startClientY;
+
+      if (Math.hypot(deltaX, deltaY) < 4) {
+        return;
+      }
+
+      suppressClickRef.current = true;
+      const scaledDeltaX = (deltaX / markerDrag.rectWidth) * mapSize.width;
+      const scaledDeltaY = (deltaY / markerDrag.rectHeight) * mapSize.height;
+      setMarkerDragOffset({
+        dx: scaledDeltaX,
+        dy: scaledDeltaY,
+        id: markerDrag.markerId,
+      });
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag || !onViewChange) return;
 
@@ -375,6 +430,42 @@ export function ProjectMap({
   }
 
   function handlePointerEnd(event: PointerEvent<SVGSVGElement>) {
+    const markerDrag = markerDragRef.current;
+    if (markerDrag && markerDrag.pointerId === event.pointerId) {
+      markerDragRef.current = null;
+
+      const offset = markerDragOffset;
+      setMarkerDragOffset(null);
+
+      if (offset && offset.id === markerDrag.markerId && onBoundaryChange && mapData) {
+        const current = parseBoundaryGeoJson(boundaryRef.current);
+        const draggedMarker = current.siteMarkers.find((m) => m.id === markerDrag.markerId);
+
+        if (draggedMarker) {
+          const startPoint = lngLatToMapPoint(
+            [draggedMarker.longitude, draggedMarker.latitude],
+            normalizedZoom,
+            mapData.origin,
+          );
+          const nextLngLat = mapPointToLngLat(
+            startPoint.x + offset.dx,
+            startPoint.y + offset.dy,
+            normalizedZoom,
+            mapData.origin,
+          );
+          const nextMarkers = current.siteMarkers.map((m) =>
+            m.id === markerDrag.markerId
+              ? { ...m, latitude: nextLngLat[1], longitude: nextLngLat[0] }
+              : m,
+          );
+          const nextBoundaryGeoJson = createBoundaryGeoJson(current.editPoints, nextMarkers);
+          boundaryRef.current = nextBoundaryGeoJson;
+          onBoundaryChange(nextBoundaryGeoJson);
+        }
+      }
+      return;
+    }
+
     if (dragRef.current?.pointerId === event.pointerId) {
       dragRef.current = null;
     }
@@ -538,11 +629,16 @@ export function ProjectMap({
             const isArrow = marker.type !== "BAUSTELLENEINRICHTUNG";
             const color = SITE_MARKER_COLORS[marker.type];
             const isSelected = marker.id === selectedSiteMarkerId;
+            const offset =
+              markerDragOffset?.id === marker.id ? markerDragOffset : null;
+            const pointX = marker.point.x + (offset?.dx ?? 0);
+            const pointY = marker.point.y + (offset?.dy ?? 0);
 
             return (
               <g
-                className={editable ? "cursor-pointer" : ""}
+                className={editable ? "cursor-grab active:cursor-grabbing" : ""}
                 data-map-marker="true"
+                data-site-marker-id={marker.id}
                 key={marker.id}
                 onClick={(event) => {
                   if (!editable) return;
@@ -551,7 +647,7 @@ export function ProjectMap({
                   setSelectedSiteMarkerId(marker.id);
                 }}
                 pointerEvents={editable ? "auto" : "none"}
-                transform={`translate(${marker.point.x},${marker.point.y}) rotate(${
+                transform={`translate(${pointX},${pointY}) rotate(${
                   isArrow ? marker.rotationDegrees : 0
                 })`}
               >
@@ -761,7 +857,7 @@ export function ProjectMap({
             <span className="text-gray-500">
               {editMode === "boundary"
                 ? "Karte ziehen zum Verschieben, klicken zum Baufeld setzen"
-                : `Karte ziehen zum Verschieben, klicken zum Setzen von „${SITE_MARKER_LABELS[editMode]}“`}
+                : `Karte ziehen zum Verschieben, klicken zum Setzen von „${SITE_MARKER_LABELS[editMode]}“. Gesetzte Symbole können per Ziehen verschoben werden.`}
             </span>
             <button
               className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
