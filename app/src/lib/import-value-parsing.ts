@@ -112,6 +112,18 @@ export function dateValue(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** True for "Baujahr/Datum"-style cells that are just a bare year number
+ * (e.g. 2005), as opposed to a genuine date. Used to tell apart "the user
+ * only knows/cares about the year" from "the user entered a precise date"
+ * - callers that also track a separate year field should only fill it in
+ * for the former, so a real date's day/month isn't hidden behind a
+ * year-only display later. */
+export function isBareYearValue(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) return false;
+  const currentYear = new Date().getUTCFullYear();
+  return value >= 1800 && value <= currentYear + 1;
+}
+
 /** For "Baujahr/Datum"-style columns where a bare number almost always means
  * the user just typed the year: dateValue() treats any number as an Excel
  * date serial (days since 1899-12-30), so typing e.g. "2005" as a plain
@@ -120,11 +132,8 @@ export function dateValue(value: unknown) {
  * unambiguous which one the user meant. Date-formatted cells (already a JS
  * Date via cellDates) and dd.mm.yyyy text still go through dateValue(). */
 export function yearOrDateValue(value: unknown) {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    const currentYear = new Date().getUTCFullYear();
-    if (value >= 1800 && value <= currentYear + 1) {
-      return new Date(Date.UTC(value, 0, 1));
-    }
+  if (isBareYearValue(value)) {
+    return new Date(Date.UTC(value, 0, 1));
   }
 
   return dateValue(value);

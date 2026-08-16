@@ -18,6 +18,7 @@ import {
   dateValue,
   floatValue,
   intValue,
+  isBareYearValue,
   lower,
   moneyCents,
   rowValue,
@@ -712,7 +713,8 @@ export async function importInventoryItems(formData: FormData) {
           (existingItem
             ? undefined
             : getNextInventoryObjectNumberCached(category));
-        const constructionDate = yearOrDateValue(rowValue(row, "Baujahr/Datum"));
+        const baujahrRaw = rowValue(row, "Baujahr/Datum");
+        const constructionDate = yearOrDateValue(baujahrRaw);
 
         const data = {
           attachmentType: text(rowValue(row, "Aufnahmetyp")),
@@ -740,7 +742,13 @@ export async function importInventoryItems(formData: FormData) {
             },
           },
           constructionDate,
-          constructionYear: constructionDate?.getUTCFullYear() ?? null,
+          // Only carried over as a separate year when the cell was just a
+          // bare year - a genuine precise date stays constructionYear:null
+          // so the item page shows the full date instead of hiding it
+          // behind the year (see item page's Baujahr fallback logic).
+          constructionYear: isBareYearValue(baujahrRaw)
+            ? constructionDate?.getUTCFullYear() ?? null
+            : null,
           firstRegistrationDate: dateValue(rowValue(row, "Erstzulassung")),
           currentProject: project
             ? {
