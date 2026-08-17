@@ -1793,6 +1793,10 @@ export async function uploadProjectPhotos(formData: FormData) {
           capturedAt: metadata.capturedAt ?? null,
           cameraMake: metadata.cameraMake ?? null,
           cameraModel: metadata.cameraModel ?? null,
+          cameraAperture: metadata.cameraAperture ?? null,
+          cameraExposureTime: metadata.cameraExposureTime ?? null,
+          cameraFocalLength: metadata.cameraFocalLength ?? null,
+          cameraIso: metadata.cameraIso ?? null,
           gpsLatitude: resolvedGps?.gpsLatitude ?? null,
           gpsLongitude: resolvedGps?.gpsLongitude ?? null,
           ...getPhotoGpsAddressData(gpsAddress),
@@ -2892,6 +2896,10 @@ function toNullableInteger(value: number | null | undefined) {
 type PhotoMetadata = {
   cameraMake?: string;
   cameraModel?: string;
+  cameraAperture?: string;
+  cameraExposureTime?: string;
+  cameraFocalLength?: string;
+  cameraIso?: number;
   capturedAt?: Date;
   gpsLatitude?: number;
   gpsLongitude?: number;
@@ -3378,6 +3386,10 @@ async function extractPhotoMetadata(
   const metadata = {
     cameraMake: exif.cameraMake,
     cameraModel: exif.cameraModel,
+    cameraAperture: exif.cameraAperture,
+    cameraExposureTime: exif.cameraExposureTime,
+    cameraFocalLength: exif.cameraFocalLength,
+    cameraIso: exif.cameraIso,
     capturedAt: capturedAt?.toISOString(),
     fileLastModified: Number.isFinite(rawInput.fileLastModified)
       ? new Date(rawInput.fileLastModified).toISOString()
@@ -3762,13 +3774,44 @@ function readExifFromTiffBuffer(buffer: Buffer, tiffOffset: number): PhotoMetada
   const capturedAt =
     parseExifDate(asString(exifIfd?.get(0x9003))) ??
     parseExifDate(asString(exifIfd?.get(0x9004)));
+  const isoValue = exifIfd?.get(0x8827);
+  const iso = Array.isArray(isoValue) ? isoValue[0] : asNumber(isoValue);
 
   return {
     cameraMake: asString(ifd0.get(0x010f)) || undefined,
     cameraModel: asString(ifd0.get(0x0110)) || undefined,
     capturedAt: capturedAt ?? undefined,
+    cameraAperture: formatAperture(asNumber(exifIfd?.get(0x829d))),
+    cameraExposureTime: formatExposureTime(asNumber(exifIfd?.get(0x829a))),
+    cameraFocalLength: formatFocalLength(
+      asNumber(exifIfd?.get(0x920a)),
+      asNumber(exifIfd?.get(0xa405)),
+    ),
+    cameraIso: iso ?? undefined,
     ...readGpsCoordinates(gpsIfd),
   };
+}
+
+function formatAperture(value: number | null) {
+  if (!value || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value * 10) / 10;
+  return `f/${rounded}`;
+}
+
+function formatExposureTime(value: number | null) {
+  if (!value || !Number.isFinite(value) || value <= 0) return undefined;
+  if (value >= 1) return `${Math.round(value * 10) / 10} s`;
+  return `1/${Math.round(1 / value)} s`;
+}
+
+function formatFocalLength(mm: number | null, mm35Equivalent: number | null) {
+  if (!mm || !Number.isFinite(mm)) return undefined;
+  const rounded = Math.round(mm * 10) / 10;
+  return mm35Equivalent &&
+    Number.isFinite(mm35Equivalent) &&
+    Math.round(mm35Equivalent) !== Math.round(rounded)
+    ? `${rounded} mm (${Math.round(mm35Equivalent)} mm KB-Äquivalent)`
+    : `${rounded} mm`;
 }
 
 function findExifTiffOffset(buffer: Buffer) {

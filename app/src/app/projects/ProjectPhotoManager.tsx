@@ -43,6 +43,10 @@ export type ProjectPhotoListItem = {
   availableForDailyReports: boolean;
   cameraMake: string | null;
   cameraModel: string | null;
+  cameraAperture: string | null;
+  cameraExposureTime: string | null;
+  cameraFocalLength: string | null;
+  cameraIso: number | null;
   capturedAt: string | null;
   fileSizeBytes: number;
   gpsAddressLabel: string | null;
@@ -506,6 +510,10 @@ function toGalleryPhoto(photo: ProjectPhotoListItem): ProjectPhotoGalleryItem {
     availableForDailyReports: photo.availableForDailyReports,
     cameraMake: photo.cameraMake,
     cameraModel: photo.cameraModel,
+    cameraAperture: photo.cameraAperture,
+    cameraExposureTime: photo.cameraExposureTime,
+    cameraFocalLength: photo.cameraFocalLength,
+    cameraIso: photo.cameraIso,
     capturedAt: photo.capturedAt,
     gpsAddressLabel: photo.gpsAddressLabel,
     gpsCity: photo.gpsCity,

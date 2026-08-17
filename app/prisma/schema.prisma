@@ -350,6 +350,10 @@ model ProjectPhoto {
   capturedAt               DateTime?
   cameraMake               String?
   cameraModel              String?
+  cameraAperture           String?
+  cameraExposureTime       String?
+  cameraFocalLength        String?
+  cameraIso                Int?
   gpsLatitude              Float?
   gpsLongitude             Float?
   gpsAddressLabel          String?

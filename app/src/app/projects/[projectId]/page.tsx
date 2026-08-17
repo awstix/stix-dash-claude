@@ -1190,6 +1190,10 @@ export default async function ProjectDetailPage({
             availableForDailyReports: photo.availableForDailyReports,
             cameraMake: photo.cameraMake,
             cameraModel: photo.cameraModel,
+            cameraAperture: photo.cameraAperture,
+            cameraExposureTime: photo.cameraExposureTime,
+            cameraFocalLength: photo.cameraFocalLength,
+            cameraIso: photo.cameraIso,
             gpsAddressLabel: photo.gpsAddressLabel,
             gpsCity: photo.gpsCity,
             gpsCountry: photo.gpsCountry,
@@ -2019,6 +2023,10 @@ function ProjectPhotoPreviewSection({
     availableForDailyReports: boolean;
     cameraMake: string | null;
     cameraModel: string | null;
+    cameraAperture: string | null;
+    cameraExposureTime: string | null;
+    cameraFocalLength: string | null;
+    cameraIso: number | null;
     capturedAt: string | null;
     gpsAddressLabel: string | null;
     gpsCity: string | null;

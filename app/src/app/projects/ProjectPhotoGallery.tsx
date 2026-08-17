@@ -16,6 +16,10 @@ export type ProjectPhotoGalleryItem = {
   availableForDailyReports: boolean;
   cameraMake: string | null;
   cameraModel: string | null;
+  cameraAperture: string | null;
+  cameraExposureTime: string | null;
+  cameraFocalLength: string | null;
+  cameraIso: number | null;
   capturedAt: string | null;
   gpsLatitude: number | null;
   gpsLongitude: number | null;
@@ -531,6 +535,10 @@ function PhotoGalleryCard({
                 value={photo.capturedAt ? formatDateTime(photo.capturedAt) : "-"}
               />
               <PhotoMetaItem label="Kamera" value={getCameraLabel(photo)} />
+              <PhotoMetaItem
+                label="Kameraeinstellungen"
+                value={getCameraSettingsLabel(photo)}
+              />
               <PhotoMetaItem label="GPS-Ort" value={getGpsSummaryLabel(photo)} />
               <PhotoMetaItem label="Bildgröße" value={getImageSizeLabel(photo)} />
             </div>
@@ -991,6 +999,10 @@ export function PhotoDetailModal({
             />
             <DetailRow label="Aufnahme" value={getCapturedAtLabel(photo)} />
             <DetailRow label="Kamera" value={getCameraLabel(photo)} />
+            <DetailRow
+              label="Kameraeinstellungen"
+              value={getCameraSettingsLabel(photo)}
+            />
             <DetailRow label="Bildgröße" value={getImageSizeLabel(photo)} />
             <DetailRow
               label="Originaldatei"
@@ -1202,6 +1214,19 @@ function PhotoPill({
 
 function getCameraLabel(photo: ProjectPhotoGalleryItem) {
   return [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ") || "-";
+}
+
+function getCameraSettingsLabel(photo: ProjectPhotoGalleryItem) {
+  return (
+    [
+      photo.cameraFocalLength,
+      photo.cameraAperture,
+      photo.cameraExposureTime,
+      photo.cameraIso ? `ISO ${photo.cameraIso}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "-"
+  );
 }
 
 export function getUploaderLabel(photo: ProjectPhotoGalleryItem) {
