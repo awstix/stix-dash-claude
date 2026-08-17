@@ -140,9 +140,10 @@ export async function AppShell({
     visibleFeatureKeys,
   );
   const currentUserRoleLabel = (await portalRoleLabels(session.user.role)).join(" / ");
-  const unreadNotificationCount = admin
-    ? await prisma.notification.count({ where: { read: false } })
-    : 0;
+  const [unreadNotificationCount, unreadChangelogCount] = await Promise.all([
+    admin ? prisma.notification.count({ where: { read: false } }) : 0,
+    prisma.changelogEntry.count({ where: { read: false } }),
+  ]);
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -160,6 +161,7 @@ export async function AppShell({
         safetyNavigation={filterNavigationByVisibility(safetyNavigation, visibleFeatureKeys)}
         secondaryNavigation={visibleSecondaryNavigation}
         showAdminLink={admin}
+        unreadChangelogCount={unreadChangelogCount}
         unreadNotificationCount={unreadNotificationCount}
         workshopNavigation={filterNavigationByVisibility(workshopNavigation, visibleFeatureKeys)}
       />

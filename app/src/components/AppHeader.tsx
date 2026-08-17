@@ -27,6 +27,7 @@ export function AppHeader({
   currentUserName,
   currentUserRoleLabel,
   showAdminLink,
+  unreadChangelogCount,
   unreadNotificationCount,
 }: {
   controllingNavigation: NavigationItem[];
@@ -43,8 +44,19 @@ export function AppHeader({
   currentUserName: string;
   currentUserRoleLabel: string;
   showAdminLink: boolean;
+  unreadChangelogCount: number;
   unreadNotificationCount: number;
 }) {
+  // Blue = "Was ist neu" (everyone), red = Konflikt-Meldungen (admin-only
+  // today) - shown as separate pills side by side so each category stays
+  // visually distinct; more categories (e.g. green) can just extend this
+  // list later.
+  const notificationBadges = [
+    { color: "bg-blue-600", count: unreadChangelogCount, label: "Neuigkeiten" },
+    { color: "bg-red-600", count: unreadNotificationCount, label: "Konflikte" },
+  ].filter((badge) => badge.count > 0);
+  const totalUnreadCount = unreadChangelogCount + unreadNotificationCount;
+
   const router = useRouter();
   const [openMenu, setOpenMenu] = useState<
     | "projects"
@@ -259,16 +271,23 @@ export function AppHeader({
           ) : null}
           <div className="ml-2 flex items-center gap-2 border-l border-gray-300 pl-3">
             <Link
-              aria-label={`Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} offen)` : ""}`}
+              aria-label={`Benachrichtigungen${totalUnreadCount > 0 ? ` (${totalUnreadCount} offen)` : ""}`}
               className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
               href="/notifications"
               onClick={() => setOpenMenu(null)}
               title="Benachrichtigungen"
             >
               <ActionIcon name="bell" className="h-4 w-4" />
-              {unreadNotificationCount > 0 ? (
-                <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+              {notificationBadges.length > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 flex items-center gap-0.5">
+                  {notificationBadges.map((badge) => (
+                    <span
+                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${badge.color}`}
+                      key={badge.label}
+                    >
+                      {badge.count > 99 ? "99+" : badge.count}
+                    </span>
+                  ))}
                 </span>
               ) : null}
             </Link>
@@ -368,7 +387,7 @@ export function AppHeader({
             <MobileNavigationLink
               item={{
                 href: "/notifications",
-                name: `Benachrichtigungen${unreadNotificationCount > 0 ? ` (${unreadNotificationCount})` : ""}`,
+                name: `Benachrichtigungen${totalUnreadCount > 0 ? ` (${totalUnreadCount})` : ""}`,
               }}
               onNavigate={() => setMobileMenuOpen(false)}
             />
