@@ -57,6 +57,18 @@ function floatValue(
   return Math.round(parsed * 10) / 10;
 }
 
+function optionalFloatValue(
+  value: FormDataEntryValue | null,
+  options: { max?: number; min?: number } = {},
+): number | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (options.min !== undefined && parsed < options.min) return options.min;
+  if (options.max !== undefined && parsed > options.max) return options.max;
+  return Math.round(parsed * 10) / 10;
+}
+
 export async function getLiveLabelExportPayload(formData: FormData) {
   const itemId = optionalString(formData.get("previewItemId"));
 
@@ -120,6 +132,10 @@ export async function getLiveLabelExportPayload(formData: FormData) {
     min: 1,
   });
   const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
+  const labelLengthOverrideMm = optionalFloatValue(
+    formData.get("labelLengthOverrideMm"),
+    { max: 220, min: 18 },
+  );
   const blocks = parseInventoryLabelBlocks(
     optionalString(formData.get("blocksJson")),
   ).map((block): InventoryLabelBlock => ({
@@ -150,6 +166,7 @@ export async function getLiveLabelExportPayload(formData: FormData) {
       gapMm,
       isDefault: false,
       labelLengthMm: 0,
+      labelLengthOverrideMm,
       name: optionalString(formData.get("name")) ?? "Live-Etikett",
       orientation:
         optionalString(formData.get("orientation")) === "PORTRAIT"

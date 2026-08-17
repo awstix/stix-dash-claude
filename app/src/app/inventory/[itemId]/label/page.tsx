@@ -89,13 +89,20 @@ export default async function InventoryItemLabelPage({
         selectedTemplate.rowCount,
       )
     : 70;
+  // A manually shortened length (set in the template editor) always wins
+  // over the automatic estimate - the auto-calculation is a generous
+  // upper bound meant to avoid clipped content, not a tight fit, so it
+  // routinely leaves visible slack that only the person looking at the
+  // actual print result can judge how far to trim.
+  const effectiveLabelLength =
+    selectedTemplate?.labelLengthOverrideMm ?? automaticLabelLength;
   const labelWidth =
     selectedTemplate?.orientation === "PORTRAIT"
       ? selectedTemplate.tapeWidthMm
-      : automaticLabelLength;
+      : effectiveLabelLength;
   const labelHeight =
     selectedTemplate?.orientation === "PORTRAIT"
-      ? automaticLabelLength
+      ? effectiveLabelLength
       : selectedTemplate?.tapeWidthMm ?? 24;
 
   return (
@@ -184,8 +191,10 @@ export default async function InventoryItemLabelPage({
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               {selectedTemplate.tapeWidthMm} mm Band ·{" "}
-              {automaticLabelLength} mm Länge automatisch ·{" "}
-              {selectedTemplate.rowCount} Zeilen ·{" "}
+              {selectedTemplate.labelLengthOverrideMm
+                ? `${effectiveLabelLength} mm Länge (manuell, automatisch wären ${automaticLabelLength} mm)`
+                : `${automaticLabelLength} mm Länge automatisch`}{" "}
+              · {selectedTemplate.rowCount} Zeilen ·{" "}
               {selectedTemplate.columnCount} Spalten ·{" "}
               {selectedTemplate.codeType === "QR" ? "QR-Code" : "ECC200"}
             </p>

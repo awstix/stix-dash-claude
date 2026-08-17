@@ -13,6 +13,7 @@ type LbxTemplate = {
   codeType: string;
   columnCount: number;
   gapMm: number;
+  labelLengthOverrideMm: number | null;
   name: string;
   orientation: string;
   rowCount: number;
@@ -28,13 +29,14 @@ export function createInventoryLabelLbx(input: {
   item: InventoryLabelItem & { id: string; name: string };
   template: LbxTemplate;
 }) {
-  const labelLengthMm = calculateInventoryLabelLength(
+  const automaticLabelLengthMm = calculateInventoryLabelLength(
     input.blocks,
     input.item,
     input.template.columnCount,
     input.template.tapeWidthMm,
     input.template.rowCount,
   );
+  const labelLengthMm = input.template.labelLengthOverrideMm ?? automaticLabelLengthMm;
   const labelXml = createLabelXml({
     blocks: input.blocks.filter((block) => block.enabled),
     codeType: input.template.codeType,

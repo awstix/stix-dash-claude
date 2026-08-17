@@ -263,6 +263,7 @@ export type InventoryLabelTemplateLike = {
   id: string;
   isDefault: boolean;
   labelLengthMm: number;
+  labelLengthOverrideMm: number | null;
   rowCount: number;
   columnCount: number;
   name: string;

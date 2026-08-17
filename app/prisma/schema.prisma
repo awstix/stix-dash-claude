@@ -2670,6 +2670,7 @@ model InventoryLabelTemplate {
   name          String
   tapeWidthMm   Int
   labelLengthMm Int
+  labelLengthOverrideMm Float?
   rowCount      Int     @default(4)
   columnCount   Int     @default(6)
   gapMm         Float   @default(1)

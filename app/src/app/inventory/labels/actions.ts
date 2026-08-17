@@ -56,6 +56,20 @@ function floatValue(
   return Math.round(parsed * 10) / 10;
 }
 
+/** Empty string means "use the automatically calculated length" - a null
+ * override, not a fallback value. */
+function optionalFloatValue(
+  value: FormDataEntryValue | null,
+  options: { max?: number; min?: number } = {},
+): number | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (options.min !== undefined && parsed < options.min) return options.min;
+  if (options.max !== undefined && parsed > options.max) return options.max;
+  return Math.round(parsed * 10) / 10;
+}
+
 function getBlocks(formData: FormData) {
   const rawJson = optionalString(formData.get("blocksJson"));
   const blocks = parseInventoryLabelBlocks(rawJson);
@@ -141,6 +155,10 @@ function getTemplatePayload(formData: FormData) {
     min: 1,
   });
   const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
+  const labelLengthOverrideMm = optionalFloatValue(
+    formData.get("labelLengthOverrideMm"),
+    { max: 220, min: 18 },
+  );
 
   return {
     blocksJson: getBlocks(formData),
@@ -149,6 +167,7 @@ function getTemplatePayload(formData: FormData) {
     gapMm,
     isDefault,
     labelLengthMm,
+    labelLengthOverrideMm,
     name,
     orientation,
     rowCount,

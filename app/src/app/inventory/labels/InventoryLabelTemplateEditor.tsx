@@ -53,6 +53,9 @@ export function InventoryLabelTemplateEditor({
   const [rowCount, setRowCount] = useState(initialRowCount);
   const [columnCount, setColumnCount] = useState(initialColumnCount);
   const [gapMm, setGapMm] = useState(template?.gapMm ?? 1);
+  const [labelLengthOverrideMm, setLabelLengthOverrideMm] = useState<number | null>(
+    template?.labelLengthOverrideMm ?? null,
+  );
   const [codeType, setCodeType] = useState(template?.codeType ?? "DATAMATRIX");
   const [orientation, setOrientation] = useState(
     template?.orientation ?? "LANDSCAPE",
@@ -115,13 +118,14 @@ export function InventoryLabelTemplateEditor({
     enabledBlocks[0] ??
     sortedBlocks[0] ??
     null;
-  const labelLengthMm = calculateInventoryLabelLength(
+  const automaticLabelLengthMm = calculateInventoryLabelLength(
     enabledBlocks,
     selectedPreviewItem,
     columnCount,
     tapeWidthMm,
     rowCount,
   );
+  const labelLengthMm = labelLengthOverrideMm ?? automaticLabelLengthMm;
   const previewWidth = orientation === "LANDSCAPE" ? labelLengthMm : tapeWidthMm;
   const previewHeight =
     orientation === "LANDSCAPE" ? tapeWidthMm : labelLengthMm;
@@ -185,6 +189,11 @@ export function InventoryLabelTemplateEditor({
     <form action={action} className="space-y-5">
       <input name="blocksJson" type="hidden" value={JSON.stringify(blocks)} />
       <input name="labelLengthMm" type="hidden" value={labelLengthMm} />
+      <input
+        name="labelLengthOverrideMm"
+        type="hidden"
+        value={labelLengthOverrideMm ?? ""}
+      />
       <input name="rowCount" type="hidden" value={rowCount} />
       <input name="columnCount" type="hidden" value={columnCount} />
       <input name="gapMm" type="hidden" value={gapMm} />
@@ -307,14 +316,36 @@ export function InventoryLabelTemplateEditor({
                 />
               </label>
 
-              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 md:col-span-2">
+              <label className="md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Länge
                 </span>
-                <div className="mt-1 text-sm font-black text-gray-950">
-                  {labelLengthMm} mm auto
-                </div>
-              </div>
+                <input
+                  className={inputClass}
+                  max={220}
+                  min={18}
+                  onChange={(event) => {
+                    const raw = event.currentTarget.value;
+                    setLabelLengthOverrideMm(raw === "" ? null : Number.parseFloat(raw));
+                  }}
+                  placeholder={`${automaticLabelLengthMm} mm auto`}
+                  type="number"
+                  value={labelLengthOverrideMm ?? ""}
+                />
+                {labelLengthOverrideMm !== null ? (
+                  <button
+                    className="mt-1 text-[11px] font-semibold text-blue-700 hover:underline"
+                    onClick={() => setLabelLengthOverrideMm(null)}
+                    type="button"
+                  >
+                    Zurück auf automatisch ({automaticLabelLengthMm} mm)
+                  </button>
+                ) : (
+                  <span className="mt-1 block text-[11px] text-gray-400">
+                    Automatisch: {automaticLabelLengthMm} mm
+                  </span>
+                )}
+              </label>
             </div>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4">

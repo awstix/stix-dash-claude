@@ -18,6 +18,7 @@ type PngTemplate = {
   codeType: string;
   columnCount: number;
   gapMm: number;
+  labelLengthOverrideMm: number | null;
   orientation: string;
   rowCount: number;
   showBorder: boolean;
@@ -35,13 +36,14 @@ export async function createInventoryLabelPng(input: {
   template: PngTemplate;
 }) {
   const enabledBlocks = input.blocks.filter((block) => block.enabled);
-  const labelLengthMm = calculateInventoryLabelLength(
+  const automaticLabelLengthMm = calculateInventoryLabelLength(
     enabledBlocks,
     input.item,
     input.template.columnCount,
     input.template.tapeWidthMm,
     input.template.rowCount,
   );
+  const labelLengthMm = input.template.labelLengthOverrideMm ?? automaticLabelLengthMm;
   const labelWidthMm =
     input.template.orientation === "PORTRAIT"
       ? input.template.tapeWidthMm
