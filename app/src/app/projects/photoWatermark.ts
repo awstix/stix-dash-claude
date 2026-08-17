@@ -12,6 +12,8 @@ export type WatermarkFields = {
   map: boolean;
   camera: boolean;
   cameraSettings: boolean;
+  uploaderName: boolean;
+  uploaderNameStyle: "full" | "initials";
 };
 
 export const DEFAULT_WATERMARK_FIELDS: WatermarkFields = {
@@ -24,12 +26,15 @@ export const DEFAULT_WATERMARK_FIELDS: WatermarkFields = {
   map: false,
   camera: false,
   cameraSettings: false,
+  uploaderName: false,
+  uploaderNameStyle: "full",
 };
 
 export type WatermarkPhotoInput = {
   publicUrl: string;
   capturedAt: string | null;
   uploadedAt: string;
+  uploadedByName: string | null;
   gpsStreet: string | null;
   gpsHouseNumber: string | null;
   gpsPostcode: string | null;
@@ -74,6 +79,16 @@ function formatTimeLine(isoDate: string) {
   }).format(new Date(isoDate));
 }
 
+function toInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0]?.toUpperCase())
+    .filter(Boolean)
+    .join(".")
+    .concat(".");
+}
+
 function buildTextLines(photo: WatermarkPhotoInput, fields: WatermarkFields): string[] {
   const lines: string[] = [];
   const timestamp = photo.capturedAt ?? photo.uploadedAt;
@@ -82,6 +97,14 @@ function buildTextLines(photo: WatermarkPhotoInput, fields: WatermarkFields): st
     fields.time ? formatTimeLine(timestamp) : null,
   ].filter((part): part is string => Boolean(part));
   if (dateTimeParts.length > 0) lines.push(dateTimeParts.join(", "));
+
+  if (fields.uploaderName && photo.uploadedByName) {
+    lines.push(
+      fields.uploaderNameStyle === "initials"
+        ? toInitials(photo.uploadedByName)
+        : photo.uploadedByName,
+    );
+  }
 
   if (fields.compass && typeof photo.gpsHeading === "number") {
     lines.push(`${Math.round(photo.gpsHeading)}° ${headingToCardinal(photo.gpsHeading)}`);

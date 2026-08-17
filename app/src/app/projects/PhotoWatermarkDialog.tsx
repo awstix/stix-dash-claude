@@ -25,6 +25,7 @@ function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
     publicUrl: photo.publicUrl,
     capturedAt: photo.capturedAt,
     uploadedAt: photo.uploadedAt,
+    uploadedByName: photo.uploadedByName,
     gpsStreet: photo.gpsStreet,
     gpsHouseNumber: photo.gpsHouseNumber,
     gpsPostcode: photo.gpsPostcode,
@@ -67,6 +68,7 @@ export function PhotoWatermarkDialog({
   const hasCameraSettingsData = Boolean(
     photo.cameraFocalLength || photo.cameraAperture || photo.cameraExposureTime || photo.cameraIso,
   );
+  const hasUploaderNameData = Boolean(photo.uploadedByName);
 
   // Loaded once per dialog open - tied to the account (not the browser),
   // so the chosen position/fields/opacity follow the user across devices
@@ -167,6 +169,10 @@ export function PhotoWatermarkDialog({
 
   function toggleField(key: keyof WatermarkFields) {
     setFields((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function setUploaderNameStyle(style: "full" | "initials") {
+    setFields((current) => ({ ...current, uploaderNameStyle: style }));
   }
 
   async function downloadWithWatermark() {
@@ -335,6 +341,41 @@ export function PhotoWatermarkDialog({
                   label="Kartenausschnitt"
                   onChange={() => toggleField("map")}
                 />
+                <div>
+                  <WatermarkFieldCheckbox
+                    checked={fields.uploaderName}
+                    disabled={!hasUploaderNameData}
+                    hint={!hasUploaderNameData ? "Kein Name beim Foto hinterlegt" : undefined}
+                    label="Name (Fotograf)"
+                    onChange={() => toggleField("uploaderName")}
+                  />
+                  {fields.uploaderName && hasUploaderNameData ? (
+                    <div className="mt-1.5 flex gap-1 pl-6">
+                      <button
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          fields.uploaderNameStyle === "full"
+                            ? "bg-gray-900 text-white"
+                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                        onClick={() => setUploaderNameStyle("full")}
+                        type="button"
+                      >
+                        Vorname Nachname
+                      </button>
+                      <button
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          fields.uploaderNameStyle === "initials"
+                            ? "bg-gray-900 text-white"
+                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                        onClick={() => setUploaderNameStyle("initials")}
+                        type="button"
+                      >
+                        Nur Initialen
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 

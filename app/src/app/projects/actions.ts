@@ -1956,11 +1956,17 @@ export async function finalizeProjectPhotoUpload(input: {
         }
       : null;
 
+  // Always read metadata from the original, uncompressed bytes, not the
+  // (possibly) recompressed `buffer` - sharp's resize/re-encode can drop
+  // the GPS sub-IFD even with keepMetadata() while still keeping the rest
+  // of EXIF (camera make/model/settings), which otherwise silently loses
+  // GPS on every upload with "Dateigröße reduzieren" checked.
+  //
   // Metadata enrichment is a nice-to-have and must never block the actual
   // upload - a parsing edge case in some phone's EXIF/HEIC encoding
   // shouldn't mean the photo doesn't get saved at all.
   const metadata = input.takeMetadata
-    ? await extractPhotoMetadata(buffer, {
+    ? await extractPhotoMetadata(originalBuffer, {
         fileLastModified: input.fileLastModified,
         originalFileName: input.originalFileName,
       }).catch((error) => {
