@@ -3366,10 +3366,19 @@ async function extractPhotoMetadata(
   rawInput: RawPhotoMetadataInput,
 ): Promise<PhotoMetadata> {
   const { dimensions, exif } = await readExifAndDimensions(buffer);
+  // Photos taken via the in-app "Kamera" capture button carry no EXIF at
+  // all (no camera make/model, no DateTimeOriginal) - that's a browser/OS
+  // limitation, not a parsing gap. file.lastModified is still available
+  // for those (the browser sets it to the moment the photo was created),
+  // so it's a reasonable stand-in for "Aufnahme" when EXIF has nothing.
+  const fallbackCapturedAt = Number.isFinite(rawInput.fileLastModified)
+    ? new Date(rawInput.fileLastModified)
+    : undefined;
+  const capturedAt = exif.capturedAt ?? fallbackCapturedAt;
   const metadata = {
     cameraMake: exif.cameraMake,
     cameraModel: exif.cameraModel,
-    capturedAt: exif.capturedAt?.toISOString(),
+    capturedAt: capturedAt?.toISOString(),
     fileLastModified: Number.isFinite(rawInput.fileLastModified)
       ? new Date(rawInput.fileLastModified).toISOString()
       : null,
@@ -3383,6 +3392,7 @@ async function extractPhotoMetadata(
   return {
     ...dimensions,
     ...exif,
+    capturedAt,
     metadataJson: JSON.stringify(metadata),
   };
 }
