@@ -29,6 +29,12 @@ function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
     gpsLongitude: photo.gpsLongitude,
     gpsHeading: photo.gpsHeading,
     gpsAltitude: photo.gpsAltitude,
+    cameraMake: photo.cameraMake,
+    cameraModel: photo.cameraModel,
+    cameraAperture: photo.cameraAperture,
+    cameraExposureTime: photo.cameraExposureTime,
+    cameraFocalLength: photo.cameraFocalLength,
+    cameraIso: photo.cameraIso,
   };
 }
 
@@ -52,6 +58,10 @@ export function PhotoWatermarkDialog({
   const hasAltitudeData = typeof photo.gpsAltitude === "number";
   const hasLocationData =
     typeof photo.gpsLatitude === "number" && typeof photo.gpsLongitude === "number";
+  const hasCameraData = Boolean(photo.cameraMake || photo.cameraModel);
+  const hasCameraSettingsData = Boolean(
+    photo.cameraFocalLength || photo.cameraAperture || photo.cameraExposureTime || photo.cameraIso,
+  );
 
   useEffect(() => {
     if (!fields.map || !hasLocationData || mapThumbnail) return;
@@ -254,6 +264,24 @@ export function PhotoWatermarkDialog({
                   hint={!hasAltitudeData ? "Keine Höhe im Foto hinterlegt" : undefined}
                   label="Höhe über NN"
                   onChange={() => toggleField("altitude")}
+                />
+                <WatermarkFieldCheckbox
+                  checked={fields.camera}
+                  disabled={!hasCameraData}
+                  hint={!hasCameraData ? "Keine Kamera-Daten im Foto hinterlegt" : undefined}
+                  label="Kamera"
+                  onChange={() => toggleField("camera")}
+                />
+                <WatermarkFieldCheckbox
+                  checked={fields.cameraSettings}
+                  disabled={!hasCameraSettingsData}
+                  hint={
+                    !hasCameraSettingsData
+                      ? "Keine Kameraeinstellungen im Foto hinterlegt"
+                      : undefined
+                  }
+                  label="Kameraeinstellungen"
+                  onChange={() => toggleField("cameraSettings")}
                 />
                 <WatermarkFieldCheckbox
                   checked={fields.map}

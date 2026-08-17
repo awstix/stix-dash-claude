@@ -10,6 +10,8 @@ export type WatermarkFields = {
   compass: boolean;
   altitude: boolean;
   map: boolean;
+  camera: boolean;
+  cameraSettings: boolean;
 };
 
 export const DEFAULT_WATERMARK_FIELDS: WatermarkFields = {
@@ -20,6 +22,8 @@ export const DEFAULT_WATERMARK_FIELDS: WatermarkFields = {
   compass: true,
   altitude: false,
   map: false,
+  camera: false,
+  cameraSettings: false,
 };
 
 export type WatermarkPhotoInput = {
@@ -34,6 +38,12 @@ export type WatermarkPhotoInput = {
   gpsLongitude: number | null;
   gpsHeading: number | null;
   gpsAltitude: number | null;
+  cameraMake: string | null;
+  cameraModel: string | null;
+  cameraAperture: string | null;
+  cameraExposureTime: string | null;
+  cameraFocalLength: string | null;
+  cameraIso: number | null;
 };
 
 const COMPASS_DIRECTIONS = [
@@ -89,6 +99,23 @@ function buildTextLines(photo: WatermarkPhotoInput, fields: WatermarkFields): st
 
   if (fields.altitude && typeof photo.gpsAltitude === "number") {
     lines.push(`${Math.round(photo.gpsAltitude)} m ü. NN`);
+  }
+
+  if (fields.camera) {
+    const cameraLine = [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ");
+    if (cameraLine) lines.push(cameraLine);
+  }
+
+  if (fields.cameraSettings) {
+    const settingsLine = [
+      photo.cameraFocalLength,
+      photo.cameraAperture,
+      photo.cameraExposureTime,
+      photo.cameraIso ? `ISO ${photo.cameraIso}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (settingsLine) lines.push(settingsLine);
   }
 
   return lines;
