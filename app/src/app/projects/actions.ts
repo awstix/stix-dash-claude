@@ -2059,6 +2059,28 @@ export async function getPhotoMapThumbnail(input: {
   return result ? `data:image/png;base64,${result.png.toString("base64")}` : null;
 }
 
+/** Per-user "Foto mit Infos" preferences (position/fields/opacity) - kept
+ * as an opaque JSON blob owned by the client, so this file doesn't need
+ * to know the shape of WatermarkFields/WatermarkPosition. Tied to the
+ * account (not the browser), so it follows the user across devices. */
+export async function getPhotoWatermarkSettings(): Promise<string | null> {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { photoWatermarkSettingsJson: true },
+  });
+
+  return user?.photoWatermarkSettingsJson ?? null;
+}
+
+export async function savePhotoWatermarkSettings(settingsJson: string): Promise<void> {
+  const session = await requireSession();
+  await prisma.user.update({
+    data: { photoWatermarkSettingsJson: settingsJson.slice(0, 2000) },
+    where: { id: session.user.id },
+  });
+}
+
 export async function updateProjectPhoto(input: ProjectPhotoUpdateInput) {
   if (!input.id) {
     throw new Error("Foto-ID fehlt.");

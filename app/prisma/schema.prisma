@@ -1287,6 +1287,7 @@ model User {
   employeeId              String?   @unique
   canApproveLeaveRequests Boolean   @default(false)
   employee                Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  photoWatermarkSettingsJson String?
 
   sessions               Session[]
   accounts               Account[]

@@ -6,30 +6,43 @@ type CompassCapableDeviceOrientationEvent = DeviceOrientationEvent & {
   webkitCompassHeading?: number;
 };
 
-/** Compass heading ("in welche Richtung fotografiert wurde") isn't in the
- * Geolocation API - it needs the device's orientation/magnetometer sensor,
- * which browsers only expose via DeviceOrientationEvent, and iOS 13+ gates
- * that behind an explicit permission prompt that must be triggered by a
- * user gesture (calling this from the "Kamera" button's click handler
- * satisfies that). Resolves null if the sensor/permission/API isn't
- * available or no reading arrives in time - the watermark dialog simply
- * hides the compass option for that photo rather than showing bad data. */
-export async function requestDeviceHeading(): Promise<number | null> {
+function getOrientationEventCtor(): IOSDeviceOrientationEventConstructor | null {
   if (typeof window === "undefined" || !("DeviceOrientationEvent" in window)) {
     return null;
   }
+  return window.DeviceOrientationEvent as IOSDeviceOrientationEventConstructor;
+}
 
-  const OrientationEventCtor =
-    window.DeviceOrientationEvent as IOSDeviceOrientationEventConstructor;
+/** Must be called synchronously from within a real user gesture (a click
+ * handler), and BEFORE opening the camera - not from the file input's
+ * onChange afterwards. iOS Safari only honors
+ * DeviceOrientationEvent.requestPermission() while the click's "user
+ * activation" is still active, and by the time <input capture> hands
+ * control back via onChange (often several seconds later, after the
+ * native camera UI has closed) that activation has already expired, so
+ * requesting it there silently fails every time. */
+export async function requestDeviceHeadingPermission(): Promise<void> {
+  const ctor = getOrientationEventCtor();
+  if (!ctor || typeof ctor.requestPermission !== "function") return;
 
-  if (typeof OrientationEventCtor.requestPermission === "function") {
-    try {
-      const result = await OrientationEventCtor.requestPermission();
-      if (result !== "granted") return null;
-    } catch {
-      return null;
-    }
+  try {
+    await ctor.requestPermission();
+  } catch {
+    // Ignored - readCurrentHeading() below just won't receive any events.
   }
+}
+
+/** Reads one heading sample from whatever orientation events are already
+ * flowing. Permission must already have been granted via
+ * requestDeviceHeadingPermission() beforehand - this function itself
+ * doesn't request anything, so it's safe to call outside a user gesture
+ * (e.g. from a file input's onChange after a camera capture completes).
+ * Resolves null if no sensor reading arrives in time (no compass
+ * hardware, permission denied, browser doesn't support it, ...) - the
+ * watermark dialog simply hides the compass option for that photo rather
+ * than showing bad data. */
+export function readCurrentHeading(): Promise<number | null> {
+  if (!getOrientationEventCtor()) return Promise.resolve(null);
 
   return new Promise((resolve) => {
     let settled = false;

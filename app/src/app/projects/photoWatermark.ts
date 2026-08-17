@@ -1,6 +1,6 @@
-export type WatermarkPosition = { col: 0 | 1 | 2; row: 0 | 1 | 2 | 3 };
+export type WatermarkPosition = { col: 0 | 1 | 2 | 3; row: 0 | 1 | 2 | 3 };
 
-export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = { col: 2, row: 0 };
+export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = { col: 3, row: 0 };
 
 export type WatermarkFields = {
   date: boolean;
@@ -226,14 +226,11 @@ export async function renderPhotoWithWatermark({
   const showCompassRose = fields.compass && typeof photo.gpsHeading === "number";
   const showMap = fields.map && Boolean(mapThumbnailDataUrl);
 
-  const horizontalAlign: CanvasTextAlign =
-    position.col === 0 ? "left" : position.col === 2 ? "right" : "center";
-  const anchorX =
-    position.col === 0
-      ? padding
-      : position.col === 2
-        ? canvas.width - padding
-        : canvas.width / 2;
+  // 4x4 position grid: the left two columns hug the left edge, the right
+  // two hug the right edge - a middle "centered" bucket isn't useful once
+  // there's no single center column left.
+  const horizontalAlign: CanvasTextAlign = position.col <= 1 ? "left" : "right";
+  const anchorX = position.col <= 1 ? padding : canvas.width - padding;
 
   if (lines.length > 0) {
     ctx.font = `600 ${fontSize}px "Segoe UI", Arial, sans-serif`;
@@ -268,7 +265,7 @@ export async function renderPhotoWithWatermark({
   // the map stacks above whichever corner the compass ended up in rather
   // than drawing directly on top of it.
   let leftCornerFree = !(lines.length > 0 && position.row >= 2 && position.col === 0);
-  let rightCornerFree = !(lines.length > 0 && position.row >= 2 && position.col === 2);
+  let rightCornerFree = !(lines.length > 0 && position.row >= 2 && position.col === 3);
   let compassOnLeft: boolean | null = null;
 
   const compassRadius = Math.round(Math.min(canvas.width, canvas.height) * 0.09);

@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { buildPhotoFileName } from "@/lib/project-photo-file-name";
-import { getPhotoMapThumbnail } from "./actions";
+import {
+  getPhotoMapThumbnail,
+  getPhotoWatermarkSettings,
+  savePhotoWatermarkSettings,
+} from "./actions";
 import type { ProjectPhotoGalleryItem } from "./ProjectPhotoGallery";
 import {
   DEFAULT_WATERMARK_FIELDS,
@@ -14,7 +18,7 @@ import {
 } from "./photoWatermark";
 
 const POSITION_ROWS: WatermarkPosition["row"][] = [0, 1, 2, 3];
-const POSITION_COLS: WatermarkPosition["col"][] = [0, 1, 2];
+const POSITION_COLS: WatermarkPosition["col"][] = [0, 1, 2, 3];
 
 function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
   return {
@@ -48,6 +52,7 @@ export function PhotoWatermarkDialog({
   const [fields, setFields] = useState<WatermarkFields>(DEFAULT_WATERMARK_FIELDS);
   const [position, setPosition] = useState<WatermarkPosition>(DEFAULT_WATERMARK_POSITION);
   const [opacity, setOpacity] = useState(1);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -62,6 +67,47 @@ export function PhotoWatermarkDialog({
   const hasCameraSettingsData = Boolean(
     photo.cameraFocalLength || photo.cameraAperture || photo.cameraExposureTime || photo.cameraIso,
   );
+
+  // Loaded once per dialog open - tied to the account (not the browser),
+  // so the chosen position/fields/opacity follow the user across devices
+  // instead of resetting every time they save photos.
+  useEffect(() => {
+    let cancelled = false;
+
+    getPhotoWatermarkSettings()
+      .then((json) => {
+        if (cancelled || !json) return;
+        const parsed = JSON.parse(json) as {
+          fields?: Partial<WatermarkFields>;
+          position?: WatermarkPosition;
+          opacity?: number;
+        };
+        if (parsed.fields) setFields((current) => ({ ...current, ...parsed.fields }));
+        if (parsed.position) setPosition(parsed.position);
+        if (typeof parsed.opacity === "number") setOpacity(parsed.opacity);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setSettingsLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Debounced so dragging the opacity slider doesn't fire a save per tick.
+  useEffect(() => {
+    if (!settingsLoaded) return;
+
+    const timeout = setTimeout(() => {
+      savePhotoWatermarkSettings(JSON.stringify({ fields, opacity, position })).catch(
+        () => undefined,
+      );
+    }, 600);
+
+    return () => clearTimeout(timeout);
+  }, [settingsLoaded, fields, position, opacity]);
 
   useEffect(() => {
     if (!fields.map || !hasLocationData || mapThumbnail) return;
@@ -200,8 +246,8 @@ export function PhotoWatermarkDialog({
                 Position
               </div>
               <div
-                className="mt-2 grid grid-cols-3 gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
-                style={{ aspectRatio: "3 / 4" }}
+                className="mt-2 grid grid-cols-4 gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
+                style={{ aspectRatio: "1 / 1" }}
               >
                 {POSITION_ROWS.flatMap((row) =>
                   POSITION_COLS.map((col) => {

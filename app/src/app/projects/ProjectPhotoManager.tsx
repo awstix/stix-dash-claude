@@ -3,7 +3,7 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
-import { requestDeviceHeading } from "./deviceHeading";
+import { readCurrentHeading, requestDeviceHeadingPermission } from "./deviceHeading";
 import {
   ProjectFileDropInput,
   ProjectPhotoNoteFields,
@@ -38,7 +38,7 @@ async function getCurrentGpsPosition() {
 async function getCurrentGpsAndHeading() {
   const [position, heading] = await Promise.all([
     getCurrentGpsPosition(),
-    requestDeviceHeading(),
+    readCurrentHeading(),
   ]);
   return position ? { ...position, heading } : null;
 }
@@ -127,6 +127,16 @@ export function ProjectPhotoManager({
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
+
+  // Must ask for the motion-sensor permission here, directly in the
+  // button's click handler - by the time the file input's onChange fires
+  // (after the native camera UI has closed again), iOS Safari's user-
+  // activation window for DeviceOrientationEvent.requestPermission() has
+  // already expired, so asking there silently fails every time.
+  async function openCameraCapture() {
+    await requestDeviceHeadingPermission();
+    cameraInputRef.current?.click();
+  }
 
   async function handleCameraCapture(event: FormEvent<HTMLInputElement>) {
     const files = event.currentTarget.files;
@@ -304,7 +314,7 @@ export function ProjectPhotoManager({
               />
               <button
                 className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-4 text-center transition hover:bg-gray-50"
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={openCameraCapture}
                 type="button"
               >
                 <ActionIcon name="camera" className="h-5 w-5 text-gray-700" />
