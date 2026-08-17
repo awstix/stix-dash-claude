@@ -1729,7 +1729,7 @@ export async function uploadProjectPhotos(formData: FormData) {
     }`;
     const storagePath = `project-photos/${projectId}/${fileName}`;
     const metadata = takeMetadata
-      ? extractPhotoMetadata(originalBuffer, file.type, {
+      ? await extractPhotoMetadata(originalBuffer, file.type, {
           fileLastModified: file.lastModified,
           originalFileName: file.name,
         })
@@ -3311,13 +3311,37 @@ async function getProjectActor() {
   };
 }
 
-function extractPhotoMetadata(
+/** JPEG goes through the hand-rolled APP1 reader (fast, no extra work).
+ * Everything else (HEIC/HEIC from iPhone photo libraries being the common
+ * case that was silently dropping camera make/model/capture date) falls
+ * back to sharp, which can decode EXIF out of any format it supports -
+ * sharp's Metadata.exif is the same raw TIFF blob a JPEG APP1 segment
+ * carries, just without the JPEG wrapper, so the same IFD walker applies. */
+async function readExifAndDimensions(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ dimensions: { imageHeight?: number; imageWidth?: number }; exif: PhotoMetadata }> {
+  if (mimeType === "image/jpeg") {
+    return { dimensions: readImageDimensions(buffer, mimeType), exif: readJpegExif(buffer) };
+  }
+
+  try {
+    const sharpMetadata = await sharp(buffer).metadata();
+    return {
+      dimensions: { imageHeight: sharpMetadata.height, imageWidth: sharpMetadata.width },
+      exif: sharpMetadata.exif ? readExifFromTiffBuffer(sharpMetadata.exif, 0) : {},
+    };
+  } catch {
+    return { dimensions: {}, exif: {} };
+  }
+}
+
+async function extractPhotoMetadata(
   buffer: Buffer,
   mimeType: string,
   rawInput: RawPhotoMetadataInput,
-): PhotoMetadata {
-  const dimensions = readImageDimensions(buffer, mimeType);
-  const exif = mimeType === "image/jpeg" ? readJpegExif(buffer) : {};
+): Promise<PhotoMetadata> {
+  const { dimensions, exif } = await readExifAndDimensions(buffer, mimeType);
   const metadata = {
     cameraMake: exif.cameraMake,
     cameraModel: exif.cameraModel,
@@ -3591,7 +3615,20 @@ function readUInt24LE(buffer: Buffer, offset: number) {
 function readJpegExif(buffer: Buffer): PhotoMetadata {
   const tiffOffset = findExifTiffOffset(buffer);
 
-  if (tiffOffset === null || tiffOffset + 8 >= buffer.length) {
+  if (tiffOffset === null) {
+    return {};
+  }
+
+  return readExifFromTiffBuffer(buffer, tiffOffset);
+}
+
+/** Walks a raw TIFF/IFD structure (the same binary layout EXIF always uses,
+ * regardless of which container format wraps it) starting at tiffOffset -
+ * shared by the JPEG APP1-segment reader above and the sharp-based reader
+ * below (sharp's Metadata.exif is this same TIFF blob for any format it
+ * decodes, starting at its own offset 0). */
+function readExifFromTiffBuffer(buffer: Buffer, tiffOffset: number): PhotoMetadata {
+  if (tiffOffset + 8 >= buffer.length) {
     return {};
   }
 

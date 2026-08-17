@@ -93,8 +93,15 @@ export function ProjectPhotoManager({
   )
     ? initialProjectId
     : "";
-  const selectedInitialProject = projects.find(
-    (project) => project.id === selectedInitialProjectId,
+  // Controlled, and deliberately not reset alongside the rest of the form
+  // after a successful upload (see uploadPhotos below) - lets someone
+  // upload a whole photo series into the same project without reselecting
+  // it before every single photo.
+  const [selectedProjectId, setSelectedProjectId] = useState(
+    selectedInitialProjectId ?? "",
+  );
+  const selectedProject = projects.find(
+    (project) => project.id === selectedProjectId,
   );
 
   async function handleCameraCapture(event: FormEvent<HTMLInputElement>) {
@@ -188,9 +195,9 @@ export function ProjectPhotoManager({
               Bilder werden projektbezogen abgelegt und können für spätere
               Bautagesberichte freigegeben werden.
             </p>
-            {selectedInitialProject ? (
+            {selectedProject ? (
               <div className="mt-2 w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                Vorausgewählt: {selectedInitialProject.label}
+                Ausgewählt: {selectedProject.label}
               </div>
             ) : null}
           </div>
@@ -208,9 +215,10 @@ export function ProjectPhotoManager({
               <select
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
                 disabled={projects.length === 0}
-                defaultValue={selectedInitialProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
                 name="projectId"
                 required
+                value={selectedProjectId}
               >
                 <option value="">Projekt auswählen</option>
                 {projects.map((project) => (
