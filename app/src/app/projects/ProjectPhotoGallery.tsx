@@ -1212,21 +1212,30 @@ function PhotoPill({
   );
 }
 
+// Direktaufnahmen über den In-App-Kamera-Button liefern browser-/
+// plattformübergreifend (iOS und Android gleichermaßen) keine
+// Kamera-EXIF - Fotos aus der Fotomediathek dagegen schon. Statt einem
+// nackten "-" ein kurzer Hinweis, damit klar ist, dass das kein Fehler
+// ist, sondern an der Aufnahme-Methode liegt.
+const NO_CAMERA_METADATA_HINT = "- (keine Kamera-Daten im Foto, z. B. bei Kamera-Button-Aufnahme)";
+
 function getCameraLabel(photo: ProjectPhotoGalleryItem) {
-  return [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ") || "-";
+  const label = [photo.cameraMake, photo.cameraModel].filter(Boolean).join(" ");
+  if (label) return label;
+  return photo.metadataTaken ? NO_CAMERA_METADATA_HINT : "-";
 }
 
 function getCameraSettingsLabel(photo: ProjectPhotoGalleryItem) {
-  return (
-    [
-      photo.cameraFocalLength,
-      photo.cameraAperture,
-      photo.cameraExposureTime,
-      photo.cameraIso ? `ISO ${photo.cameraIso}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || "-"
-  );
+  const label = [
+    photo.cameraFocalLength,
+    photo.cameraAperture,
+    photo.cameraExposureTime,
+    photo.cameraIso ? `ISO ${photo.cameraIso}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (label) return label;
+  return photo.metadataTaken ? NO_CAMERA_METADATA_HINT : "-";
 }
 
 export function getUploaderLabel(photo: ProjectPhotoGalleryItem) {
