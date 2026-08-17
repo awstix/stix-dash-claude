@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-access";
@@ -86,10 +87,16 @@ export async function adminSetUserPassword(userId: string, newPassword: string) 
   }
 
   try {
+    // setUserPassword runs behind better-auth's adminMiddleware, which
+    // re-derives the caller's session from the request headers - without
+    // passing them along here it always throws UNAUTHORIZED, regardless
+    // of who the target user is.
     await auth.api.setUserPassword({
       body: { newPassword, userId },
+      headers: await headers(),
     });
-  } catch {
+  } catch (error) {
+    console.error("Admin-Passwort setzen fehlgeschlagen:", error);
     return { error: "Passwort konnte nicht gesetzt werden." };
   }
 
