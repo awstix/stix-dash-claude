@@ -13,7 +13,11 @@ function getOrientationEventCtor(): IOSDeviceOrientationEventConstructor | null 
   return window.DeviceOrientationEvent as IOSDeviceOrientationEventConstructor;
 }
 
-export type HeadingPermissionResult = "granted" | "denied" | "not-gated";
+export type HeadingPermissionResult =
+  | { status: "granted" }
+  | { status: "not-gated" }
+  | { status: "declined" }
+  | { status: "threw"; errorName: string; errorMessage: string };
 
 /** Must be called synchronously from within a real user gesture (a click
  * handler), and BEFORE opening the camera - not from the file input's
@@ -24,41 +28,46 @@ export type HeadingPermissionResult = "granted" | "denied" | "not-gated";
  * native camera UI has closed) that activation has already expired, so
  * requesting it there silently fails every time.
  *
- * "denied" also covers the case where iOS already recorded a decision
- * for this site on an earlier visit (e.g. from before this fix, when the
- * permission was requested too late and got auto-rejected) - iOS then
- * just returns "denied" again without ever showing the dialog, and the
- * only way out is Settings > Safari > Motion & Orientation Access, or
- * clearing that site's data. */
+ * Distinguishes an actual thrown error (WebKit often throws instead of
+ * showing the dialog at all when it decides the gesture isn't valid
+ * enough - "declined" would mean the dialog DID appear and the user
+ * tapped "Don't Allow") from a clean "declined" resolution, since that
+ * distinction is the key diagnostic for why no dialog ever shows up. */
 export async function requestDeviceHeadingPermission(): Promise<HeadingPermissionResult> {
   const ctor = getOrientationEventCtor();
-  if (!ctor || typeof ctor.requestPermission !== "function") return "not-gated";
+  if (!ctor || typeof ctor.requestPermission !== "function") return { status: "not-gated" };
 
   try {
     const result = await ctor.requestPermission();
-    return result === "granted" ? "granted" : "denied";
-  } catch {
-    return "denied";
+    return result === "granted" ? { status: "granted" } : { status: "declined" };
+  } catch (error) {
+    return {
+      status: "threw",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
 const HEADING_DENIED_HINT_KEY = "photo-heading-denied-hint-shown";
 
 /** Shows a one-time (per browser session) explanation when the compass
- * permission is blocked, instead of just silently leaving "Kompass /
- * Ausrichtung" empty with no clue why - this is commonly a stale
- * decision from before the permission was requested at the right time,
- * or the iPhone-wide Settings > Safari > Motion & Orientation Access
- * toggle being off, and in both cases the in-page permission dialog
- * simply never appears again on its own. */
+ * permission isn't granted, instead of just silently leaving "Kompass /
+ * Ausrichtung" empty with no clue why. Includes the raw error when
+ * requestPermission() threw rather than resolving cleanly - that's the
+ * concrete detail needed to tell a stale per-site decision / disabled
+ * global setting apart from a gesture-timing rejection. */
 export function warnIfHeadingDenied(result: HeadingPermissionResult) {
-  if (result !== "denied") return;
+  if (result.status === "granted" || result.status === "not-gated") return;
   if (typeof window === "undefined") return;
   if (window.sessionStorage.getItem(HEADING_DENIED_HINT_KEY)) return;
 
   window.sessionStorage.setItem(HEADING_DENIED_HINT_KEY, "1");
+  const detail =
+    result.status === "threw" ? `${result.errorName}: ${result.errorMessage}` : "abgelehnt";
   window.alert(
     "Kompass-Zugriff ist blockiert, deshalb bleibt \"Kompass / Ausrichtung\" leer. " +
+      `Technische Meldung: ${detail}\n\n` +
       "Auf dem iPhone prüfen: Einstellungen > Safari > \"Bewegung und Ausrichtung\" muss an sein. " +
       "Falls das schon an ist, hilft nur Zurücksetzen der Website-Berechtigung: " +
       "Einstellungen > Safari > Verlauf und Websitedaten löschen (oder nur die Daten dieser Seite).",
