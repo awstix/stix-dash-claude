@@ -37,6 +37,17 @@ function formatDate(value: Date | null) {
   return value ? value.toLocaleDateString("de-DE") : "-";
 }
 
+// Both rows get an explicit height so the SUMME row's sticky offset
+// (top-11 = 2.75rem = the header row's own height) lines up exactly,
+// with whitespace-nowrap making sure a long header label can never wrap
+// onto a second line and throw that height off - reasonable here since
+// the table already forces min-w-[2000px] and scrolls horizontally
+// rather than wrapping column headers.
+const headerCellClass =
+  "sticky top-0 z-20 h-11 whitespace-nowrap bg-gray-900 p-3";
+const summeCellClass =
+  "sticky top-11 z-10 h-11 whitespace-nowrap bg-amber-50 p-3";
+
 export default async function ControllingAuftraegePage() {
   const projects = await prisma.project.findMany({
     orderBy: [{ projectNumber: "desc" }],
@@ -114,50 +125,59 @@ export default async function ControllingAuftraegePage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Sticky headers only actually stick to the viewport of whatever
+            box scrolls them - wrapping in a plain overflow-x-auto div
+            (no height limit) makes that div itself the vertical scroll
+            container per the CSS overflow spec, so a sticky thead inside
+            it never reaches the page's own scroll. Giving this box a
+            max-height + overflow-y-auto as well makes it the real (and
+            only) scroll container in both directions, so sticky actually
+            works, at the cost of the table becoming its own scrollable
+            panel instead of scrolling with the whole page. */}
+        <div className="max-h-[75vh] overflow-auto">
           <table className="w-full min-w-[2000px] border-collapse text-left text-xs">
-            <thead className="bg-gray-900 text-white">
+            <thead className="text-white">
               <tr>
-                <th className="p-3">Nr.</th>
-                <th className="p-3">Auftrag</th>
-                <th className="p-3">Bauleiter</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Auftragsumme (netto)</th>
-                <th className="p-3">Nachträge (netto)</th>
-                <th className="p-3">Auftragssumme inkl. Nachträge (netto)</th>
-                <th className="p-3">Summe aller Abschläge (netto)</th>
-                <th className="p-3">Leistungsstand (IST %)</th>
-                <th className="p-3">Leistungsstand (IST €)</th>
-                <th className="p-3">Abrechnungsstand (IST %)</th>
-                <th className="p-3">Δ Leistungsstand vs Abrechnung (€)</th>
-                <th className="p-3">Über-/Unterdeckung</th>
-                <th className="p-3">Auftraggeber</th>
-                <th className="p-3">Tatsächlicher Baubeginn</th>
-                <th className="p-3">Tatsächliches Bauende</th>
-                <th className="p-3">Vsl. Baubeginn</th>
-                <th className="p-3">Vsl. Bauende</th>
-                <th className="p-3">Restliche Bauzeit</th>
+                <th className={headerCellClass}>Nr.</th>
+                <th className={headerCellClass}>Auftrag</th>
+                <th className={headerCellClass}>Bauleiter</th>
+                <th className={headerCellClass}>Status</th>
+                <th className={headerCellClass}>Auftragsumme (netto)</th>
+                <th className={headerCellClass}>Nachträge (netto)</th>
+                <th className={headerCellClass}>Auftragssumme inkl. Nachträge (netto)</th>
+                <th className={headerCellClass}>Summe aller Abschläge (netto)</th>
+                <th className={headerCellClass}>Leistungsstand (IST %)</th>
+                <th className={headerCellClass}>Leistungsstand (IST €)</th>
+                <th className={headerCellClass}>Abrechnungsstand (IST %)</th>
+                <th className={headerCellClass}>Δ Leistungsstand vs Abrechnung (€)</th>
+                <th className={headerCellClass}>Über-/Unterdeckung</th>
+                <th className={headerCellClass}>Auftraggeber</th>
+                <th className={headerCellClass}>Tatsächlicher Baubeginn</th>
+                <th className={headerCellClass}>Tatsächliches Bauende</th>
+                <th className={headerCellClass}>Vsl. Baubeginn</th>
+                <th className={headerCellClass}>Vsl. Bauende</th>
+                <th className={headerCellClass}>Restliche Bauzeit</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b-2 border-gray-300 bg-amber-50 font-bold text-gray-900">
-                <td className="p-3" colSpan={4}>
+              <tr className="border-b-2 border-gray-300 font-bold text-gray-900">
+                <td className={summeCellClass} colSpan={4}>
                   SUMME
                 </td>
-                <td className="p-3">{formatEuro(totals.contractValueNet)}</td>
-                <td className="p-3">{formatEuro(totals.changeOrdersNet)}</td>
-                <td className="p-3">{formatEuro(totals.totalContract)}</td>
-                <td className="p-3">{formatEuro(totals.paymentsNet)}</td>
-                <td className="p-3">{formatPercent(totalProgressPercent)}</td>
-                <td className="p-3">{formatEuro(totals.performanceValue)}</td>
-                <td className="p-3">{formatPercent(totalBillingPercent)}</td>
-                <td className={totals.difference >= 0 ? "p-3 text-green-800" : "p-3 text-red-700"}>
+                <td className={summeCellClass}>{formatEuro(totals.contractValueNet)}</td>
+                <td className={summeCellClass}>{formatEuro(totals.changeOrdersNet)}</td>
+                <td className={summeCellClass}>{formatEuro(totals.totalContract)}</td>
+                <td className={summeCellClass}>{formatEuro(totals.paymentsNet)}</td>
+                <td className={summeCellClass}>{formatPercent(totalProgressPercent)}</td>
+                <td className={summeCellClass}>{formatEuro(totals.performanceValue)}</td>
+                <td className={summeCellClass}>{formatPercent(totalBillingPercent)}</td>
+                <td className={`${summeCellClass} ${totals.difference >= 0 ? "text-green-800" : "text-red-700"}`}>
                   {formatEuro(totals.difference)}
                 </td>
-                <td className={totalCoveragePercent >= 0 ? "p-3 text-green-800" : "p-3 text-red-700"}>
+                <td className={`${summeCellClass} ${totalCoveragePercent >= 0 ? "text-green-800" : "text-red-700"}`}>
                   {formatPercent(totalCoveragePercent)}
                 </td>
-                <td className="p-3" colSpan={6} />
+                <td className={summeCellClass} colSpan={6} />
               </tr>
 
               {rows.length === 0 ? (
