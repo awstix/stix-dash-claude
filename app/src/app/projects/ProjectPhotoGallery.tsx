@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { buildPhotoFileName } from "@/lib/project-photo-file-name";
 import {
   deleteProjectPhoto,
   deleteProjectPhotos,
@@ -1326,33 +1327,12 @@ function downloadPhoto(photo: ProjectPhotoGalleryItem) {
 }
 
 function getPhotoDownloadFileName(photo: ProjectPhotoGalleryItem) {
-  const timestamp = formatFileNameTimestamp(photo.uploadedAt);
-  const surname = photo.uploadedByName?.trim().split(/\s+/).pop();
-  const parts = [timestamp, photo.projectNumber, surname]
-    .filter((part): part is string => Boolean(part))
-    .map(sanitizeFileNamePart);
-
-  return `${parts.join("_")}.${getPhotoExtension(photo)}`;
-}
-
-function sanitizeFileNamePart(value: string) {
-  return value.replace(/[\\/:*?"<>|]+/g, "").trim();
-}
-
-function formatFileNameTimestamp(value: string) {
-  const parts = new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    month: "2-digit",
-    second: "2-digit",
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-  }).formatToParts(new Date(value));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
-
-  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}${get("minute")}${get("second")}`;
+  return buildPhotoFileName({
+    date: new Date(photo.uploadedAt),
+    extension: getPhotoExtension(photo),
+    projectNumber: photo.projectNumber,
+    uploadedByName: photo.uploadedByName,
+  });
 }
 
 function getPhotoExtension(photo: ProjectPhotoGalleryItem) {

@@ -19,6 +19,7 @@ import {
   primaryConstructionManagerName,
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
+import { buildPhotoFileName } from "@/lib/project-photo-file-name";
 import {
   revokeUserProjectAccessForEmployees,
   syncUserProjectAccessForConstructionManagers,
@@ -1694,6 +1695,7 @@ export async function uploadProjectPhotos(formData: FormData) {
     },
     select: {
       id: true,
+      projectNumber: true,
     },
   });
 
@@ -1724,12 +1726,16 @@ export async function uploadProjectPhotos(formData: FormData) {
         };
     const buffer = storedPhoto.buffer;
     const extension = getPhotoExtension(file);
-    const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}.${
-      storedPhoto.extension || extension
-    }`;
+    const fileName = buildPhotoFileName({
+      date: new Date(),
+      extension: storedPhoto.extension || extension,
+      projectNumber: project.projectNumber,
+      uniqueSuffix: randomUUID().slice(0, 8),
+      uploadedByName: actor.name,
+    });
     const storagePath = `project-photos/${projectId}/${fileName}`;
     const metadata = takeMetadata
-      ? await extractPhotoMetadata(originalBuffer, file.type, {
+      ? await extractPhotoMetadata(originalBuffer, {
           fileLastModified: file.lastModified,
           originalFileName: file.name,
         })
@@ -3319,10 +3325,23 @@ async function getProjectActor() {
  * carries, just without the JPEG wrapper, so the same IFD walker applies. */
 async function readExifAndDimensions(
   buffer: Buffer,
-  mimeType: string,
 ): Promise<{ dimensions: { imageHeight?: number; imageWidth?: number }; exif: PhotoMetadata }> {
-  if (mimeType === "image/jpeg") {
-    return { dimensions: readImageDimensions(buffer, mimeType), exif: readJpegExif(buffer) };
+  // Try the byte-signature JPEG reader first regardless of what mimeType
+  // says - iOS Safari silently re-encodes HEIC photo-library picks to
+  // JPEG before handing them to the page (file.type then says
+  // "image/jpeg" even though the user picked a HEIC original), and a
+  // browser's reported file.type isn't fully trustworthy either way. Both
+  // readJpegDimensions/readJpegExif check the actual JPEG SOI marker
+  // themselves, so calling them on a non-JPEG buffer is a harmless no-op.
+  const jpegDimensions = readImageDimensions(buffer, "image/jpeg");
+  const jpegExif = readJpegExif(buffer);
+  const foundJpegData =
+    jpegDimensions.imageWidth !== undefined ||
+    jpegExif.cameraMake !== undefined ||
+    jpegExif.capturedAt !== undefined;
+
+  if (foundJpegData) {
+    return { dimensions: jpegDimensions, exif: jpegExif };
   }
 
   try {
@@ -3332,16 +3351,15 @@ async function readExifAndDimensions(
       exif: sharpMetadata.exif ? readExifFromTiffBuffer(sharpMetadata.exif, 0) : {},
     };
   } catch {
-    return { dimensions: {}, exif: {} };
+    return { dimensions: jpegDimensions, exif: jpegExif };
   }
 }
 
 async function extractPhotoMetadata(
   buffer: Buffer,
-  mimeType: string,
   rawInput: RawPhotoMetadataInput,
 ): Promise<PhotoMetadata> {
-  const { dimensions, exif } = await readExifAndDimensions(buffer, mimeType);
+  const { dimensions, exif } = await readExifAndDimensions(buffer);
   const metadata = {
     cameraMake: exif.cameraMake,
     cameraModel: exif.cameraModel,
