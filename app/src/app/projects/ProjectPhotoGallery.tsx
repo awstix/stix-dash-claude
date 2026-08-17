@@ -4,14 +4,23 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { buildPhotoFileName } from "@/lib/project-photo-file-name";
+import { createZipBlob } from "@/lib/zip-browser";
 import {
   deleteProjectPhoto,
   deleteProjectPhotos,
+  getPhotoMapThumbnail,
+  getPhotoWatermarkSettings,
   moveProjectPhotos,
   refreshProjectPhotoLocations,
   updateProjectPhoto,
 } from "./actions";
-import { PhotoWatermarkDialog } from "./PhotoWatermarkDialog";
+import { PhotoWatermarkDialog, toWatermarkInput } from "./PhotoWatermarkDialog";
+import {
+  DEFAULT_WATERMARK_FIELDS,
+  renderPhotoWithWatermark,
+  type WatermarkCorner,
+  type WatermarkFields,
+} from "./photoWatermark";
 
 export type ProjectPhotoGalleryItem = {
   availableForDailyReports: boolean;
@@ -92,6 +101,10 @@ export function ProjectPhotoGallery({
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<PhotoViewMode>("details");
+  const [watermarkBatchProgress, setWatermarkBatchProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const selectedPhoto =
     selectedIndex === null ? null : (photos[selectedIndex] ?? null);
   const hasMultiplePhotos = photos.length > 1;
@@ -282,6 +295,122 @@ export function ProjectPhotoGallery({
     }
   }
 
+  // Uses whatever the user has explicitly saved as their permanent
+  // "Foto mit Infos" default (PhotoWatermarkDialog's "Anordnung als
+  // Standard speichern" button) - there's no live preview to pull a
+  // choice from here since this runs straight from the gallery toolbar,
+  // not from inside that dialog.
+  async function downloadSelectedPhotosWithInfo() {
+    const selected = photos.filter((photo) => selectedPhotoIds.has(photo.id));
+    if (selected.length === 0) return;
+
+    setWatermarkBatchProgress({ done: 0, total: selected.length });
+
+    try {
+      const settingsJson = await getPhotoWatermarkSettings();
+      const parsed = settingsJson
+        ? (JSON.parse(settingsJson) as {
+            fields?: Partial<WatermarkFields>;
+            textPosition?: WatermarkCorner;
+            compassPosition?: WatermarkCorner;
+            mapPosition?: WatermarkCorner;
+            opacity?: number;
+          })
+        : null;
+      const fields: WatermarkFields = { ...DEFAULT_WATERMARK_FIELDS, ...parsed?.fields };
+      const textPosition = parsed?.textPosition ?? "auto";
+      const compassPosition = parsed?.compassPosition ?? "auto";
+      const mapPosition = parsed?.mapPosition ?? "auto";
+      const opacity = typeof parsed?.opacity === "number" ? parsed.opacity : 1;
+
+      const usedFileNames = new Set<string>();
+      const failedPhotoLabels: string[] = [];
+      const entries: { bytes: Uint8Array; fileName: string }[] = [];
+
+      for (const photo of selected) {
+        try {
+          let mapThumbnailDataUrl: string | null = null;
+          if (
+            fields.map &&
+            typeof photo.gpsLatitude === "number" &&
+            typeof photo.gpsLongitude === "number"
+          ) {
+            mapThumbnailDataUrl = await getPhotoMapThumbnail({
+              latitude: photo.gpsLatitude,
+              longitude: photo.gpsLongitude,
+            }).catch(() => null);
+          }
+
+          const blob = await renderPhotoWithWatermark({
+            compassPosition,
+            fields,
+            mapPosition,
+            mapThumbnailDataUrl,
+            opacity,
+            photo: toWatermarkInput(photo),
+            textPosition,
+          });
+
+          let fileName = buildPhotoFileName({
+            date: new Date(photo.uploadedAt),
+            extension: "jpg",
+            projectNumber: photo.projectNumber,
+            uniqueSuffix: "mit-infos",
+            uploadedByName: photo.uploadedByName,
+          });
+          let suffix = 2;
+          while (usedFileNames.has(fileName)) {
+            fileName = fileName.replace(/(\.[^.]+)$/, `-${suffix}$1`);
+            suffix += 1;
+          }
+          usedFileNames.add(fileName);
+
+          entries.push({ bytes: new Uint8Array(await blob.arrayBuffer()), fileName });
+        } catch {
+          failedPhotoLabels.push(
+            photo.originalFileName || new Date(photo.uploadedAt).toLocaleString("de-DE"),
+          );
+        } finally {
+          setWatermarkBatchProgress((current) =>
+            current ? { ...current, done: current.done + 1 } : current,
+          );
+        }
+      }
+
+      if (entries.length > 0) {
+        const zipBlob = createZipBlob(entries);
+        const link = document.createElement("a");
+        const objectUrl = URL.createObjectURL(zipBlob);
+        link.href = objectUrl;
+        link.download = `fotos-mit-infos_${selected[0]?.projectNumber ?? "baustelle"}_${new Date()
+          .toISOString()
+          .slice(0, 10)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      if (failedPhotoLabels.length > 0) {
+        alert(
+          `${failedPhotoLabels.length} von ${selected.length} Foto${
+            selected.length === 1 ? "" : "s"
+          } konnte${failedPhotoLabels.length === 1 ? "" : "n"} nicht mit Infos erzeugt werden:\n${failedPhotoLabels.join(
+            "\n",
+          )}`,
+        );
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Fotos mit Infos konnten nicht erzeugt werden.",
+      );
+    } finally {
+      setWatermarkBatchProgress(null);
+    }
+  }
+
   function refreshGpsLocations() {
     startPhotoActionTransition(async () => {
       try {
@@ -380,6 +509,17 @@ export function ProjectPhotoGallery({
               type="button"
             >
               Herunterladen
+            </button>
+            <button
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+              disabled={selectedCount === 0 || isPhotoActionPending || watermarkBatchProgress !== null}
+              onClick={downloadSelectedPhotosWithInfo}
+              title="Nutzt die gespeicherte Anordnung aus „Foto mit Infos“"
+              type="button"
+            >
+              {watermarkBatchProgress
+                ? `Erzeugt ${watermarkBatchProgress.done}/${watermarkBatchProgress.total}...`
+                : "Mit Infos herunterladen"}
             </button>
             <button
               className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"

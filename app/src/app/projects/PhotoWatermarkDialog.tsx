@@ -24,7 +24,7 @@ const CORNER_OPTIONS: { label: string; value: WatermarkCorner }[] = [
   { label: "Unten rechts", value: "bottom-right" },
 ];
 
-function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
+export function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
   return {
     publicUrl: photo.publicUrl,
     capturedAt: photo.capturedAt,
@@ -63,6 +63,12 @@ export function PhotoWatermarkDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  // Snapshot of the settings as of the last successful save, compared
+  // against the current ones on every render - avoids a separate
+  // "settingsSaved" boolean that would need an effect just to clear
+  // itself again the moment anything changes.
+  const [lastSavedSettingsKey, setLastSavedSettingsKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mapThumbnail, setMapThumbnail] = useState<string | null>(null);
 
@@ -108,18 +114,30 @@ export function PhotoWatermarkDialog({
     };
   }, []);
 
-  // Debounced so dragging the opacity slider doesn't fire a save per tick.
-  useEffect(() => {
-    if (!settingsLoaded) return;
+  // Explicit save only (button below) - nothing here persists on its
+  // own, so the user always knows what's actually saved as their
+  // permanent default vs. only adjusted for this preview.
+  const currentSettingsKey = JSON.stringify({
+    compassPosition,
+    fields,
+    mapPosition,
+    opacity,
+    textPosition,
+  });
+  const settingsSaved = lastSavedSettingsKey === currentSettingsKey;
 
-    const timeout = setTimeout(() => {
-      savePhotoWatermarkSettings(
-        JSON.stringify({ compassPosition, fields, mapPosition, opacity, textPosition }),
-      ).catch(() => undefined);
-    }, 600);
-
-    return () => clearTimeout(timeout);
-  }, [settingsLoaded, fields, textPosition, compassPosition, mapPosition, opacity]);
+  async function saveSettingsAsDefault() {
+    setIsSavingSettings(true);
+    setError(null);
+    try {
+      await savePhotoWatermarkSettings(currentSettingsKey);
+      setLastSavedSettingsKey(currentSettingsKey);
+    } catch {
+      setError("Einstellungen konnten nicht gespeichert werden.");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }
 
   useEffect(() => {
     if (!fields.map || !hasLocationData || mapThumbnail) return;
@@ -422,6 +440,28 @@ export function PhotoWatermarkDialog({
                 type="range"
                 value={opacity}
               />
+            </div>
+
+            <div className="flex flex-col gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <button
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={isSavingSettings || !settingsLoaded}
+                onClick={saveSettingsAsDefault}
+                type="button"
+              >
+                {isSavingSettings ? "Speichert..." : "Anordnung als Standard speichern"}
+              </button>
+              {settingsSaved ? (
+                <p className="text-xs font-semibold text-green-700">
+                  Gespeichert ✓ - gilt ab jetzt dauerhaft für dein Konto,
+                  auch beim gemeinsamen Herunterladen mehrerer Fotos.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Wirkt erst dauerhaft, wenn du hier speicherst - vorher
+                  gilt die Anordnung nur für diese Vorschau.
+                </p>
+              )}
             </div>
 
             <button
