@@ -1289,6 +1289,7 @@ model User {
   decidedLeaveRequests   LeaveRequest[]              @relation("LeaveRequestDecider")
   projectAccesses        UserProjectAccess[]
   featureAccesses        UserFeatureAccess[]
+  changelogEntryReads    ChangelogEntryRead[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1462,15 +1463,28 @@ model ChangelogEntry {
   authorUserId String?
   authorName   String?
 
-  /// Global read state (admin-toggleable, same pattern as Notification.read
-  /// - not per-user) - a manual way to collapse an entry into "Ältere
-  /// Einträge" before the 5-day auto-collapse kicks in.
-  read      Boolean   @default(false)
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  reads     ChangelogEntryRead[]
+  createdAt DateTime             @default(now())
 
   @@index([createdAt])
-  @@index([read])
+}
+
+/// Per-user "seen" marker for a ChangelogEntry - lets each user collapse
+/// entries into "Ältere Einträge" for themselves without affecting anyone
+/// else's view (unlike Notification.read, which is intentionally global).
+model ChangelogEntryRead {
+  id String @id @default(cuid())
+
+  entryId String
+  entry   ChangelogEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  readAt DateTime @default(now())
+
+  @@unique([entryId, userId])
+  @@index([userId])
 }
 
 model LeaveRequest {

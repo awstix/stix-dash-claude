@@ -19,7 +19,15 @@ function formatDateTime(value: Date) {
   }).format(value);
 }
 
-function ChangelogCard({ admin, entry }: { admin: boolean; entry: ChangelogEntry }) {
+function ChangelogCard({
+  admin,
+  entry,
+  isReadByMe,
+}: {
+  admin: boolean;
+  entry: ChangelogEntry;
+  isReadByMe: boolean;
+}) {
   return (
     <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -27,12 +35,10 @@ function ChangelogCard({ admin, entry }: { admin: boolean; entry: ChangelogEntry
           {formatDateTime(entry.createdAt)}
           {entry.authorName ? ` · ${entry.authorName}` : ""}
         </p>
-        {admin ? (
-          <div className="flex items-center gap-3">
-            <ChangelogReadCheckbox id={entry.id} read={entry.read} />
-            <ChangelogDeleteButton id={entry.id} />
-          </div>
-        ) : null}
+        <div className="flex items-center gap-3">
+          <ChangelogReadCheckbox id={entry.id} read={isReadByMe} />
+          {admin ? <ChangelogDeleteButton id={entry.id} /> : null}
+        </div>
       </div>
       <h3 className="mt-1 text-sm font-bold text-gray-900">{entry.title}</h3>
       {entry.description ? (
@@ -65,11 +71,17 @@ export default async function NotificationsPage({
   const mitarbeiter = (params.mitarbeiter ?? "").trim();
   const typ = (params.typ ?? "").trim();
 
-  const [changelogEntries, notifications] = await Promise.all([
+  const [changelogEntries, myReadEntryIds, notifications] = await Promise.all([
     prisma.changelogEntry.findMany({
       orderBy: [{ createdAt: "desc" }],
       take: 50,
     }),
+    prisma.changelogEntryRead
+      .findMany({
+        select: { entryId: true },
+        where: { userId: session.user.id },
+      })
+      .then((rows) => new Set(rows.map((row) => row.entryId))),
     admin
       ? prisma.notification.findMany({
           orderBy: [{ occurredAt: "desc" }],
@@ -87,10 +99,10 @@ export default async function NotificationsPage({
   const changelogCutoff = new Date();
   changelogCutoff.setDate(changelogCutoff.getDate() - 5);
   const recentEntries = changelogEntries.filter(
-    (entry) => !entry.read && entry.createdAt >= changelogCutoff,
+    (entry) => !myReadEntryIds.has(entry.id) && entry.createdAt >= changelogCutoff,
   );
   const olderEntries = changelogEntries.filter(
-    (entry) => entry.read || entry.createdAt < changelogCutoff,
+    (entry) => myReadEntryIds.has(entry.id) || entry.createdAt < changelogCutoff,
   );
 
   return (
@@ -101,7 +113,7 @@ export default async function NotificationsPage({
       <section className="mb-8">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-gray-900">Was ist neu</h2>
-          {admin && recentEntries.length > 0 ? (
+          {recentEntries.length > 0 ? (
             <form action={markAllChangelogEntriesRead}>
               <button
                 className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50"
@@ -120,7 +132,12 @@ export default async function NotificationsPage({
             </div>
           ) : (
             recentEntries.map((entry) => (
-              <ChangelogCard admin={admin} entry={entry} key={entry.id} />
+              <ChangelogCard
+                admin={admin}
+                entry={entry}
+                isReadByMe={myReadEntryIds.has(entry.id)}
+                key={entry.id}
+              />
             ))
           )}
         </div>
@@ -132,7 +149,12 @@ export default async function NotificationsPage({
             </summary>
             <div className="space-y-3 border-t border-gray-100 p-4">
               {olderEntries.map((entry) => (
-                <ChangelogCard admin={admin} entry={entry} key={entry.id} />
+                <ChangelogCard
+                  admin={admin}
+                  entry={entry}
+                  isReadByMe={myReadEntryIds.has(entry.id)}
+                  key={entry.id}
+                />
               ))}
             </div>
           </details>

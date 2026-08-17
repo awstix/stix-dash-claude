@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin, resolveActorName } from "@/lib/auth-access";
+import { requireAdmin, requireSession, resolveActorName } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 
 export async function markNotificationRead(id: string) {
@@ -60,29 +60,42 @@ export async function deleteChangelogEntry(id: string) {
   revalidatePath("/notifications");
 }
 
+// Per-user "seen" state (ChangelogEntryRead) - every logged-in user marks
+// entries read/unread for themselves only, unlike the admin-only,
+// portal-wide Notification.read above.
+
 export async function markChangelogEntryRead(id: string) {
-  await requireAdmin();
-  await prisma.changelogEntry.update({
-    data: { read: true, readAt: new Date() },
-    where: { id },
+  const session = await requireSession();
+  await prisma.changelogEntryRead.upsert({
+    create: { entryId: id, userId: session.user.id },
+    update: { readAt: new Date() },
+    where: { entryId_userId: { entryId: id, userId: session.user.id } },
   });
   revalidatePath("/notifications");
 }
 
 export async function markChangelogEntryUnread(id: string) {
-  await requireAdmin();
-  await prisma.changelogEntry.update({
-    data: { read: false, readAt: null },
-    where: { id },
-  });
+  const session = await requireSession();
+  await prisma.changelogEntryRead
+    .delete({
+      where: { entryId_userId: { entryId: id, userId: session.user.id } },
+    })
+    .catch(() => undefined);
   revalidatePath("/notifications");
 }
 
 export async function markAllChangelogEntriesRead() {
-  await requireAdmin();
-  await prisma.changelogEntry.updateMany({
-    data: { read: true, readAt: new Date() },
-    where: { read: false },
+  const session = await requireSession();
+  const unreadEntries = await prisma.changelogEntry.findMany({
+    select: { id: true },
+    where: { reads: { none: { userId: session.user.id } } },
+  });
+
+  await prisma.changelogEntryRead.createMany({
+    data: unreadEntries.map((entry) => ({
+      entryId: entry.id,
+      userId: session.user.id,
+    })),
   });
   revalidatePath("/notifications");
 }

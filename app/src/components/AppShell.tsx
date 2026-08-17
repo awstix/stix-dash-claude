@@ -142,7 +142,9 @@ export async function AppShell({
   const currentUserRoleLabel = (await portalRoleLabels(session.user.role)).join(" / ");
   const [unreadNotificationCount, unreadChangelogCount] = await Promise.all([
     admin ? prisma.notification.count({ where: { read: false } }) : 0,
-    prisma.changelogEntry.count({ where: { read: false } }),
+    prisma.changelogEntry.count({
+      where: { reads: { none: { userId: session.user.id } } },
+    }),
   ]);
 
   return (
