@@ -486,6 +486,7 @@ function toGalleryPhoto(photo: ProjectPhotoListItem): ProjectPhotoGalleryItem {
     metadataTaken: photo.metadataTaken,
     notes: photo.notes,
     originalFileName: photo.originalFileName,
+    projectNumber: photo.projectNumber,
     publicUrl: photo.publicUrl,
     uploadedByName: photo.uploadedByName,
     uploadedByUserId: photo.uploadedByUserId,

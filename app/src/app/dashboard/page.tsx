@@ -583,6 +583,7 @@ export default async function DashboardPage({
             notes: photo.notes ?? "",
             originalFileName: photo.originalFileName,
             projectLabel: `${photo.project.projectNumber} · ${photo.project.name}`,
+            projectNumber: photo.project.projectNumber,
             publicUrl: photo.publicUrl,
             uploadedAt: photo.uploadedAt.toISOString(),
             uploadedByName: photo.uploadedByName,

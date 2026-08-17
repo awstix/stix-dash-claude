@@ -1202,6 +1202,7 @@ export default async function ProjectDetailPage({
             metadataTaken: photo.metadataTaken,
             notes: photo.notes,
             originalFileName: photo.originalFileName,
+            projectNumber: project.projectNumber,
             publicUrl: photo.publicUrl,
             uploadedByName: photo.uploadedByName,
             uploadedByUserId: photo.uploadedByUserId,
@@ -2030,6 +2031,7 @@ function ProjectPhotoPreviewSection({
     metadataTaken: boolean;
     notes: string | null;
     originalFileName: string | null;
+    projectNumber: string;
     publicUrl: string;
     uploadedByName: string | null;
     uploadedByUserId: string | null;

@@ -32,6 +32,7 @@ export type ProjectPhotoGalleryItem = {
   metadataTaken: boolean;
   notes: string | null;
   originalFileName: string | null;
+  projectNumber: string;
   publicUrl: string;
   uploadedByName: string | null;
   uploadedByUserId: string | null;
@@ -1325,12 +1326,39 @@ function downloadPhoto(photo: ProjectPhotoGalleryItem) {
 }
 
 function getPhotoDownloadFileName(photo: ProjectPhotoGalleryItem) {
-  if (photo.originalFileName) {
-    return photo.originalFileName;
-  }
+  const timestamp = formatFileNameTimestamp(photo.uploadedAt);
+  const surname = photo.uploadedByName?.trim().split(/\s+/).pop();
+  const parts = [timestamp, photo.projectNumber, surname]
+    .filter((part): part is string => Boolean(part))
+    .map(sanitizeFileNamePart);
 
-  const urlParts = photo.publicUrl.split("/");
-  return urlParts.at(-1) || `projektfoto-${photo.id}`;
+  return `${parts.join("_")}.${getPhotoExtension(photo)}`;
+}
+
+function sanitizeFileNamePart(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, "").trim();
+}
+
+function formatFileNameTimestamp(value: string) {
+  const parts = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+  }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+
+  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}${get("minute")}${get("second")}`;
+}
+
+function getPhotoExtension(photo: ProjectPhotoGalleryItem) {
+  const source = photo.originalFileName || photo.publicUrl;
+  const match = source.match(/\.([a-zA-Z0-9]+)(?:\?.*)?$/);
+  return match ? match[1].toLowerCase() : "jpg";
 }
 
 export function formatDateTime(value: string) {
