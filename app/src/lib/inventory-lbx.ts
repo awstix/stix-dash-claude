@@ -1,8 +1,7 @@
 import {
   calculateInventoryLabelLength,
-  getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
-  getInventoryLabelColumnWidthsMm,
+  getInventoryLabelBlockRenderWidthMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   type InventoryLabelBlock,
@@ -12,12 +11,9 @@ import {
 type LbxTemplate = {
   blocksJson: string;
   codeType: string;
-  columnCount: number;
-  gapMm: number;
   labelLengthOverrideMm: number | null;
   name: string;
   orientation: string;
-  rowCount: number;
   tapeWidthMm: number;
 };
 
@@ -33,20 +29,18 @@ export function createInventoryLabelLbx(input: {
   const automaticLabelLengthMm = calculateInventoryLabelLength(
     input.blocks,
     input.item,
-    input.template.columnCount,
-    input.template.tapeWidthMm,
-    input.template.rowCount,
+    input.template.orientation,
   );
   const labelLengthMm = input.template.labelLengthOverrideMm ?? automaticLabelLengthMm;
+  const labelWidthMm =
+    input.template.orientation === "PORTRAIT" ? input.template.tapeWidthMm : labelLengthMm;
   const labelXml = createLabelXml({
     blocks: input.blocks.filter((block) => block.enabled),
     codeType: input.template.codeType,
-    columnCount: input.template.columnCount,
     companyName: input.companyName,
-    gapMm: input.template.gapMm,
     item: input.item,
     labelLengthMm,
-    rowCount: input.template.rowCount,
+    labelWidthMm,
     tapeWidthMm: input.template.tapeWidthMm,
   });
   const propXml = createPropXml();
@@ -66,71 +60,25 @@ export function createInventoryLabelLbx(input: {
 function createLabelXml(input: {
   blocks: InventoryLabelBlock[];
   codeType: string;
-  columnCount: number;
   companyName?: string | null;
-  gapMm: number;
   item: InventoryLabelItem & { id: string; name: string };
   labelLengthMm: number;
-  rowCount: number;
+  labelWidthMm: number;
   tapeWidthMm: number;
 }) {
-  const marginMm = 2;
-  const gapMm = Math.max(0, input.gapMm);
-  const innerWidthMm = Math.max(
-    8,
-    input.labelLengthMm - marginMm * 2 - gapMm * Math.max(0, input.columnCount - 1),
-  );
-  const innerHeightMm = Math.max(
-    6,
-    input.tapeWidthMm - marginMm * 2 - gapMm * Math.max(0, input.rowCount - 1),
-  );
-  const cellHeightMm = innerHeightMm / Math.max(1, input.rowCount);
-  // Columns pinned via a block's "Breite cm" (widthMm) get their exact
-  // width; the remaining space is split evenly among the flexible
-  // columns, mirroring the same math used in the editor, print page and
-  // PNG export.
-  const columnWidthsMm = getInventoryLabelColumnWidthsMm(
-    input.blocks,
-    input.columnCount,
-  );
-  const fixedWidthMmTotal = columnWidthsMm.reduce(
-    (total: number, widthMm) => total + (widthMm ?? 0),
-    0,
-  );
-  const flexColumnCount = columnWidthsMm.filter((widthMm) => widthMm === null).length;
-  const flexColumnWidthMm =
-    flexColumnCount > 0
-      ? Math.max(0, innerWidthMm - fixedWidthMmTotal) / flexColumnCount
-      : 0;
-  const resolvedColumnWidthsMm = columnWidthsMm.map((widthMm) =>
-    widthMm !== null ? widthMm : flexColumnWidthMm,
-  );
-  const columnOffsetsMm: number[] = [];
-  let columnCursorMm = marginMm;
-  for (const columnWidthMm of resolvedColumnWidthsMm) {
-    columnOffsetsMm.push(columnCursorMm);
-    columnCursorMm += columnWidthMm + gapMm;
-  }
-  const getColumnSpanWidthMm = (col: number, span: number) => {
-    let total = 0;
-    for (let index = 0; index < span; index += 1) {
-      total += resolvedColumnWidthsMm[col - 1 + index] ?? flexColumnWidthMm;
-    }
-    return total + Math.max(0, span - 1) * gapMm;
-  };
   const objects = input.blocks
     .map((block, index) => {
       if (isInventoryLabelSpacerBlock(block.key)) return "";
 
-      const width = getEffectiveInventoryLabelBlockWidth(
+      const renderWidthMm = getInventoryLabelBlockRenderWidthMm(
         block,
-        input.columnCount,
+        input.labelWidthMm,
       );
       const box = {
-        height: Math.max(2, block.height * cellHeightMm),
-        width: Math.max(2, getColumnSpanWidthMm(block.col, width)),
-        x: columnOffsetsMm[block.col - 1] ?? marginMm,
-        y: marginMm + (block.row - 1) * (cellHeightMm + gapMm),
+        height: Math.max(2, block.heightMm),
+        width: Math.max(2, renderWidthMm),
+        x: block.xMm,
+        y: block.yMm,
       };
 
       if (block.key === "code") {
@@ -187,7 +135,7 @@ function createLabelXml(input: {
         italic: block.italic,
         label: meta?.label ?? null,
         underline: block.underline,
-        width: block.widthMm && block.widthMm > 0 ? block.widthMm : box.width,
+        width: box.width,
         x: box.x,
         y: box.y,
       });

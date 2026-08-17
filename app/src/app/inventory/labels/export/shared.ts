@@ -1,13 +1,22 @@
 import { notFound } from "next/navigation";
 import {
-  INVENTORY_LABEL_MAX_COLUMNS,
-  INVENTORY_LABEL_MAX_ROWS,
   INVENTORY_LABEL_TAPE_WIDTHS,
+  clampBlockToCanvas,
   getInventoryLabelCodeType,
   parseInventoryLabelBlocks,
-  type InventoryLabelBlock,
 } from "@/lib/inventory-labels";
 import { prisma } from "@/lib/prisma";
+
+// The live-preview export always sends the current editor state, which is
+// already in the new absolute-position shape - this geometry only
+// satisfies the parser's signature for the (never taken) legacy branch.
+const UNUSED_EXPORT_GEOMETRY = {
+  columnCount: 1,
+  gapMm: 0,
+  labelHeightMm: 100,
+  labelWidthMm: 100,
+  rowCount: 1,
+};
 
 export function sanitizeFileName(value: string) {
   return value
@@ -42,19 +51,6 @@ function numberValue(
   if (options.min !== undefined && parsed < options.min) return options.min;
   if (options.max !== undefined && parsed > options.max) return options.max;
   return parsed;
-}
-
-function floatValue(
-  value: FormDataEntryValue | null,
-  fallback: number,
-  options: { max?: number; min?: number } = {},
-) {
-  if (typeof value !== "string" || !value.trim()) return fallback;
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  if (options.min !== undefined && parsed < options.min) return options.min;
-  if (options.max !== undefined && parsed > options.max) return options.max;
-  return Math.round(parsed * 10) / 10;
 }
 
 function optionalFloatValue(
@@ -123,28 +119,25 @@ export async function getLiveLabelExportPayload(formData: FormData) {
   )
     ? tapeWidthMm
     : 24;
-  const rowCount = numberValue(formData.get("rowCount"), 4, {
-    max: INVENTORY_LABEL_MAX_ROWS,
-    min: 1,
-  });
-  const columnCount = numberValue(formData.get("columnCount"), 1, {
-    max: INVENTORY_LABEL_MAX_COLUMNS,
-    min: 1,
-  });
-  const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
+  const orientation =
+    optionalString(formData.get("orientation")) === "PORTRAIT"
+      ? "PORTRAIT"
+      : "LANDSCAPE";
   const labelLengthOverrideMm = optionalFloatValue(
     formData.get("labelLengthOverrideMm"),
     { max: 220, min: 18 },
   );
+  const labelLengthMm = numberValue(formData.get("labelLengthMm"), 70, {
+    max: 220,
+    min: 18,
+  });
+  const canvasLengthMm = labelLengthOverrideMm ?? labelLengthMm;
+  const canvasWidthMm = orientation === "PORTRAIT" ? safeTapeWidthMm : canvasLengthMm;
+  const canvasHeightMm = orientation === "PORTRAIT" ? canvasLengthMm : safeTapeWidthMm;
   const blocks = parseInventoryLabelBlocks(
     optionalString(formData.get("blocksJson")),
-  ).map((block): InventoryLabelBlock => ({
-    ...block,
-    col: Math.min(columnCount, Math.max(1, block.col)),
-    height: Math.min(rowCount, Math.max(1, block.height)),
-    row: Math.min(rowCount, Math.max(1, block.row)),
-    width: Math.min(columnCount, Math.max(1, block.width)),
-  }));
+    UNUSED_EXPORT_GEOMETRY,
+  ).map((block) => clampBlockToCanvas(block, canvasWidthMm, canvasHeightMm));
   const fileLabel = sanitizeFileName(
     [item.objectNumber, item.inventoryNumber, item.stixId, item.name]
       .filter(Boolean)
@@ -162,17 +155,11 @@ export async function getLiveLabelExportPayload(formData: FormData) {
       codeType: getInventoryLabelCodeType(
         optionalString(formData.get("codeType")) ?? "DATAMATRIX",
       ),
-      columnCount,
-      gapMm,
       isDefault: false,
-      labelLengthMm: 0,
+      labelLengthMm,
       labelLengthOverrideMm,
       name: optionalString(formData.get("name")) ?? "Live-Etikett",
-      orientation:
-        optionalString(formData.get("orientation")) === "PORTRAIT"
-          ? "PORTRAIT"
-          : "LANDSCAPE",
-      rowCount,
+      orientation,
       showBorder: formData.get("showBorder") === "on",
       tapeWidthMm: safeTapeWidthMm,
     },

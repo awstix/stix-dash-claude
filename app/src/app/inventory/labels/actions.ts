@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   DEFAULT_INVENTORY_LABEL_BLOCKS,
-  INVENTORY_LABEL_MAX_COLUMNS,
-  INVENTORY_LABEL_MAX_ROWS,
   INVENTORY_LABEL_TAPE_WIDTHS,
   getInventoryLabelCodeType,
   parseInventoryLabelBlocks,
@@ -70,9 +68,21 @@ function optionalFloatValue(
   return Math.round(parsed * 10) / 10;
 }
 
+// The editor always submits blocks already in the new absolute-position
+// shape (its hidden `blocksJson` field serializes the live React state
+// directly), so this geometry is never actually used for a legacy-shape
+// conversion here - it only satisfies the parser's signature.
+const UNUSED_SAVE_GEOMETRY = {
+  columnCount: 1,
+  gapMm: 0,
+  labelHeightMm: 100,
+  labelWidthMm: 100,
+  rowCount: 1,
+};
+
 function getBlocks(formData: FormData) {
   const rawJson = optionalString(formData.get("blocksJson"));
-  const blocks = parseInventoryLabelBlocks(rawJson);
+  const blocks = parseInventoryLabelBlocks(rawJson, UNUSED_SAVE_GEOMETRY);
   const enabledBlocks = blocks.filter((block) => block.enabled);
 
   if (enabledBlocks.length === 0) {
@@ -90,15 +100,8 @@ function normalizeBlocks(blocks: InventoryLabelBlock[]) {
           ? block.align
           : "LEFT",
       bold: Boolean(block.bold),
-      col: Math.min(
-        INVENTORY_LABEL_MAX_COLUMNS,
-        Math.max(1, Math.round(block.col ?? 1)),
-      ),
       enabled: Boolean(block.enabled),
-      height: Math.min(
-        INVENTORY_LABEL_MAX_ROWS,
-        Math.max(1, Math.round(block.height ?? 1)),
-      ),
+      heightMm: Math.max(2, Math.round((block.heightMm ?? 2) * 10) / 10),
       italic: Boolean(block.italic),
       key: block.key,
       labelVisible:
@@ -110,21 +113,12 @@ function normalizeBlocks(blocks: InventoryLabelBlock[]) {
         block.rotation === 90 || block.rotation === 180 || block.rotation === 270
           ? block.rotation
           : 0,
-      row: Math.min(
-        INVENTORY_LABEL_MAX_ROWS,
-        Math.max(1, Math.round(block.row ?? 1)),
-      ),
       size: block.size,
       underline: Boolean(block.underline),
-      width: Math.min(
-        INVENTORY_LABEL_MAX_COLUMNS,
-        Math.max(1, Math.round(block.width ?? 1)),
-      ),
       widthAuto: Boolean(block.widthAuto),
-      widthMm:
-        typeof block.widthMm === "number" && Number.isFinite(block.widthMm)
-          ? Math.min(500, Math.max(0, Math.round(block.widthMm * 10) / 10))
-          : null,
+      widthMm: Math.max(2, Math.round((block.widthMm ?? 2) * 10) / 10),
+      xMm: Math.max(0, Math.round((block.xMm ?? 0) * 10) / 10),
+      yMm: Math.max(0, Math.round((block.yMm ?? 0) * 10) / 10),
     }))
     .sort((left, right) => left.order - right.order);
 }
@@ -150,15 +144,7 @@ function getTemplatePayload(formData: FormData) {
       : "LANDSCAPE";
   const showBorder = formData.get("showBorder") === "on";
   const isDefault = formData.get("isDefault") === "on";
-  const rowCount = numberValue(formData.get("rowCount"), 4, {
-    max: INVENTORY_LABEL_MAX_ROWS,
-    min: 1,
-  });
-  const columnCount = numberValue(formData.get("columnCount"), 1, {
-    max: INVENTORY_LABEL_MAX_COLUMNS,
-    min: 1,
-  });
-  const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
+  const snapMm = floatValue(formData.get("snapMm"), 1, { max: 5, min: 0 });
   const labelLengthOverrideMm = optionalFloatValue(
     formData.get("labelLengthOverrideMm"),
     { max: 220, min: 18 },
@@ -167,15 +153,13 @@ function getTemplatePayload(formData: FormData) {
   return {
     blocksJson: getBlocks(formData),
     codeType,
-    columnCount,
-    gapMm,
     isDefault,
     labelLengthMm,
     labelLengthOverrideMm,
     name,
     orientation,
-    rowCount,
     showBorder,
+    snapMm,
     tapeWidthMm: safeTapeWidthMm,
   };
 }
@@ -243,6 +227,19 @@ export async function deleteInventoryLabelTemplate(templateId: string) {
   redirect("/inventory/labels");
 }
 
+function buildSeedBlocks(
+  enabledKeys: InventoryLabelBlock["key"][],
+  overrides: Partial<Record<InventoryLabelBlock["key"], Partial<InventoryLabelBlock>>> = {},
+) {
+  return JSON.stringify(
+    DEFAULT_INVENTORY_LABEL_BLOCKS.map((block) => ({
+      ...block,
+      enabled: enabledKeys.includes(block.key),
+      ...overrides[block.key],
+    })),
+  );
+}
+
 export async function createDefaultInventoryLabelTemplates() {
   await requireSession();
   const count = await prisma.inventoryLabelTemplate.count();
@@ -254,80 +251,66 @@ export async function createDefaultInventoryLabelTemplates() {
   await prisma.inventoryLabelTemplate.createMany({
     data: [
       {
+        // Matches DEFAULT_INVENTORY_LABEL_BLOCKS' own 70x24mm reference
+        // geometry exactly, so its positions can be reused as-is.
         blocksJson: JSON.stringify(DEFAULT_INVENTORY_LABEL_BLOCKS),
         codeType: "DATAMATRIX",
-        columnCount: 6,
         isDefault: true,
         labelLengthMm: 70,
         name: "TZe 24 mm · Standard Inventar",
         orientation: "LANDSCAPE",
-        rowCount: 4,
         showBorder: true,
         tapeWidthMm: 24,
       },
       {
-        blocksJson: JSON.stringify(
-          DEFAULT_INVENTORY_LABEL_BLOCKS.map((block) => ({
-            ...block,
-            enabled: ["objectNumber", "code", "name"].includes(block.key),
-          })),
-        ),
+        blocksJson: buildSeedBlocks(["objectNumber", "code", "name"], {
+          code: { heightMm: 10, widthMm: 10, xMm: 2, yMm: 1 },
+          name: { heightMm: 5, widthAuto: true, widthMm: 30, xMm: 14, yMm: 6 },
+          objectNumber: { heightMm: 5, widthMm: 25, xMm: 14, yMm: 1 },
+        }),
         codeType: "DATAMATRIX",
-        columnCount: 6,
         isDefault: false,
         labelLengthMm: 55,
         name: "TZe 12 mm · Kompakt",
         orientation: "LANDSCAPE",
-        rowCount: 3,
         showBorder: true,
         tapeWidthMm: 12,
       },
       {
+        // Same 70x24mm reference layout as the standard template - the
+        // extra 36x90mm canvas just leaves more margin, nothing overflows.
         blocksJson: JSON.stringify(DEFAULT_INVENTORY_LABEL_BLOCKS),
         codeType: "DATAMATRIX",
-        columnCount: 6,
         isDefault: false,
         labelLengthMm: 90,
         name: "TZe 36 mm · Groß",
         orientation: "LANDSCAPE",
-        rowCount: 4,
         showBorder: true,
         tapeWidthMm: 36,
       },
       {
-        blocksJson: JSON.stringify(
-          DEFAULT_INVENTORY_LABEL_BLOCKS.map((block) => ({
-            ...block,
-            enabled: block.key === "code",
-            width: block.key === "code" ? 6 : block.width,
-          })),
-        ),
+        blocksJson: buildSeedBlocks(["code"], {
+          code: { heightMm: 20, widthMm: 20, xMm: 4, yMm: 2 },
+        }),
         codeType: "DATAMATRIX",
-        columnCount: 1,
         isDefault: false,
         labelLengthMm: 28,
         name: "TZe 24 mm · Nur ECC200",
         orientation: "LANDSCAPE",
-        rowCount: 1,
         showBorder: false,
         tapeWidthMm: 24,
       },
       {
-        blocksJson: JSON.stringify(
-          DEFAULT_INVENTORY_LABEL_BLOCKS.map((block) => ({
-            ...block,
-            enabled: ["code", "objectNumber", "name"].includes(block.key),
-            width:
-              block.key === "name" ? 4 : block.key === "code" ? 2 : block.width,
-          })),
-        ),
+        blocksJson: buildSeedBlocks(["code", "objectNumber", "name"], {
+          code: { heightMm: 18, widthMm: 18, xMm: 2, yMm: 2 },
+          name: { heightMm: 6, widthAuto: true, widthMm: 28, xMm: 24, yMm: 11 },
+          objectNumber: { heightMm: 8, widthMm: 28, xMm: 24, yMm: 2 },
+        }),
         codeType: "QR",
-        columnCount: 6,
         isDefault: false,
         labelLengthMm: 55,
         name: "TZe 24 mm · QR mit Text",
         orientation: "LANDSCAPE",
-        rowCount: 3,
         showBorder: true,
         tapeWidthMm: 24,
       },

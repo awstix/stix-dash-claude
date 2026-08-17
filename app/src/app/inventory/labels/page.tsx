@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
-import { parseInventoryLabelBlocks } from "@/lib/inventory-labels";
+import {
+  getInventoryLabelLegacyGeometry,
+  parseInventoryLabelBlocks,
+} from "@/lib/inventory-labels";
 import { prisma } from "@/lib/prisma";
 import {
   createDefaultInventoryLabelTemplates,
@@ -124,7 +127,10 @@ export default async function InventoryLabelsPage({
             ) : null}
 
             {templates.map((template) => {
-              const blocks = parseInventoryLabelBlocks(template.blocksJson);
+              const blocks = parseInventoryLabelBlocks(
+                template.blocksJson,
+                getInventoryLabelLegacyGeometry(template),
+              );
               const enabledCount = blocks.filter((block) => block.enabled).length;
               const isSelected = selectedTemplate?.id === template.id;
 
@@ -149,7 +155,6 @@ export default async function InventoryLabelsPage({
                         }`}
                       >
                         {template.tapeWidthMm} mm · Länge automatisch ·{" "}
-                        {template.rowCount}Z/{template.columnCount}S ·{" "}
                         {template.codeType === "QR" ? "QR" : "ECC200"} ·{" "}
                         {enabledCount} Bausteine
                       </div>

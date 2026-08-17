@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { createInventoryLabelPng } from "@/lib/inventory-label-png";
-import { parseInventoryLabelBlocks } from "@/lib/inventory-labels";
+import {
+  getInventoryLabelLegacyGeometry,
+  parseInventoryLabelBlocks,
+} from "@/lib/inventory-labels";
 import { prisma } from "@/lib/prisma";
 
 function sanitizeFileName(value: string) {
@@ -81,7 +84,10 @@ export async function GET(
   }
 
   const png = await createInventoryLabelPng({
-    blocks: parseInventoryLabelBlocks(template.blocksJson),
+    blocks: parseInventoryLabelBlocks(
+      template.blocksJson,
+      getInventoryLabelLegacyGeometry(template),
+    ),
     companyLogoUrl: companyInfo?.logoPublicUrl ?? null,
     companyName: companyInfo?.companyName ?? null,
     item,

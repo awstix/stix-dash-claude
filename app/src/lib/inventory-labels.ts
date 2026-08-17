@@ -1,6 +1,4 @@
 export const INVENTORY_LABEL_TAPE_WIDTHS = [9, 12, 24, 36] as const;
-export const INVENTORY_LABEL_MAX_ROWS = 4;
-export const INVENTORY_LABEL_MAX_COLUMNS = 12;
 
 export type InventoryLabelCodeType = "DATAMATRIX" | "QR";
 export type InventoryLabelBlockAlign = "LEFT" | "CENTER" | "RIGHT";
@@ -26,25 +24,33 @@ export type InventoryLabelBlockKey =
   | "location"
   | "status";
 
+/** A block's position/size is a real, absolute mm box on the label
+ * canvas - not tied to any row/column grid. `xMm`/`yMm` are relative to
+ * the canvas's own already-oriented top-left corner (i.e. whatever
+ * `labelWidthMm`/`labelHeightMm` a renderer resolves for the template's
+ * orientation - the same axis convention the old col/row grid used). */
 export type InventoryLabelBlock = {
   align: InventoryLabelBlockAlign;
   bold: boolean;
-  col: number;
   enabled: boolean;
-  height: number;
+  heightMm: number;
   italic: boolean;
   key: InventoryLabelBlockKey;
   labelVisible: boolean;
   order: number;
   rotation: InventoryLabelBlockRotation;
-  row: number;
   size: InventoryLabelBlockSize;
   underline: boolean;
-  width: number;
   widthAuto: boolean;
-  widthMm: number | null;
+  widthMm: number;
+  xMm: number;
+  yMm: number;
 };
 
+/** Authoring metadata only - a plausible starting row/column layout used
+ * once at module load to compute `DEFAULT_INVENTORY_LABEL_BLOCKS` via the
+ * same legacy-grid-to-absolute conversion used to migrate real templates.
+ * Not used at runtime for actual layout. */
 export const INVENTORY_LABEL_BLOCKS: Array<{
   defaultCol: number;
   defaultHeight: number;
@@ -237,46 +243,204 @@ export const INVENTORY_LABEL_BLOCKS: Array<{
   },
 ];
 
-export const DEFAULT_INVENTORY_LABEL_BLOCKS: InventoryLabelBlock[] =
-  INVENTORY_LABEL_BLOCKS.map((block, index) => ({
-    align: "LEFT",
-    bold: block.defaultSize !== "SMALL",
-    col: block.defaultCol,
-    enabled: ["objectNumber", "code", "name", "manufacturer", "model"].includes(
-      block.key,
-    ),
-    height: block.defaultHeight,
-    italic: false,
-    key: block.key,
-    labelVisible: isInventoryLabelTextBlock(block.key),
+const LEGACY_PADDING_MM = 2.35;
+
+const DEFAULT_ENABLED_KEYS: InventoryLabelBlockKey[] = [
+  "objectNumber",
+  "code",
+  "name",
+  "manufacturer",
+  "model",
+];
+
+const REFERENCE_GEOMETRY: LegacyGridGeometry = {
+  columnCount: 6,
+  gapMm: 1,
+  labelHeightMm: 24,
+  labelWidthMm: 70,
+  rowCount: 4,
+};
+
+export const DEFAULT_INVENTORY_LABEL_BLOCKS: InventoryLabelBlock[] = (() => {
+  const legacyRaw = INVENTORY_LABEL_BLOCKS.map((meta, index) => ({
+    col: meta.defaultCol,
+    enabled: DEFAULT_ENABLED_KEYS.includes(meta.key),
+    height: meta.defaultHeight,
+    key: meta.key,
     order: index + 1,
-    rotation: 0,
-    row: block.defaultRow,
-    size: block.defaultSize,
-    underline: false,
-    width: block.defaultWidth,
-    widthAuto: false,
+    row: meta.defaultRow,
+    width: meta.defaultWidth,
     widthMm: null,
   }));
+  const migrated = migrateLegacyRawBlocks(legacyRaw, REFERENCE_GEOMETRY);
+
+  return migrated.map((raw, index) => {
+    const meta = INVENTORY_LABEL_BLOCKS[index];
+
+    return {
+      align: "LEFT",
+      bold: meta.defaultSize !== "SMALL",
+      enabled: Boolean(raw.enabled),
+      heightMm: raw.heightMm as number,
+      italic: false,
+      key: meta.key,
+      labelVisible: isInventoryLabelTextBlock(meta.key),
+      order: index + 1,
+      rotation: 0,
+      size: meta.defaultSize,
+      underline: false,
+      widthAuto: false,
+      widthMm: raw.widthMm as number,
+      xMm: raw.xMm as number,
+      yMm: raw.yMm as number,
+    };
+  });
+})();
 
 export type InventoryLabelTemplateLike = {
   blocksJson: string;
   codeType: string;
+  columnCount: number;
   gapMm: number;
   id: string;
   isDefault: boolean;
   labelLengthMm: number;
   labelLengthOverrideMm: number | null;
-  rowCount: number;
-  columnCount: number;
   name: string;
   orientation: string;
+  rowCount: number;
   showBorder: boolean;
+  snapMm: number;
   tapeWidthMm: number;
 };
 
+export type LegacyGridGeometry = {
+  columnCount: number;
+  gapMm: number;
+  labelHeightMm: number;
+  labelWidthMm: number;
+  rowCount: number;
+};
+
+type LegacyRawBlock = Record<string, unknown>;
+
+/** Every renderer resolves the template's orientation into a concrete
+ * `labelWidthMm`/`labelHeightMm` pair (landscape: width = length, height
+ * = tape; portrait: swapped). Legacy `col`/`row` grid coordinates always
+ * mapped directly onto that already-oriented X/Y - so does the new
+ * `xMm`/`yMm` model - which is what lets the migration below convert one
+ * into the other without needing to know orientation itself. */
+export function getInventoryLabelLegacyGeometry(
+  template: Pick<
+    InventoryLabelTemplateLike,
+    | "columnCount"
+    | "gapMm"
+    | "labelLengthMm"
+    | "labelLengthOverrideMm"
+    | "orientation"
+    | "rowCount"
+    | "tapeWidthMm"
+  >,
+): LegacyGridGeometry {
+  const lengthMm = template.labelLengthOverrideMm ?? template.labelLengthMm;
+  const isPortrait = template.orientation === "PORTRAIT";
+
+  return {
+    columnCount: Math.max(1, Math.round(template.columnCount) || 1),
+    gapMm: Math.max(0, template.gapMm || 0),
+    labelHeightMm: isPortrait ? lengthMm : template.tapeWidthMm,
+    labelWidthMm: isPortrait ? template.tapeWidthMm : lengthMm,
+    rowCount: Math.max(1, Math.round(template.rowCount) || 1),
+  };
+}
+
+function isLegacyRawBlockShape(rawArray: LegacyRawBlock[]) {
+  return rawArray.some(
+    (raw) => typeof raw.col === "number" && typeof raw.xMm !== "number",
+  );
+}
+
+/** Converts blocks stored in the old row/column grid shape (`col`/`row`/
+ * `width`(colspan)/`height`(rowspan), optionally a pinned `widthMm` on a
+ * single-column block) into the new absolute `xMm`/`yMm`/`widthMm`/
+ * `heightMm` shape - reproducing the exact box math that was live in
+ * `inventory-label-png.ts` right before free positioning replaced it, so
+ * a template keeps its current appearance the moment it's read once
+ * more (parse-time, lazy - no separate migration script/window). */
+function migrateLegacyRawBlocks(
+  rawArray: LegacyRawBlock[],
+  geometry: LegacyGridGeometry,
+): LegacyRawBlock[] {
+  const columnCount = geometry.columnCount;
+  const rowCount = geometry.rowCount;
+  const gapMm = geometry.gapMm;
+  const innerWidthMm = Math.max(
+    8,
+    geometry.labelWidthMm - LEGACY_PADDING_MM * 2 - gapMm * Math.max(0, columnCount - 1),
+  );
+  const innerHeightMm = Math.max(
+    6,
+    geometry.labelHeightMm - LEGACY_PADDING_MM * 2 - gapMm * Math.max(0, rowCount - 1),
+  );
+  const cellHeightMm = innerHeightMm / rowCount;
+
+  const pinnedWidthsMm: (number | null)[] = Array.from({ length: columnCount }, () => null);
+  for (const raw of rawArray) {
+    const width = clampToInt(raw.width, 1, columnCount, 1);
+    const col = clampToInt(raw.col, 1, columnCount, 1);
+    const widthMm =
+      typeof raw.widthMm === "number" && Number.isFinite(raw.widthMm) ? raw.widthMm : null;
+    if (raw.enabled !== false && width === 1 && widthMm && widthMm > 0) {
+      const index = col - 1;
+      pinnedWidthsMm[index] = Math.max(pinnedWidthsMm[index] ?? 0, widthMm);
+    }
+  }
+
+  const fixedTotalMm = pinnedWidthsMm.reduce((sum: number, w) => sum + (w ?? 0), 0);
+  const flexColumnCount = pinnedWidthsMm.filter((w) => w === null).length;
+  const flexWidthMm =
+    flexColumnCount > 0 ? Math.max(0, innerWidthMm - fixedTotalMm) / flexColumnCount : 0;
+  const resolvedColumnWidthsMm = pinnedWidthsMm.map((w) => w ?? flexWidthMm);
+  const columnOffsetsMm: number[] = [];
+  let cursorMm = LEGACY_PADDING_MM;
+  for (const width of resolvedColumnWidthsMm) {
+    columnOffsetsMm.push(cursorMm);
+    cursorMm += width + gapMm;
+  }
+
+  return rawArray.map((raw) => {
+    const col = clampToInt(raw.col, 1, columnCount, 1);
+    const row = clampToInt(raw.row, 1, rowCount, 1);
+    const width = clampToInt(raw.width, 1, columnCount, 1);
+    const height = clampToInt(raw.height, 1, rowCount, 1);
+    let spanWidthMm = 0;
+    for (let index = 0; index < width; index += 1) {
+      spanWidthMm += resolvedColumnWidthsMm[col - 1 + index] ?? flexWidthMm;
+    }
+    spanWidthMm += Math.max(0, width - 1) * gapMm;
+
+    return {
+      ...raw,
+      heightMm: round1(Math.max(2, height * cellHeightMm)),
+      widthMm: round1(Math.max(2, spanWidthMm)),
+      xMm: round1(columnOffsetsMm[col - 1] ?? LEGACY_PADDING_MM),
+      yMm: round1(LEGACY_PADDING_MM + (row - 1) * (cellHeightMm + gapMm)),
+    };
+  });
+}
+
+function clampToInt(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function round1(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
 export function parseInventoryLabelBlocks(
   blocksJson: string | null | undefined,
+  geometry: LegacyGridGeometry,
 ) {
   let rawBlocks: unknown = null;
 
@@ -286,29 +450,34 @@ export function parseInventoryLabelBlocks(
     rawBlocks = null;
   }
 
-  const rawArray = Array.isArray(rawBlocks) ? rawBlocks : [];
-  const rawByKey = new Map<string, Record<string, unknown>>();
+  let rawArray: LegacyRawBlock[] = Array.isArray(rawBlocks)
+    ? (rawBlocks as LegacyRawBlock[])
+    : [];
 
+  if (isLegacyRawBlockShape(rawArray)) {
+    rawArray = migrateLegacyRawBlocks(rawArray, geometry);
+  }
+
+  const rawByKey = new Map<string, LegacyRawBlock>();
   for (const rawBlock of rawArray) {
     if (!rawBlock || typeof rawBlock !== "object") continue;
-    const key = String((rawBlock as Record<string, unknown>).key ?? "");
-    rawByKey.set(key, rawBlock as Record<string, unknown>);
+    const key = String(rawBlock.key ?? "");
+    rawByKey.set(key, rawBlock);
   }
 
   return DEFAULT_INVENTORY_LABEL_BLOCKS.map((defaultBlock) => {
     const rawBlock = rawByKey.get(defaultBlock.key);
     const rawAlign = rawBlock?.align;
     const rawBold = rawBlock?.bold;
-    const rawCol = rawBlock?.col;
-    const rawHeight = rawBlock?.height;
+    const rawHeightMm = rawBlock?.heightMm;
     const rawItalic = rawBlock?.italic;
     const rawRotation = rawBlock?.rotation;
-    const rawRow = rawBlock?.row;
     const rawSize = rawBlock?.size;
     const rawUnderline = rawBlock?.underline;
-    const rawWidth = rawBlock?.width;
     const rawWidthAuto = rawBlock?.widthAuto;
     const rawWidthMm = rawBlock?.widthMm;
+    const rawXMm = rawBlock?.xMm;
+    const rawYMm = rawBlock?.yMm;
 
     return {
       ...defaultBlock,
@@ -317,25 +486,18 @@ export function parseInventoryLabelBlocks(
           ? rawAlign
           : defaultBlock.align,
       bold: typeof rawBold === "boolean" ? rawBold : defaultBlock.bold,
-      col:
-        typeof rawCol === "number" && Number.isFinite(rawCol)
-          ? Math.min(INVENTORY_LABEL_MAX_COLUMNS, Math.max(1, Math.round(rawCol)))
-          : defaultBlock.col,
       enabled:
-        typeof rawBlock?.enabled === "boolean"
-          ? rawBlock.enabled
-          : defaultBlock.enabled,
-      height:
-        typeof rawHeight === "number" && Number.isFinite(rawHeight)
-          ? Math.min(INVENTORY_LABEL_MAX_ROWS, Math.max(1, Math.round(rawHeight)))
-          : defaultBlock.height,
+        typeof rawBlock?.enabled === "boolean" ? rawBlock.enabled : defaultBlock.enabled,
+      heightMm:
+        typeof rawHeightMm === "number" && Number.isFinite(rawHeightMm)
+          ? Math.max(2, Math.round(rawHeightMm * 10) / 10)
+          : defaultBlock.heightMm,
       italic: typeof rawItalic === "boolean" ? rawItalic : defaultBlock.italic,
-      labelVisible:
-        !isInventoryLabelTextBlock(defaultBlock.key)
-          ? false
-          : typeof rawBlock?.labelVisible === "boolean"
-            ? rawBlock.labelVisible
-            : defaultBlock.labelVisible,
+      labelVisible: !isInventoryLabelTextBlock(defaultBlock.key)
+        ? false
+        : typeof rawBlock?.labelVisible === "boolean"
+          ? rawBlock.labelVisible
+          : defaultBlock.labelVisible,
       order:
         typeof rawBlock?.order === "number" && Number.isFinite(rawBlock.order)
           ? rawBlock.order
@@ -344,35 +506,47 @@ export function parseInventoryLabelBlocks(
         rawRotation === 90 || rawRotation === 180 || rawRotation === 270
           ? rawRotation
           : defaultBlock.rotation,
-      row:
-        typeof rawRow === "number" && Number.isFinite(rawRow)
-          ? Math.min(INVENTORY_LABEL_MAX_ROWS, Math.max(1, Math.round(rawRow)))
-          : defaultBlock.row,
       size:
         rawSize === "SMALL" || rawSize === "NORMAL" || rawSize === "LARGE"
           ? rawSize
           : defaultBlock.size,
-      underline:
-        typeof rawUnderline === "boolean"
-          ? rawUnderline
-          : defaultBlock.underline,
-      width:
-        typeof rawWidth === "number" && Number.isFinite(rawWidth)
-          ? Math.min(
-              INVENTORY_LABEL_MAX_COLUMNS,
-              Math.max(1, Math.round(rawWidth)),
-            )
-          : defaultBlock.width,
-      widthAuto:
-        typeof rawWidthAuto === "boolean"
-          ? rawWidthAuto
-          : defaultBlock.widthAuto,
+      underline: typeof rawUnderline === "boolean" ? rawUnderline : defaultBlock.underline,
+      widthAuto: typeof rawWidthAuto === "boolean" ? rawWidthAuto : defaultBlock.widthAuto,
       widthMm:
         typeof rawWidthMm === "number" && Number.isFinite(rawWidthMm)
-          ? Math.min(500, Math.max(0, Math.round(rawWidthMm * 10) / 10))
+          ? Math.max(2, Math.round(rawWidthMm * 10) / 10)
           : defaultBlock.widthMm,
+      xMm:
+        typeof rawXMm === "number" && Number.isFinite(rawXMm)
+          ? Math.round(rawXMm * 10) / 10
+          : defaultBlock.xMm,
+      yMm:
+        typeof rawYMm === "number" && Number.isFinite(rawYMm)
+          ? Math.round(rawYMm * 10) / 10
+          : defaultBlock.yMm,
     };
   }).sort((left, right) => left.order - right.order);
+}
+
+/** Keeps a block's box fully inside the current canvas after a drag/
+ * resize or a template dimension change. */
+export function clampBlockToCanvas(
+  block: InventoryLabelBlock,
+  canvasWidthMm: number,
+  canvasHeightMm: number,
+): InventoryLabelBlock {
+  const widthMm = Math.min(Math.max(2, canvasWidthMm), Math.max(2, block.widthMm));
+  const heightMm = Math.min(Math.max(2, canvasHeightMm), Math.max(2, block.heightMm));
+  const xMm = Math.min(Math.max(0, canvasWidthMm - widthMm), Math.max(0, block.xMm));
+  const yMm = Math.min(Math.max(0, canvasHeightMm - heightMm), Math.max(0, block.yMm));
+
+  return {
+    ...block,
+    heightMm: round1(heightMm),
+    widthMm: round1(widthMm),
+    xMm: round1(xMm),
+    yMm: round1(yMm),
+  };
 }
 
 export function getInventoryLabelBlockMeta(key: InventoryLabelBlockKey) {
@@ -485,127 +659,42 @@ export function getInventoryStatusLabel(status: string | null | undefined) {
   return "Aktiv";
 }
 
-/** A single-column block with an explicit "Breite cm" pins its own
- * column to that fixed mm width instead of sharing the label equally
- * with the rest - e.g. a rotated logo that only needs to be narrow.
- * Multi-column blocks don't participate (there's no unambiguous way to
- * split one widthMm across several physical columns), so their columns
- * stay flexible. */
-export function getInventoryLabelColumnWidthsMm(
-  blocks: InventoryLabelBlock[],
-  columnCount: number,
-): (number | null)[] {
-  const widths: (number | null)[] = Array.from({ length: columnCount }, () => null);
+/** The width a block actually renders at: its own `widthMm`, unless
+ * `widthAuto` is set, in which case it stretches to the right edge of
+ * the canvas (minus a little breathing room) instead of wrapping. */
+export function getInventoryLabelBlockRenderWidthMm(
+  block: InventoryLabelBlock,
+  labelWidthMm: number,
+) {
+  if (!block.widthAuto) return block.widthMm;
 
-  for (const block of blocks) {
-    if (!block.enabled || block.width !== 1) continue;
-    if (!block.widthMm || block.widthMm <= 0) continue;
-
-    const index = block.col - 1;
-    if (index < 0 || index >= columnCount) continue;
-
-    widths[index] = Math.max(widths[index] ?? 0, block.widthMm);
-  }
-
-  return widths;
+  return Math.max(block.widthMm, labelWidthMm - block.xMm - 2);
 }
 
-export function calculateInventoryLabelLength(
-  blocks: InventoryLabelBlock[],
-  item?: InventoryLabelItem | null,
-  columnCount = 6,
-  tapeWidthMm = 24,
-  rowCount = INVENTORY_LABEL_MAX_ROWS,
+function getEstimatedRequiredWidthMm(
+  block: InventoryLabelBlock,
+  item: InventoryLabelItem | null | undefined,
 ) {
-  const enabledBlocks = blocks.filter((block) => block.enabled);
-
-  if (enabledBlocks.length === 0) {
-    return 35;
+  if (!block.widthAuto) return block.widthMm;
+  if (
+    isInventoryLabelSpacerBlock(block.key) ||
+    block.key === "code" ||
+    block.key === "companyLogo"
+  ) {
+    return block.widthMm;
   }
 
-  const columnWidthsMm = getInventoryLabelColumnWidthsMm(enabledBlocks, columnCount);
-  const rightMostColumnLength = enabledBlocks.reduce(
-    (max, block) =>
-      Math.max(max, block.col + getEffectiveInventoryLabelBlockWidth(block, columnCount) - 1),
-    0,
-  );
-  const rowDepthLength = enabledBlocks.reduce(
-    (max, block) => Math.max(max, block.row + block.height - 1),
-    0,
-  );
-  const contentLength = enabledBlocks.reduce((max, block) => {
-    // A block sitting entirely inside a column that's been pinned to a
-    // fixed mm width doesn't need the uniform-division estimate below -
-    // its required length is simply "everything before it, plus its own
-    // fixed width", known exactly rather than guessed.
-    const ownColumnFixedWidthMm =
-      block.width === 1 ? columnWidthsMm[block.col - 1] : null;
-    if (ownColumnFixedWidthMm !== null) {
-      return Math.max(
-        max,
-        getColumnOffsetEstimateMm(block.col, columnWidthsMm) + ownColumnFixedWidthMm,
-      );
-    }
+  const value = item ? getInventoryLabelValue(item, block.key) : "";
+  const meta = getInventoryLabelBlockMeta(block.key);
+  const valueText = value.trim();
+  const labelText = valueText && block.labelVisible && meta?.label ? `${meta.label}: ` : "";
 
-    if (isInventoryLabelSpacerBlock(block.key)) {
-      return Math.max(
-        max,
-        getColumnOffsetEstimateMm(block.col, columnWidthsMm) +
-          getRequiredBlockWidthMm(block, 8),
-      );
-    }
-
-    if (block.key === "code" || block.key === "companyLogo") {
-      return Math.max(
-        max,
-        getRequiredVisualBlockLength(block, columnCount, tapeWidthMm, rowCount, columnWidthsMm),
-      );
-    }
-
-    const value = item ? getInventoryLabelValue(item, block.key) : "";
-    const meta = getInventoryLabelBlockMeta(block.key);
-    const valueText = value.trim();
-    const labelText =
-      valueText && block.labelVisible && meta?.label ? `${meta.label}: ` : "";
-    const neededCellWidthMm =
-      14 +
+  return Math.max(
+    block.widthMm,
+    6 +
       (getTextWidthEstimateMm(valueText, block.size) +
         getTextWidthEstimateMm(labelText, block.size) * 0.82) *
-        1.52;
-    const requiredCellWidthMm = getRequiredBlockWidthMm(block, neededCellWidthMm);
-    const effectiveWidth = getEffectiveInventoryLabelBlockWidth(block, columnCount);
-    const leftOffsetMm = getColumnOffsetEstimateMm(block.col, columnWidthsMm);
-    const requiredTotalLengthForCell =
-      (requiredCellWidthMm * Math.max(1, columnCount)) /
-        Math.max(1, effectiveWidth) +
-      leftOffsetMm;
-    const heightRelief = Math.max(1, block.height * 0.72);
-    const estimatedLength =
-      block.widthAuto || block.height <= 1
-        ? requiredTotalLengthForCell
-        : requiredTotalLengthForCell / heightRelief;
-
-    return Math.max(max, estimatedLength);
-  }, 0);
-  const minimumLength = enabledBlocks.some(
-    (block) => block.key === "code" || block.key === "companyLogo",
-  )
-    ? 24
-    : 18;
-
-  return Math.min(
-    220,
-    Math.max(
-      minimumLength,
-      Math.ceil(
-        Math.max(
-          minimumLength,
-          contentLength,
-          10 + rightMostColumnLength * 4,
-          12 + rowDepthLength * 3,
-        ),
-      ),
-    ),
+        1.15,
   );
 }
 
@@ -618,52 +707,35 @@ function getTextWidthEstimateMm(text: string, size: InventoryLabelBlockSize) {
   return text.length * averageCharWidthMm;
 }
 
-function getRequiredVisualBlockLength(
-  block: InventoryLabelBlock,
-  columnCount: number,
-  tapeWidthMm: number,
-  rowCount: number,
-  columnWidthsMm: (number | null)[],
+/** With every block now carrying a real, exact width/height, the
+ * required label length is simply "how far the farthest block reaches"
+ * along whichever axis is currently the auto-growing one (X in
+ * landscape, Y in portrait - the other axis is the fixed tape width). */
+export function calculateInventoryLabelLength(
+  blocks: InventoryLabelBlock[],
+  item: InventoryLabelItem | null | undefined,
+  orientation: string,
 ) {
-  const rows = Math.max(1, rowCount);
-  const blockHeightShare = Math.min(rows, Math.max(1, block.height)) / rows;
-  const visualHeightMm = Math.max(8, tapeWidthMm * blockHeightShare - 2);
-  const requiredCellWidthMm =
-    block.key === "code" ? Math.max(16, visualHeightMm) : 20;
-  const requiredBlockWidthMm = getRequiredBlockWidthMm(block, requiredCellWidthMm);
-  const effectiveWidth = getEffectiveInventoryLabelBlockWidth(block, columnCount);
+  const enabledBlocks = blocks.filter((block) => block.enabled);
 
-  return (
-    (requiredBlockWidthMm * Math.max(1, columnCount)) /
-      Math.max(1, effectiveWidth) +
-    getColumnOffsetEstimateMm(block.col, columnWidthsMm)
-  );
-}
-
-function getRequiredBlockWidthMm(
-  block: InventoryLabelBlock,
-  fallbackWidthMm: number,
-) {
-  return block.widthMm && block.widthMm > 0
-    ? Math.max(block.widthMm, fallbackWidthMm)
-    : fallbackWidthMm;
-}
-
-function getColumnOffsetEstimateMm(col: number, columnWidthsMm: (number | null)[]) {
-  let total = 0;
-  for (let index = 0; index < col - 1; index += 1) {
-    total += columnWidthsMm[index] ?? 16;
+  if (enabledBlocks.length === 0) {
+    return 35;
   }
-  return total;
-}
 
-export function getEffectiveInventoryLabelBlockWidth(
-  block: InventoryLabelBlock,
-  columnCount: number,
-) {
-  if (!block.widthAuto) return block.width;
+  const isPortrait = orientation === "PORTRAIT";
+  const farEdgeMm = enabledBlocks.reduce((max, block) => {
+    const positionMm = isPortrait ? block.yMm : block.xMm;
+    const sizeMm = isPortrait ? block.heightMm : getEstimatedRequiredWidthMm(block, item);
 
-  return Math.max(1, Math.max(1, columnCount) - block.col + 1);
+    return Math.max(max, positionMm + sizeMm);
+  }, 0);
+  const minimumLength = enabledBlocks.some(
+    (block) => block.key === "code" || block.key === "companyLogo",
+  )
+    ? 24
+    : 18;
+
+  return Math.min(220, Math.max(minimumLength, Math.ceil(farEdgeMm + 2)));
 }
 
 export function isInventoryLabelSpacerBlock(key: InventoryLabelBlockKey) {

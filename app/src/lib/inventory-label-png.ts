@@ -6,9 +6,8 @@ import QRCode from "qrcode";
 import sharp from "sharp";
 import {
   calculateInventoryLabelLength,
-  getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
-  getInventoryLabelColumnWidthsMm,
+  getInventoryLabelBlockRenderWidthMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   type InventoryLabelBlock,
@@ -17,11 +16,8 @@ import {
 
 type PngTemplate = {
   codeType: string;
-  columnCount: number;
-  gapMm: number;
   labelLengthOverrideMm: number | null;
   orientation: string;
-  rowCount: number;
   showBorder: boolean;
   tapeWidthMm: number;
 };
@@ -40,9 +36,7 @@ export async function createInventoryLabelPng(input: {
   const automaticLabelLengthMm = calculateInventoryLabelLength(
     enabledBlocks,
     input.item,
-    input.template.columnCount,
-    input.template.tapeWidthMm,
-    input.template.rowCount,
+    input.template.orientation,
   );
   const labelLengthMm = input.template.labelLengthOverrideMm ?? automaticLabelLengthMm;
   const labelWidthMm =
@@ -56,14 +50,11 @@ export async function createInventoryLabelPng(input: {
   const svg = await createLabelSvg({
     blocks: enabledBlocks,
     codeType: input.template.codeType,
-    columnCount: input.template.columnCount,
     companyLogoUrl: input.companyLogoUrl,
     companyName: input.companyName,
-    gapMm: input.template.gapMm,
     item: input.item,
     labelHeightMm,
     labelWidthMm,
-    rowCount: input.template.rowCount,
     showBorder: input.template.showBorder,
   });
 
@@ -73,75 +64,29 @@ export async function createInventoryLabelPng(input: {
 async function createLabelSvg(input: {
   blocks: InventoryLabelBlock[];
   codeType: string;
-  columnCount: number;
   companyLogoUrl?: string | null;
   companyName?: string | null;
-  gapMm: number;
   item: InventoryLabelItem & { id: string; name: string };
   labelHeightMm: number;
   labelWidthMm: number;
-  rowCount: number;
   showBorder: boolean;
 }) {
   const widthPx = Math.round(input.labelWidthMm * PIXELS_PER_MM);
   const heightPx = Math.round(input.labelHeightMm * PIXELS_PER_MM);
   const fontFaceCss = await getFontFaceCss();
-  const paddingPx = Math.max(8, Math.round(2.35 * PIXELS_PER_MM));
-  const gapPx = Math.max(0, Math.round(input.gapMm * PIXELS_PER_MM));
-  const innerWidthPx = Math.max(
-    20,
-    widthPx - paddingPx * 2 - gapPx * Math.max(0, input.columnCount - 1),
-  );
-  const innerHeightPx = Math.max(
-    20,
-    heightPx - paddingPx * 2 - gapPx * Math.max(0, input.rowCount - 1),
-  );
-  const cellHeightPx = innerHeightPx / Math.max(1, input.rowCount);
-  // Columns pinned via a block's "Breite cm" (widthMm) get their exact
-  // pixel width; the remaining space is split evenly among the flexible
-  // columns, mirroring the same math used in the editor and print page.
-  const columnWidthsMm = getInventoryLabelColumnWidthsMm(
-    input.blocks,
-    input.columnCount,
-  );
-  const fixedWidthPxTotal = columnWidthsMm.reduce(
-    (total: number, widthMm) => total + (widthMm !== null ? widthMm * PIXELS_PER_MM : 0),
-    0,
-  );
-  const flexColumnCount = columnWidthsMm.filter((widthMm) => widthMm === null).length;
-  const flexColumnWidthPx =
-    flexColumnCount > 0
-      ? Math.max(0, innerWidthPx - fixedWidthPxTotal) / flexColumnCount
-      : 0;
-  const columnWidthsPx = columnWidthsMm.map((widthMm) =>
-    widthMm !== null ? widthMm * PIXELS_PER_MM : flexColumnWidthPx,
-  );
-  const columnOffsetsPx: number[] = [];
-  let columnCursorPx = paddingPx;
-  for (const columnWidthPx of columnWidthsPx) {
-    columnOffsetsPx.push(columnCursorPx);
-    columnCursorPx += columnWidthPx + gapPx;
-  }
-  const getColumnSpanWidthPx = (col: number, span: number) => {
-    let total = 0;
-    for (let index = 0; index < span; index += 1) {
-      total += columnWidthsPx[col - 1 + index] ?? flexColumnWidthPx;
-    }
-    return total + Math.max(0, span - 1) * gapPx;
-  };
   const objects = await Promise.all(
     input.blocks.map(async (block) => {
       if (isInventoryLabelSpacerBlock(block.key)) return "";
 
-      const width = getEffectiveInventoryLabelBlockWidth(
+      const renderWidthMm = getInventoryLabelBlockRenderWidthMm(
         block,
-        input.columnCount,
+        input.labelWidthMm,
       );
       const box = {
-        height: Math.max(2, block.height * cellHeightPx),
-        width: Math.max(2, getColumnSpanWidthPx(block.col, width)),
-        x: columnOffsetsPx[block.col - 1] ?? paddingPx,
-        y: paddingPx + (block.row - 1) * (cellHeightPx + gapPx),
+        height: Math.max(2, block.heightMm * PIXELS_PER_MM),
+        width: Math.max(2, renderWidthMm * PIXELS_PER_MM),
+        x: block.xMm * PIXELS_PER_MM,
+        y: block.yMm * PIXELS_PER_MM,
       };
       // Content is laid out normally within its box, then the whole
       // thing is spun around the box's own center - a wide, short block

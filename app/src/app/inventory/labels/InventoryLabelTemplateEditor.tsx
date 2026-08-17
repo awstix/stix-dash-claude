@@ -5,13 +5,12 @@ import { useMemo, useRef, useState } from "react";
 import {
   DEFAULT_INVENTORY_LABEL_BLOCKS,
   INVENTORY_LABEL_BLOCKS,
-  INVENTORY_LABEL_MAX_COLUMNS,
-  INVENTORY_LABEL_MAX_ROWS,
   INVENTORY_LABEL_TAPE_WIDTHS,
   calculateInventoryLabelLength,
-  getEffectiveInventoryLabelBlockWidth,
+  clampBlockToCanvas,
   getInventoryLabelBlockMeta,
-  getInventoryLabelColumnWidthsMm,
+  getInventoryLabelBlockRenderWidthMm,
+  getInventoryLabelLegacyGeometry,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   isInventoryLabelTextBlock,
@@ -36,6 +35,9 @@ const alignOptions = [
   { label: "Rechts", value: "RIGHT" },
 ] as const;
 
+const CLICK_THRESHOLD_PX = 4;
+const ALIGNMENT_TOLERANCE_MM = 1.2;
+
 export function InventoryLabelTemplateEditor({
   action,
   companyLogoUrl,
@@ -47,13 +49,9 @@ export function InventoryLabelTemplateEditor({
   previewItems: Array<InventoryLabelItem & { id: string }>;
   template?: InventoryLabelTemplateLike | null;
 }) {
-  const initialRowCount = template?.rowCount ?? 4;
-  const initialColumnCount = template?.columnCount ?? 1;
   const [name, setName] = useState(template?.name ?? "TZe 24 mm · Inventar");
   const [tapeWidthMm, setTapeWidthMm] = useState(template?.tapeWidthMm ?? 24);
-  const [rowCount, setRowCount] = useState(initialRowCount);
-  const [columnCount, setColumnCount] = useState(initialColumnCount);
-  const [gapMm, setGapMm] = useState(template?.gapMm ?? 1);
+  const [snapMm, setSnapMm] = useState(template?.snapMm ?? 1);
   const [labelLengthOverrideMm, setLabelLengthOverrideMm] = useState<number | null>(
     template?.labelLengthOverrideMm ?? null,
   );
@@ -71,47 +69,32 @@ export function InventoryLabelTemplateEditor({
   const [draggedBlockKey, setDraggedBlockKey] = useState<
     InventoryLabelBlock["key"] | null
   >(null);
-  // Lets someone mark out a cell region (dragging across empty cells)
-  // BEFORE deciding which field goes there, instead of only being able to
-  // resize a block after it's already placed. selectionAnchor is the
-  // corner the drag started from - kept separate from pendingSelection so
-  // the bounding rect can be recomputed as the drag moves in any
-  // direction, not just down-right.
-  const [pendingSelection, setPendingSelection] = useState<{
-    col: number;
-    height: number;
-    row: number;
-    width: number;
-  } | null>(null);
-  const [selectionAnchor, setSelectionAnchor] = useState<{
-    col: number;
-    row: number;
-  } | null>(null);
   const [activeBlockKey, setActiveBlockKey] = useState<
     InventoryLabelBlock["key"] | null
   >(null);
-  const [blocks, setBlocks] = useState<InventoryLabelBlock[]>(() =>
-    (template
-      ? parseInventoryLabelBlocks(template.blocksJson)
-      : getNewTemplateStartBlocks()
-    ).map((block) => clampBlock(block, initialColumnCount, initialRowCount)),
-  );
+  const [blocks, setBlocks] = useState<InventoryLabelBlock[]>(() => {
+    const initialOrientation = template?.orientation ?? "LANDSCAPE";
+    const initialTapeWidthMm = template?.tapeWidthMm ?? 24;
+    const initialLengthMm =
+      template?.labelLengthOverrideMm ?? template?.labelLengthMm ?? 70;
+    const initialWidth =
+      initialOrientation === "LANDSCAPE" ? initialLengthMm : initialTapeWidthMm;
+    const initialHeight =
+      initialOrientation === "LANDSCAPE" ? initialTapeWidthMm : initialLengthMm;
+    const startBlocks = template
+      ? parseInventoryLabelBlocks(
+          template.blocksJson,
+          getInventoryLabelLegacyGeometry(template),
+        )
+      : getNewTemplateStartBlocks();
+
+    return startBlocks.map((block) => clampBlockToCanvas(block, initialWidth, initialHeight));
+  });
 
   const sortedBlocks = useMemo(() => [...blocks].sort(sortByOrder), [blocks]);
   const enabledBlocks = useMemo(
     () => sortedBlocks.filter((block) => block.enabled),
     [sortedBlocks],
-  );
-  const minimumColumnCount = useMemo(
-    () =>
-      Math.max(
-        1,
-        enabledBlocks.reduce(
-          (max, block) => Math.max(max, block.col + block.width - 1),
-          1,
-        ),
-      ),
-    [enabledBlocks],
   );
   const previewCategories = useMemo(
     () => getPreviewCategories(previewItems),
@@ -138,9 +121,7 @@ export function InventoryLabelTemplateEditor({
   const automaticLabelLengthMm = calculateInventoryLabelLength(
     enabledBlocks,
     selectedPreviewItem,
-    columnCount,
-    tapeWidthMm,
-    rowCount,
+    orientation,
   );
   const labelLengthMm = labelLengthOverrideMm ?? automaticLabelLengthMm;
   const previewWidth = orientation === "LANDSCAPE" ? labelLengthMm : tapeWidthMm;
@@ -155,82 +136,46 @@ export function InventoryLabelTemplateEditor({
     setBlocks((currentBlocks) =>
       currentBlocks.map((block) =>
         block.key === key
-          ? clampBlock(
-              {
-                ...block,
-                ...patch,
-              },
-              columnCount,
-              rowCount,
-            )
+          ? clampBlockToCanvas({ ...block, ...patch }, previewWidth, previewHeight)
           : block,
       ),
     );
   }
 
-  function beginCellSelection(row: number, col: number) {
-    setSelectionAnchor({ col, row });
-    setPendingSelection({ col, height: 1, row, width: 1 });
+  function resizeCanvasTo(nextWidth: number, nextHeight: number) {
+    setBlocks((currentBlocks) =>
+      currentBlocks.map((block) => clampBlockToCanvas(block, nextWidth, nextHeight)),
+    );
   }
 
-  function extendCellSelection(row: number, col: number) {
-    if (!selectionAnchor) return;
-
-    setPendingSelection({
-      col: Math.min(selectionAnchor.col, col),
-      height: Math.abs(row - selectionAnchor.row) + 1,
-      row: Math.min(selectionAnchor.row, row),
-      width: Math.abs(col - selectionAnchor.col) + 1,
-    });
-  }
-
-  function endCellSelection() {
-    setSelectionAnchor(null);
-  }
-
-  function placeDraggedBlock(row: number, col: number) {
+  function handleCanvasDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
     if (!draggedBlockKey) return;
 
-    const selection = pendingSelection;
-    const usesSelection =
-      selection &&
-      row >= selection.row &&
-      row < selection.row + selection.height &&
-      col >= selection.col &&
-      col < selection.col + selection.width;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const xMm = snapValue((event.clientX - rect.left) / previewScale, snapMm);
+    const yMm = snapValue((event.clientY - rect.top) / previewScale, snapMm);
 
-    updateBlock(draggedBlockKey, {
-      col: usesSelection ? selection.col : col,
-      enabled: true,
-      row: usesSelection ? selection.row : row,
-      ...(usesSelection
-        ? { height: selection.height, width: selection.width, widthAuto: false }
-        : {}),
-    });
-    if (usesSelection) setPendingSelection(null);
+    updateBlock(draggedBlockKey, { enabled: true, xMm, yMm });
     setActiveBlockKey(draggedBlockKey);
     setDraggedBlockKey(null);
   }
 
-  function addColumn() {
-    setColumnCount((current) =>
-      Math.min(INVENTORY_LABEL_MAX_COLUMNS, current + 1),
-    );
+  function bringToFront(key: InventoryLabelBlock["key"]) {
+    setBlocks((currentBlocks) => {
+      const maxOrder = Math.max(...currentBlocks.map((block) => block.order));
+      return currentBlocks.map((block) =>
+        block.key === key ? { ...block, order: maxOrder + 1 } : block,
+      );
+    });
   }
 
-  function removeColumn() {
-    setColumnCount((current) => {
-      const nextColumnCount = Math.max(minimumColumnCount, current - 1);
-
-      if (nextColumnCount !== current) {
-        setBlocks((currentBlocks) =>
-          currentBlocks.map((block) =>
-            clampBlock(block, nextColumnCount, rowCount),
-          ),
-        );
-      }
-
-      return nextColumnCount;
+  function sendToBack(key: InventoryLabelBlock["key"]) {
+    setBlocks((currentBlocks) => {
+      const minOrder = Math.min(...currentBlocks.map((block) => block.order));
+      return currentBlocks.map((block) =>
+        block.key === key ? { ...block, order: minOrder - 1 } : block,
+      );
     });
   }
 
@@ -243,9 +188,7 @@ export function InventoryLabelTemplateEditor({
         type="hidden"
         value={labelLengthOverrideMm ?? ""}
       />
-      <input name="rowCount" type="hidden" value={rowCount} />
-      <input name="columnCount" type="hidden" value={columnCount} />
-      <input name="gapMm" type="hidden" value={gapMm} />
+      <input name="snapMm" type="hidden" value={snapMm} />
       <input name="previewItemId" type="hidden" value={selectedPreviewItem?.id ?? ""} />
 
       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -272,9 +215,18 @@ export function InventoryLabelTemplateEditor({
                 <select
                   className={inputClass}
                   name="tapeWidthMm"
-                  onChange={(event) =>
-                    setTapeWidthMm(Number.parseInt(event.currentTarget.value, 10))
-                  }
+                  onChange={(event) => {
+                    const nextTapeWidthMm = Number.parseInt(
+                      event.currentTarget.value,
+                      10,
+                    );
+                    setTapeWidthMm(nextTapeWidthMm);
+                    const nextWidth =
+                      orientation === "LANDSCAPE" ? labelLengthMm : nextTapeWidthMm;
+                    const nextHeight =
+                      orientation === "LANDSCAPE" ? nextTapeWidthMm : labelLengthMm;
+                    resizeCanvasTo(nextWidth, nextHeight);
+                  }}
                   value={tapeWidthMm}
                 >
                   {INVENTORY_LABEL_TAPE_WIDTHS.map((width) => (
@@ -302,45 +254,20 @@ export function InventoryLabelTemplateEditor({
 
               <label className="md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Zeilen Etikett
-                </span>
-                <select
-                  className={inputClass}
-                  onChange={(event) => {
-                    const nextRowCount = Number.parseInt(
-                      event.currentTarget.value,
-                      10,
-                    );
-                    setRowCount(nextRowCount);
-                    setBlocks((currentBlocks) =>
-                      currentBlocks.map((block) =>
-                        clampBlock(block, columnCount, nextRowCount),
-                      ),
-                    );
-                  }}
-                  value={rowCount}
-                >
-                  {Array.from({ length: INVENTORY_LABEL_MAX_ROWS }).map(
-                    (_, index) => {
-                      const option = index + 1;
-                      return (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      );
-                    },
-                  )}
-                </select>
-              </label>
-
-              <label className="md:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Richtung
                 </span>
                 <select
                   className={inputClass}
                   name="orientation"
-                  onChange={(event) => setOrientation(event.currentTarget.value)}
+                  onChange={(event) => {
+                    const nextOrientation = event.currentTarget.value;
+                    setOrientation(nextOrientation);
+                    const nextWidth =
+                      nextOrientation === "LANDSCAPE" ? labelLengthMm : tapeWidthMm;
+                    const nextHeight =
+                      nextOrientation === "LANDSCAPE" ? tapeWidthMm : labelLengthMm;
+                    resizeCanvasTo(nextWidth, nextHeight);
+                  }}
                   value={orientation}
                 >
                   <option value="LANDSCAPE">Quer</option>
@@ -350,19 +277,22 @@ export function InventoryLabelTemplateEditor({
 
               <label className="md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Abstand
+                  Raster (mm)
                 </span>
                 <input
                   className={inputClass}
                   max={5}
                   min={0}
                   onChange={(event) =>
-                    setGapMm(Number.parseFloat(event.currentTarget.value) || 0)
+                    setSnapMm(Number.parseFloat(event.currentTarget.value) || 0)
                   }
                   step={0.1}
                   type="number"
-                  value={gapMm}
+                  value={snapMm}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Beim Ziehen wird darauf eingerastet. 0 = frei.
+                </p>
               </label>
 
               <label className="md:col-span-2">
@@ -375,7 +305,14 @@ export function InventoryLabelTemplateEditor({
                   min={18}
                   onChange={(event) => {
                     const raw = event.currentTarget.value;
-                    setLabelLengthOverrideMm(raw === "" ? null : Number.parseFloat(raw));
+                    const nextOverride = raw === "" ? null : Number.parseFloat(raw);
+                    setLabelLengthOverrideMm(nextOverride);
+                    const nextLengthMm = nextOverride ?? automaticLabelLengthMm;
+                    const nextWidth =
+                      orientation === "LANDSCAPE" ? nextLengthMm : tapeWidthMm;
+                    const nextHeight =
+                      orientation === "LANDSCAPE" ? tapeWidthMm : nextLengthMm;
+                    resizeCanvasTo(nextWidth, nextHeight);
                   }}
                   placeholder={`${automaticLabelLengthMm} mm auto`}
                   type="number"
@@ -466,25 +403,14 @@ export function InventoryLabelTemplateEditor({
               codeType={codeType}
               companyLogoUrl={companyLogoUrl}
               draggedBlockKey={draggedBlockKey}
-              gapMm={gapMm}
               item={selectedPreviewItem}
-              columnCount={columnCount}
-              minimumColumnCount={minimumColumnCount}
-              onAddColumn={addColumn}
-              onBeginCellSelection={beginCellSelection}
-              onClearSelection={() => setPendingSelection(null)}
-              onDropBlock={placeDraggedBlock}
-              onEndCellSelection={endCellSelection}
-              onExtendCellSelection={extendCellSelection}
-              onRemoveColumn={removeColumn}
+              onCanvasDrop={handleCanvasDrop}
               onSelectBlock={setActiveBlockKey}
-              pendingSelection={pendingSelection}
-              rowCount={rowCount}
               previewHeight={previewHeight}
               previewScale={previewScale}
               previewWidth={previewWidth}
-              setDraggedBlockKey={setDraggedBlockKey}
               showBorder={showBorder}
+              snapMm={snapMm}
               updateBlock={updateBlock}
             />
 
@@ -495,7 +421,9 @@ export function InventoryLabelTemplateEditor({
                     Bausteine
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    Direkt ins Etikett ziehen.
+                    Direkt ins Etikett ziehen. Klick auf einen aktiven Baustein
+                    wählt ihn aus (nützlich, wenn er auf dem Etikett von einem
+                    anderen verdeckt wird).
                   </p>
                 </div>
               </div>
@@ -513,6 +441,9 @@ export function InventoryLabelTemplateEditor({
                       }`}
                       draggable
                       key={meta.key}
+                      onClick={() => {
+                        if (enabled) setActiveBlockKey(meta.key);
+                      }}
                       onDragEnd={() => setDraggedBlockKey(null)}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
@@ -525,11 +456,10 @@ export function InventoryLabelTemplateEditor({
                       {enabled ? (
                         <button
                           className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold hover:bg-white/20"
-                          onClick={() =>
-                            updateBlock(meta.key, {
-                              enabled: false,
-                            })
-                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            updateBlock(meta.key, { enabled: false });
+                          }}
                           type="button"
                         >
                           raus
@@ -549,77 +479,69 @@ export function InventoryLabelTemplateEditor({
               </div>
               {activeBlock ? (
                 <div className="mt-3 space-y-3">
-                  <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm font-bold text-gray-900">
-                    {getInventoryLabelBlockMeta(activeBlock.key)?.label}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm font-bold text-gray-900">
+                      {getInventoryLabelBlockMeta(activeBlock.key)?.label}
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] font-bold text-gray-700 hover:bg-gray-50"
+                        onClick={() => sendToBack(activeBlock.key)}
+                        title="Nach hinten legen"
+                        type="button"
+                      >
+                        Nach hinten
+                      </button>
+                      <button
+                        className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] font-bold text-gray-700 hover:bg-gray-50"
+                        onClick={() => bringToFront(activeBlock.key)}
+                        title="Nach vorne bringen"
+                        type="button"
+                      >
+                        Nach vorne
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <SelectNumber
-                      label="Spalte"
-                      max={columnCount}
-                      min={1}
-                      onChange={(value) => updateBlock(activeBlock.key, { col: value })}
-                      value={activeBlock.col}
+                    <NumberField
+                      label="X (mm)"
+                      min={0}
+                      onChange={(value) => updateBlock(activeBlock.key, { xMm: value })}
+                      value={activeBlock.xMm}
                     />
-                    <SelectNumber
-                      label="Zeile"
-                      max={rowCount}
-                      min={1}
-                      onChange={(value) => updateBlock(activeBlock.key, { row: value })}
-                      value={activeBlock.row}
+                    <NumberField
+                      label="Y (mm)"
+                      min={0}
+                      onChange={(value) => updateBlock(activeBlock.key, { yMm: value })}
+                      value={activeBlock.yMm}
                     />
-                    <SelectNumber
-                      label="Zellen verbinden"
-                      max={columnCount}
-                      min={1}
-                      onAuto={() =>
-                        updateBlock(activeBlock.key, { widthAuto: true })
-                      }
+                    <NumberField
+                      label="Breite (mm)"
+                      min={2}
                       onChange={(value) =>
-                        updateBlock(activeBlock.key, {
-                          width: value,
-                          widthAuto: false,
-                        })
+                        updateBlock(activeBlock.key, { widthAuto: false, widthMm: value })
                       }
-                      value={activeBlock.width}
-                      valueAuto={activeBlock.widthAuto}
+                      value={activeBlock.widthMm}
                     />
-                    <SelectNumber
-                      label="Zeilen verbinden"
-                      max={rowCount}
-                      min={1}
-                      onChange={(value) =>
-                        updateBlock(activeBlock.key, { height: value })
-                      }
-                      value={activeBlock.height}
+                    <NumberField
+                      label="Höhe (mm)"
+                      min={2}
+                      onChange={(value) => updateBlock(activeBlock.key, { heightMm: value })}
+                      value={activeBlock.heightMm}
                     />
                   </div>
-                  <label className="block">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Breite cm
-                    </span>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <input
-                      className={inputClass}
-                      inputMode="decimal"
-                      min="0"
+                      checked={activeBlock.widthAuto}
+                      disabled={!isInventoryLabelTextBlock(activeBlock.key)}
                       onChange={(event) =>
                         updateBlock(activeBlock.key, {
-                          widthMm: parseCentimetersToMillimeters(
-                            event.currentTarget.value,
-                          ),
+                          widthAuto: event.currentTarget.checked,
                         })
                       }
-                      placeholder="Auto nach Inhalt"
-                      step="0.1"
-                      type="number"
-                      value={
-                        activeBlock.widthMm
-                          ? Math.round(activeBlock.widthMm) / 10
-                          : ""
-                      }
+                      type="checkbox"
                     />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Leer lassen = automatisch. Für Abstand z. B. 1,5 cm.
-                    </p>
+                    Breite füllt Rest nach rechts
                   </label>
                   <label className="block">
                     <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -838,183 +760,78 @@ export function InventoryLabelTemplateEditor({
 function LabelCanvas({
   activeBlockKey,
   blocks,
-  columnCount,
   codeType,
   companyLogoUrl,
   draggedBlockKey,
-  gapMm,
   item,
-  onAddColumn,
-  onBeginCellSelection,
-  onClearSelection,
-  onDropBlock,
-  onEndCellSelection,
-  onExtendCellSelection,
-  onRemoveColumn,
+  onCanvasDrop,
   onSelectBlock,
-  pendingSelection,
   previewHeight,
   previewScale,
   previewWidth,
-  rowCount,
-  minimumColumnCount,
-  setDraggedBlockKey,
   showBorder,
+  snapMm,
   updateBlock,
 }: {
   activeBlockKey: InventoryLabelBlock["key"] | null;
   blocks: InventoryLabelBlock[];
-  columnCount: number;
   codeType: string;
   companyLogoUrl: string | null;
   draggedBlockKey: InventoryLabelBlock["key"] | null;
-  gapMm: number;
   item: (InventoryLabelItem & { id: string }) | null;
-  minimumColumnCount: number;
-  onAddColumn: () => void;
-  onBeginCellSelection: (row: number, col: number) => void;
-  onClearSelection: () => void;
-  onDropBlock: (row: number, col: number) => void;
-  onEndCellSelection: () => void;
-  onExtendCellSelection: (row: number, col: number) => void;
-  onRemoveColumn: () => void;
+  onCanvasDrop: (event: React.DragEvent<HTMLDivElement>) => void;
   onSelectBlock: (key: InventoryLabelBlock["key"]) => void;
-  pendingSelection: { col: number; height: number; row: number; width: number } | null;
   previewHeight: number;
   previewScale: number;
   previewWidth: number;
-  rowCount: number;
-  setDraggedBlockKey: (key: InventoryLabelBlock["key"] | null) => void;
   showBorder: boolean;
+  snapMm: number;
   updateBlock: (
     key: InventoryLabelBlock["key"],
     patch: Partial<InventoryLabelBlock>,
   ) => void;
 }) {
-  const rowIndexes = Array.from({ length: rowCount }, (_, index) => index + 1);
-  const colIndexes = Array.from({ length: columnCount }, (_, index) => index + 1);
-  // A single-column block with an explicit "Breite cm" pins its own
-  // column to that fixed width (converted to the canvas's own scaled-up
-  // px, matching how everything else here is sized) instead of sharing
-  // the label equally with the rest.
-  const columnWidthsMm = getInventoryLabelColumnWidthsMm(blocks, columnCount);
-  const gridTemplateColumns = columnWidthsMm
-    .map((widthMm) => (widthMm !== null ? `${widthMm * previewScale}px` : "minmax(0,1fr)"))
-    .join(" ");
-
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-bold text-gray-900">Etikettfläche</div>
           <p className="mt-1 text-xs text-gray-500">
-            Bausteine in eine Zelle ziehen. Über leere Zellen ziehen, um sie
-            vorab zu einer größeren Zelle zu verbinden. QR kann über mehrere
-            Zeilen laufen.
+            Bausteine frei per Drag platzieren und an den Kanten in der Größe
+            anpassen. Sie rasten am Raster und an Kanten anderer Bausteine
+            ein.
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {pendingSelection ? (
-            <button
-              className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
-              onClick={onClearSelection}
-              type="button"
-            >
-              Auswahl aufheben ({pendingSelection.width}×{pendingSelection.height})
-            </button>
-          ) : null}
-          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
-            {rowCount} Zeilen · {columnCount} Spalten ·{" "}
-            {Math.round(previewWidth)}×{Math.round(previewHeight)} mm
-          </span>
-          <button
-            className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={columnCount <= minimumColumnCount}
-            onClick={onRemoveColumn}
-            title={
-              columnCount <= minimumColumnCount
-                ? "Nicht möglich, weil rechts noch ein Baustein liegt."
-                : "Eine Spalte entfernen"
-            }
-            type="button"
-          >
-            - Spalte
-          </button>
-          <button
-            className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={columnCount >= INVENTORY_LABEL_MAX_COLUMNS}
-            onClick={onAddColumn}
-            type="button"
-          >
-            + Spalte
-          </button>
-        </div>
+        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
+          {Math.round(previewWidth)}×{Math.round(previewHeight)} mm
+        </span>
       </div>
       <div className="overflow-auto rounded-xl border border-gray-200 bg-gray-100 p-3">
         <div
-          className={`relative grid bg-white p-2 text-gray-950 ${
+          className={`relative touch-none bg-white p-2 text-gray-950 ${
             showBorder ? "border-2 border-gray-900" : ""
-          }`}
-          onPointerUp={onEndCellSelection}
+          } ${draggedBlockKey ? "outline-2 outline-dashed outline-blue-300" : ""}`}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onCanvasDrop}
           style={{
-            gap: `${gapMm * previewScale}px`,
-            gridTemplateColumns,
-            gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,
             height: `${previewHeight * previewScale}px`,
             width: `${previewWidth * previewScale}px`,
           }}
         >
-          {rowIndexes.flatMap((row) =>
-            colIndexes.map((col) => (
-              <div
-                className={`touch-none rounded border border-dashed ${
-                  draggedBlockKey
-                    ? "border-blue-300 bg-blue-50/50"
-                    : "cursor-cell border-gray-200"
-                }`}
-                key={`${row}-${col}`}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  onDropBlock(row, col);
-                }}
-                onPointerDown={() => {
-                  if (!draggedBlockKey) onBeginCellSelection(row, col);
-                }}
-                onPointerEnter={() => onExtendCellSelection(row, col)}
-                style={{
-                  gridColumn: col,
-                  gridRow: row,
-                }}
-              />
-            )),
-          )}
-
-          {pendingSelection ? (
-            <div
-              className="pointer-events-none z-[5] rounded border-2 border-blue-500 bg-blue-500/15"
-              style={{
-                gridColumn: `${pendingSelection.col} / span ${pendingSelection.width}`,
-                gridRow: `${pendingSelection.row} / span ${pendingSelection.height}`,
-              }}
-            />
-          ) : null}
-
           {blocks.map((block) => (
             <PlacedBlock
+              allBlocks={blocks}
               block={block}
-              cellHeightPx={(previewHeight * previewScale) / rowCount}
-              cellWidthPx={(previewWidth * previewScale) / columnCount}
               codeType={codeType}
-              columnCount={columnCount}
               companyLogoUrl={companyLogoUrl}
               isActive={block.key === activeBlockKey}
               item={item}
               key={block.key}
-              maxColumnCount={columnCount}
-              maxRowCount={rowCount}
+              labelHeightMm={previewHeight}
+              labelWidthMm={previewWidth}
               onSelectBlock={onSelectBlock}
-              setDraggedBlockKey={setDraggedBlockKey}
+              previewScale={previewScale}
+              snapMm={snapMm}
               updateBlock={updateBlock}
             />
           ))}
@@ -1025,32 +842,30 @@ function LabelCanvas({
 }
 
 function PlacedBlock({
+  allBlocks,
   block,
-  cellHeightPx,
-  cellWidthPx,
   codeType,
-  columnCount,
   companyLogoUrl,
   isActive,
   item,
-  maxColumnCount,
-  maxRowCount,
+  labelHeightMm,
+  labelWidthMm,
   onSelectBlock,
-  setDraggedBlockKey,
+  previewScale,
+  snapMm,
   updateBlock,
 }: {
+  allBlocks: InventoryLabelBlock[];
   block: InventoryLabelBlock;
-  cellHeightPx: number;
-  cellWidthPx: number;
   codeType: string;
-  columnCount: number;
   companyLogoUrl: string | null;
   isActive: boolean;
   item: (InventoryLabelItem & { id: string }) | null;
-  maxColumnCount: number;
-  maxRowCount: number;
+  labelHeightMm: number;
+  labelWidthMm: number;
   onSelectBlock: (key: InventoryLabelBlock["key"]) => void;
-  setDraggedBlockKey: (key: InventoryLabelBlock["key"] | null) => void;
+  previewScale: number;
+  snapMm: number;
   updateBlock: (
     key: InventoryLabelBlock["key"],
     patch: Partial<InventoryLabelBlock>,
@@ -1058,18 +873,76 @@ function PlacedBlock({
 }) {
   const meta = getInventoryLabelBlockMeta(block.key);
   const value = item ? getInventoryLabelValue(item, block.key) : "";
+  const moveDragRef = useRef<{
+    moved: boolean;
+    startClientX: number;
+    startClientY: number;
+    startXMm: number;
+    startYMm: number;
+  } | null>(null);
 
   if (!meta) return null;
 
   const isSpacer = isInventoryLabelSpacerBlock(block.key);
   const isLogo = block.key === "companyLogo";
   const isCode = block.key === "code";
+  const renderWidthMm = getInventoryLabelBlockRenderWidthMm(block, labelWidthMm);
+
+  function handleBodyPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    moveDragRef.current = {
+      moved: false,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startXMm: block.xMm,
+      startYMm: block.yMm,
+    };
+  }
+
+  function handleBodyPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!moveDragRef.current) return;
+
+    const deltaXPx = event.clientX - moveDragRef.current.startClientX;
+    const deltaYPx = event.clientY - moveDragRef.current.startClientY;
+
+    if (
+      !moveDragRef.current.moved &&
+      Math.hypot(deltaXPx, deltaYPx) < CLICK_THRESHOLD_PX
+    ) {
+      return;
+    }
+
+    moveDragRef.current.moved = true;
+    const candidateXMm = moveDragRef.current.startXMm + deltaXPx / previewScale;
+    const candidateYMm = moveDragRef.current.startYMm + deltaYPx / previewScale;
+    const others = allBlocks.filter((other) => other.key !== block.key);
+    const snapped = snapBlockPosition(
+      {
+        heightMm: block.heightMm,
+        widthMm: block.widthMm,
+        xMm: candidateXMm,
+        yMm: candidateYMm,
+      },
+      others,
+      snapMm,
+    );
+
+    updateBlock(block.key, { xMm: snapped.xMm, yMm: snapped.yMm });
+  }
+
+  function handleBodyPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    const wasMoved = moveDragRef.current?.moved ?? false;
+    moveDragRef.current = null;
+    if (!wasMoved) onSelectBlock(block.key);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
 
   const buttonClassName = isSpacer
-    ? "z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden rounded border border-dashed border-amber-400 bg-amber-50/80 px-2 py-1 text-[10px] font-black uppercase text-amber-700 active:cursor-grabbing"
+    ? "touch-none z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden rounded border border-dashed border-amber-400 bg-amber-50/80 px-2 py-1 text-[10px] font-black uppercase text-amber-700 active:cursor-grabbing"
     : isLogo || isCode
-      ? "z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden bg-white active:cursor-grabbing"
-      : `z-10 h-full w-full cursor-grab overflow-hidden bg-white px-1 py-0.5 leading-tight active:cursor-grabbing ${getTextAlignClass(
+      ? "touch-none z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden bg-white active:cursor-grabbing"
+      : `touch-none z-10 h-full w-full cursor-grab overflow-hidden bg-white px-1 py-0.5 leading-tight active:cursor-grabbing ${getTextAlignClass(
           block.align,
         )} ${getTextStyleClass(block)} ${
           block.underline ? "underline underline-offset-2" : ""
@@ -1080,7 +953,8 @@ function PlacedBlock({
   const content = isSpacer ? (
     <>
       Abstand
-      {block.widthMm ? ` · ${formatMillimetersAsCentimeters(block.widthMm)} cm` : ""}
+      <br />
+      {Math.round(block.widthMm)}×{Math.round(block.heightMm)} mm
     </>
   ) : isLogo ? (
     companyLogoUrl ? (
@@ -1120,16 +994,20 @@ function PlacedBlock({
   );
 
   return (
-    <div className="relative" style={getGridPlacement(block, columnCount)}>
+    <div
+      className="absolute"
+      style={{
+        height: `${block.heightMm * previewScale}px`,
+        left: `${block.xMm * previewScale}px`,
+        top: `${block.yMm * previewScale}px`,
+        width: `${renderWidthMm * previewScale}px`,
+      }}
+    >
       <button
         className={buttonClassName}
-        draggable
-        onClick={() => onSelectBlock(block.key)}
-        onDragEnd={() => setDraggedBlockKey(null)}
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          setDraggedBlockKey(block.key);
-        }}
+        onPointerDown={handleBodyPointerDown}
+        onPointerMove={handleBodyPointerMove}
+        onPointerUp={handleBodyPointerUp}
         style={block.rotation ? { transform: `rotate(${block.rotation}deg)` } : undefined}
         type="button"
       >
@@ -1139,21 +1017,21 @@ function PlacedBlock({
         <>
           <ResizeHandle
             axis="width"
-            cellSizePx={cellWidthPx}
-            max={maxColumnCount - block.col + 1}
-            min={1}
-            onResize={(nextWidth) =>
-              updateBlock(block.key, { width: nextWidth, widthAuto: false })
-            }
-            startValue={block.width}
+            maxMm={labelWidthMm - block.xMm}
+            minMm={2}
+            onResize={(nextWidthMm) => updateBlock(block.key, { widthMm: nextWidthMm })}
+            previewScale={previewScale}
+            snapMm={snapMm}
+            startValueMm={block.widthMm}
           />
           <ResizeHandle
             axis="height"
-            cellSizePx={cellHeightPx}
-            max={maxRowCount - block.row + 1}
-            min={1}
-            onResize={(nextHeight) => updateBlock(block.key, { height: nextHeight })}
-            startValue={block.height}
+            maxMm={labelHeightMm - block.yMm}
+            minMm={2}
+            onResize={(nextHeightMm) => updateBlock(block.key, { heightMm: nextHeightMm })}
+            previewScale={previewScale}
+            snapMm={snapMm}
+            startValueMm={block.heightMm}
           />
         </>
       ) : null}
@@ -1161,29 +1039,30 @@ function PlacedBlock({
   );
 }
 
-/** Drag handle on the active block's right (width/colspan) or bottom
- * (height/rowspan) edge in the live canvas - an alternative to typing
- * numbers into the "Zellen/Zeilen verbinden" fields. Uses pointer capture
- * so the drag keeps tracking even once the cursor leaves the handle's own
- * (thin) hit area. Computes the new span from the ORIGINAL value at
- * pointer-down plus the total movement so far, not incrementally, so
- * re-renders mid-drag can't cause runaway or lagging values. */
+/** Drag handle on the active block's right (width) or bottom (height)
+ * edge in the live canvas. Uses pointer capture so the drag keeps
+ * tracking even once the cursor leaves the handle's own (thin) hit
+ * area. Computes the new size from the ORIGINAL value at pointer-down
+ * plus the total movement so far, not incrementally, so re-renders
+ * mid-drag can't cause runaway or lagging values. */
 function ResizeHandle({
   axis,
-  cellSizePx,
-  max,
-  min,
+  maxMm,
+  minMm,
   onResize,
-  startValue,
+  previewScale,
+  snapMm,
+  startValueMm,
 }: {
   axis: "height" | "width";
-  cellSizePx: number;
-  max: number;
-  min: number;
-  onResize: (value: number) => void;
-  startValue: number;
+  maxMm: number;
+  minMm: number;
+  onResize: (valueMm: number) => void;
+  previewScale: number;
+  snapMm: number;
+  startValueMm: number;
 }) {
-  const dragRef = useRef<{ startClient: number; startValue: number } | null>(null);
+  const dragRef = useRef<{ startClient: number; startValueMm: number } | null>(null);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -1191,17 +1070,19 @@ function ResizeHandle({
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       startClient: axis === "width" ? event.clientX : event.clientY,
-      startValue,
+      startValueMm,
     };
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (!dragRef.current || !cellSizePx) return;
+    if (!dragRef.current) return;
     event.stopPropagation();
     const current = axis === "width" ? event.clientX : event.clientY;
-    const deltaUnits = Math.round((current - dragRef.current.startClient) / cellSizePx);
-    const nextValue = Math.min(max, Math.max(min, dragRef.current.startValue + deltaUnits));
-    onResize(nextValue);
+    const deltaMm = (current - dragRef.current.startClient) / previewScale;
+    let nextMm = dragRef.current.startValueMm + deltaMm;
+    if (snapMm > 0) nextMm = Math.round(nextMm / snapMm) * snapMm;
+    nextMm = Math.min(Math.max(minMm, maxMm), Math.max(minMm, nextMm));
+    onResize(Math.round(nextMm * 10) / 10);
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
@@ -1226,178 +1107,122 @@ function ResizeHandle({
   );
 }
 
-function SelectNumber({
-  disabled,
+function NumberField({
   label,
-  max,
   min,
-  onAuto,
   onChange,
   value,
-  valueAuto = false,
 }: {
-  disabled?: boolean;
   label: string;
-  max: number;
   min: number;
-  onAuto?: () => void;
   onChange: (value: number) => void;
   value: number;
-  valueAuto?: boolean;
 }) {
   return (
     <label>
       <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
-      <select
+      <input
         className={inputClass}
-        disabled={disabled}
+        min={min}
         onChange={(event) => {
-          if (event.currentTarget.value === "auto") {
-            onAuto?.();
-            return;
-          }
-
-          onChange(Number.parseInt(event.currentTarget.value, 10));
+          const parsed = Number.parseFloat(event.currentTarget.value);
+          if (Number.isFinite(parsed)) onChange(Math.max(min, parsed));
         }}
-        value={valueAuto ? "auto" : value}
-      >
-        {onAuto ? <option value="auto">Auto</option> : null}
-        {Array.from({ length: max - min + 1 }).map((_, index) => {
-          const option = min + index;
-          return (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          );
-        })}
-      </select>
+        step={0.5}
+        type="number"
+        value={Math.round(value * 10) / 10}
+      />
     </label>
   );
 }
 
-function getGridPlacement(block: InventoryLabelBlock, columnCount: number) {
-  const width = getEffectiveInventoryLabelBlockWidth(block, columnCount);
+/** Snaps a dragged block's candidate position to the edges/centers of
+ * other blocks on the canvas (small mm tolerance) so things line up
+ * without needing a grid; falls back to the plain `snapMm` step when no
+ * alignment match is found on that axis. */
+function snapBlockPosition(
+  candidate: { heightMm: number; widthMm: number; xMm: number; yMm: number },
+  otherBlocks: InventoryLabelBlock[],
+  snapMm: number,
+): { xMm: number; yMm: number } {
+  const candidateXEdges = [
+    candidate.xMm,
+    candidate.xMm + candidate.widthMm / 2,
+    candidate.xMm + candidate.widthMm,
+  ];
+  const candidateYEdges = [
+    candidate.yMm,
+    candidate.yMm + candidate.heightMm / 2,
+    candidate.yMm + candidate.heightMm,
+  ];
+  const xEdgesList = otherBlocks.map((other) => [
+    other.xMm,
+    other.xMm + other.widthMm / 2,
+    other.xMm + other.widthMm,
+  ]);
+  const yEdgesList = otherBlocks.map((other) => [
+    other.yMm,
+    other.yMm + other.heightMm / 2,
+    other.yMm + other.heightMm,
+  ]);
+  const xMatch = findSnapMatch(candidateXEdges, xEdgesList);
+  const yMatch = findSnapMatch(candidateYEdges, yEdgesList);
+  let xMm = xMatch !== null ? candidate.xMm + xMatch : candidate.xMm;
+  let yMm = yMatch !== null ? candidate.yMm + yMatch : candidate.yMm;
+
+  if (xMatch === null && snapMm > 0) xMm = Math.round(xMm / snapMm) * snapMm;
+  if (yMatch === null && snapMm > 0) yMm = Math.round(yMm / snapMm) * snapMm;
 
   return {
-    gridColumn: `${block.col} / span ${width}`,
-    gridRow: `${block.row} / span ${block.height}`,
+    xMm: Math.max(0, Math.round(xMm * 10) / 10),
+    yMm: Math.max(0, Math.round(yMm * 10) / 10),
   };
 }
 
-function clampBlock(
-  block: InventoryLabelBlock,
-  columnCount: number,
-  rowCount: number,
-): InventoryLabelBlock {
-  const safeColumnCount = Math.min(
-    INVENTORY_LABEL_MAX_COLUMNS,
-    Math.max(1, Math.round(columnCount || 1)),
-  );
-  const safeRowCount = Math.min(
-    INVENTORY_LABEL_MAX_ROWS,
-    Math.max(1, Math.round(rowCount || 1)),
-  );
-  const width = Math.min(
-    safeColumnCount,
-    Math.max(1, Math.round(block.width || 1)),
-  );
-  const height = Math.min(
-    safeRowCount,
-    Math.max(1, Math.round(block.height || 1)),
-  );
-  const col = Math.min(
-    safeColumnCount - width + 1,
-    Math.max(1, Math.round(block.col || 1)),
-  );
-  const row = Math.min(
-    safeRowCount - height + 1,
-    Math.max(1, Math.round(block.row || 1)),
-  );
+function findSnapMatch(candidateEdges: number[], otherEdgesList: number[][]) {
+  for (const otherEdges of otherEdgesList) {
+    for (const candidateEdge of candidateEdges) {
+      for (const otherEdge of otherEdges) {
+        if (Math.abs(candidateEdge - otherEdge) <= ALIGNMENT_TOLERANCE_MM) {
+          return otherEdge - candidateEdge;
+        }
+      }
+    }
+  }
 
-  return {
-    ...block,
-    col,
-    height,
-    row,
-    width,
-    widthAuto: Boolean(block.widthAuto),
-    widthMm:
-      typeof block.widthMm === "number" && Number.isFinite(block.widthMm)
-        ? Math.min(500, Math.max(0, Math.round(block.widthMm * 10) / 10))
-        : null,
-  };
+  return null;
 }
 
-function getNewTemplateStartBlocks() {
+function snapValue(value: number, step: number) {
+  if (step <= 0) return Math.max(0, Math.round(value * 10) / 10);
+  return Math.max(0, Math.round(value / step) * step);
+}
+
+function getNewTemplateStartBlocks(): InventoryLabelBlock[] {
   return DEFAULT_INVENTORY_LABEL_BLOCKS.map((block) => {
     if (block.key === "objectNumber") {
-      return {
-        ...block,
-        col: 1,
-        enabled: true,
-        height: 1,
-        row: 1,
-        width: 1,
-        widthMm: null,
-        widthAuto: false,
-      };
+      return { ...block, enabled: true, heightMm: 8, widthMm: 30, xMm: 2, yMm: 2 };
     }
 
     if (block.key === "code") {
-      return {
-        ...block,
-        col: 1,
-        enabled: true,
-        height: 2,
-        row: 2,
-        width: 1,
-        widthMm: null,
-        widthAuto: false,
-      };
+      return { ...block, enabled: true, heightMm: 16, widthMm: 16, xMm: 2, yMm: 12 };
     }
 
     if (block.key === "name") {
       return {
         ...block,
-        col: 1,
         enabled: true,
-        height: 1,
-        row: 4,
-        width: 1,
-        widthMm: null,
+        heightMm: 6,
         widthAuto: true,
+        widthMm: 30,
+        xMm: 22,
+        yMm: 12,
       };
     }
 
-    return {
-      ...block,
-      col: 1,
-      enabled: false,
-      height: 1,
-      row: 1,
-      width: 1,
-      widthMm: null,
-      widthAuto: false,
-    };
-  });
-}
-
-function parseCentimetersToMillimeters(value: string) {
-  const parsed = Number.parseFloat(value.replace(/\./g, "").replace(",", "."));
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-
-  return Math.round(parsed * 100) / 10;
-}
-
-function formatMillimetersAsCentimeters(value: number) {
-  return (Math.round(value) / 10).toLocaleString("de-DE", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
+    return { ...block, enabled: false };
   });
 }
 

@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { createInventoryLabelLbx } from "@/lib/inventory-lbx";
-import { parseInventoryLabelBlocks } from "@/lib/inventory-labels";
+import {
+  getInventoryLabelLegacyGeometry,
+  parseInventoryLabelBlocks,
+} from "@/lib/inventory-labels";
 import { prisma } from "@/lib/prisma";
 
 function sanitizeFileName(value: string) {
@@ -80,7 +83,10 @@ export async function GET(
     notFound();
   }
 
-  const blocks = parseInventoryLabelBlocks(template.blocksJson);
+  const blocks = parseInventoryLabelBlocks(
+    template.blocksJson,
+    getInventoryLabelLegacyGeometry(template),
+  );
   const lbx = createInventoryLabelLbx({
     blocks,
     companyName: companyInfo?.companyName ?? null,

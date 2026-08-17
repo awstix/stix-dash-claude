@@ -1,12 +1,13 @@
 import Link from "next/link";
 /* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 import { AppShell } from "@/components/AppShell";
 import {
   calculateInventoryLabelLength,
-  getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
-  getInventoryLabelColumnWidthsMm,
+  getInventoryLabelBlockRenderWidthMm,
+  getInventoryLabelLegacyGeometry,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   parseInventoryLabelBlocks,
@@ -75,20 +76,15 @@ export default async function InventoryItemLabelPage({
     null;
 
   const blocks = selectedTemplate
-    ? parseInventoryLabelBlocks(selectedTemplate.blocksJson).filter(
-        (block) => block.enabled,
-      )
+    ? parseInventoryLabelBlocks(
+        selectedTemplate.blocksJson,
+        getInventoryLabelLegacyGeometry(selectedTemplate),
+      ).filter((block) => block.enabled)
     : [];
   const codeQuery =
     selectedTemplate?.codeType === "QR" ? "?type=qr" : "?type=datamatrix";
   const automaticLabelLength = selectedTemplate
-    ? calculateInventoryLabelLength(
-        blocks,
-        item,
-        selectedTemplate.columnCount,
-        selectedTemplate.tapeWidthMm,
-        selectedTemplate.rowCount,
-      )
+    ? calculateInventoryLabelLength(blocks, item, selectedTemplate.orientation)
     : 70;
   // A manually shortened length (set in the template editor) always wins
   // over the automatic estimate - the auto-calculation is a generous
@@ -105,12 +101,6 @@ export default async function InventoryItemLabelPage({
     selectedTemplate?.orientation === "PORTRAIT"
       ? effectiveLabelLength
       : selectedTemplate?.tapeWidthMm ?? 24;
-  const columnWidthsMm = selectedTemplate
-    ? getInventoryLabelColumnWidthsMm(blocks, selectedTemplate.columnCount)
-    : [];
-  const gridTemplateColumns = columnWidthsMm
-    .map((widthMm) => (widthMm !== null ? `${widthMm}mm` : "minmax(0,1fr)"))
-    .join(" ");
 
   return (
     <AppShell
@@ -201,21 +191,16 @@ export default async function InventoryItemLabelPage({
               {selectedTemplate.labelLengthOverrideMm
                 ? `${effectiveLabelLength} mm Länge (manuell, automatisch wären ${automaticLabelLength} mm)`
                 : `${automaticLabelLength} mm Länge automatisch`}{" "}
-              · {selectedTemplate.rowCount} Zeilen ·{" "}
-              {selectedTemplate.columnCount} Spalten ·{" "}
-              {selectedTemplate.codeType === "QR" ? "QR-Code" : "ECC200"}
+              · {selectedTemplate.codeType === "QR" ? "QR-Code" : "ECC200"}
             </p>
           </div>
 
           <div className="overflow-auto rounded-2xl bg-gray-100 p-6 print:bg-white print:p-0">
             <div
-              className={`print-label-preview grid bg-white p-[2mm] text-black ${
+              className={`print-label-preview relative bg-white p-[2mm] text-black ${
                 selectedTemplate.showBorder ? "border-2 border-black" : ""
               }`}
               style={{
-                gap: `${selectedTemplate.gapMm}mm`,
-                gridTemplateColumns,
-                gridTemplateRows: `repeat(${selectedTemplate.rowCount}, minmax(0, 1fr))`,
                 height: `${labelHeight}mm`,
                 width: `${labelWidth}mm`,
               }}
@@ -224,10 +209,10 @@ export default async function InventoryItemLabelPage({
                 <LabelValueBlock
                   block={block}
                   codeQuery={codeQuery}
-                  columnCount={selectedTemplate.columnCount}
                   companyLogoUrl={companyInfo?.logoPublicUrl ?? null}
                   item={item}
                   key={block.key}
+                  labelWidthMm={labelWidth}
                   templateCodeType={selectedTemplate.codeType}
                 />
               ))}
@@ -255,22 +240,21 @@ export default async function InventoryItemLabelPage({
 function LabelValueBlock({
   block,
   codeQuery,
-  columnCount,
   companyLogoUrl,
   item,
+  labelWidthMm,
   templateCodeType,
 }: {
   block: InventoryLabelBlock;
   codeQuery: string;
-  columnCount: number;
   companyLogoUrl: string | null;
   item: Parameters<typeof getInventoryLabelValue>[0] & { id: string; name: string };
+  labelWidthMm: number;
   templateCodeType: string;
 }) {
   const meta = getInventoryLabelBlockMeta(block.key);
   const value = getInventoryLabelValue(item, block.key);
-  const width = getEffectiveInventoryLabelBlockWidth(block, columnCount);
-  const gridPlacement = getGridPlacementStyle(block, width);
+  const placement = getAbsolutePlacementStyle(block, labelWidthMm);
 
   if (!meta) return null;
 
@@ -283,8 +267,8 @@ function LabelValueBlock({
 
     return (
       <div
-        className="flex min-h-[6mm] items-center justify-center overflow-hidden bg-white"
-        style={gridPlacement}
+        className="absolute flex min-h-[6mm] items-center justify-center overflow-hidden bg-white"
+        style={placement}
       >
         <img
           alt="Firmenlogo"
@@ -299,8 +283,8 @@ function LabelValueBlock({
   if (block.key === "code") {
     return (
       <div
-        className="flex min-h-[8mm] items-center justify-center overflow-hidden bg-white"
-        style={gridPlacement}
+        className="absolute flex min-h-[8mm] items-center justify-center overflow-hidden bg-white"
+        style={placement}
       >
         <img
           alt={`Code für ${item.name}`}
@@ -318,7 +302,7 @@ function LabelValueBlock({
 
   return (
     <div
-      className={`overflow-hidden px-[0.5mm] py-[0.25mm] leading-tight ${getTextAlignClass(
+      className={`absolute overflow-hidden px-[0.5mm] py-[0.25mm] leading-tight ${getTextAlignClass(
         block.align,
       )} ${getTextStyleClass(block)} ${
         block.underline ? "underline underline-offset-2" : ""
@@ -327,7 +311,7 @@ function LabelValueBlock({
       } ${getLabelTextClass(
         block.size,
       )}`}
-      style={gridPlacement}
+      style={placement}
     >
       {block.labelVisible ? (
         <span className="mr-[1mm] text-[0.65em] font-bold uppercase text-black">
@@ -339,10 +323,17 @@ function LabelValueBlock({
   );
 }
 
-function getGridPlacementStyle(block: InventoryLabelBlock, width: number) {
+function getAbsolutePlacementStyle(
+  block: InventoryLabelBlock,
+  labelWidthMm: number,
+): CSSProperties {
+  const renderWidthMm = getInventoryLabelBlockRenderWidthMm(block, labelWidthMm);
+
   return {
-    gridColumn: `${block.col} / span ${width}`,
-    gridRow: `${block.row} / span ${block.height}`,
+    height: `${block.heightMm}mm`,
+    left: `${block.xMm}mm`,
+    top: `${block.yMm}mm`,
+    width: `${renderWidthMm}mm`,
     ...(block.rotation ? { transform: `rotate(${block.rotation}deg)` } : {}),
   };
 }

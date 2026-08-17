@@ -1273,20 +1273,20 @@ model Employee {
 }
 
 model User {
-  id                      String    @id
-  name                    String
-  email                   String    @unique
-  emailVerified           Boolean   @default(false)
-  image                   String?
-  username                String?   @unique
-  displayUsername         String?
-  role                    String?   @default("user")
-  banned                  Boolean?  @default(false)
-  banReason               String?
-  banExpires              DateTime?
-  employeeId              String?   @unique
-  canApproveLeaveRequests Boolean   @default(false)
-  employee                Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  id                         String    @id
+  name                       String
+  email                      String    @unique
+  emailVerified              Boolean   @default(false)
+  image                      String?
+  username                   String?   @unique
+  displayUsername            String?
+  role                       String?   @default("user")
+  banned                     Boolean?  @default(false)
+  banReason                  String?
+  banExpires                 DateTime?
+  employeeId                 String?   @unique
+  canApproveLeaveRequests    Boolean   @default(false)
+  employee                   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   photoWatermarkSettingsJson String?
 
   sessions               Session[]
@@ -2667,18 +2667,19 @@ model InventoryLocationAlert {
 model InventoryLabelTemplate {
   id String @id @default(cuid())
 
-  name          String
-  tapeWidthMm   Int
-  labelLengthMm Int
+  name                  String
+  tapeWidthMm           Int
+  labelLengthMm         Int
   labelLengthOverrideMm Float?
-  rowCount      Int     @default(4)
-  columnCount   Int     @default(6)
-  gapMm         Float   @default(1)
-  codeType      String  @default("DATAMATRIX")
-  orientation   String  @default("LANDSCAPE")
-  showBorder    Boolean @default(true)
-  isDefault     Boolean @default(false)
-  blocksJson    String  @default("[]")
+  rowCount              Int     @default(4)
+  columnCount           Int     @default(6)
+  gapMm                 Float   @default(1)
+  snapMm                Float   @default(1)
+  codeType              String  @default("DATAMATRIX")
+  orientation           String  @default("LANDSCAPE")
+  showBorder            Boolean @default(true)
+  isDefault             Boolean @default(false)
+  blocksJson            String  @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
