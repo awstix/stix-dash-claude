@@ -652,6 +652,28 @@ export function InventoryLabelTemplateEditor({
                       ))}
                     </select>
                   </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Drehung
+                    </span>
+                    <select
+                      className={inputClass}
+                      onChange={(event) =>
+                        updateBlock(activeBlock.key, {
+                          rotation: Number.parseInt(
+                            event.currentTarget.value,
+                            10,
+                          ) as InventoryLabelBlock["rotation"],
+                        })
+                      }
+                      value={activeBlock.rotation}
+                    >
+                      <option value={0}>0°</option>
+                      <option value={90}>90°</option>
+                      <option value={180}>180°</option>
+                      <option value={270}>270°</option>
+                    </select>
+                  </label>
                   <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <input
                       checked={activeBlock.labelVisible}
@@ -1079,6 +1101,7 @@ function getGridPlacement(block: InventoryLabelBlock, columnCount: number) {
   return {
     gridColumn: `${block.col} / span ${width}`,
     gridRow: `${block.row} / span ${block.height}`,
+    ...(block.rotation ? { transform: `rotate(${block.rotation}deg)` } : {}),
   };
 }
 

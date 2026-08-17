@@ -111,6 +111,20 @@ async function createLabelSvg(input: {
         x: paddingPx + (block.col - 1) * (cellWidthPx + gapPx),
         y: paddingPx + (block.row - 1) * (cellHeightPx + gapPx),
       };
+      // Content is laid out normally within its box, then the whole
+      // thing is spun around the box's own center - a wide, short block
+      // rotated 90deg becomes tall and narrow and will extend beyond its
+      // original cell into neighboring rows/columns, same as a rotated
+      // element in a CSS grid would; give rotated blocks enough row/
+      // column span in the template to cover that if it matters.
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+      const rotationOpen = block.rotation
+        ? `<g transform="rotate(${block.rotation} ${centerX} ${centerY})">`
+        : "";
+      const rotationClose = block.rotation ? "</g>" : "";
+      const wrapRotation = (markup: string) =>
+        block.rotation ? `${rotationOpen}${markup}${rotationClose}` : markup;
 
       if (block.key === "code") {
         const size = Math.min(box.width, box.height);
@@ -122,11 +136,13 @@ async function createLabelSvg(input: {
             input.item.id,
         );
 
-        return `<image href="data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-          codeSvg,
-        )}" x="${box.x + (box.width - size) / 2}" y="${
-          box.y + (box.height - size) / 2
-        }" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet" />`;
+        return wrapRotation(
+          `<image href="data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+            codeSvg,
+          )}" x="${box.x + (box.width - size) / 2}" y="${
+            box.y + (box.height - size) / 2
+          }" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet" />`,
+        );
       }
 
       if (block.key === "companyLogo") {
@@ -137,19 +153,23 @@ async function createLabelSvg(input: {
           // accent dot) - forced to solid black here via a color-matrix
           // filter so the printed label is single-color, not a mix of
           // black text and a colored logo.
-          return `<image href="${logoDataUrl}" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" preserveAspectRatio="xMidYMid meet" filter="url(#forceBlack)" />`;
+          return wrapRotation(
+            `<image href="${logoDataUrl}" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" preserveAspectRatio="xMidYMid meet" filter="url(#forceBlack)" />`,
+          );
         }
 
-        return renderTextPaths({
-          align: "CENTER",
-          box,
-          fontSize: Math.max(12, Math.min(34, box.height * 0.52)),
-          italic: false,
-          label: null,
-          underline: false,
-          value: compactCompanyName(input.companyName),
-          valueWeight: "BLACK",
-        });
+        return wrapRotation(
+          await renderTextPaths({
+            align: "CENTER",
+            box,
+            fontSize: Math.max(12, Math.min(34, box.height * 0.52)),
+            italic: false,
+            label: null,
+            underline: false,
+            value: compactCompanyName(input.companyName),
+            valueWeight: "BLACK",
+          }),
+        );
       }
 
       const meta = getInventoryLabelBlockMeta(block.key);
@@ -157,16 +177,18 @@ async function createLabelSvg(input: {
 
       if (!value) return "";
 
-      return renderTextPaths({
-        align: block.align,
-        box,
-        fontSize: getFontSizePx(block.size, box.height),
-        italic: block.italic,
-        label: block.labelVisible && value ? (meta?.label ?? null) : null,
-        underline: block.underline,
-        value,
-        valueWeight: getValueWeight(block),
-      });
+      return wrapRotation(
+        await renderTextPaths({
+          align: block.align,
+          box,
+          fontSize: getFontSizePx(block.size, box.height),
+          italic: block.italic,
+          label: block.labelVisible && value ? (meta?.label ?? null) : null,
+          underline: block.underline,
+          value,
+          valueWeight: getValueWeight(block),
+        }),
+      );
     }),
   );
 

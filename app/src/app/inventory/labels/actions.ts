@@ -106,6 +106,10 @@ function normalizeBlocks(blocks: InventoryLabelBlock[]) {
           ? false
           : Boolean(block.labelVisible),
       order: Number.isFinite(block.order) ? block.order : index + 1,
+      rotation:
+        block.rotation === 90 || block.rotation === 180 || block.rotation === 270
+          ? block.rotation
+          : 0,
       row: Math.min(
         INVENTORY_LABEL_MAX_ROWS,
         Math.max(1, Math.round(block.row ?? 1)),

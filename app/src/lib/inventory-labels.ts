@@ -5,6 +5,7 @@ export const INVENTORY_LABEL_MAX_COLUMNS = 12;
 export type InventoryLabelCodeType = "DATAMATRIX" | "QR";
 export type InventoryLabelBlockAlign = "LEFT" | "CENTER" | "RIGHT";
 export type InventoryLabelBlockSize = "SMALL" | "NORMAL" | "LARGE";
+export type InventoryLabelBlockRotation = 0 | 90 | 180 | 270;
 export type InventoryLabelBlockKey =
   | "companyLogo"
   | "spacer1"
@@ -35,6 +36,7 @@ export type InventoryLabelBlock = {
   key: InventoryLabelBlockKey;
   labelVisible: boolean;
   order: number;
+  rotation: InventoryLabelBlockRotation;
   row: number;
   size: InventoryLabelBlockSize;
   underline: boolean;
@@ -248,6 +250,7 @@ export const DEFAULT_INVENTORY_LABEL_BLOCKS: InventoryLabelBlock[] =
     key: block.key,
     labelVisible: isInventoryLabelTextBlock(block.key),
     order: index + 1,
+    rotation: 0,
     row: block.defaultRow,
     size: block.defaultSize,
     underline: false,
@@ -299,6 +302,7 @@ export function parseInventoryLabelBlocks(
     const rawCol = rawBlock?.col;
     const rawHeight = rawBlock?.height;
     const rawItalic = rawBlock?.italic;
+    const rawRotation = rawBlock?.rotation;
     const rawRow = rawBlock?.row;
     const rawSize = rawBlock?.size;
     const rawUnderline = rawBlock?.underline;
@@ -336,6 +340,10 @@ export function parseInventoryLabelBlocks(
         typeof rawBlock?.order === "number" && Number.isFinite(rawBlock.order)
           ? rawBlock.order
           : defaultBlock.order,
+      rotation:
+        rawRotation === 90 || rawRotation === 180 || rawRotation === 270
+          ? rawRotation
+          : defaultBlock.rotation,
       row:
         typeof rawRow === "number" && Number.isFinite(rawRow)
           ? Math.min(INVENTORY_LABEL_MAX_ROWS, Math.max(1, Math.round(rawRow)))

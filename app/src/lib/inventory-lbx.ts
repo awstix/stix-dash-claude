@@ -103,6 +103,7 @@ function createLabelXml(input: {
       if (block.key === "code") {
         const size = Math.min(box.width, box.height);
         return barcodeObject({
+          angle: block.rotation,
           codeType: input.codeType,
           data:
             input.item.objectNumber ??
@@ -120,6 +121,7 @@ function createLabelXml(input: {
       if (block.key === "companyLogo") {
         return textObject({
           align: "CENTER",
+          angle: block.rotation,
           bold: true,
           data: getCompactCompanyName(input.companyName),
           fontSizePt: Math.max(6, Math.min(18, mmToPt(box.height) * 0.52)),
@@ -141,6 +143,7 @@ function createLabelXml(input: {
 
       return textObject({
         align: block.align,
+        angle: block.rotation,
         bold: block.bold,
         data: [block.labelVisible ? meta?.label : null, value]
           .filter(Boolean)
@@ -165,6 +168,7 @@ function createLabelXml(input: {
 }
 
 function barcodeObject(input: {
+  angle: number;
   codeType: string;
   data: string;
   height: number;
@@ -179,11 +183,12 @@ function barcodeObject(input: {
       ? '<barcode:datamatrixStyle model="square" cellSize="2.4pt" macro="none" fnc01="false" joint="1"></barcode:datamatrixStyle>'
       : '<barcode:qrcodeStyle model="model2" cellSize="2.4pt" eccLevel="M" mask="auto" connection="none"></barcode:qrcodeStyle>';
 
-  return `<barcode:barcode><pt:objectStyle x="${mmToPtString(input.x)}" y="${mmToPtString(input.y)}" width="${mmToPtString(input.width)}" height="${mmToPtString(input.height)}" backColor="#FFFFFF" backPrintColorNumber="0" ropMode="COPYPEN" angle="0" anchor="TOPLEFT" flip="NONE"><pt:pen style="NULL" widthX="0.5pt" widthY="0.5pt" color="#000000" printColorNumber="1"></pt:pen><pt:brush style="NULL" color="#000000" printColorNumber="1" id="0"></pt:brush><pt:expanded objectName="Barcode${input.index + 1}" ID="0" lock="0" templateMergeTarget="LABELLIST" templateMergeType="NONE" templateMergeID="0" allowOutOfBoundsTransfer="false" linkStatus="NONE" linkID="0"></pt:expanded></pt:objectStyle><barcode:barcodeStyle protocol="${protocol}" lengths="48" zeroFill="false" barWidth="1.2pt" barRatio="1:3" humanReadable="false" humanReadableAlignment="LEFT" checkDigit="false" autoLengths="true" margin="true" sameLengthBar="false" bearerBar="false"></barcode:barcodeStyle>${specificStyle}<pt:data>${escapeXml(input.data)}</pt:data></barcode:barcode>`;
+  return `<barcode:barcode><pt:objectStyle x="${mmToPtString(input.x)}" y="${mmToPtString(input.y)}" width="${mmToPtString(input.width)}" height="${mmToPtString(input.height)}" backColor="#FFFFFF" backPrintColorNumber="0" ropMode="COPYPEN" angle="${input.angle}" anchor="TOPLEFT" flip="NONE"><pt:pen style="NULL" widthX="0.5pt" widthY="0.5pt" color="#000000" printColorNumber="1"></pt:pen><pt:brush style="NULL" color="#000000" printColorNumber="1" id="0"></pt:brush><pt:expanded objectName="Barcode${input.index + 1}" ID="0" lock="0" templateMergeTarget="LABELLIST" templateMergeType="NONE" templateMergeID="0" allowOutOfBoundsTransfer="false" linkStatus="NONE" linkID="0"></pt:expanded></pt:objectStyle><barcode:barcodeStyle protocol="${protocol}" lengths="48" zeroFill="false" barWidth="1.2pt" barRatio="1:3" humanReadable="false" humanReadableAlignment="LEFT" checkDigit="false" autoLengths="true" margin="true" sameLengthBar="false" bearerBar="false"></barcode:barcodeStyle>${specificStyle}<pt:data>${escapeXml(input.data)}</pt:data></barcode:barcode>`;
 }
 
 function textObject(input: {
   align: InventoryLabelBlock["align"];
+  angle: number;
   bold: boolean;
   data: string;
   fontSizePt: number;
@@ -202,7 +207,7 @@ function textObject(input: {
   const horizontalAlignment =
     input.align === "CENTER" || input.align === "RIGHT" ? input.align : "LEFT";
 
-  return `<text:text><pt:objectStyle x="${mmToPtString(input.x)}" y="${mmToPtString(input.y)}" width="${mmToPtString(input.width)}" height="${mmToPtString(input.height)}" backColor="#FFFFFF" backPrintColorNumber="0" ropMode="COPYPEN" angle="0" anchor="TOPLEFT" flip="NONE"><pt:pen style="NULL" widthX="0.5pt" widthY="0.5pt" color="#000000" printColorNumber="1"></pt:pen><pt:brush style="NULL" color="#000000" printColorNumber="1" id="0"></pt:brush><pt:expanded objectName="Text${input.index + 1}" ID="0" lock="0" templateMergeTarget="LABELLIST" templateMergeType="NONE" templateMergeID="0" allowOutOfBoundsTransfer="false" linkStatus="NONE" linkID="0"></pt:expanded></pt:objectStyle><text:ptFontInfo><text:logFont name="Montserrat" width="0" italic="${italic}" weight="${weight}" charSet="0" pitchAndFamily="2"></text:logFont><text:fontExt effect="NOEFFECT" underline="${underline}" strikeout="0" size="${formatPt(input.fontSizePt)}" orgSize="${formatPt(input.fontSizePt)}" textColor="#000000" textPrintColorNumber="1"></text:fontExt></text:ptFontInfo><text:textControl control="AUTOLEN" clipFrame="false" aspectNormal="true" shrink="true" autoLF="false" avoidImage="false"></text:textControl><text:textAlign horizontalAlignment="${horizontalAlignment}" verticalAlignment="CENTER" inLineAlignment="BASELINE"></text:textAlign><text:textStyle vertical="false" nullBlock="false" charSpace="0" lineSpace="0" orgPoint="${formatPt(input.fontSizePt)}" combinedChars="false"></text:textStyle><text:transferSettings editOnPrintFormat="" editOnPrintOrder="0"></text:transferSettings><pt:data>${escapeXml(input.data)}</pt:data><text:stringItem charLen="${input.data.length}"><text:ptFontInfo><text:logFont name="Montserrat" width="0" italic="${italic}" weight="${weight}" charSet="0" pitchAndFamily="2"></text:logFont><text:fontExt effect="NOEFFECT" underline="${underline}" strikeout="0" size="${formatPt(input.fontSizePt)}" orgSize="${formatPt(input.fontSizePt)}" textColor="#000000" textPrintColorNumber="1"></text:fontExt></text:ptFontInfo></text:stringItem></text:text>`;
+  return `<text:text><pt:objectStyle x="${mmToPtString(input.x)}" y="${mmToPtString(input.y)}" width="${mmToPtString(input.width)}" height="${mmToPtString(input.height)}" backColor="#FFFFFF" backPrintColorNumber="0" ropMode="COPYPEN" angle="${input.angle}" anchor="TOPLEFT" flip="NONE"><pt:pen style="NULL" widthX="0.5pt" widthY="0.5pt" color="#000000" printColorNumber="1"></pt:pen><pt:brush style="NULL" color="#000000" printColorNumber="1" id="0"></pt:brush><pt:expanded objectName="Text${input.index + 1}" ID="0" lock="0" templateMergeTarget="LABELLIST" templateMergeType="NONE" templateMergeID="0" allowOutOfBoundsTransfer="false" linkStatus="NONE" linkID="0"></pt:expanded></pt:objectStyle><text:ptFontInfo><text:logFont name="Montserrat" width="0" italic="${italic}" weight="${weight}" charSet="0" pitchAndFamily="2"></text:logFont><text:fontExt effect="NOEFFECT" underline="${underline}" strikeout="0" size="${formatPt(input.fontSizePt)}" orgSize="${formatPt(input.fontSizePt)}" textColor="#000000" textPrintColorNumber="1"></text:fontExt></text:ptFontInfo><text:textControl control="AUTOLEN" clipFrame="false" aspectNormal="true" shrink="true" autoLF="false" avoidImage="false"></text:textControl><text:textAlign horizontalAlignment="${horizontalAlignment}" verticalAlignment="CENTER" inLineAlignment="BASELINE"></text:textAlign><text:textStyle vertical="false" nullBlock="false" charSpace="0" lineSpace="0" orgPoint="${formatPt(input.fontSizePt)}" combinedChars="false"></text:textStyle><text:transferSettings editOnPrintFormat="" editOnPrintOrder="0"></text:transferSettings><pt:data>${escapeXml(input.data)}</pt:data><text:stringItem charLen="${input.data.length}"><text:ptFontInfo><text:logFont name="Montserrat" width="0" italic="${italic}" weight="${weight}" charSet="0" pitchAndFamily="2"></text:logFont><text:fontExt effect="NOEFFECT" underline="${underline}" strikeout="0" size="${formatPt(input.fontSizePt)}" orgSize="${formatPt(input.fontSizePt)}" textColor="#000000" textPrintColorNumber="1"></text:fontExt></text:ptFontInfo></text:stringItem></text:text>`;
 }
 
 function createPropXml() {

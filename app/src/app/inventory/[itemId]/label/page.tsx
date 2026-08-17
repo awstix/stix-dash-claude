@@ -263,6 +263,7 @@ function LabelValueBlock({
   const meta = getInventoryLabelBlockMeta(block.key);
   const value = getInventoryLabelValue(item, block.key);
   const width = getEffectiveInventoryLabelBlockWidth(block, columnCount);
+  const gridPlacement = getGridPlacementStyle(block, width);
 
   if (!meta) return null;
 
@@ -276,10 +277,7 @@ function LabelValueBlock({
     return (
       <div
         className="flex min-h-[6mm] items-center justify-center overflow-hidden bg-white"
-        style={{
-          gridColumn: `${block.col} / span ${width}`,
-          gridRow: `${block.row} / span ${block.height}`,
-        }}
+        style={gridPlacement}
       >
         <img
           alt="Firmenlogo"
@@ -295,10 +293,7 @@ function LabelValueBlock({
     return (
       <div
         className="flex min-h-[8mm] items-center justify-center overflow-hidden bg-white"
-        style={{
-          gridColumn: `${block.col} / span ${width}`,
-          gridRow: `${block.row} / span ${block.height}`,
-        }}
+        style={gridPlacement}
       >
         <img
           alt={`Code für ${item.name}`}
@@ -325,10 +320,7 @@ function LabelValueBlock({
       } ${getLabelTextClass(
         block.size,
       )}`}
-      style={{
-        gridColumn: `${block.col} / span ${width}`,
-        gridRow: `${block.row} / span ${block.height}`,
-      }}
+      style={gridPlacement}
     >
       {block.labelVisible ? (
         <span className="mr-[1mm] text-[0.65em] font-bold uppercase text-black">
@@ -338,6 +330,14 @@ function LabelValueBlock({
       {value}
     </div>
   );
+}
+
+function getGridPlacementStyle(block: InventoryLabelBlock, width: number) {
+  return {
+    gridColumn: `${block.col} / span ${width}`,
+    gridRow: `${block.row} / span ${block.height}`,
+    ...(block.rotation ? { transform: `rotate(${block.rotation}deg)` } : {}),
+  };
 }
 
 function getLabelTextClass(size: InventoryLabelBlock["size"]) {
