@@ -1900,6 +1900,7 @@ export async function finalizeProjectPhotoUpload(input: {
   cameraGpsLatitude: number | null;
   cameraGpsLongitude: number | null;
   cameraGpsAltitude: number | null;
+  cameraGpsHeading: number | null;
 }): Promise<string> {
   const projectId = input.projectId.trim();
   await requireProjectAccess(projectId);
@@ -1947,6 +1948,11 @@ export async function finalizeProjectPhotoUpload(input: {
             Number.isFinite(input.cameraGpsAltitude)
               ? input.cameraGpsAltitude
               : null,
+          gpsHeading:
+            typeof input.cameraGpsHeading === "number" &&
+            Number.isFinite(input.cameraGpsHeading)
+              ? input.cameraGpsHeading
+              : null,
         }
       : null;
 
@@ -1968,14 +1974,14 @@ export async function finalizeProjectPhotoUpload(input: {
       ? {
           gpsLatitude: metadata.gpsLatitude,
           gpsLongitude: metadata.gpsLongitude,
-          gpsHeading: metadata.gpsHeading ?? null,
+          gpsHeading: metadata.gpsHeading ?? cameraGpsFallback?.gpsHeading ?? null,
           gpsAltitude: metadata.gpsAltitude ?? cameraGpsFallback?.gpsAltitude ?? null,
         }
       : input.takeMetadata && cameraGpsFallback
         ? {
             gpsLatitude: cameraGpsFallback.gpsLatitude,
             gpsLongitude: cameraGpsFallback.gpsLongitude,
-            gpsHeading: null,
+            gpsHeading: cameraGpsFallback.gpsHeading,
             gpsAltitude: cameraGpsFallback.gpsAltitude,
           }
         : null;

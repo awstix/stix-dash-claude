@@ -171,11 +171,13 @@ export async function renderPhotoWithWatermark({
   fields,
   position,
   mapThumbnailDataUrl,
+  opacity,
 }: {
   photo: WatermarkPhotoInput;
   fields: WatermarkFields;
   position: WatermarkPosition;
   mapThumbnailDataUrl?: string | null;
+  opacity?: number;
 }): Promise<Blob> {
   const image = await loadImage(photo.publicUrl);
   const canvas = document.createElement("canvas");
@@ -185,6 +187,9 @@ export async function renderPhotoWithWatermark({
   if (!ctx) throw new Error("Canvas wird nicht unterstützt.");
 
   ctx.drawImage(image, 0, 0);
+  // Only the overlay (text/compass/map) respects the opacity slider - the
+  // photo itself is always drawn fully opaque above.
+  ctx.globalAlpha = Math.min(1, Math.max(0.1, opacity ?? 1));
 
   const padding = Math.round(Math.min(canvas.width, canvas.height) * 0.03);
   const fontSize = Math.max(14, Math.round(Math.min(canvas.width, canvas.height) * 0.028));
@@ -271,6 +276,47 @@ export async function renderPhotoWithWatermark({
     ctx.lineWidth = Math.max(2, mapSize * 0.015);
     ctx.drawImage(mapImage, mapX, mapY, mapSize, mapSize);
     ctx.strokeRect(mapX, mapY, mapSize, mapSize);
+    ctx.restore();
+
+    // The map thumbnail is always centered on the photo's own GPS point
+    // (see getPhotoMapThumbnail), so the standpoint marker just sits at
+    // its center - a heading arrow off of it shows which way the camera
+    // was pointing when the map itself doesn't carry text labels for it.
+    const markerX = mapX + mapSize / 2;
+    const markerY = mapY + mapSize / 2;
+    ctx.save();
+    if (typeof photo.gpsHeading === "number") {
+      const headingRad = (photo.gpsHeading * Math.PI) / 180;
+      const arrowLength = mapSize * 0.34;
+      const tipX = markerX + Math.sin(headingRad) * arrowLength;
+      const tipY = markerY - Math.cos(headingRad) * arrowLength;
+      const perpRad = headingRad + Math.PI / 2;
+      const spread = mapSize * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(
+        markerX + Math.sin(perpRad) * spread,
+        markerY - Math.cos(perpRad) * spread,
+      );
+      ctx.lineTo(
+        markerX - Math.sin(perpRad) * spread,
+        markerY + Math.cos(perpRad) * spread,
+      );
+      ctx.closePath();
+      ctx.fillStyle = "#2dd4bf";
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = Math.max(1, mapSize * 0.012);
+      ctx.fill();
+      ctx.stroke();
+    }
+    const dotRadius = Math.max(3, mapSize * 0.035);
+    ctx.beginPath();
+    ctx.arc(markerX, markerY, dotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "#2dd4bf";
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.lineWidth = Math.max(1, mapSize * 0.012);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 

@@ -69,7 +69,12 @@ export async function uploadPhotosDirect({
   availableForDailyReports: boolean;
   takeMetadata: boolean;
   compressPhotos: boolean;
-  cameraGps: { latitude: number; longitude: number; altitude: number | null } | null;
+  cameraGps: {
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    heading: number | null;
+  } | null;
   onProgress?: (uploadedCount: number, totalCount: number) => void;
 }): Promise<string[]> {
   const publicUrls: string[] = [];
@@ -101,6 +106,7 @@ export async function uploadPhotosDirect({
           cameraGpsLatitude: cameraGps?.latitude ?? null,
           cameraGpsLongitude: cameraGps?.longitude ?? null,
           cameraGpsAltitude: cameraGps?.altitude ?? null,
+          cameraGpsHeading: cameraGps?.heading ?? null,
         });
       })(),
       file.name,

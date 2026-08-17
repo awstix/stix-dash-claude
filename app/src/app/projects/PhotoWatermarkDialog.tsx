@@ -41,6 +41,7 @@ export function PhotoWatermarkDialog({
 }) {
   const [fields, setFields] = useState<WatermarkFields>(DEFAULT_WATERMARK_FIELDS);
   const [position, setPosition] = useState<WatermarkPosition>(DEFAULT_WATERMARK_POSITION);
+  const [opacity, setOpacity] = useState(1);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -74,6 +75,7 @@ export function PhotoWatermarkDialog({
         const blob = await renderPhotoWithWatermark({
           fields,
           mapThumbnailDataUrl: mapThumbnail,
+          opacity,
           photo: toWatermarkInput(photo),
           position,
         });
@@ -99,7 +101,7 @@ export function PhotoWatermarkDialog({
     return () => {
       cancelled = true;
     };
-  }, [photo, fields, position, mapThumbnail]);
+  }, [photo, fields, position, mapThumbnail, opacity]);
 
   useEffect(() => {
     return () => {
@@ -117,6 +119,7 @@ export function PhotoWatermarkDialog({
       const blob = await renderPhotoWithWatermark({
         fields,
         mapThumbnailDataUrl: mapThumbnail,
+        opacity,
         photo: toWatermarkInput(photo),
         position,
       });
@@ -259,6 +262,24 @@ export function PhotoWatermarkDialog({
                   onChange={() => toggleField("map")}
                 />
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-xs font-semibold uppercase text-gray-500">
+                <span>Deckkraft</span>
+                <span className="normal-case text-gray-700">
+                  {Math.round(opacity * 100)}%
+                </span>
+              </div>
+              <input
+                className="mt-2 w-full"
+                max={1}
+                min={0.2}
+                onChange={(event) => setOpacity(Number(event.currentTarget.value))}
+                step={0.05}
+                type="range"
+                value={opacity}
+              />
             </div>
 
             <button

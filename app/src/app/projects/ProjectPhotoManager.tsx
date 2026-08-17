@@ -3,6 +3,7 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
+import { requestDeviceHeading } from "./deviceHeading";
 import {
   ProjectFileDropInput,
   ProjectPhotoNoteFields,
@@ -32,6 +33,14 @@ async function getCurrentGpsPosition() {
   } catch {
     return null;
   }
+}
+
+async function getCurrentGpsAndHeading() {
+  const [position, heading] = await Promise.all([
+    getCurrentGpsPosition(),
+    requestDeviceHeading(),
+  ]);
+  return position ? { ...position, heading } : null;
 }
 
 export type ProjectPhotoProjectOption = {
@@ -90,9 +99,12 @@ export function ProjectPhotoManager({
   const [isPending, startTransition] = useTransition();
   const [pickerFiles, setPickerFiles] = useState<File[]>([]);
   const [cameraFiles, setCameraFiles] = useState<File[]>([]);
-  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number; altitude: number | null } | null>(
-    null,
-  );
+  const [cameraGps, setCameraGps] = useState<{
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    heading: number | null;
+  } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
     null,
   );
@@ -120,7 +132,7 @@ export function ProjectPhotoManager({
     const files = event.currentTarget.files;
     if (!files || files.length === 0) return;
     setCameraFiles((current) => [...current, ...Array.from(files)]);
-    const position = await getCurrentGpsPosition();
+    const position = await getCurrentGpsAndHeading();
     if (position) setCameraGps(position);
     event.currentTarget.value = "";
   }
