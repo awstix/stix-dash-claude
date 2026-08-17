@@ -7,7 +7,14 @@ import { revalidatePath } from "next/cache";
 import { ProjectStatus, type Prisma } from "@prisma/client";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
-import { deleteFile, getPublicUrl, moveFile, putFile } from "@/lib/storage";
+import {
+  createSignedUploadUrl,
+  deleteFile,
+  getPublicUrl,
+  moveFile,
+  putFile,
+  readFile,
+} from "@/lib/storage";
 import {
   requireProjectAccess,
   requireProjectContentDeleteOwnership,
@@ -1817,6 +1824,194 @@ export async function uploadProjectPhotos(formData: FormData) {
   return uploadedPublicUrls;
 }
 
+/** First half of the direct-to-storage upload flow (see
+ * finalizeProjectPhotoUpload below): issues a short-lived signed URL that
+ * the browser can PUT the raw file bytes to directly, without the file
+ * ever passing through this server's request body. Vercel rejects
+ * serverless request bodies over ~4.5MB before a Server Action even runs
+ * - full-resolution phone photos routinely exceed that on their own, which
+ * batching several files into one request (see uploadPhotosInBatches)
+ * cannot help with since a single oversized file is already too big by
+ * itself. */
+export async function createProjectPhotoUploadSlot(input: {
+  projectId: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+}): Promise<{ signedUrl: string; storagePath: string; fileName: string }> {
+  const projectId = input.projectId.trim();
+  if (!projectId) {
+    throw new Error("Bitte ein Projekt auswählen.");
+  }
+  await requireProjectAccess(projectId);
+  const actor = await getProjectActor();
+
+  if (!input.mimeType.startsWith("image/")) {
+    throw new Error(`"${input.originalFileName}" ist keine Bilddatei.`);
+  }
+  if (input.fileSizeBytes > 50 * 1024 * 1024) {
+    throw new Error(`"${input.originalFileName}" ist größer als 50 MB.`);
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, projectNumber: true },
+  });
+  if (!project) {
+    throw new Error("Projekt wurde nicht gefunden.");
+  }
+
+  const extension = getPhotoExtension({
+    name: input.originalFileName,
+    type: input.mimeType,
+  });
+  const fileName = buildPhotoFileName({
+    date: new Date(),
+    extension,
+    projectNumber: project.projectNumber,
+    uniqueSuffix: randomUUID().slice(0, 8),
+    uploadedByName: actor.name,
+  });
+  const storagePath = `project-photos/${projectId}/${fileName}`;
+  const { signedUrl } = await createSignedUploadUrl(STORAGE_BUCKET, storagePath);
+
+  return { signedUrl, storagePath, fileName };
+}
+
+/** Second half of the direct-to-storage upload flow: the browser has
+ * already PUT the raw file to `storagePath` using the signed URL from
+ * createProjectPhotoUploadSlot, so this only needs to read those bytes
+ * back (an outgoing server<->storage transfer, not subject to the
+ * incoming request body limit) to run the same compression/metadata/DB
+ * work that uploadProjectPhotos does inline. */
+export async function finalizeProjectPhotoUpload(input: {
+  projectId: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  originalFileName: string;
+  fileLastModified: number;
+  notes: string;
+  photoNote: string;
+  availableForDailyReports: boolean;
+  takeMetadata: boolean;
+  compressPhotos: boolean;
+  cameraGpsLatitude: number | null;
+  cameraGpsLongitude: number | null;
+}): Promise<string> {
+  const projectId = input.projectId.trim();
+  await requireProjectAccess(projectId);
+  const actor = await getProjectActor();
+
+  const originalBuffer = await readFile(STORAGE_BUCKET, input.storagePath);
+
+  let buffer = originalBuffer;
+  let mimeType = input.mimeType || "application/octet-stream";
+  let storagePath = input.storagePath;
+  let fileName = input.fileName;
+
+  if (input.compressPhotos) {
+    const compressed = await compressProjectPhoto(originalBuffer, input.mimeType).catch(
+      async (error) => {
+        await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
+        throw error;
+      },
+    );
+    buffer = compressed.buffer;
+    mimeType = compressed.mimeType;
+    const compressedFileName = fileName.replace(/\.[^.]+$/, `.${compressed.extension}`);
+    const compressedStoragePath = storagePath.replace(
+      /\.[^.]+$/,
+      `.${compressed.extension}`,
+    );
+    await putFile(STORAGE_BUCKET, compressedStoragePath, buffer, mimeType);
+    if (compressedStoragePath !== storagePath) {
+      await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
+    }
+    fileName = compressedFileName;
+    storagePath = compressedStoragePath;
+  }
+
+  const cameraGpsFallback =
+    typeof input.cameraGpsLatitude === "number" &&
+    typeof input.cameraGpsLongitude === "number" &&
+    Number.isFinite(input.cameraGpsLatitude) &&
+    Number.isFinite(input.cameraGpsLongitude)
+      ? {
+          gpsLatitude: input.cameraGpsLatitude,
+          gpsLongitude: input.cameraGpsLongitude,
+        }
+      : null;
+
+  // Metadata enrichment is a nice-to-have and must never block the actual
+  // upload - a parsing edge case in some phone's EXIF/HEIC encoding
+  // shouldn't mean the photo doesn't get saved at all.
+  const metadata = input.takeMetadata
+    ? await extractPhotoMetadata(buffer, {
+        fileLastModified: input.fileLastModified,
+        originalFileName: input.originalFileName,
+      }).catch((error) => {
+        console.error("extractPhotoMetadata failed", error);
+        return {} as PhotoMetadata;
+      })
+    : ({} as PhotoMetadata);
+  const storedDimensions = readImageDimensions(buffer, mimeType);
+  const resolvedGps =
+    typeof metadata.gpsLatitude === "number" && typeof metadata.gpsLongitude === "number"
+      ? { gpsLatitude: metadata.gpsLatitude, gpsLongitude: metadata.gpsLongitude }
+      : input.takeMetadata && cameraGpsFallback
+        ? cameraGpsFallback
+        : null;
+  const gpsAddress = resolvedGps
+    ? await reverseGeocodePhotoLocation(resolvedGps.gpsLatitude, resolvedGps.gpsLongitude)
+    : null;
+
+  const publicUrl = getPublicUrl(STORAGE_BUCKET, storagePath);
+
+  try {
+    await prisma.projectPhoto.create({
+      data: {
+        projectId,
+        fileName,
+        originalFileName: input.takeMetadata
+          ? cleanUploadText(input.originalFileName)
+          : null,
+        publicUrl,
+        storagePath,
+        mimeType,
+        fileSizeBytes: buffer.length,
+        imageWidth: storedDimensions.imageWidth ?? metadata.imageWidth ?? null,
+        imageHeight: storedDimensions.imageHeight ?? metadata.imageHeight ?? null,
+        notes:
+          cleanProjectFormText(input.photoNote ?? "", 1500) ||
+          cleanProjectFormText(input.notes, 1500) ||
+          null,
+        metadataTaken: input.takeMetadata,
+        capturedAt: metadata.capturedAt ?? null,
+        cameraMake: metadata.cameraMake ?? null,
+        cameraModel: metadata.cameraModel ?? null,
+        cameraAperture: metadata.cameraAperture ?? null,
+        cameraExposureTime: metadata.cameraExposureTime ?? null,
+        cameraFocalLength: metadata.cameraFocalLength ?? null,
+        cameraIso: metadata.cameraIso ?? null,
+        gpsLatitude: resolvedGps?.gpsLatitude ?? null,
+        gpsLongitude: resolvedGps?.gpsLongitude ?? null,
+        ...getPhotoGpsAddressData(gpsAddress),
+        metadataJson: metadata.metadataJson ?? null,
+        availableForDailyReports: input.availableForDailyReports,
+        uploadedByName: actor.name,
+        uploadedByUserId: actor.userId,
+      },
+    });
+  } catch (error) {
+    await deleteFile(STORAGE_BUCKET, storagePath).catch(() => undefined);
+    throw error;
+  }
+
+  revalidateProjectPhotoViews(projectId);
+  return publicUrl;
+}
+
 export async function updateProjectPhoto(input: ProjectPhotoUpdateInput) {
   if (!input.id) {
     throw new Error("Foto-ID fehlt.");
@@ -2952,7 +3147,7 @@ function cleanUploadText(value: string) {
   return cleaned.length > 180 ? cleaned.slice(0, 180) : cleaned;
 }
 
-function getPhotoExtension(file: File) {
+function getPhotoExtension(file: { name: string; type: string }) {
   const extensionFromName = path
     .extname(file.name)
     .replace(".", "")

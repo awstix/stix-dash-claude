@@ -4,8 +4,8 @@ import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectPhotoManager } from "../ProjectPhotoManager";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
 
-// Photo uploads run as several sequential batched Server Action calls (see
-// uploadPhotosInBatches) - give them enough headroom on slower mobile
+// Photo uploads run a slot+finalize Server Action call per photo (see
+// uploadPhotosDirect) - give them enough headroom on slower mobile
 // connections instead of the platform default.
 export const maxDuration = 120;
 

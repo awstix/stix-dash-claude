@@ -133,6 +133,21 @@ export async function readFile(bucket: string, key: string): Promise<Buffer> {
   return Buffer.from(await data.arrayBuffer());
 }
 
+export async function createSignedUploadUrl(
+  bucket: string,
+  key: string,
+): Promise<{ signedUrl: string; token: string }> {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(key);
+
+  if (error || !data) {
+    throw new Error(
+      `Supabase Storage Signed-Upload-URL fehlgeschlagen (${bucket}/${key}): ${error?.message ?? "keine Daten"}`,
+    );
+  }
+
+  return { signedUrl: data.signedUrl, token: data.token };
+}
+
 export async function signedUrl(
   bucket: string,
   key: string,

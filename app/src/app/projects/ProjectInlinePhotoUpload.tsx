@@ -3,12 +3,11 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
-import { uploadProjectPhotos } from "./actions";
 import {
   ProjectFileDropInput,
   ProjectPhotoNoteFields,
 } from "./ProjectFileDropInput";
-import { uploadPhotosInBatches } from "./uploadPhotosInBatches";
+import { uploadPhotosDirect } from "./uploadPhotosDirect";
 
 async function getCurrentGpsPosition() {
   if (!navigator.geolocation) return null;
@@ -78,26 +77,29 @@ export function ProjectInlinePhotoUpload({
       return;
     }
     const formData = new FormData(event.currentTarget);
-    formData.delete("photos");
-    for (const file of selectedFiles) {
-      formData.append("photos", file);
-    }
-    if (cameraGps) {
-      formData.set("cameraGpsLatitude", String(cameraGps.latitude));
-      formData.set("cameraGpsLongitude", String(cameraGps.longitude));
-    }
+    const notes = String(formData.get("notes") ?? "");
+    const photoNotes = formData.getAll("photoNotes").map((value) => String(value));
+    const takeMetadata = formData.get("takeMetadata") === "on";
+    const compressPhotos = formData.get("compressPhotos") === "on";
+    const availableForDailyReports =
+      formData.get("availableForDailyReports") === "on";
 
     startTransition(async () => {
       try {
         setUploadProgress({ done: 0, total: selectedFiles.length });
-        // Uploaded in size-bounded batches, not one big request - a
-        // handful of full-resolution iPhone photos easily exceeds
-        // Vercel's serverless body-size limit in a single request, which
-        // otherwise fails with a generic "unexpected response" error.
-        await uploadPhotosInBatches({
-          formData,
+        // Jedes Foto wird direkt vom Browser in den Cloud-Speicher
+        // hochgeladen (nicht über diesen Server) - so gibt es kein
+        // Größenlimit mehr, auch nicht für einzelne große Originalfotos.
+        await uploadPhotosDirect({
+          files: selectedFiles,
+          projectId,
+          notes,
+          photoNotes,
+          availableForDailyReports,
+          takeMetadata,
+          compressPhotos,
+          cameraGps,
           onProgress: (done, total) => setUploadProgress({ done, total }),
-          upload: uploadProjectPhotos,
         });
         formRef.current?.reset();
         setPickerFiles([]);

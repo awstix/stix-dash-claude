@@ -62,9 +62,9 @@ type ProjectActorListItem = {
   photoUrl?: string | null;
 };
 
-// Inline photo upload here runs as several sequential batched Server
-// Action calls (see uploadPhotosInBatches) - give them enough headroom on
-// slower mobile connections instead of the platform default.
+// Inline photo upload here runs a slot+finalize Server Action call per
+// photo (see uploadPhotosDirect) - give them enough headroom on slower
+// mobile connections instead of the platform default.
 export const maxDuration = 120;
 
 export default async function ProjectDetailPage({
