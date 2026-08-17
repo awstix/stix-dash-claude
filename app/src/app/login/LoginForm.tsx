@@ -61,6 +61,12 @@ export function LoginForm() {
           type="password"
         />
       </label>
+      <Link
+        className="block text-right text-sm font-bold text-gray-700 underline"
+        href="/forgot-password"
+      >
+        Passwort vergessen?
+      </Link>
       {error ? (
         <p className="rounded-xl border border-red-400 bg-red-50 p-3 text-sm font-bold text-red-950">
           {error}

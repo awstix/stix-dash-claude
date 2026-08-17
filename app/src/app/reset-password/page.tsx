@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ResetPasswordForm } from "./ResetPasswordForm";
 
@@ -21,10 +22,17 @@ export default async function ResetPasswordPage({
         <h2 className="mt-6 text-2xl font-black">Passwort festlegen</h2>
 
         {params.error || !params.token ? (
-          <p className="mt-4 rounded-xl border border-red-400 bg-red-50 p-3 text-sm font-bold text-red-950">
-            Dieser Link ist ungültig oder abgelaufen. Bitte einen neuen
-            anfordern lassen.
-          </p>
+          <>
+            <p className="mt-4 rounded-xl border border-red-400 bg-red-50 p-3 text-sm font-bold text-red-950">
+              Dieser Link ist ungültig oder abgelaufen.
+            </p>
+            <Link
+              className="mt-4 block text-center font-bold text-gray-950 underline"
+              href="/forgot-password"
+            >
+              Neuen Link anfordern
+            </Link>
+          </>
         ) : (
           <ResetPasswordForm token={params.token} />
         )}
