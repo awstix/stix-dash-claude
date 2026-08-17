@@ -356,6 +356,8 @@ model ProjectPhoto {
   cameraIso                Int?
   gpsLatitude              Float?
   gpsLongitude             Float?
+  gpsHeading               Float?
+  gpsAltitude              Float?
   gpsAddressLabel          String?
   gpsStreet                String?
   gpsHouseNumber           String?

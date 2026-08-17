@@ -11,6 +11,7 @@ import {
   refreshProjectPhotoLocations,
   updateProjectPhoto,
 } from "./actions";
+import { PhotoWatermarkDialog } from "./PhotoWatermarkDialog";
 
 export type ProjectPhotoGalleryItem = {
   availableForDailyReports: boolean;
@@ -23,6 +24,8 @@ export type ProjectPhotoGalleryItem = {
   capturedAt: string | null;
   gpsLatitude: number | null;
   gpsLongitude: number | null;
+  gpsHeading: number | null;
+  gpsAltitude: number | null;
   gpsAddressLabel: string | null;
   gpsStreet: string | null;
   gpsHouseNumber: string | null;
@@ -656,6 +659,7 @@ export function PhotoDetailModal({
 }) {
   const [notes, setNotes] = useState(photo.notes ?? "");
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isWatermarkDialogOpen, setIsWatermarkDialogOpen] = useState(false);
   const [zoom, setZoom] = useState(minimumPhotoZoom);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const photoViewportRef = useRef<HTMLDivElement | null>(null);
@@ -739,6 +743,7 @@ export function PhotoDetailModal({
   }
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
@@ -874,6 +879,16 @@ export function PhotoDetailModal({
                 type="button"
               >
                 <DownloadIcon />
+              </button>
+              <button
+                aria-label="Foto mit Infos (Wasserzeichen)"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={isDeleting}
+                onClick={() => setIsWatermarkDialogOpen(true)}
+                title="Foto mit Infos (Datum, Adresse, Kompass, ...) herunterladen"
+                type="button"
+              >
+                <WatermarkIcon />
               </button>
               <button
                 aria-label="Foto löschen"
@@ -1028,6 +1043,10 @@ export function PhotoDetailModal({
         </aside>
       </div>
     </div>
+    {isWatermarkDialogOpen ? (
+      <PhotoWatermarkDialog onClose={() => setIsWatermarkDialogOpen(false)} photo={photo} />
+    ) : null}
+    </>
   );
 }
 
@@ -1067,6 +1086,25 @@ function TrashIcon() {
       <path d="M19 6l-1 15H6L5 6" />
       <path d="M10 11v6" />
       <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function WatermarkIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <rect height="16" rx="2" width="18" x="3" y="4" />
+      <path d="M7 15h5" />
+      <path d="M7 11h9" />
     </svg>
   );
 }

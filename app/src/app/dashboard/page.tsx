@@ -576,6 +576,8 @@ export default async function DashboardPage({
             gpsHouseNumber: photo.gpsHouseNumber,
             gpsLatitude: photo.gpsLatitude,
             gpsLongitude: photo.gpsLongitude,
+            gpsHeading: photo.gpsHeading,
+            gpsAltitude: photo.gpsAltitude,
             gpsPostcode: photo.gpsPostcode,
             gpsReverseGeocodedAt:
               photo.gpsReverseGeocodedAt?.toISOString() ?? null,

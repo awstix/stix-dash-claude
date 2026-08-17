@@ -1200,6 +1200,8 @@ export default async function ProjectDetailPage({
             gpsHouseNumber: photo.gpsHouseNumber,
             gpsLatitude: photo.gpsLatitude,
             gpsLongitude: photo.gpsLongitude,
+            gpsHeading: photo.gpsHeading,
+            gpsAltitude: photo.gpsAltitude,
             gpsPostcode: photo.gpsPostcode,
             gpsReverseGeocodedAt:
               photo.gpsReverseGeocodedAt?.toISOString() ?? null,
@@ -2034,6 +2036,8 @@ function ProjectPhotoPreviewSection({
     gpsHouseNumber: string | null;
     gpsLatitude: number | null;
     gpsLongitude: number | null;
+    gpsHeading: number | null;
+    gpsAltitude: number | null;
     gpsPostcode: string | null;
     gpsReverseGeocodedAt: string | null;
     gpsStreet: string | null;

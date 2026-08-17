@@ -27,6 +27,7 @@ import {
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
 import { buildPhotoFileName } from "@/lib/project-photo-file-name";
+import { renderSiteMapImage } from "@/lib/site-map-image";
 import {
   revokeUserProjectAccessForEmployees,
   syncUserProjectAccessForConstructionManagers,
@@ -1898,6 +1899,7 @@ export async function finalizeProjectPhotoUpload(input: {
   compressPhotos: boolean;
   cameraGpsLatitude: number | null;
   cameraGpsLongitude: number | null;
+  cameraGpsAltitude: number | null;
 }): Promise<string> {
   const projectId = input.projectId.trim();
   await requireProjectAccess(projectId);
@@ -1940,6 +1942,11 @@ export async function finalizeProjectPhotoUpload(input: {
       ? {
           gpsLatitude: input.cameraGpsLatitude,
           gpsLongitude: input.cameraGpsLongitude,
+          gpsAltitude:
+            typeof input.cameraGpsAltitude === "number" &&
+            Number.isFinite(input.cameraGpsAltitude)
+              ? input.cameraGpsAltitude
+              : null,
         }
       : null;
 
@@ -1958,9 +1965,19 @@ export async function finalizeProjectPhotoUpload(input: {
   const storedDimensions = readImageDimensions(buffer, mimeType);
   const resolvedGps =
     typeof metadata.gpsLatitude === "number" && typeof metadata.gpsLongitude === "number"
-      ? { gpsLatitude: metadata.gpsLatitude, gpsLongitude: metadata.gpsLongitude }
+      ? {
+          gpsLatitude: metadata.gpsLatitude,
+          gpsLongitude: metadata.gpsLongitude,
+          gpsHeading: metadata.gpsHeading ?? null,
+          gpsAltitude: metadata.gpsAltitude ?? cameraGpsFallback?.gpsAltitude ?? null,
+        }
       : input.takeMetadata && cameraGpsFallback
-        ? cameraGpsFallback
+        ? {
+            gpsLatitude: cameraGpsFallback.gpsLatitude,
+            gpsLongitude: cameraGpsFallback.gpsLongitude,
+            gpsHeading: null,
+            gpsAltitude: cameraGpsFallback.gpsAltitude,
+          }
         : null;
   const gpsAddress = resolvedGps
     ? await reverseGeocodePhotoLocation(resolvedGps.gpsLatitude, resolvedGps.gpsLongitude)
@@ -1996,6 +2013,8 @@ export async function finalizeProjectPhotoUpload(input: {
         cameraIso: metadata.cameraIso ?? null,
         gpsLatitude: resolvedGps?.gpsLatitude ?? null,
         gpsLongitude: resolvedGps?.gpsLongitude ?? null,
+        gpsHeading: resolvedGps?.gpsHeading ?? null,
+        gpsAltitude: resolvedGps?.gpsAltitude ?? null,
         ...getPhotoGpsAddressData(gpsAddress),
         metadataJson: metadata.metadataJson ?? null,
         availableForDailyReports: input.availableForDailyReports,
@@ -2010,6 +2029,28 @@ export async function finalizeProjectPhotoUpload(input: {
 
   revalidateProjectPhotoViews(projectId);
   return publicUrl;
+}
+
+/** Small static map excerpt (real OSM tiles, reuses the same renderer as
+ * the Wegbeschreibung-PDF map) for the photo-watermark "Kartenausschnitt"
+ * option - returned as a data URL since it's small (a couple hundred
+ * pixels) and only ever consumed by the client-side canvas compositor. */
+export async function getPhotoMapThumbnail(input: {
+  latitude: number;
+  longitude: number;
+}): Promise<string | null> {
+  await requireSession();
+
+  const result = await renderSiteMapImage({
+    boundaryGeoJson: null,
+    height: 260,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    width: 260,
+    zoom: 16,
+  });
+
+  return result ? `data:image/png;base64,${result.png.toString("base64")}` : null;
 }
 
 export async function updateProjectPhoto(input: ProjectPhotoUpdateInput) {
@@ -3098,6 +3139,8 @@ type PhotoMetadata = {
   capturedAt?: Date;
   gpsLatitude?: number;
   gpsLongitude?: number;
+  gpsHeading?: number;
+  gpsAltitude?: number;
   imageHeight?: number;
   imageWidth?: number;
   metadataJson?: string;
@@ -3906,6 +3949,14 @@ function readExifFromTiffBuffer(buffer: Buffer, tiffOffset: number): PhotoMetada
       return null;
     }
 
+    if (type === 1) {
+      const values = Array.from(
+        { length: count },
+        (_, index) => buffer[dataOffset + index],
+      );
+      return count === 1 ? values[0] : values;
+    }
+
     if (type === 2) {
       return buffer
         .toString("ascii", dataOffset, dataOffset + count)
@@ -4088,9 +4139,17 @@ function readGpsCoordinates(
     return {};
   }
 
+  const heading = asNumber(gpsIfd.get(0x0011));
+  const rawAltitude = asNumber(gpsIfd.get(0x0006));
+  const altitudeRef = asNumber(gpsIfd.get(0x0005));
+  const altitude =
+    rawAltitude !== null ? (altitudeRef === 1 ? -rawAltitude : rawAltitude) : undefined;
+
   return {
     gpsLatitude: latitudeRef.toUpperCase() === "S" ? -latitude : latitude,
     gpsLongitude: longitudeRef.toUpperCase() === "W" ? -longitude : longitude,
+    gpsHeading: heading ?? undefined,
+    gpsAltitude: altitude,
   };
 }
 

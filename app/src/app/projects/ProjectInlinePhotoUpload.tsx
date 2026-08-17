@@ -23,6 +23,7 @@ async function getCurrentGpsPosition() {
     return {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
+      altitude: position.coords.altitude,
     };
   } catch {
     return null;
@@ -42,7 +43,9 @@ export function ProjectInlinePhotoUpload({
   const [isPending, startTransition] = useTransition();
   const [pickerFiles, setPickerFiles] = useState<File[]>([]);
   const [cameraFiles, setCameraFiles] = useState<File[]>([]);
-  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number; altitude: number | null } | null>(
+    null,
+  );
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
     null,
   );

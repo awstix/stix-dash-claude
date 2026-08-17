@@ -27,6 +27,7 @@ async function getCurrentGpsPosition() {
     return {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
+      altitude: position.coords.altitude,
     };
   } catch {
     return null;
@@ -54,6 +55,8 @@ export type ProjectPhotoListItem = {
   gpsHouseNumber: string | null;
   gpsLatitude: number | null;
   gpsLongitude: number | null;
+  gpsHeading: number | null;
+  gpsAltitude: number | null;
   gpsPostcode: string | null;
   gpsReverseGeocodedAt: string | null;
   gpsStreet: string | null;
@@ -87,7 +90,9 @@ export function ProjectPhotoManager({
   const [isPending, startTransition] = useTransition();
   const [pickerFiles, setPickerFiles] = useState<File[]>([]);
   const [cameraFiles, setCameraFiles] = useState<File[]>([]);
-  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number; altitude: number | null } | null>(
+    null,
+  );
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
     null,
   );
@@ -527,6 +532,8 @@ function toGalleryPhoto(photo: ProjectPhotoListItem): ProjectPhotoGalleryItem {
     gpsHouseNumber: photo.gpsHouseNumber,
     gpsLatitude: photo.gpsLatitude,
     gpsLongitude: photo.gpsLongitude,
+    gpsHeading: photo.gpsHeading,
+    gpsAltitude: photo.gpsAltitude,
     gpsPostcode: photo.gpsPostcode,
     gpsReverseGeocodedAt: photo.gpsReverseGeocodedAt,
     gpsStreet: photo.gpsStreet,
