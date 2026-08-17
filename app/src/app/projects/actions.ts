@@ -2067,7 +2067,7 @@ export async function getPhotoMapThumbnail(input: {
 
 /** Per-user "Foto mit Infos" preferences (position/fields/opacity) - kept
  * as an opaque JSON blob owned by the client, so this file doesn't need
- * to know the shape of WatermarkFields/WatermarkPosition. Tied to the
+ * to know the shape of WatermarkFields/WatermarkCorner. Tied to the
  * account (not the browser), so it follows the user across devices. */
 export async function getPhotoWatermarkSettings(): Promise<string | null> {
   const session = await requireSession();

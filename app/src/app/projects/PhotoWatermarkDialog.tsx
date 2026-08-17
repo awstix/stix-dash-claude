@@ -10,16 +10,11 @@ import {
 import type { ProjectPhotoGalleryItem } from "./ProjectPhotoGallery";
 import {
   DEFAULT_WATERMARK_FIELDS,
-  DEFAULT_WATERMARK_POSITION,
   renderPhotoWithWatermark,
   type WatermarkCorner,
   type WatermarkFields,
   type WatermarkPhotoInput,
-  type WatermarkPosition,
 } from "./photoWatermark";
-
-const POSITION_ROWS: WatermarkPosition["row"][] = [0, 1, 2, 3];
-const POSITION_COLS: WatermarkPosition["col"][] = [0, 1, 2, 3];
 
 const CORNER_OPTIONS: { label: string; value: WatermarkCorner }[] = [
   { label: "Automatisch", value: "auto" },
@@ -60,7 +55,7 @@ export function PhotoWatermarkDialog({
   photo: ProjectPhotoGalleryItem;
 }) {
   const [fields, setFields] = useState<WatermarkFields>(DEFAULT_WATERMARK_FIELDS);
-  const [position, setPosition] = useState<WatermarkPosition>(DEFAULT_WATERMARK_POSITION);
+  const [textPosition, setTextPosition] = useState<WatermarkCorner>("auto");
   const [compassPosition, setCompassPosition] = useState<WatermarkCorner>("auto");
   const [mapPosition, setMapPosition] = useState<WatermarkCorner>("auto");
   const [opacity, setOpacity] = useState(1);
@@ -92,13 +87,13 @@ export function PhotoWatermarkDialog({
         if (cancelled || !json) return;
         const parsed = JSON.parse(json) as {
           fields?: Partial<WatermarkFields>;
-          position?: WatermarkPosition;
+          textPosition?: WatermarkCorner;
           compassPosition?: WatermarkCorner;
           mapPosition?: WatermarkCorner;
           opacity?: number;
         };
         if (parsed.fields) setFields((current) => ({ ...current, ...parsed.fields }));
-        if (parsed.position) setPosition(parsed.position);
+        if (parsed.textPosition) setTextPosition(parsed.textPosition);
         if (parsed.compassPosition) setCompassPosition(parsed.compassPosition);
         if (parsed.mapPosition) setMapPosition(parsed.mapPosition);
         if (typeof parsed.opacity === "number") setOpacity(parsed.opacity);
@@ -119,12 +114,12 @@ export function PhotoWatermarkDialog({
 
     const timeout = setTimeout(() => {
       savePhotoWatermarkSettings(
-        JSON.stringify({ compassPosition, fields, mapPosition, opacity, position }),
+        JSON.stringify({ compassPosition, fields, mapPosition, opacity, textPosition }),
       ).catch(() => undefined);
     }, 600);
 
     return () => clearTimeout(timeout);
-  }, [settingsLoaded, fields, position, compassPosition, mapPosition, opacity]);
+  }, [settingsLoaded, fields, textPosition, compassPosition, mapPosition, opacity]);
 
   useEffect(() => {
     if (!fields.map || !hasLocationData || mapThumbnail) return;
@@ -152,7 +147,7 @@ export function PhotoWatermarkDialog({
           mapThumbnailDataUrl: mapThumbnail,
           opacity,
           photo: toWatermarkInput(photo),
-          position,
+          textPosition,
         });
         if (cancelled) return;
         const url = URL.createObjectURL(blob);
@@ -176,7 +171,7 @@ export function PhotoWatermarkDialog({
     return () => {
       cancelled = true;
     };
-  }, [photo, fields, position, compassPosition, mapPosition, mapThumbnail, opacity]);
+  }, [photo, fields, textPosition, compassPosition, mapPosition, mapThumbnail, opacity]);
 
   useEffect(() => {
     return () => {
@@ -202,7 +197,7 @@ export function PhotoWatermarkDialog({
         mapThumbnailDataUrl: mapThumbnail,
         opacity,
         photo: toWatermarkInput(photo),
-        position,
+        textPosition,
       });
       const link = document.createElement("a");
       const objectUrl = URL.createObjectURL(blob);
@@ -268,31 +263,13 @@ export function PhotoWatermarkDialog({
           <div className="flex flex-col gap-4">
             <div>
               <div className="text-xs font-semibold uppercase text-gray-500">
-                Position
+                Position Textblock
               </div>
-              <div
-                className="mt-2 grid grid-cols-4 gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
-                style={{ aspectRatio: "1 / 1" }}
-              >
-                {POSITION_ROWS.flatMap((row) =>
-                  POSITION_COLS.map((col) => {
-                    const isSelected = position.row === row && position.col === col;
-                    return (
-                      <button
-                        aria-label={`Position Zeile ${row + 1}, Spalte ${col + 1}`}
-                        className={`rounded border ${
-                          isSelected
-                            ? "border-gray-900 bg-gray-900"
-                            : "border-gray-200 bg-white hover:bg-gray-100"
-                        }`}
-                        key={`${row}-${col}`}
-                        onClick={() => setPosition({ col, row })}
-                        type="button"
-                      />
-                    );
-                  }),
-                )}
-              </div>
+              <WatermarkCornerSelect
+                className="mt-2 w-full"
+                onChange={setTextPosition}
+                value={textPosition}
+              />
             </div>
 
             <div>
@@ -322,12 +299,25 @@ export function PhotoWatermarkDialog({
                   label="PLZ / Ort"
                   onChange={() => toggleField("postalCity")}
                 />
+                <WatermarkFieldCheckbox
+                  checked={fields.coordinates}
+                  disabled={!hasLocationData}
+                  label="Koordinaten"
+                  onChange={() => toggleField("coordinates")}
+                />
+                <WatermarkFieldCheckbox
+                  checked={fields.heading}
+                  disabled={!hasCompassData}
+                  hint={!hasCompassData ? "Keine Ausrichtung im Foto hinterlegt" : undefined}
+                  label="Ausrichtung (Text, z. B. 218° SW)"
+                  onChange={() => toggleField("heading")}
+                />
                 <div>
                   <WatermarkFieldCheckbox
                     checked={fields.compass}
                     disabled={!hasCompassData}
                     hint={!hasCompassData ? "Keine Ausrichtung im Foto hinterlegt" : undefined}
-                    label="Kompass / Ausrichtung"
+                    label="Kompass (Grafik)"
                     onChange={() => toggleField("compass")}
                   />
                   {fields.compass && hasCompassData ? (

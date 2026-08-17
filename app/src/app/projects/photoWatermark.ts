@@ -1,7 +1,3 @@
-export type WatermarkPosition = { col: 0 | 1 | 2 | 3; row: 0 | 1 | 2 | 3 };
-
-export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = { col: 3, row: 0 };
-
 export type WatermarkCorner =
   | "auto"
   | "top-left"
@@ -23,7 +19,12 @@ export type WatermarkFields = {
   time: boolean;
   address: boolean;
   postalCity: boolean;
+  coordinates: boolean;
+  /** The graphical compass rose. */
   compass: boolean;
+  /** The "218° SW" bearing text line - independent of whether the
+   * graphical compass rose is also shown. */
+  heading: boolean;
   altitude: boolean;
   map: boolean;
   camera: boolean;
@@ -37,7 +38,9 @@ export const DEFAULT_WATERMARK_FIELDS: WatermarkFields = {
   time: true,
   address: true,
   postalCity: true,
+  coordinates: false,
   compass: true,
+  heading: true,
   altitude: false,
   map: false,
   camera: false,
@@ -122,7 +125,7 @@ function buildTextLines(photo: WatermarkPhotoInput, fields: WatermarkFields): st
     );
   }
 
-  if (fields.compass && typeof photo.gpsHeading === "number") {
+  if (fields.heading && typeof photo.gpsHeading === "number") {
     lines.push(`${Math.round(photo.gpsHeading)}° ${headingToCardinal(photo.gpsHeading)}`);
   }
 
@@ -134,6 +137,18 @@ function buildTextLines(photo: WatermarkPhotoInput, fields: WatermarkFields): st
   if (fields.postalCity) {
     const cityLine = [photo.gpsPostcode, photo.gpsCity].filter(Boolean).join(" ");
     if (cityLine) lines.push(cityLine);
+  }
+
+  if (
+    fields.coordinates &&
+    typeof photo.gpsLatitude === "number" &&
+    typeof photo.gpsLongitude === "number"
+  ) {
+    const latRef = photo.gpsLatitude >= 0 ? "N" : "S";
+    const lonRef = photo.gpsLongitude >= 0 ? "O" : "W";
+    lines.push(
+      `${Math.abs(photo.gpsLatitude).toFixed(5)}° ${latRef}, ${Math.abs(photo.gpsLongitude).toFixed(5)}° ${lonRef}`,
+    );
   }
 
   if (fields.altitude && typeof photo.gpsAltitude === "number") {
@@ -312,21 +327,8 @@ function drawMapNorthIndicator(
   ctx.restore();
 }
 
-function textOccupiedCorner(
-  position: WatermarkPosition,
-  hasText: boolean,
-): ResolvedCorner | null {
-  if (!hasText) return null;
-  const top = position.row <= 1;
-  const bottom = position.row >= 2;
-  if (top && position.col === 0) return "top-left";
-  if (top && position.col === 3) return "top-right";
-  if (bottom && position.col === 0) return "bottom-left";
-  if (bottom && position.col === 3) return "bottom-right";
-  return null;
-}
-
-/** Picks a corner for a graphic element (compass rose / map thumbnail):
+/** Picks a corner for the text block or a graphic element (compass rose
+ * / map thumbnail):
  * uses the user's chosen corner (or the built-in default for "auto") if
  * it's free, otherwise the first remaining free corner, otherwise falls
  * back to the preferred corner anyway (only happens if every corner is
@@ -379,7 +381,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 export async function renderPhotoWithWatermark({
   photo,
   fields,
-  position,
+  textPosition,
   compassPosition,
   mapPosition,
   mapThumbnailDataUrl,
@@ -387,7 +389,7 @@ export async function renderPhotoWithWatermark({
 }: {
   photo: WatermarkPhotoInput;
   fields: WatermarkFields;
-  position: WatermarkPosition;
+  textPosition?: WatermarkCorner;
   compassPosition?: WatermarkCorner;
   mapPosition?: WatermarkCorner;
   mapThumbnailDataUrl?: string | null;
@@ -413,13 +415,21 @@ export async function renderPhotoWithWatermark({
   const showCompassRose = fields.compass && typeof photo.gpsHeading === "number";
   const showMap = fields.map && Boolean(mapThumbnailDataUrl);
 
-  // 4x4 position grid: the left two columns hug the left edge, the right
-  // two hug the right edge - a middle "centered" bucket isn't useful once
-  // there's no single center column left.
-  const horizontalAlign: CanvasTextAlign = position.col <= 1 ? "left" : "right";
-  const anchorX = position.col <= 1 ? padding : canvas.width - padding;
+  // Text, compass rose and map thumbnail each get their own corner: the
+  // user's choice if given (or a sensible default for "auto"), falling
+  // back to whatever corner is still free if that one's already taken by
+  // one of the others. With 4 corners and at most 3 things wanting one,
+  // an actual overlap essentially never happens.
+  const freeCorners = new Set<ResolvedCorner>(ALL_CORNERS);
 
   if (lines.length > 0) {
+    const textCorner = resolveCorner(textPosition ?? "auto", "top-right", freeCorners);
+    freeCorners.delete(textCorner);
+
+    const horizontalAlign: CanvasTextAlign = textCorner.endsWith("left") ? "left" : "right";
+    const anchorX = textCorner.endsWith("left") ? padding : canvas.width - padding;
+    const topAnchored = textCorner.startsWith("top");
+
     ctx.font = `600 ${fontSize}px "Segoe UI", Arial, sans-serif`;
     ctx.textAlign = horizontalAlign;
     ctx.shadowColor = "rgba(0,0,0,0.75)";
@@ -429,11 +439,9 @@ export async function renderPhotoWithWatermark({
     ctx.fillStyle = "#ffffff";
 
     const blockHeight = lines.length * lineHeight;
-    const topAnchored = position.row <= 1;
     const startY = topAnchored
-      ? padding + fontSize + (position.row === 1 ? (canvas.height - padding * 2) / 3 : 0)
-      : canvas.height - padding - blockHeight + fontSize -
-        (position.row === 2 ? (canvas.height - padding * 2) / 3 : 0);
+      ? padding + fontSize
+      : canvas.height - padding - blockHeight + fontSize;
 
     ctx.textBaseline = "alphabetic";
     lines.forEach((line, index) => {
@@ -442,15 +450,6 @@ export async function renderPhotoWithWatermark({
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
   }
-
-  // Each graphic gets its own corner: the user's choice if given (or a
-  // sensible default for "auto"), falling back to whatever corner is
-  // still free if that one's already taken by the text block or the
-  // other graphic. With 4 corners and at most 3 things wanting one
-  // (text, compass, map), an actual overlap essentially never happens.
-  const freeCorners = new Set<ResolvedCorner>(ALL_CORNERS);
-  const textCorner = textOccupiedCorner(position, lines.length > 0);
-  if (textCorner) freeCorners.delete(textCorner);
 
   const compassRadius = Math.round(Math.min(canvas.width, canvas.height) * 0.065);
   if (showCompassRose && typeof photo.gpsHeading === "number") {
