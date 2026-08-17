@@ -3,7 +3,11 @@
 import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
-import { readCurrentHeading, requestDeviceHeadingPermission } from "./deviceHeading";
+import {
+  readCurrentHeading,
+  requestDeviceHeadingPermission,
+  warnIfHeadingDenied,
+} from "./deviceHeading";
 import {
   ProjectFileDropInput,
   ProjectPhotoNoteFields,
@@ -134,7 +138,7 @@ export function ProjectPhotoManager({
   // activation window for DeviceOrientationEvent.requestPermission() has
   // already expired, so asking there silently fails every time.
   async function openCameraCapture() {
-    await requestDeviceHeadingPermission();
+    warnIfHeadingDenied(await requestDeviceHeadingPermission());
     cameraInputRef.current?.click();
   }
 
