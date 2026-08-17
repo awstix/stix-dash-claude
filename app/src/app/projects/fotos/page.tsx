@@ -4,6 +4,11 @@ import { ProjectNavigation } from "../ProjectNavigation";
 import { ProjectPhotoManager } from "../ProjectPhotoManager";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
 
+// Photo uploads run as several sequential batched Server Action calls (see
+// uploadPhotosInBatches) - give them enough headroom on slower mobile
+// connections instead of the platform default.
+export const maxDuration = 120;
+
 export default async function ProjectPhotosPage({
   searchParams,
 }: {

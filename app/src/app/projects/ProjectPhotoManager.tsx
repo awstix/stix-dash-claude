@@ -12,6 +12,7 @@ import {
   ProjectPhotoGallery,
   type ProjectPhotoGalleryItem,
 } from "./ProjectPhotoGallery";
+import { uploadPhotosInBatches } from "./uploadPhotosInBatches";
 
 async function getCurrentGpsPosition() {
   if (!navigator.geolocation) return null;
@@ -84,6 +85,9 @@ export function ProjectPhotoManager({
   const [pickerFiles, setPickerFiles] = useState<File[]>([]);
   const [cameraFiles, setCameraFiles] = useState<File[]>([]);
   const [cameraGps, setCameraGps] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
   const selectedFiles = [...pickerFiles, ...cameraFiles];
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
@@ -130,7 +134,16 @@ export function ProjectPhotoManager({
 
     startTransition(async () => {
       try {
-        await uploadProjectPhotos(formData);
+        setUploadProgress({ done: 0, total: selectedFiles.length });
+        // Uploaded in size-bounded batches, not one big request - a
+        // handful of full-resolution iPhone photos easily exceeds
+        // Vercel's serverless body-size limit in a single request, which
+        // otherwise fails with a generic "unexpected response" error.
+        await uploadPhotosInBatches({
+          formData,
+          onProgress: (done, total) => setUploadProgress({ done, total }),
+          upload: uploadProjectPhotos,
+        });
         formRef.current?.reset();
         setPickerFiles([]);
         setCameraFiles([]);
@@ -142,6 +155,8 @@ export function ProjectPhotoManager({
             ? error.message
             : "Fotos konnten nicht hochgeladen werden.",
         );
+      } finally {
+        setUploadProgress(null);
       }
     });
   }
@@ -324,7 +339,11 @@ export function ProjectPhotoManager({
               disabled={isPending || projects.length === 0}
               type="submit"
             >
-              {isPending ? "Lädt hoch..." : "Fotos hochladen"}
+              {isPending
+                ? uploadProgress
+                  ? `Lädt hoch... (${uploadProgress.done}/${uploadProgress.total})`
+                  : "Lädt hoch..."
+                : "Fotos hochladen"}
             </button>
           </div>
         </form>
