@@ -1734,10 +1734,16 @@ export async function uploadProjectPhotos(formData: FormData) {
       uploadedByName: actor.name,
     });
     const storagePath = `project-photos/${projectId}/${fileName}`;
+    // Metadata enrichment is a nice-to-have and must never block the
+    // actual upload - a parsing edge case in some phone's EXIF/HEIC
+    // encoding shouldn't mean the photo doesn't get saved at all.
     const metadata = takeMetadata
       ? await extractPhotoMetadata(originalBuffer, {
           fileLastModified: file.lastModified,
           originalFileName: file.name,
+        }).catch((error) => {
+          console.error("extractPhotoMetadata failed", error);
+          return {} as PhotoMetadata;
         })
       : {};
     const storedDimensions = readImageDimensions(
