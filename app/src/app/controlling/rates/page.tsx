@@ -906,6 +906,7 @@ function formatLastChange(
   if (!entry) return "—";
 
   const date = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "short",
     timeStyle: "short",
   }).format(entry.createdAt);
@@ -931,6 +932,7 @@ function formatMoney(cents?: number | null) {
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);

@@ -77,6 +77,7 @@ export default async function ProjectImportsPage({
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {new Intl.DateTimeFormat("de-DE", {
+              timeZone: "Europe/Berlin",
               dateStyle: "medium",
               timeStyle: "short",
             }).format(lastImportRun.updatedAt)}

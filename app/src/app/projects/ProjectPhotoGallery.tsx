@@ -1335,6 +1335,7 @@ function getPhotoDownloadFileName(photo: ProjectPhotoGalleryItem) {
 
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

@@ -633,6 +633,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));

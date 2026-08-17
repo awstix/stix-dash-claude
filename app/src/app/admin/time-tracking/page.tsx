@@ -98,7 +98,8 @@ export default async function TimeTrackingSettingsPage() {
           {settings.lastReminderRunAt ? (
             <p className="mt-4 text-xs font-medium text-gray-500">
               Zuletzt geprüft:{" "}
-              {new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }).format(
+              {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin",
+ dateStyle: "medium", timeStyle: "short" }).format(
                 settings.lastReminderRunAt,
               )}
             </p>

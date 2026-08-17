@@ -33,6 +33,7 @@ function formatDate(date: Date) {
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

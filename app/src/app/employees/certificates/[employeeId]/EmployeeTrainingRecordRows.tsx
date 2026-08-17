@@ -56,6 +56,7 @@ function formatDateTime(value: string | null) {
   if (!value) return "—";
 
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

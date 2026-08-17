@@ -97,6 +97,7 @@ export default async function EmailSettingsPage({
           <p className="mt-3 text-xs text-gray-500">
             Letzter Test:{" "}
             {new Intl.DateTimeFormat("de-DE", {
+              timeZone: "Europe/Berlin",
               dateStyle: "medium",
               timeStyle: "short",
             }).format(settings.lastTestSentAt)}{" "}

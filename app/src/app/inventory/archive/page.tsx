@@ -17,6 +17,7 @@ import {
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

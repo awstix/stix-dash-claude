@@ -70,6 +70,7 @@ function formatDateTime(date: Date | null | undefined) {
   if (!date) return "-";
 
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

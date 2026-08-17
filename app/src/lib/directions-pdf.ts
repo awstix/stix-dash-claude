@@ -430,6 +430,7 @@ export async function buildDirectionsPdf(
 
   // Footer on every page
   const generatedAt = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date());

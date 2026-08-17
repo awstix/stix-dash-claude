@@ -10,6 +10,7 @@ import { DeleteAccidentReportButton } from "../DeleteAccidentReportButton";
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);

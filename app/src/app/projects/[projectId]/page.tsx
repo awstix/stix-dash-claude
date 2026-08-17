@@ -3260,6 +3260,7 @@ function formatDate(value: Date | null) {
 
 function formatDateTime(value: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);

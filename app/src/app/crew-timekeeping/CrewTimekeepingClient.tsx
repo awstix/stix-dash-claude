@@ -40,7 +40,8 @@ type SwitchTargetProject = { id: string; name: string; projectNumber: string };
 const inputClass = "rounded-lg border border-gray-500 bg-white px-2 py-2 text-sm font-bold text-gray-950";
 
 function currentTime() {
-  return new Intl.DateTimeFormat("de-DE", { hour: "2-digit", hour12: false, minute: "2-digit" }).format(new Date());
+  return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin",
+ hour: "2-digit", hour12: false, minute: "2-digit" }).format(new Date());
 }
 
 function isBookingActive(booking: Booking) {

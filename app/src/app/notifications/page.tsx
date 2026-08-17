@@ -10,6 +10,7 @@ import { NotificationReadCheckbox } from "./NotificationReadCheckbox";
 
 function formatDateTime(value: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

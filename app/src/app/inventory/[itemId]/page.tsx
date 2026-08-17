@@ -41,6 +41,7 @@ function formatDate(date: Date | null) {
 
 function formatCreatedAt(date: Date) {
   return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",

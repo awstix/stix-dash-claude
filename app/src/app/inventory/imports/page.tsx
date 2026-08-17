@@ -125,6 +125,7 @@ export default async function InventoryImportsPage({
           </h2>
           <p className="mt-2 text-sm leading-6">
             {new Intl.DateTimeFormat("de-DE", {
+              timeZone: "Europe/Berlin",
               dateStyle: "medium",
               timeStyle: "short",
             }).format(latestRun.updatedAt)}
@@ -157,6 +158,7 @@ export default async function InventoryImportsPage({
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {new Intl.DateTimeFormat("de-DE", {
+              timeZone: "Europe/Berlin",
               dateStyle: "medium",
               timeStyle: "short",
             }).format(lastImportRun.updatedAt)}

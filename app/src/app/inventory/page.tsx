@@ -34,6 +34,7 @@ function formatNumber(value: number | null) {
 
 function formatCreatedMeta(date: Date, createdByName: string | null) {
   const formattedDate = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
