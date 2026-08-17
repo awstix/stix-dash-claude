@@ -466,69 +466,71 @@ export function ProjectPhotoGallery({
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 xl:items-end">
             <PhotoViewModeSelector
               onChange={setViewMode}
               viewMode={viewMode}
             />
-            <select
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 outline-none focus:border-gray-900 disabled:opacity-60"
-              disabled={
-                selectedCount === 0 ||
-                selectableMoveProjects.length === 0 ||
-                isPhotoActionPending
-              }
-              onChange={(event) => setMoveTargetProjectId(event.target.value)}
-              value={moveTargetProjectId}
-            >
-              <option value="">
-                {selectableMoveProjects.length === 0
-                  ? "Keine Zielbaustelle vorhanden"
-                  : "Zielbaustelle auswählen"}
-              </option>
-              {selectableMoveProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.label}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 outline-none focus:border-gray-900 disabled:opacity-60"
+                disabled={
+                  selectedCount === 0 ||
+                  selectableMoveProjects.length === 0 ||
+                  isPhotoActionPending
+                }
+                onChange={(event) => setMoveTargetProjectId(event.target.value)}
+                value={moveTargetProjectId}
+              >
+                <option value="">
+                  {selectableMoveProjects.length === 0
+                    ? "Keine Zielbaustelle vorhanden"
+                    : "Zielbaustelle auswählen"}
                 </option>
-              ))}
-            </select>
-            <button
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
-              disabled={
-                selectedCount === 0 || !moveTargetProjectId || isPhotoActionPending
-              }
-              onClick={moveSelectedPhotos}
-              type="button"
-            >
-              Verschieben
-            </button>
-            <button
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
-              disabled={selectedCount === 0 || isPhotoActionPending}
-              onClick={downloadSelectedPhotos}
-              type="button"
-            >
-              Herunterladen
-            </button>
-            <button
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
-              disabled={selectedCount === 0 || isPhotoActionPending || watermarkBatchProgress !== null}
-              onClick={downloadSelectedPhotosWithInfo}
-              title="Nutzt die gespeicherte Anordnung aus „Foto mit Infos“"
-              type="button"
-            >
-              {watermarkBatchProgress
-                ? `Erzeugt ${watermarkBatchProgress.done}/${watermarkBatchProgress.total}...`
-                : "Mit Infos herunterladen"}
-            </button>
-            <button
-              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-              disabled={selectedCount === 0 || isPhotoActionPending}
-              onClick={deleteSelectedPhotos}
-              type="button"
-            >
-              Löschen
-            </button>
+                {selectableMoveProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={
+                  selectedCount === 0 || !moveTargetProjectId || isPhotoActionPending
+                }
+                onClick={moveSelectedPhotos}
+                type="button"
+              >
+                Verschieben
+              </button>
+              <button
+                className="whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={selectedCount === 0 || isPhotoActionPending}
+                onClick={downloadSelectedPhotos}
+                type="button"
+              >
+                Herunterladen
+              </button>
+              <button
+                className="whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                disabled={selectedCount === 0 || isPhotoActionPending || watermarkBatchProgress !== null}
+                onClick={downloadSelectedPhotosWithInfo}
+                title="Nutzt die gespeicherte Anordnung aus „Foto mit Infos“"
+                type="button"
+              >
+                {watermarkBatchProgress
+                  ? `Erzeugt ${watermarkBatchProgress.done}/${watermarkBatchProgress.total}...`
+                  : "Mit Infos herunterladen"}
+              </button>
+              <button
+                className="whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                disabled={selectedCount === 0 || isPhotoActionPending}
+                onClick={deleteSelectedPhotos}
+                type="button"
+              >
+                Löschen
+              </button>
+            </div>
           </div>
         </div>
       </div>
