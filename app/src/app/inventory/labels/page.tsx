@@ -59,11 +59,19 @@ export default async function InventoryLabelsPage({
       },
     }),
   ]);
-  const selectedTemplate =
-    templates.find((template) => template.id === selectedTemplateId) ??
-    templates.find((template) => template.isDefault) ??
-    templates[0] ??
-    null;
+  // "Neue Vorlage" links to ?template=new specifically so this can tell
+  // "explicitly asked for a blank template" apart from "no ?template= at
+  // all yet, just landed on the page" - both would otherwise look
+  // identical and fall back to selecting an existing template, so
+  // "Neue Vorlage" would silently keep editing (and overwriting) whatever
+  // template happened to load first instead of ever creating a new one.
+  const isCreatingNewTemplate = selectedTemplateId === "new";
+  const selectedTemplate = isCreatingNewTemplate
+    ? null
+    : (templates.find((template) => template.id === selectedTemplateId) ??
+      templates.find((template) => template.isDefault) ??
+      templates[0] ??
+      null);
 
   return (
     <AppShell
@@ -179,7 +187,7 @@ export default async function InventoryLabelsPage({
             {selectedTemplate ? (
               <Link
                 className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50"
-                href="/inventory/labels"
+                href="/inventory/labels?template=new"
               >
                 Neue Vorlage
               </Link>
