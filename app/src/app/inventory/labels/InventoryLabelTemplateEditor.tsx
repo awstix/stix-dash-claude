@@ -70,6 +70,22 @@ export function InventoryLabelTemplateEditor({
   const [draggedBlockKey, setDraggedBlockKey] = useState<
     InventoryLabelBlock["key"] | null
   >(null);
+  // Lets someone mark out a cell region (dragging across empty cells)
+  // BEFORE deciding which field goes there, instead of only being able to
+  // resize a block after it's already placed. selectionAnchor is the
+  // corner the drag started from - kept separate from pendingSelection so
+  // the bounding rect can be recomputed as the drag moves in any
+  // direction, not just down-right.
+  const [pendingSelection, setPendingSelection] = useState<{
+    col: number;
+    height: number;
+    row: number;
+    width: number;
+  } | null>(null);
+  const [selectionAnchor, setSelectionAnchor] = useState<{
+    col: number;
+    row: number;
+  } | null>(null);
   const [activeBlockKey, setActiveBlockKey] = useState<
     InventoryLabelBlock["key"] | null
   >(null);
@@ -151,14 +167,46 @@ export function InventoryLabelTemplateEditor({
     );
   }
 
+  function beginCellSelection(row: number, col: number) {
+    setSelectionAnchor({ col, row });
+    setPendingSelection({ col, height: 1, row, width: 1 });
+  }
+
+  function extendCellSelection(row: number, col: number) {
+    if (!selectionAnchor) return;
+
+    setPendingSelection({
+      col: Math.min(selectionAnchor.col, col),
+      height: Math.abs(row - selectionAnchor.row) + 1,
+      row: Math.min(selectionAnchor.row, row),
+      width: Math.abs(col - selectionAnchor.col) + 1,
+    });
+  }
+
+  function endCellSelection() {
+    setSelectionAnchor(null);
+  }
+
   function placeDraggedBlock(row: number, col: number) {
     if (!draggedBlockKey) return;
 
+    const selection = pendingSelection;
+    const usesSelection =
+      selection &&
+      row >= selection.row &&
+      row < selection.row + selection.height &&
+      col >= selection.col &&
+      col < selection.col + selection.width;
+
     updateBlock(draggedBlockKey, {
-      col,
+      col: usesSelection ? selection.col : col,
       enabled: true,
-      row,
+      row: usesSelection ? selection.row : row,
+      ...(usesSelection
+        ? { height: selection.height, width: selection.width, widthAuto: false }
+        : {}),
     });
+    if (usesSelection) setPendingSelection(null);
     setActiveBlockKey(draggedBlockKey);
     setDraggedBlockKey(null);
   }
@@ -422,9 +470,14 @@ export function InventoryLabelTemplateEditor({
               columnCount={columnCount}
               minimumColumnCount={minimumColumnCount}
               onAddColumn={addColumn}
+              onBeginCellSelection={beginCellSelection}
+              onClearSelection={() => setPendingSelection(null)}
               onDropBlock={placeDraggedBlock}
+              onEndCellSelection={endCellSelection}
+              onExtendCellSelection={extendCellSelection}
               onRemoveColumn={removeColumn}
               onSelectBlock={setActiveBlockKey}
+              pendingSelection={pendingSelection}
               rowCount={rowCount}
               previewHeight={previewHeight}
               previewScale={previewScale}
@@ -791,9 +844,14 @@ function LabelCanvas({
   gapMm,
   item,
   onAddColumn,
+  onBeginCellSelection,
+  onClearSelection,
   onDropBlock,
+  onEndCellSelection,
+  onExtendCellSelection,
   onRemoveColumn,
   onSelectBlock,
+  pendingSelection,
   previewHeight,
   previewScale,
   previewWidth,
@@ -813,9 +871,14 @@ function LabelCanvas({
   item: (InventoryLabelItem & { id: string }) | null;
   minimumColumnCount: number;
   onAddColumn: () => void;
+  onBeginCellSelection: (row: number, col: number) => void;
+  onClearSelection: () => void;
   onDropBlock: (row: number, col: number) => void;
+  onEndCellSelection: () => void;
+  onExtendCellSelection: (row: number, col: number) => void;
   onRemoveColumn: () => void;
   onSelectBlock: (key: InventoryLabelBlock["key"]) => void;
+  pendingSelection: { col: number; height: number; row: number; width: number } | null;
   previewHeight: number;
   previewScale: number;
   previewWidth: number;
@@ -836,10 +899,21 @@ function LabelCanvas({
         <div>
           <div className="text-sm font-bold text-gray-900">Etikettfläche</div>
           <p className="mt-1 text-xs text-gray-500">
-            Bausteine in eine Zelle ziehen. QR kann über mehrere Zeilen laufen.
+            Bausteine in eine Zelle ziehen. Über leere Zellen ziehen, um sie
+            vorab zu einer größeren Zelle zu verbinden. QR kann über mehrere
+            Zeilen laufen.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {pendingSelection ? (
+            <button
+              className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
+              onClick={onClearSelection}
+              type="button"
+            >
+              Auswahl aufheben ({pendingSelection.width}×{pendingSelection.height})
+            </button>
+          ) : null}
           <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
             {rowCount} Zeilen · {columnCount} Spalten ·{" "}
             {Math.round(previewWidth)}×{Math.round(previewHeight)} mm
@@ -872,6 +946,7 @@ function LabelCanvas({
           className={`relative grid bg-white p-2 text-gray-950 ${
             showBorder ? "border-2 border-gray-900" : ""
           }`}
+          onPointerUp={onEndCellSelection}
           style={{
             gap: `${gapMm * previewScale}px`,
             gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
@@ -883,10 +958,10 @@ function LabelCanvas({
           {rowIndexes.flatMap((row) =>
             colIndexes.map((col) => (
               <div
-                className={`rounded border border-dashed ${
+                className={`touch-none rounded border border-dashed ${
                   draggedBlockKey
                     ? "border-blue-300 bg-blue-50/50"
-                    : "border-gray-200"
+                    : "cursor-cell border-gray-200"
                 }`}
                 key={`${row}-${col}`}
                 onDragOver={(event) => event.preventDefault()}
@@ -894,6 +969,10 @@ function LabelCanvas({
                   event.preventDefault();
                   onDropBlock(row, col);
                 }}
+                onPointerDown={() => {
+                  if (!draggedBlockKey) onBeginCellSelection(row, col);
+                }}
+                onPointerEnter={() => onExtendCellSelection(row, col)}
                 style={{
                   gridColumn: col,
                   gridRow: row,
@@ -901,6 +980,16 @@ function LabelCanvas({
               />
             )),
           )}
+
+          {pendingSelection ? (
+            <div
+              className="pointer-events-none z-[5] rounded border-2 border-blue-500 bg-blue-500/15"
+              style={{
+                gridColumn: `${pendingSelection.col} / span ${pendingSelection.width}`,
+                gridRow: `${pendingSelection.row} / span ${pendingSelection.height}`,
+              }}
+            />
+          ) : null}
 
           {blocks.map((block) => (
             <PlacedBlock
