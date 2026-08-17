@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-access";
 import { dashboardWidgets } from "@/lib/dashboard-widgets";
 import { prisma } from "@/lib/prisma";
 import { getPortalRoles, parsePortalRoles } from "@/lib/portal-roles";
+import { AdminSetPasswordForm } from "./AdminSetPasswordForm";
 import { saveUserAccess } from "./actions";
 
 export default async function UserAccessPage({
@@ -37,6 +38,16 @@ export default async function UserAccessPage({
       title={`Zugriffe · ${user.name}`}
       description="Der Admin legt fest, welche Bereiche und Baustellen dieses Konto sehen und bearbeiten darf."
     >
+      <section className="mb-6 rounded-2xl border border-gray-300 bg-white p-6 text-gray-950 shadow-sm">
+        <h2 className="text-xl font-black">Passwort</h2>
+        <p className="mt-1 font-medium text-gray-700">
+          Setzt sofort ein neues Passwort für dieses Konto, ohne E-Mail-Link
+          - z. B. wenn der Nutzer sein Passwort nicht mehr weiß und der
+          E-Mail-Versand nicht eingerichtet ist.
+        </p>
+        <AdminSetPasswordForm userId={user.id} />
+      </section>
+
       <form action={saveUserAccess} className="space-y-6">
         <input name="userId" type="hidden" value={user.id} />
         <section className="rounded-2xl border border-gray-300 bg-white p-6 text-gray-950 shadow-sm">
