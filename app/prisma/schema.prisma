@@ -2672,6 +2672,7 @@ model InventoryLabelTemplate {
   labelLengthMm Int
   rowCount      Int     @default(4)
   columnCount   Int     @default(6)
+  gapMm         Float   @default(1)
   codeType      String  @default("DATAMATRIX")
   orientation   String  @default("LANDSCAPE")
   showBorder    Boolean @default(true)

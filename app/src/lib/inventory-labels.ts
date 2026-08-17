@@ -259,6 +259,7 @@ export const DEFAULT_INVENTORY_LABEL_BLOCKS: InventoryLabelBlock[] =
 export type InventoryLabelTemplateLike = {
   blocksJson: string;
   codeType: string;
+  gapMm: number;
   id: string;
   isDefault: boolean;
   labelLengthMm: number;

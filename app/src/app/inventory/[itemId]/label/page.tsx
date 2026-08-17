@@ -193,10 +193,11 @@ export default async function InventoryItemLabelPage({
 
           <div className="overflow-auto rounded-2xl bg-gray-100 p-6 print:bg-white print:p-0">
             <div
-              className={`print-label-preview grid gap-[1mm] bg-white p-[2mm] text-black ${
+              className={`print-label-preview grid bg-white p-[2mm] text-black ${
                 selectedTemplate.showBorder ? "border-2 border-black" : ""
               }`}
               style={{
+                gap: `${selectedTemplate.gapMm}mm`,
                 gridTemplateColumns: `repeat(${selectedTemplate.columnCount}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${selectedTemplate.rowCount}, minmax(0, 1fr))`,
                 height: `${labelHeight}mm`,
@@ -275,6 +276,7 @@ function LabelValueBlock({
           alt="Firmenlogo"
           className="h-full max-h-full w-full max-w-full object-contain"
           src={companyLogoUrl}
+          style={{ filter: "brightness(0)" }}
         />
       </div>
     );
@@ -342,7 +344,7 @@ function getTextAlignClass(align: InventoryLabelBlock["align"]) {
 }
 
 function getTextStyleClass(block: InventoryLabelBlock) {
-  return [block.bold ? "font-black" : "font-medium", block.italic ? "italic" : ""]
+  return [block.bold ? "font-black" : "font-bold", block.italic ? "italic" : ""]
     .filter(Boolean)
     .join(" ");
 }

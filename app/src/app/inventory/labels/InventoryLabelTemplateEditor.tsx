@@ -52,6 +52,7 @@ export function InventoryLabelTemplateEditor({
   const [tapeWidthMm, setTapeWidthMm] = useState(template?.tapeWidthMm ?? 24);
   const [rowCount, setRowCount] = useState(initialRowCount);
   const [columnCount, setColumnCount] = useState(initialColumnCount);
+  const [gapMm, setGapMm] = useState(template?.gapMm ?? 1);
   const [codeType, setCodeType] = useState(template?.codeType ?? "DATAMATRIX");
   const [orientation, setOrientation] = useState(
     template?.orientation ?? "LANDSCAPE",
@@ -186,6 +187,7 @@ export function InventoryLabelTemplateEditor({
       <input name="labelLengthMm" type="hidden" value={labelLengthMm} />
       <input name="rowCount" type="hidden" value={rowCount} />
       <input name="columnCount" type="hidden" value={columnCount} />
+      <input name="gapMm" type="hidden" value={gapMm} />
       <input name="previewItemId" type="hidden" value={selectedPreviewItem?.id ?? ""} />
 
       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -288,6 +290,23 @@ export function InventoryLabelTemplateEditor({
                 </select>
               </label>
 
+              <label className="md:col-span-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Abstand
+                </span>
+                <input
+                  className={inputClass}
+                  max={5}
+                  min={0}
+                  onChange={(event) =>
+                    setGapMm(Number.parseFloat(event.currentTarget.value) || 0)
+                  }
+                  step={0.1}
+                  type="number"
+                  value={gapMm}
+                />
+              </label>
+
               <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Länge
@@ -366,6 +385,7 @@ export function InventoryLabelTemplateEditor({
               codeType={codeType}
               companyLogoUrl={companyLogoUrl}
               draggedBlockKey={draggedBlockKey}
+              gapMm={gapMm}
               item={selectedPreviewItem}
               columnCount={columnCount}
               minimumColumnCount={minimumColumnCount}
@@ -712,6 +732,7 @@ function LabelCanvas({
   codeType,
   companyLogoUrl,
   draggedBlockKey,
+  gapMm,
   item,
   onAddColumn,
   onDropBlock,
@@ -730,6 +751,7 @@ function LabelCanvas({
   codeType: string;
   companyLogoUrl: string | null;
   draggedBlockKey: InventoryLabelBlock["key"] | null;
+  gapMm: number;
   item: (InventoryLabelItem & { id: string }) | null;
   minimumColumnCount: number;
   onAddColumn: () => void;
@@ -785,10 +807,11 @@ function LabelCanvas({
       </div>
       <div className="overflow-auto rounded-xl border border-gray-200 bg-gray-100 p-3">
         <div
-          className={`relative grid gap-1 bg-white p-2 text-gray-950 ${
+          className={`relative grid bg-white p-2 text-gray-950 ${
             showBorder ? "border-2 border-gray-900" : ""
           }`}
           style={{
+            gap: `${gapMm * previewScale}px`,
             gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
             gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,
             height: `${previewHeight * previewScale}px`,

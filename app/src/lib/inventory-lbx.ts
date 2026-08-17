@@ -12,6 +12,7 @@ type LbxTemplate = {
   blocksJson: string;
   codeType: string;
   columnCount: number;
+  gapMm: number;
   name: string;
   orientation: string;
   rowCount: number;
@@ -39,6 +40,7 @@ export function createInventoryLabelLbx(input: {
     codeType: input.template.codeType,
     columnCount: input.template.columnCount,
     companyName: input.companyName,
+    gapMm: input.template.gapMm,
     item: input.item,
     labelLengthMm,
     rowCount: input.template.rowCount,
@@ -63,14 +65,22 @@ function createLabelXml(input: {
   codeType: string;
   columnCount: number;
   companyName?: string | null;
+  gapMm: number;
   item: InventoryLabelItem & { id: string; name: string };
   labelLengthMm: number;
   rowCount: number;
   tapeWidthMm: number;
 }) {
   const marginMm = 2;
-  const innerWidthMm = Math.max(8, input.labelLengthMm - marginMm * 2);
-  const innerHeightMm = Math.max(6, input.tapeWidthMm - marginMm * 2);
+  const gapMm = Math.max(0, input.gapMm);
+  const innerWidthMm = Math.max(
+    8,
+    input.labelLengthMm - marginMm * 2 - gapMm * Math.max(0, input.columnCount - 1),
+  );
+  const innerHeightMm = Math.max(
+    6,
+    input.tapeWidthMm - marginMm * 2 - gapMm * Math.max(0, input.rowCount - 1),
+  );
   const cellWidthMm = innerWidthMm / Math.max(1, input.columnCount);
   const cellHeightMm = innerHeightMm / Math.max(1, input.rowCount);
   const objects = input.blocks
@@ -83,9 +93,9 @@ function createLabelXml(input: {
       );
       const box = {
         height: Math.max(2, block.height * cellHeightMm),
-        width: Math.max(2, width * cellWidthMm),
-        x: marginMm + (block.col - 1) * cellWidthMm,
-        y: marginMm + (block.row - 1) * cellHeightMm,
+        width: Math.max(2, width * cellWidthMm + Math.max(0, width - 1) * gapMm),
+        x: marginMm + (block.col - 1) * (cellWidthMm + gapMm),
+        y: marginMm + (block.row - 1) * (cellHeightMm + gapMm),
       };
 
       if (block.key === "code") {

@@ -44,6 +44,19 @@ function numberValue(
   return parsed;
 }
 
+function floatValue(
+  value: FormDataEntryValue | null,
+  fallback: number,
+  options: { max?: number; min?: number } = {},
+) {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (options.min !== undefined && parsed < options.min) return options.min;
+  if (options.max !== undefined && parsed > options.max) return options.max;
+  return Math.round(parsed * 10) / 10;
+}
+
 export async function getLiveLabelExportPayload(formData: FormData) {
   const itemId = optionalString(formData.get("previewItemId"));
 
@@ -106,6 +119,7 @@ export async function getLiveLabelExportPayload(formData: FormData) {
     max: INVENTORY_LABEL_MAX_COLUMNS,
     min: 1,
   });
+  const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
   const blocks = parseInventoryLabelBlocks(
     optionalString(formData.get("blocksJson")),
   ).map((block): InventoryLabelBlock => ({
@@ -133,6 +147,7 @@ export async function getLiveLabelExportPayload(formData: FormData) {
         optionalString(formData.get("codeType")) ?? "DATAMATRIX",
       ),
       columnCount,
+      gapMm,
       isDefault: false,
       labelLengthMm: 0,
       name: optionalString(formData.get("name")) ?? "Live-Etikett",

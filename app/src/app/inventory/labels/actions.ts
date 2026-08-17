@@ -43,6 +43,19 @@ function numberValue(
   return parsed;
 }
 
+function floatValue(
+  value: FormDataEntryValue | null,
+  fallback: number,
+  options: { max?: number; min?: number } = {},
+) {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (options.min !== undefined && parsed < options.min) return options.min;
+  if (options.max !== undefined && parsed > options.max) return options.max;
+  return Math.round(parsed * 10) / 10;
+}
+
 function getBlocks(formData: FormData) {
   const rawJson = optionalString(formData.get("blocksJson"));
   const blocks = parseInventoryLabelBlocks(rawJson);
@@ -127,11 +140,13 @@ function getTemplatePayload(formData: FormData) {
     max: INVENTORY_LABEL_MAX_COLUMNS,
     min: 1,
   });
+  const gapMm = floatValue(formData.get("gapMm"), 1, { max: 5, min: 0 });
 
   return {
     blocksJson: getBlocks(formData),
     codeType,
     columnCount,
+    gapMm,
     isDefault,
     labelLengthMm,
     name,

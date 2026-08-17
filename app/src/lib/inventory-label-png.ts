@@ -17,6 +17,7 @@ import {
 type PngTemplate = {
   codeType: string;
   columnCount: number;
+  gapMm: number;
   orientation: string;
   rowCount: number;
   showBorder: boolean;
@@ -55,6 +56,7 @@ export async function createInventoryLabelPng(input: {
     columnCount: input.template.columnCount,
     companyLogoUrl: input.companyLogoUrl,
     companyName: input.companyName,
+    gapMm: input.template.gapMm,
     item: input.item,
     labelHeightMm,
     labelWidthMm,
@@ -71,6 +73,7 @@ async function createLabelSvg(input: {
   columnCount: number;
   companyLogoUrl?: string | null;
   companyName?: string | null;
+  gapMm: number;
   item: InventoryLabelItem & { id: string; name: string };
   labelHeightMm: number;
   labelWidthMm: number;
@@ -81,7 +84,7 @@ async function createLabelSvg(input: {
   const heightPx = Math.round(input.labelHeightMm * PIXELS_PER_MM);
   const fontFaceCss = await getFontFaceCss();
   const paddingPx = Math.max(8, Math.round(2.35 * PIXELS_PER_MM));
-  const gapPx = Math.max(2, Math.round(1.15 * PIXELS_PER_MM));
+  const gapPx = Math.max(0, Math.round(input.gapMm * PIXELS_PER_MM));
   const innerWidthPx = Math.max(
     20,
     widthPx - paddingPx * 2 - gapPx * Math.max(0, input.columnCount - 1),
@@ -128,7 +131,11 @@ async function createLabelSvg(input: {
         const logoDataUrl = await getPublicImageDataUrl(input.companyLogoUrl);
 
         if (logoDataUrl) {
-          return `<image href="${logoDataUrl}" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" preserveAspectRatio="xMidYMid meet" />`;
+          // The uploaded logo carries its own brand colors (e.g. a red
+          // accent dot) - forced to solid black here via a color-matrix
+          // filter so the printed label is single-color, not a mix of
+          // black text and a colored logo.
+          return `<image href="${logoDataUrl}" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" preserveAspectRatio="xMidYMid meet" filter="url(#forceBlack)" />`;
         }
 
         return renderTextPaths({
@@ -164,11 +171,14 @@ async function createLabelSvg(input: {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
   <defs>
     <style>${fontFaceCss}</style>
+    <filter id="forceBlack" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/>
+    </filter>
   </defs>
   <rect width="100%" height="100%" fill="#ffffff"/>
   ${
     input.showBorder
-      ? `<rect x="2" y="2" width="${widthPx - 4}" height="${heightPx - 4}" fill="none" stroke="#111827" stroke-width="3"/>`
+      ? `<rect x="2" y="2" width="${widthPx - 4}" height="${heightPx - 4}" fill="none" stroke="#000000" stroke-width="3"/>`
       : ""
   }
   ${objects.join("\n")}
@@ -179,7 +189,7 @@ async function createCodeSvg(codeType: string, value: string) {
   if (codeType === "QR") {
     return QRCode.toString(value, {
       color: {
-        dark: "#111827",
+        dark: "#000000",
         light: "#ffffff",
       },
       errorCorrectionLevel: "H",
@@ -236,7 +246,7 @@ async function renderTextPaths(input: {
   return [
     label
       ? renderTextRun({
-          color: "#111827",
+          color: "#000000",
           font: fonts.semibold,
           fontSize: labelFontSize,
           italic: input.italic,
@@ -246,7 +256,7 @@ async function renderTextPaths(input: {
         })
       : "",
     renderTextRun({
-      color: "#111827",
+      color: "#000000",
       font: valueFont,
       fontSize: valueFontSize,
       italic: input.italic,
@@ -260,7 +270,7 @@ async function renderTextPaths(input: {
         )}" x2="${(startX + totalWidth).toFixed(3)}" y2="${(
           centerY +
           valueFontSize * 0.48
-        ).toFixed(3)}" stroke="#111827" stroke-width="${Math.max(
+        ).toFixed(3)}" stroke="#000000" stroke-width="${Math.max(
           1,
           valueFontSize * 0.08,
         ).toFixed(3)}"/>`
@@ -276,8 +286,11 @@ function getFontSizePx(size: InventoryLabelBlock["size"], height: number) {
   return Math.min(exportPixels, maxByHeight);
 }
 
+// Thin/regular-weight strokes at small print sizes read as washed-out
+// gray rather than solid black on most label printers, so nothing below
+// BOLD is used here regardless of the block's own bold toggle.
 function getValueWeight(block: InventoryLabelBlock) {
-  if (!block.bold) return "REGULAR";
+  if (!block.bold) return "BOLD";
   if (block.size === "LARGE") return "BLACK";
   if (block.size === "SMALL") return "SEMIBOLD";
   return "BOLD";
