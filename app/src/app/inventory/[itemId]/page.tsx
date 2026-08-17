@@ -355,6 +355,10 @@ export default async function InventoryDetailPage({
       },
       responsibleCrew: true,
       responsibleEmployee: true,
+      changeLogs: {
+        orderBy: [{ createdAt: "desc" }],
+        take: 20,
+      },
       scanLogs: {
         orderBy: [{ createdAt: "desc" }],
         take: 10,
@@ -832,7 +836,7 @@ export default async function InventoryDetailPage({
               }
             />
             <Info
-              label="Baujahr"
+              label="Produktionsdatum / Baujahr"
               value={
                 item.constructionYear
                   ? String(item.constructionYear)
@@ -1623,6 +1627,39 @@ export default async function InventoryDetailPage({
                     <div className="break-all font-mono">Code: {scan.rawValue}</div>
                   ) : null}
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900">Änderungshistorie</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Wer zuletzt was an diesem Objekt geändert hat.
+        </p>
+        {item.changeLogs.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            Noch keine protokollierten Änderungen.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {item.changeLogs.map((change) => (
+              <div
+                className="rounded-xl border border-gray-200 bg-gray-50 p-3"
+                key={change.id}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {change.changedByName || "Unbekannt"}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {formatCreatedAt(change.createdAt)}
+                  </span>
+                </div>
+                <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-gray-700">
+                  {change.summary}
+                </pre>
               </div>
             ))}
           </div>

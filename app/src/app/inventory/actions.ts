@@ -9,6 +9,7 @@ import {
   syncDriverVehicleAssignmentForInventoryItem,
 } from "@/lib/driver-vehicle-inventory-sync";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
+import { buildInventoryItemChangeSummary } from "@/lib/inventory-change-log";
 import {
   formatInventoryObjectNumber,
   getNextInventoryObjectNumber,
@@ -317,7 +318,13 @@ async function getInventoryPayload(formData: FormData) {
     axleCount: optionalInt(formData.get("axleCount"), "Anzahl Achsen"),
     categoryId: optionalId(formData.get("categoryId")),
     constructionDate,
-    constructionYear: constructionDate ? constructionDate.getUTCFullYear() : null,
+    // constructionYear is only meaningful for bulk-imported items where the
+    // Excel cell was a bare year with no real day/month (see
+    // isBareYearValue() in imports/actions.ts). This form's date picker
+    // always captures a full date, so leave constructionYear unset here -
+    // otherwise it would shadow the precise date on the item page, which
+    // prioritizes constructionYear over constructionDate for display.
+    constructionYear: null,
     firstRegistrationDate: optionalDate(formData.get("firstRegistrationDate")),
     currentProjectId: optionalId(formData.get("currentProjectId")),
     currentStock: openingStock,
@@ -1045,19 +1052,26 @@ export async function createInventoryItem(formData: FormData) {
 }
 
 export async function updateInventoryItem(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   const id = String(formData.get("id") ?? "").trim();
 
   if (!id) {
     throw new Error("Inventar-ID fehlt.");
   }
 
+  const existingItem = await prisma.inventoryItem.findUnique({ where: { id } });
+  if (!existingItem) {
+    throw new Error("Inventarobjekt wurde nicht gefunden.");
+  }
+
   const categoryId = optionalId(formData.get("categoryId"));
   const allowsAssignment = await categoryAllowsInventoryAssignment(categoryId);
   if (!allowsAssignment) clearInventoryAssignmentFields(formData);
+  const flatPayload = await getInventoryPayload(formData);
   const payload = await getInventoryUpdateData(formData);
   const contacts = getInventoryContacts(formData);
   const additionalEmployeeIds = getAdditionalEmployeeIds(formData);
+  const changeSummary = await buildInventoryItemChangeSummary(existingItem, flatPayload);
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.inventoryContact.deleteMany({
@@ -1093,6 +1107,17 @@ export async function updateInventoryItem(formData: FormData) {
           employeeId,
           itemId: id,
         })),
+      });
+    }
+
+    if (changeSummary) {
+      await tx.inventoryItemChangeLog.create({
+        data: {
+          changedByName: actor.name,
+          changedByUserId: actor.userId,
+          itemId: id,
+          summary: changeSummary,
+        },
       });
     }
   });
@@ -1827,7 +1852,7 @@ export async function deleteInventoryDocument(formData: FormData) {
 }
 
 export async function recordInventoryScan(formData: FormData) {
-  await requireSession();
+  const actor = await getInventoryActor();
   const itemId = optionalString(formData.get("itemId"));
 
   if (!itemId) {
@@ -1856,7 +1881,8 @@ export async function recordInventoryScan(formData: FormData) {
       longitude: optionalRawFloat(formData.get("longitude")),
       notes: optionalString(formData.get("notes")),
       rawValue: optionalString(formData.get("rawValue")),
-      scannedByName: optionalString(formData.get("scannedByName")) ?? "Unbekannt",
+      scannedByName: actor.name,
+      scannedByUserId: actor.userId,
       userAgent: optionalString(formData.get("userAgent")),
     },
   });

@@ -2338,6 +2338,7 @@ model InventoryItem {
   controllingDetailEntries           ControllingDetailEntry[]
   controllingRates                   ControllingInventoryItemRate[]
   personalAssignments                InventoryPersonalAssignment[]
+  changeLogs                         InventoryItemChangeLog[]
 
   createdByUserId String?
   createdByName   String?
@@ -2546,6 +2547,26 @@ model InventoryUsageHistory {
   @@index([transportedByEmployeeId])
   @@index([receivedAt])
   @@index([returnedAt])
+}
+
+/// One row per save of the edit form on an InventoryItem, holding a
+/// human-readable summary of which fields changed (see
+/// buildInventoryItemChangeSummary() in src/lib/inventory-change-log.ts) -
+/// not a field-level table, to keep this cheap to build/display.
+model InventoryItemChangeLog {
+  id String @id @default(cuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  changedByUserId String?
+  changedByName   String?
+  summary         String
+
+  createdAt DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
 }
 
 model InventoryScanLog {

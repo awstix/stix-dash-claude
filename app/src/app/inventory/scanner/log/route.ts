@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveActorNameForSession } from "@/lib/auth-access";
 
 const geocoderUserAgent = "stix-dash/0.1 inventory-scan-location";
 const projectMatchRadiusMeters = 750;
@@ -46,6 +49,11 @@ function optionalNumber(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
   const itemId = optionalString(body?.itemId);
 
@@ -100,7 +108,7 @@ export async function POST(request: Request) {
       ? await reverseGeocodeScanLocation(latitude, longitude)
       : null;
 
-  const scannedByName = optionalString(body?.scannedByName) ?? "Unbekannt";
+  const scannedByName = await resolveActorNameForSession(session);
   const scanLog = await prisma.inventoryScanLog.create({
     data: {
       accuracyMeters: optionalNumber(body?.accuracyMeters),
@@ -112,6 +120,7 @@ export async function POST(request: Request) {
       notes: optionalString(body?.notes),
       rawValue: optionalString(body?.rawValue),
       scannedByName,
+      scannedByUserId: session.user.id,
       userAgent: request.headers.get("user-agent"),
     },
   });

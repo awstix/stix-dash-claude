@@ -66,7 +66,6 @@ export function InventoryScannerClient() {
   const [isScanning, setIsScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
-  const [scannedByName, setScannedByName] = useState("Unbekannt");
   const [shouldUseLocation, setShouldUseLocation] = useState(true);
   const [isOpening, setIsOpening] = useState(false);
   const [isPhotoScanning, setIsPhotoScanning] = useState(false);
@@ -147,7 +146,6 @@ export function InventoryScannerClient() {
         action: "VIEW",
         itemId,
         rawValue,
-        scannedByName,
         ...locationPayload,
       }),
       headers: {
@@ -437,15 +435,6 @@ export function InventoryScannerClient() {
         </form>
 
         <div className="mt-5 space-y-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-          <label className="block text-sm font-semibold text-blue-950">
-            Gescannt von
-            <input
-              className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm text-gray-900"
-              onChange={(event) => setScannedByName(event.target.value)}
-              placeholder="später automatisch Benutzer"
-              value={scannedByName}
-            />
-          </label>
           <label className="flex items-start gap-2 text-sm font-semibold text-blue-950">
             <input
               checked={shouldUseLocation}

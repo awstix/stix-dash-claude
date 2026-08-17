@@ -348,7 +348,7 @@ export function InventoryItemForm({
               />
               <Input
                 defaultValue={formatDateInput(item?.constructionDate ?? null)}
-                label="Baujahr / Baudatum"
+                label="Produktionsdatum / Baujahr"
                 name="constructionDate"
                 placeholder="bei Bedarf nur Jahr im Kalender wählen"
                 type="date"

@@ -10,11 +10,13 @@ export async function requireSession() {
   return session;
 }
 
-/** Current user's display name for "who did this" attribution (audit
- * trails, PDF footers, sent-email records) - prefers the linked
- * employee's name, then falls back to the account name/email. */
-export async function resolveActorName() {
-  const session = await requireSession();
+/** Same as resolveActorName(), but for callers that already have a session
+ * in hand (e.g. Route Handlers that can't use requireSession()'s redirect()
+ * - that would turn a JSON API response into a redirect to /login instead
+ * of a proper 401). */
+export async function resolveActorNameForSession(session: {
+  user: { email: string; id: string; name: string };
+}) {
   const user = await prisma.user.findUnique({
     select: {
       employee: {
@@ -34,6 +36,14 @@ export async function resolveActorName() {
     session.user.name ||
     session.user.email
   );
+}
+
+/** Current user's display name for "who did this" attribution (audit
+ * trails, PDF footers, sent-email records) - prefers the linked
+ * employee's name, then falls back to the account name/email. */
+export async function resolveActorName() {
+  const session = await requireSession();
+  return resolveActorNameForSession(session);
 }
 
 export async function requireAdmin() {
