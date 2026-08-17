@@ -12,6 +12,7 @@ import {
   DEFAULT_WATERMARK_FIELDS,
   DEFAULT_WATERMARK_POSITION,
   renderPhotoWithWatermark,
+  type WatermarkCorner,
   type WatermarkFields,
   type WatermarkPhotoInput,
   type WatermarkPosition,
@@ -19,6 +20,14 @@ import {
 
 const POSITION_ROWS: WatermarkPosition["row"][] = [0, 1, 2, 3];
 const POSITION_COLS: WatermarkPosition["col"][] = [0, 1, 2, 3];
+
+const CORNER_OPTIONS: { label: string; value: WatermarkCorner }[] = [
+  { label: "Automatisch", value: "auto" },
+  { label: "Oben links", value: "top-left" },
+  { label: "Oben rechts", value: "top-right" },
+  { label: "Unten links", value: "bottom-left" },
+  { label: "Unten rechts", value: "bottom-right" },
+];
 
 function toWatermarkInput(photo: ProjectPhotoGalleryItem): WatermarkPhotoInput {
   return {
@@ -52,6 +61,8 @@ export function PhotoWatermarkDialog({
 }) {
   const [fields, setFields] = useState<WatermarkFields>(DEFAULT_WATERMARK_FIELDS);
   const [position, setPosition] = useState<WatermarkPosition>(DEFAULT_WATERMARK_POSITION);
+  const [compassPosition, setCompassPosition] = useState<WatermarkCorner>("auto");
+  const [mapPosition, setMapPosition] = useState<WatermarkCorner>("auto");
   const [opacity, setOpacity] = useState(1);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -82,10 +93,14 @@ export function PhotoWatermarkDialog({
         const parsed = JSON.parse(json) as {
           fields?: Partial<WatermarkFields>;
           position?: WatermarkPosition;
+          compassPosition?: WatermarkCorner;
+          mapPosition?: WatermarkCorner;
           opacity?: number;
         };
         if (parsed.fields) setFields((current) => ({ ...current, ...parsed.fields }));
         if (parsed.position) setPosition(parsed.position);
+        if (parsed.compassPosition) setCompassPosition(parsed.compassPosition);
+        if (parsed.mapPosition) setMapPosition(parsed.mapPosition);
         if (typeof parsed.opacity === "number") setOpacity(parsed.opacity);
       })
       .catch(() => undefined)
@@ -103,13 +118,13 @@ export function PhotoWatermarkDialog({
     if (!settingsLoaded) return;
 
     const timeout = setTimeout(() => {
-      savePhotoWatermarkSettings(JSON.stringify({ fields, opacity, position })).catch(
-        () => undefined,
-      );
+      savePhotoWatermarkSettings(
+        JSON.stringify({ compassPosition, fields, mapPosition, opacity, position }),
+      ).catch(() => undefined);
     }, 600);
 
     return () => clearTimeout(timeout);
-  }, [settingsLoaded, fields, position, opacity]);
+  }, [settingsLoaded, fields, position, compassPosition, mapPosition, opacity]);
 
   useEffect(() => {
     if (!fields.map || !hasLocationData || mapThumbnail) return;
@@ -131,7 +146,9 @@ export function PhotoWatermarkDialog({
 
       try {
         const blob = await renderPhotoWithWatermark({
+          compassPosition,
           fields,
+          mapPosition,
           mapThumbnailDataUrl: mapThumbnail,
           opacity,
           photo: toWatermarkInput(photo),
@@ -159,7 +176,7 @@ export function PhotoWatermarkDialog({
     return () => {
       cancelled = true;
     };
-  }, [photo, fields, position, mapThumbnail, opacity]);
+  }, [photo, fields, position, compassPosition, mapPosition, mapThumbnail, opacity]);
 
   useEffect(() => {
     return () => {
@@ -179,7 +196,9 @@ export function PhotoWatermarkDialog({
     setIsDownloading(true);
     try {
       const blob = await renderPhotoWithWatermark({
+        compassPosition,
         fields,
+        mapPosition,
         mapThumbnailDataUrl: mapThumbnail,
         opacity,
         photo: toWatermarkInput(photo),
@@ -303,13 +322,22 @@ export function PhotoWatermarkDialog({
                   label="PLZ / Ort"
                   onChange={() => toggleField("postalCity")}
                 />
-                <WatermarkFieldCheckbox
-                  checked={fields.compass}
-                  disabled={!hasCompassData}
-                  hint={!hasCompassData ? "Keine Ausrichtung im Foto hinterlegt" : undefined}
-                  label="Kompass / Ausrichtung"
-                  onChange={() => toggleField("compass")}
-                />
+                <div>
+                  <WatermarkFieldCheckbox
+                    checked={fields.compass}
+                    disabled={!hasCompassData}
+                    hint={!hasCompassData ? "Keine Ausrichtung im Foto hinterlegt" : undefined}
+                    label="Kompass / Ausrichtung"
+                    onChange={() => toggleField("compass")}
+                  />
+                  {fields.compass && hasCompassData ? (
+                    <WatermarkCornerSelect
+                      className="pl-6"
+                      onChange={setCompassPosition}
+                      value={compassPosition}
+                    />
+                  ) : null}
+                </div>
                 <WatermarkFieldCheckbox
                   checked={fields.altitude}
                   disabled={!hasAltitudeData}
@@ -335,12 +363,21 @@ export function PhotoWatermarkDialog({
                   label="Kameraeinstellungen"
                   onChange={() => toggleField("cameraSettings")}
                 />
-                <WatermarkFieldCheckbox
-                  checked={fields.map}
-                  disabled={!hasLocationData}
-                  label="Kartenausschnitt"
-                  onChange={() => toggleField("map")}
-                />
+                <div>
+                  <WatermarkFieldCheckbox
+                    checked={fields.map}
+                    disabled={!hasLocationData}
+                    label="Kartenausschnitt"
+                    onChange={() => toggleField("map")}
+                  />
+                  {fields.map && hasLocationData ? (
+                    <WatermarkCornerSelect
+                      className="pl-6"
+                      onChange={setMapPosition}
+                      value={mapPosition}
+                    />
+                  ) : null}
+                </div>
                 <div>
                   <WatermarkFieldCheckbox
                     checked={fields.uploaderName}
@@ -443,5 +480,29 @@ function WatermarkFieldCheckbox({
         {hint ? <span className="block text-xs text-gray-400">{hint}</span> : null}
       </span>
     </label>
+  );
+}
+
+function WatermarkCornerSelect({
+  className,
+  onChange,
+  value,
+}: {
+  className?: string;
+  onChange: (value: WatermarkCorner) => void;
+  value: WatermarkCorner;
+}) {
+  return (
+    <select
+      className={`mt-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 outline-none focus:border-gray-900 ${className ?? ""}`}
+      onChange={(event) => onChange(event.currentTarget.value as WatermarkCorner)}
+      value={value}
+    >
+      {CORNER_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
   );
 }

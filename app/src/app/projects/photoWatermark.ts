@@ -2,6 +2,22 @@ export type WatermarkPosition = { col: 0 | 1 | 2 | 3; row: 0 | 1 | 2 | 3 };
 
 export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = { col: 3, row: 0 };
 
+export type WatermarkCorner =
+  | "auto"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
+
+type ResolvedCorner = Exclude<WatermarkCorner, "auto">;
+
+const ALL_CORNERS: ResolvedCorner[] = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+];
+
 export type WatermarkFields = {
   date: boolean;
   time: boolean;
@@ -152,19 +168,44 @@ function drawCompassRose(
   headingDegrees: number,
 ) {
   ctx.save();
-  ctx.lineWidth = Math.max(1.5, radius * 0.04);
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
+
+  const dialGradient = ctx.createRadialGradient(
+    centerX,
+    centerY,
+    radius * 0.15,
+    centerX,
+    centerY,
+    radius,
+  );
+  dialGradient.addColorStop(0, "rgba(30,41,59,0.5)");
+  dialGradient.addColorStop(1, "rgba(15,23,42,0.78)");
   ctx.beginPath();
   ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.fillStyle = dialGradient;
   ctx.fill();
+  ctx.lineWidth = Math.max(1, radius * 0.05);
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
   ctx.stroke();
 
-  ctx.font = `${Math.round(radius * 0.32)}px sans-serif`;
+  // Tick marks every 30deg, longer + brighter at the four cardinal points.
+  for (let degrees = 0; degrees < 360; degrees += 30) {
+    const isCardinal = degrees % 90 === 0;
+    const rad = (degrees * Math.PI) / 180;
+    const outerR = radius * 0.93;
+    const innerR = isCardinal ? radius * 0.74 : radius * 0.83;
+    ctx.beginPath();
+    ctx.moveTo(centerX + Math.sin(rad) * outerR, centerY - Math.cos(rad) * outerR);
+    ctx.lineTo(centerX + Math.sin(rad) * innerR, centerY - Math.cos(rad) * innerR);
+    ctx.strokeStyle = isCardinal ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)";
+    ctx.lineWidth = isCardinal ? Math.max(1, radius * 0.05) : Math.max(0.75, radius * 0.025);
+    ctx.stroke();
+  }
+
+  ctx.font = `700 ${Math.round(radius * 0.3)}px "Segoe UI", Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  const labelRadius = radius * 0.72;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  const labelRadius = radius * 0.55;
   const labels: [string, number][] = [
     ["N", 0], ["O", 90], ["S", 180], ["W", 270],
   ];
@@ -177,26 +218,145 @@ function drawCompassRose(
     );
   }
 
-  // Needle points in the direction the photo was taken (0deg = North, up).
+  // Two-tone needle (teal tip = where the camera was pointing, pale tail)
+  // pivoting on a small center hub - the dial itself stays fixed (N is
+  // always up), only the needle rotates to the recorded heading.
   const headingRad = (headingDegrees * Math.PI) / 180;
-  const needleLength = radius * 0.62;
-  const tipX = centerX + Math.sin(headingRad) * needleLength;
-  const tipY = centerY - Math.cos(headingRad) * needleLength;
-  const backX = centerX - Math.sin(headingRad) * (needleLength * 0.35);
-  const backY = centerY + Math.cos(headingRad) * (needleLength * 0.35);
+  const tipLength = radius * 0.68;
+  const tailLength = radius * 0.5;
+  const width = radius * 0.09;
   const perpRad = headingRad + Math.PI / 2;
-  const spread = radius * 0.14;
+  const tipX = centerX + Math.sin(headingRad) * tipLength;
+  const tipY = centerY - Math.cos(headingRad) * tipLength;
+  const tailX = centerX - Math.sin(headingRad) * tailLength;
+  const tailY = centerY + Math.cos(headingRad) * tailLength;
+  const leftX = centerX + Math.sin(perpRad) * width;
+  const leftY = centerY - Math.cos(perpRad) * width;
+  const rightX = centerX - Math.sin(perpRad) * width;
+  const rightY = centerY + Math.cos(perpRad) * width;
+
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = Math.max(0.75, radius * 0.02);
+
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
-  ctx.lineTo(backX + Math.sin(perpRad) * spread, backY - Math.cos(perpRad) * spread);
-  ctx.lineTo(backX - Math.sin(perpRad) * spread, backY + Math.cos(perpRad) * spread);
+  ctx.lineTo(leftX, leftY);
+  ctx.lineTo(rightX, rightY);
   ctx.closePath();
   ctx.fillStyle = "#2dd4bf";
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.35)";
-  ctx.lineWidth = Math.max(1, radius * 0.02);
   ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tailX, tailY);
+  ctx.lineTo(leftX, leftY);
+  ctx.lineTo(rightX, rightY);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(241,245,249,0.92)";
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius * 0.09, 0, Math.PI * 2);
+  ctx.fillStyle = "#f8fafc";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = Math.max(0.75, radius * 0.02);
+  ctx.stroke();
+
   ctx.restore();
+}
+
+/** Static "N" + arrow in a map thumbnail's corner - the map tiles
+ * themselves are always north-up (see renderSiteMapImage), so this is
+ * just a fixed label affirming that, not something derived per-photo. */
+function drawMapNorthIndicator(
+  ctx: CanvasRenderingContext2D,
+  mapX: number,
+  mapY: number,
+  mapSize: number,
+) {
+  ctx.save();
+  const cx = mapX + mapSize * 0.16;
+  const baseY = mapY + mapSize * 0.28;
+  const tipY = mapY + mapSize * 0.09;
+
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = Math.max(1.5, mapSize * 0.022);
+  ctx.beginPath();
+  ctx.moveTo(cx, baseY);
+  ctx.lineTo(cx, tipY);
+  ctx.stroke();
+
+  const arrowWidth = mapSize * 0.05;
+  ctx.beginPath();
+  ctx.moveTo(cx, tipY - mapSize * 0.015);
+  ctx.lineTo(cx - arrowWidth, tipY + arrowWidth);
+  ctx.lineTo(cx + arrowWidth, tipY + arrowWidth);
+  ctx.closePath();
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = Math.max(1, mapSize * 0.012);
+  ctx.stroke();
+
+  ctx.font = `700 ${Math.round(mapSize * 0.13)}px "Segoe UI", Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.lineWidth = Math.max(1, mapSize * 0.018);
+  ctx.strokeText("N", cx, baseY + mapSize * 0.14);
+  ctx.fillText("N", cx, baseY + mapSize * 0.14);
+  ctx.restore();
+}
+
+function textOccupiedCorner(
+  position: WatermarkPosition,
+  hasText: boolean,
+): ResolvedCorner | null {
+  if (!hasText) return null;
+  const top = position.row <= 1;
+  const bottom = position.row >= 2;
+  if (top && position.col === 0) return "top-left";
+  if (top && position.col === 3) return "top-right";
+  if (bottom && position.col === 0) return "bottom-left";
+  if (bottom && position.col === 3) return "bottom-right";
+  return null;
+}
+
+/** Picks a corner for a graphic element (compass rose / map thumbnail):
+ * uses the user's chosen corner (or the built-in default for "auto") if
+ * it's free, otherwise the first remaining free corner, otherwise falls
+ * back to the preferred corner anyway (only happens if every corner is
+ * already spoken for). */
+function resolveCorner(
+  preferred: WatermarkCorner,
+  fallbackDefault: ResolvedCorner,
+  freeCorners: Set<ResolvedCorner>,
+): ResolvedCorner {
+  const wanted = preferred === "auto" ? fallbackDefault : preferred;
+  if (freeCorners.has(wanted)) return wanted;
+
+  for (const corner of ALL_CORNERS) {
+    if (freeCorners.has(corner)) return corner;
+  }
+
+  return wanted;
+}
+
+function cornerToXY(
+  corner: ResolvedCorner,
+  size: number,
+  padding: number,
+  canvasWidth: number,
+  canvasHeight: number,
+) {
+  return {
+    x: corner.endsWith("left") ? padding : canvasWidth - padding - size,
+    y: corner.startsWith("top") ? padding : canvasHeight - padding - size,
+  };
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -220,12 +380,16 @@ export async function renderPhotoWithWatermark({
   photo,
   fields,
   position,
+  compassPosition,
+  mapPosition,
   mapThumbnailDataUrl,
   opacity,
 }: {
   photo: WatermarkPhotoInput;
   fields: WatermarkFields;
   position: WatermarkPosition;
+  compassPosition?: WatermarkCorner;
+  mapPosition?: WatermarkCorner;
   mapThumbnailDataUrl?: string | null;
   opacity?: number;
 }): Promise<Blob> {
@@ -279,51 +443,37 @@ export async function renderPhotoWithWatermark({
     ctx.shadowBlur = 0;
   }
 
-  // The text block can land in either bottom corner depending on the
-  // chosen position - the compass rose and map thumbnail default to the
-  // bottom-left/bottom-right corner respectively, so whichever one would
-  // collide with the text picks the free corner instead. If text AND the
-  // other graphic already claimed both corners (all three enabled with
-  // text placed in a bottom cell), there's no free corner left at all -
-  // the map stacks above whichever corner the compass ended up in rather
-  // than drawing directly on top of it.
-  let leftCornerFree = !(lines.length > 0 && position.row >= 2 && position.col === 0);
-  let rightCornerFree = !(lines.length > 0 && position.row >= 2 && position.col === 3);
-  let compassOnLeft: boolean | null = null;
+  // Each graphic gets its own corner: the user's choice if given (or a
+  // sensible default for "auto"), falling back to whatever corner is
+  // still free if that one's already taken by the text block or the
+  // other graphic. With 4 corners and at most 3 things wanting one
+  // (text, compass, map), an actual overlap essentially never happens.
+  const freeCorners = new Set<ResolvedCorner>(ALL_CORNERS);
+  const textCorner = textOccupiedCorner(position, lines.length > 0);
+  if (textCorner) freeCorners.delete(textCorner);
 
-  const compassRadius = Math.round(Math.min(canvas.width, canvas.height) * 0.09);
+  const compassRadius = Math.round(Math.min(canvas.width, canvas.height) * 0.065);
   if (showCompassRose && typeof photo.gpsHeading === "number") {
-    compassOnLeft = leftCornerFree ? true : !rightCornerFree;
-    if (compassOnLeft) leftCornerFree = false;
-    else rightCornerFree = false;
-    drawCompassRose(
-      ctx,
-      compassOnLeft ? padding + compassRadius : canvas.width - padding - compassRadius,
-      canvas.height - padding - compassRadius,
-      compassRadius,
-      photo.gpsHeading,
-    );
+    const corner = resolveCorner(compassPosition ?? "auto", "bottom-left", freeCorners);
+    freeCorners.delete(corner);
+    const { x, y } = cornerToXY(corner, compassRadius * 2, padding, canvas.width, canvas.height);
+    drawCompassRose(ctx, x + compassRadius, y + compassRadius, compassRadius, photo.gpsHeading);
   }
 
   if (showMap && mapThumbnailDataUrl) {
-    const bothCornersTaken = !leftCornerFree && !rightCornerFree;
-    const mapOnRight = bothCornersTaken ? compassOnLeft === false : rightCornerFree;
-    if (!bothCornersTaken) {
-      if (mapOnRight) rightCornerFree = false;
-      else leftCornerFree = false;
-    }
+    const corner = resolveCorner(mapPosition ?? "auto", "bottom-right", freeCorners);
+    freeCorners.delete(corner);
     const mapImage = await loadImage(mapThumbnailDataUrl);
     const mapSize = Math.round(Math.min(canvas.width, canvas.height) * 0.22);
-    const mapX = mapOnRight ? canvas.width - padding - mapSize : padding;
-    const mapY = bothCornersTaken
-      ? canvas.height - padding - compassRadius * 2 - Math.round(mapSize * 0.08) - mapSize
-      : canvas.height - padding - mapSize;
+    const { x: mapX, y: mapY } = cornerToXY(corner, mapSize, padding, canvas.width, canvas.height);
     ctx.save();
     ctx.strokeStyle = "rgba(255,255,255,0.9)";
     ctx.lineWidth = Math.max(2, mapSize * 0.015);
     ctx.drawImage(mapImage, mapX, mapY, mapSize, mapSize);
     ctx.strokeRect(mapX, mapY, mapSize, mapSize);
     ctx.restore();
+
+    drawMapNorthIndicator(ctx, mapX, mapY, mapSize);
 
     // The map thumbnail is always centered on the photo's own GPS point
     // (see getPhotoMapThumbnail), so the standpoint marker just sits at
