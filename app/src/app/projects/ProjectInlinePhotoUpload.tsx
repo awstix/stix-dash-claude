@@ -58,6 +58,19 @@ export function ProjectInlinePhotoUpload({
     event.currentTarget.value = "";
   }
 
+  // pickerFiles/cameraFiles state is the single source of truth for what
+  // actually gets uploaded (not the native file input's own FileList), so
+  // removing an already-selected/captured photo before upload just means
+  // dropping it from state here - no DOM FileList surgery needed.
+  function removeSelectedFile(index: number) {
+    if (index < pickerFiles.length) {
+      setPickerFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    } else {
+      const cameraIndex = index - pickerFiles.length;
+      setCameraFiles((current) => current.filter((_, fileIndex) => fileIndex !== cameraIndex));
+    }
+  }
+
   function uploadPhotos(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (selectedFiles.length === 0) {
@@ -65,7 +78,8 @@ export function ProjectInlinePhotoUpload({
       return;
     }
     const formData = new FormData(event.currentTarget);
-    for (const file of cameraFiles) {
+    formData.delete("photos");
+    for (const file of selectedFiles) {
       formData.append("photos", file);
     }
     if (cameraGps) {
@@ -176,7 +190,7 @@ export function ProjectInlinePhotoUpload({
           </label>
         </div>
 
-        <ProjectPhotoNoteFields files={selectedFiles} />
+        <ProjectPhotoNoteFields files={selectedFiles} onRemove={removeSelectedFile} />
 
         <div className="flex flex-wrap gap-3">
           <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800">

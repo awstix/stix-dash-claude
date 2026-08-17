@@ -126,9 +126,11 @@ export function ProjectFileDropInput({
 
 export function ProjectPhotoNoteFields({
   files,
+  onRemove,
   tone = "white",
 }: {
   files: File[];
+  onRemove?: (index: number) => void;
   tone?: "gray" | "white";
 }) {
   if (files.length === 0) return null;
@@ -144,6 +146,7 @@ export function ProjectPhotoNoteFields({
             file={file}
             index={index}
             key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+            onRemove={onRemove}
             tone={tone}
           />
         ))}
@@ -155,10 +158,12 @@ export function ProjectPhotoNoteFields({
 function ProjectPhotoNoteField({
   file,
   index,
+  onRemove,
   tone,
 }: {
   file: File;
   index: number;
+  onRemove?: (index: number) => void;
   tone: "gray" | "white";
 }) {
   const [previewUrl] = useState(() => URL.createObjectURL(file));
@@ -168,11 +173,22 @@ function ProjectPhotoNoteField({
   }, [previewUrl]);
 
   return (
-    <label
-      className={`grid grid-cols-[88px_1fr] gap-3 rounded-lg border border-gray-200 p-3 text-xs font-semibold text-gray-800 ${
+    <div
+      className={`relative grid grid-cols-[88px_1fr] gap-3 rounded-lg border border-gray-200 p-3 text-xs font-semibold text-gray-800 ${
         tone === "gray" ? "bg-gray-50" : "bg-white"
       }`}
     >
+      {onRemove ? (
+        <button
+          aria-label={`${file.name} entfernen`}
+          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-red-50 hover:text-red-700"
+          onClick={() => onRemove(index)}
+          title="Aus Auswahl entfernen"
+          type="button"
+        >
+          ×
+        </button>
+      ) : null}
       <span className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
         <Image
           alt={`Vorschau ${file.name}`}
@@ -183,7 +199,7 @@ function ProjectPhotoNoteField({
           unoptimized
         />
       </span>
-      <span className="min-w-0">
+      <label className="min-w-0">
         <span className="block truncate" title={file.name}>
           {index + 1}. {file.name}
         </span>
@@ -192,7 +208,7 @@ function ProjectPhotoNoteField({
           name="photoNotes"
           placeholder="Notiz nur für dieses Foto"
         />
-      </span>
-    </label>
+      </label>
+    </div>
   );
 }
