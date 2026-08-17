@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ActionIcon } from "@/components/ActionIcon";
 import { ProjectMap } from "@/app/projects/ProjectMap";
 import {
@@ -47,6 +47,16 @@ export function DashboardGrid({
 }) {
   const [editing, setEditing] = useState(false);
   const [tiles, setTiles] = useState(initial);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    columnStepPx: number;
+    rowStepPx: number;
+    startClientX: number;
+    startClientY: number;
+    startGridX: number;
+    startGridY: number;
+  } | null>(null);
   const pinned = useMemo(() => new Set(tiles.map((tile) => tile.key)), [tiles]);
   const groupedAvailable = useMemo(() => {
     const groups = new Map<string, Map<string, Omit<Tile, "height" | "width" | "gridX" | "gridY">[]>>();
@@ -98,6 +108,103 @@ export function DashboardGrid({
           gridY: tile.gridY,
         };
       }
+      return next;
+    });
+  }
+
+  // Free-drag repositioning (in addition to the arrow buttons, which stay
+  // as a precise fallback). Grid column width is fractional/responsive,
+  // so the column step is measured from the grid container's own
+  // rendered width at drag-start rather than assumed - row height is
+  // fixed (112px + 16px gap) via `auto-rows-[112px] gap-4`.
+  function handleTilePointerDown(
+    event: React.PointerEvent<HTMLDivElement>,
+    index: number,
+  ) {
+    const containerRect = gridContainerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const tile = tiles[index];
+    dragRef.current = {
+      columnStepPx: (containerRect.width + 16) / 8,
+      rowStepPx: 112 + 16,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startGridX: tile.gridX,
+      startGridY: tile.gridY,
+    };
+    setDraggingIndex(index);
+  }
+
+  function handleTilePointerMove(
+    event: React.PointerEvent<HTMLDivElement>,
+    index: number,
+  ) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    event.stopPropagation();
+
+    const tile = tiles[index];
+    const deltaCols = Math.round(
+      (event.clientX - drag.startClientX) / drag.columnStepPx,
+    );
+    const deltaRows = Math.round(
+      (event.clientY - drag.startClientY) / drag.rowStepPx,
+    );
+    const nextGridX = Math.min(
+      8 - tile.width,
+      Math.max(0, drag.startGridX + deltaCols),
+    );
+    const nextGridY = Math.max(0, drag.startGridY + deltaRows);
+    if (nextGridX === tile.gridX && nextGridY === tile.gridY) return;
+
+    change(index, { gridX: nextGridX, gridY: nextGridY });
+  }
+
+  // On drop: a single overlapping tile swaps places (mirrors the arrow
+  // buttons' existing collision behaviour exactly); overlapping more than
+  // one tile has no clean single-swap answer, so the dragged tile just
+  // snaps back to where it started instead of guessing a reflow.
+  function handleTilePointerUp(
+    event: React.PointerEvent<HTMLDivElement>,
+    index: number,
+  ) {
+    const drag = dragRef.current;
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setDraggingIndex(null);
+    if (!drag) return;
+
+    setTiles((current) => {
+      const tile = current[index];
+      const collisions = current.filter(
+        (other, otherIndex) =>
+          otherIndex !== index &&
+          tile.gridX < other.gridX + other.width &&
+          tile.gridX + tile.width > other.gridX &&
+          tile.gridY < other.gridY + other.height &&
+          tile.gridY + tile.height > other.gridY,
+      );
+
+      if (collisions.length === 0) return current;
+
+      const next = [...current];
+      if (collisions.length === 1) {
+        const collidedIndex = current.indexOf(collisions[0]);
+        next[collidedIndex] = {
+          ...collisions[0],
+          gridX: Math.min(8 - collisions[0].width, drag.startGridX),
+          gridY: drag.startGridY,
+        };
+        return next;
+      }
+
+      next[index] = { ...tile, gridX: drag.startGridX, gridY: drag.startGridY };
       return next;
     });
   }
@@ -177,10 +284,17 @@ export function DashboardGrid({
           </div>
         ) : null}
 
-        <div className="grid auto-flow-row-dense auto-rows-[112px] grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-8">
+        <div
+          className="grid auto-flow-row-dense auto-rows-[112px] grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-8"
+          ref={gridContainerRef}
+        >
           {tiles.map((tile, index) => (
             <article
-              className="dashboard-grid-tile relative overflow-hidden rounded-2xl border border-gray-300 bg-white p-4 text-gray-950 shadow-sm"
+              className={`dashboard-grid-tile relative overflow-hidden rounded-2xl border bg-white p-4 text-gray-950 shadow-sm ${
+                draggingIndex === index
+                  ? "z-20 border-gray-900 shadow-xl"
+                  : "border-gray-300"
+              }`}
               key={tile.key}
               style={{
                 "--dashboard-column": tile.gridX + 1,
@@ -195,7 +309,15 @@ export function DashboardGrid({
                     {tile.title}
                   </div>
                   <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
-                    <ActionIcon className="mx-1 h-4 w-4" name="move" />
+                    <div
+                      className="touch-none cursor-grab rounded-md p-1 active:cursor-grabbing"
+                      onPointerDown={(event) => handleTilePointerDown(event, index)}
+                      onPointerMove={(event) => handleTilePointerMove(event, index)}
+                      onPointerUp={(event) => handleTilePointerUp(event, index)}
+                      title="Ziehen, um die Kachel frei zu platzieren"
+                    >
+                      <ActionIcon className="mx-1 h-4 w-4" name="move" />
+                    </div>
                     <button className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-base shadow-sm hover:bg-gray-200" onClick={() => moveOnGrid(index, -1, 0)} type="button" title="Kachel nach links">
                       ←
                     </button>
