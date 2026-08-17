@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   DEFAULT_INVENTORY_LABEL_BLOCKS,
   INVENTORY_LABEL_BLOCKS,
@@ -412,6 +412,7 @@ export function InventoryLabelTemplateEditor({
             </section>
 
             <LabelCanvas
+              activeBlockKey={activeBlockKey}
               blocks={enabledBlocks}
               codeType={codeType}
               companyLogoUrl={companyLogoUrl}
@@ -430,6 +431,7 @@ export function InventoryLabelTemplateEditor({
               previewWidth={previewWidth}
               setDraggedBlockKey={setDraggedBlockKey}
               showBorder={showBorder}
+              updateBlock={updateBlock}
             />
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -780,6 +782,7 @@ export function InventoryLabelTemplateEditor({
 }
 
 function LabelCanvas({
+  activeBlockKey,
   blocks,
   columnCount,
   codeType,
@@ -798,7 +801,9 @@ function LabelCanvas({
   minimumColumnCount,
   setDraggedBlockKey,
   showBorder,
+  updateBlock,
 }: {
+  activeBlockKey: InventoryLabelBlock["key"] | null;
   blocks: InventoryLabelBlock[];
   columnCount: number;
   codeType: string;
@@ -817,6 +822,10 @@ function LabelCanvas({
   rowCount: number;
   setDraggedBlockKey: (key: InventoryLabelBlock["key"] | null) => void;
   showBorder: boolean;
+  updateBlock: (
+    key: InventoryLabelBlock["key"],
+    patch: Partial<InventoryLabelBlock>,
+  ) => void;
 }) {
   const rowIndexes = Array.from({ length: rowCount }, (_, index) => index + 1);
   const colIndexes = Array.from({ length: columnCount }, (_, index) => index + 1);
@@ -896,13 +905,19 @@ function LabelCanvas({
           {blocks.map((block) => (
             <PlacedBlock
               block={block}
+              cellHeightPx={(previewHeight * previewScale) / rowCount}
+              cellWidthPx={(previewWidth * previewScale) / columnCount}
               codeType={codeType}
               columnCount={columnCount}
               companyLogoUrl={companyLogoUrl}
+              isActive={block.key === activeBlockKey}
               item={item}
               key={block.key}
+              maxColumnCount={columnCount}
+              maxRowCount={rowCount}
               onSelectBlock={onSelectBlock}
               setDraggedBlockKey={setDraggedBlockKey}
+              updateBlock={updateBlock}
             />
           ))}
         </div>
@@ -913,134 +928,203 @@ function LabelCanvas({
 
 function PlacedBlock({
   block,
+  cellHeightPx,
+  cellWidthPx,
   codeType,
   columnCount,
   companyLogoUrl,
+  isActive,
   item,
+  maxColumnCount,
+  maxRowCount,
   onSelectBlock,
   setDraggedBlockKey,
+  updateBlock,
 }: {
   block: InventoryLabelBlock;
+  cellHeightPx: number;
+  cellWidthPx: number;
   codeType: string;
   columnCount: number;
   companyLogoUrl: string | null;
+  isActive: boolean;
   item: (InventoryLabelItem & { id: string }) | null;
+  maxColumnCount: number;
+  maxRowCount: number;
   onSelectBlock: (key: InventoryLabelBlock["key"]) => void;
   setDraggedBlockKey: (key: InventoryLabelBlock["key"] | null) => void;
+  updateBlock: (
+    key: InventoryLabelBlock["key"],
+    patch: Partial<InventoryLabelBlock>,
+  ) => void;
 }) {
   const meta = getInventoryLabelBlockMeta(block.key);
   const value = item ? getInventoryLabelValue(item, block.key) : "";
 
   if (!meta) return null;
 
-  if (isInventoryLabelSpacerBlock(block.key)) {
-    return (
-      <button
-        className="z-10 flex cursor-grab items-center justify-center overflow-hidden rounded border border-dashed border-amber-400 bg-amber-50/80 px-2 py-1 text-[10px] font-black uppercase text-amber-700 active:cursor-grabbing"
-        draggable
-        onClick={() => onSelectBlock(block.key)}
-        onDragEnd={() => setDraggedBlockKey(null)}
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          setDraggedBlockKey(block.key);
-        }}
-        style={getGridPlacement(block, columnCount)}
-        type="button"
-      >
-        Abstand
-        {block.widthMm ? ` · ${formatMillimetersAsCentimeters(block.widthMm)} cm` : ""}
-      </button>
-    );
-  }
+  const isSpacer = isInventoryLabelSpacerBlock(block.key);
+  const isLogo = block.key === "companyLogo";
+  const isCode = block.key === "code";
 
-  if (block.key === "companyLogo") {
-    return (
-      <button
-        className="z-10 flex cursor-grab items-center justify-center overflow-hidden bg-white active:cursor-grabbing"
-        draggable
-        onClick={() => onSelectBlock(block.key)}
-        onDragEnd={() => setDraggedBlockKey(null)}
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          setDraggedBlockKey(block.key);
-        }}
-        style={getGridPlacement(block, columnCount)}
-        type="button"
-      >
-        {companyLogoUrl ? (
-          <img
-            alt="Firmenlogo"
-            className="h-full max-h-full w-full max-w-full object-contain"
-            src={companyLogoUrl}
-          />
-        ) : (
-          <span className="text-center text-[10px] font-black text-gray-400">
-            Firmenlogo
-          </span>
-        )}
-      </button>
-    );
-  }
+  const buttonClassName = isSpacer
+    ? "z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden rounded border border-dashed border-amber-400 bg-amber-50/80 px-2 py-1 text-[10px] font-black uppercase text-amber-700 active:cursor-grabbing"
+    : isLogo || isCode
+      ? "z-10 flex h-full w-full cursor-grab items-center justify-center overflow-hidden bg-white active:cursor-grabbing"
+      : `z-10 h-full w-full cursor-grab overflow-hidden bg-white px-1 py-0.5 leading-tight active:cursor-grabbing ${getTextAlignClass(
+          block.align,
+        )} ${getTextStyleClass(block)} ${
+          block.underline ? "underline underline-offset-2" : ""
+        } ${block.widthAuto ? "whitespace-nowrap" : "break-words"} ${getPreviewTextClass(
+          block.size,
+        )}`;
 
-  if (block.key === "code") {
-    return (
-      <button
-        className="z-10 flex cursor-grab items-center justify-center overflow-hidden bg-white active:cursor-grabbing"
-        draggable
-        onClick={() => onSelectBlock(block.key)}
-        onDragEnd={() => setDraggedBlockKey(null)}
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          setDraggedBlockKey(block.key);
-        }}
-        style={getGridPlacement(block, columnCount)}
-        type="button"
-      >
-        {item ? (
-          <img
-            alt="Code-Vorschau"
-            className="h-full max-h-full w-auto max-w-full object-contain"
-            src={`/inventory/${item.id}/qr${
-              codeType === "QR" ? "?type=qr" : "?type=datamatrix"
-            }`}
-          />
-        ) : (
-          <span className="text-xs font-black text-gray-400">
-            {codeType === "QR" ? "QR" : "ECC200"}
-          </span>
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <button
-      className={`z-10 cursor-grab overflow-hidden bg-white px-1 py-0.5 leading-tight active:cursor-grabbing ${getTextAlignClass(
-        block.align,
-      )} ${getTextStyleClass(block)} ${
-        block.underline ? "underline underline-offset-2" : ""
-      } ${
-        block.widthAuto ? "whitespace-nowrap" : "break-words"
-      } ${getPreviewTextClass(
-        block.size,
-      )}`}
-      draggable
-      onClick={() => onSelectBlock(block.key)}
-      onDragEnd={() => setDraggedBlockKey(null)}
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
-        setDraggedBlockKey(block.key);
-      }}
-      style={getGridPlacement(block, columnCount)}
-      type="button"
-    >
+  const content = isSpacer ? (
+    <>
+      Abstand
+      {block.widthMm ? ` · ${formatMillimetersAsCentimeters(block.widthMm)} cm` : ""}
+    </>
+  ) : isLogo ? (
+    companyLogoUrl ? (
+      <img
+        alt="Firmenlogo"
+        className="h-full max-h-full w-full max-w-full object-contain"
+        src={companyLogoUrl}
+      />
+    ) : (
+      <span className="text-center text-[10px] font-black text-gray-400">
+        Firmenlogo
+      </span>
+    )
+  ) : isCode ? (
+    item ? (
+      <img
+        alt="Code-Vorschau"
+        className="h-full max-h-full w-auto max-w-full object-contain"
+        src={`/inventory/${item.id}/qr${
+          codeType === "QR" ? "?type=qr" : "?type=datamatrix"
+        }`}
+      />
+    ) : (
+      <span className="text-xs font-black text-gray-400">
+        {codeType === "QR" ? "QR" : "ECC200"}
+      </span>
+    )
+  ) : (
+    <>
       {block.labelVisible && value ? (
         <span className="mr-1 text-[0.65em] font-semibold uppercase text-gray-950">
           {meta.label}:
         </span>
       ) : null}
       {value}
-    </button>
+    </>
+  );
+
+  return (
+    <div className="relative" style={getGridPlacement(block, columnCount)}>
+      <button
+        className={buttonClassName}
+        draggable
+        onClick={() => onSelectBlock(block.key)}
+        onDragEnd={() => setDraggedBlockKey(null)}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          setDraggedBlockKey(block.key);
+        }}
+        style={block.rotation ? { transform: `rotate(${block.rotation}deg)` } : undefined}
+        type="button"
+      >
+        {content}
+      </button>
+      {isActive ? (
+        <>
+          <ResizeHandle
+            axis="width"
+            cellSizePx={cellWidthPx}
+            max={maxColumnCount - block.col + 1}
+            min={1}
+            onResize={(nextWidth) =>
+              updateBlock(block.key, { width: nextWidth, widthAuto: false })
+            }
+            startValue={block.width}
+          />
+          <ResizeHandle
+            axis="height"
+            cellSizePx={cellHeightPx}
+            max={maxRowCount - block.row + 1}
+            min={1}
+            onResize={(nextHeight) => updateBlock(block.key, { height: nextHeight })}
+            startValue={block.height}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Drag handle on the active block's right (width/colspan) or bottom
+ * (height/rowspan) edge in the live canvas - an alternative to typing
+ * numbers into the "Zellen/Zeilen verbinden" fields. Uses pointer capture
+ * so the drag keeps tracking even once the cursor leaves the handle's own
+ * (thin) hit area. Computes the new span from the ORIGINAL value at
+ * pointer-down plus the total movement so far, not incrementally, so
+ * re-renders mid-drag can't cause runaway or lagging values. */
+function ResizeHandle({
+  axis,
+  cellSizePx,
+  max,
+  min,
+  onResize,
+  startValue,
+}: {
+  axis: "height" | "width";
+  cellSizePx: number;
+  max: number;
+  min: number;
+  onResize: (value: number) => void;
+  startValue: number;
+}) {
+  const dragRef = useRef<{ startClient: number; startValue: number } | null>(null);
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      startClient: axis === "width" ? event.clientX : event.clientY,
+      startValue,
+    };
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current || !cellSizePx) return;
+    event.stopPropagation();
+    const current = axis === "width" ? event.clientX : event.clientY;
+    const deltaUnits = Math.round((current - dragRef.current.startClient) / cellSizePx);
+    const nextValue = Math.min(max, Math.max(min, dragRef.current.startValue + deltaUnits));
+    onResize(nextValue);
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    event.stopPropagation();
+    dragRef.current = null;
+  }
+
+  return (
+    <div
+      className={
+        axis === "width"
+          ? "absolute right-0 top-0 z-20 h-full w-2.5 cursor-col-resize touch-none rounded-r bg-blue-500/0 hover:bg-blue-500/50"
+          : "absolute bottom-0 left-0 z-20 h-2.5 w-full cursor-row-resize touch-none rounded-b bg-blue-500/0 hover:bg-blue-500/50"
+      }
+      draggable={false}
+      onDragStart={(event) => event.preventDefault()}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      title={axis === "width" ? "Breite ziehen" : "Höhe ziehen"}
+    />
   );
 }
 
@@ -1101,7 +1185,6 @@ function getGridPlacement(block: InventoryLabelBlock, columnCount: number) {
   return {
     gridColumn: `${block.col} / span ${width}`,
     gridRow: `${block.row} / span ${block.height}`,
-    ...(block.rotation ? { transform: `rotate(${block.rotation}deg)` } : {}),
   };
 }
 
