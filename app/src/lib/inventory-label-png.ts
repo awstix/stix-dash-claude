@@ -8,6 +8,7 @@ import {
   calculateInventoryLabelLength,
   getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
+  getInventoryLabelColumnWidthsMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   type InventoryLabelBlock,
@@ -95,8 +96,39 @@ async function createLabelSvg(input: {
     20,
     heightPx - paddingPx * 2 - gapPx * Math.max(0, input.rowCount - 1),
   );
-  const cellWidthPx = innerWidthPx / Math.max(1, input.columnCount);
   const cellHeightPx = innerHeightPx / Math.max(1, input.rowCount);
+  // Columns pinned via a block's "Breite cm" (widthMm) get their exact
+  // pixel width; the remaining space is split evenly among the flexible
+  // columns, mirroring the same math used in the editor and print page.
+  const columnWidthsMm = getInventoryLabelColumnWidthsMm(
+    input.blocks,
+    input.columnCount,
+  );
+  const fixedWidthPxTotal = columnWidthsMm.reduce(
+    (total: number, widthMm) => total + (widthMm !== null ? widthMm * PIXELS_PER_MM : 0),
+    0,
+  );
+  const flexColumnCount = columnWidthsMm.filter((widthMm) => widthMm === null).length;
+  const flexColumnWidthPx =
+    flexColumnCount > 0
+      ? Math.max(0, innerWidthPx - fixedWidthPxTotal) / flexColumnCount
+      : 0;
+  const columnWidthsPx = columnWidthsMm.map((widthMm) =>
+    widthMm !== null ? widthMm * PIXELS_PER_MM : flexColumnWidthPx,
+  );
+  const columnOffsetsPx: number[] = [];
+  let columnCursorPx = paddingPx;
+  for (const columnWidthPx of columnWidthsPx) {
+    columnOffsetsPx.push(columnCursorPx);
+    columnCursorPx += columnWidthPx + gapPx;
+  }
+  const getColumnSpanWidthPx = (col: number, span: number) => {
+    let total = 0;
+    for (let index = 0; index < span; index += 1) {
+      total += columnWidthsPx[col - 1 + index] ?? flexColumnWidthPx;
+    }
+    return total + Math.max(0, span - 1) * gapPx;
+  };
   const objects = await Promise.all(
     input.blocks.map(async (block) => {
       if (isInventoryLabelSpacerBlock(block.key)) return "";
@@ -107,8 +139,8 @@ async function createLabelSvg(input: {
       );
       const box = {
         height: Math.max(2, block.height * cellHeightPx),
-        width: Math.max(2, width * cellWidthPx + Math.max(0, width - 1) * gapPx),
-        x: paddingPx + (block.col - 1) * (cellWidthPx + gapPx),
+        width: Math.max(2, getColumnSpanWidthPx(block.col, width)),
+        x: columnOffsetsPx[block.col - 1] ?? paddingPx,
         y: paddingPx + (block.row - 1) * (cellHeightPx + gapPx),
       };
       // Content is laid out normally within its box, then the whole

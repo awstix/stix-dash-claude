@@ -2,6 +2,7 @@ import {
   calculateInventoryLabelLength,
   getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
+  getInventoryLabelColumnWidthsMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   type InventoryLabelBlock,
@@ -83,8 +84,40 @@ function createLabelXml(input: {
     6,
     input.tapeWidthMm - marginMm * 2 - gapMm * Math.max(0, input.rowCount - 1),
   );
-  const cellWidthMm = innerWidthMm / Math.max(1, input.columnCount);
   const cellHeightMm = innerHeightMm / Math.max(1, input.rowCount);
+  // Columns pinned via a block's "Breite cm" (widthMm) get their exact
+  // width; the remaining space is split evenly among the flexible
+  // columns, mirroring the same math used in the editor, print page and
+  // PNG export.
+  const columnWidthsMm = getInventoryLabelColumnWidthsMm(
+    input.blocks,
+    input.columnCount,
+  );
+  const fixedWidthMmTotal = columnWidthsMm.reduce(
+    (total: number, widthMm) => total + (widthMm ?? 0),
+    0,
+  );
+  const flexColumnCount = columnWidthsMm.filter((widthMm) => widthMm === null).length;
+  const flexColumnWidthMm =
+    flexColumnCount > 0
+      ? Math.max(0, innerWidthMm - fixedWidthMmTotal) / flexColumnCount
+      : 0;
+  const resolvedColumnWidthsMm = columnWidthsMm.map((widthMm) =>
+    widthMm !== null ? widthMm : flexColumnWidthMm,
+  );
+  const columnOffsetsMm: number[] = [];
+  let columnCursorMm = marginMm;
+  for (const columnWidthMm of resolvedColumnWidthsMm) {
+    columnOffsetsMm.push(columnCursorMm);
+    columnCursorMm += columnWidthMm + gapMm;
+  }
+  const getColumnSpanWidthMm = (col: number, span: number) => {
+    let total = 0;
+    for (let index = 0; index < span; index += 1) {
+      total += resolvedColumnWidthsMm[col - 1 + index] ?? flexColumnWidthMm;
+    }
+    return total + Math.max(0, span - 1) * gapMm;
+  };
   const objects = input.blocks
     .map((block, index) => {
       if (isInventoryLabelSpacerBlock(block.key)) return "";
@@ -95,8 +128,8 @@ function createLabelXml(input: {
       );
       const box = {
         height: Math.max(2, block.height * cellHeightMm),
-        width: Math.max(2, width * cellWidthMm + Math.max(0, width - 1) * gapMm),
-        x: marginMm + (block.col - 1) * (cellWidthMm + gapMm),
+        width: Math.max(2, getColumnSpanWidthMm(block.col, width)),
+        x: columnOffsetsMm[block.col - 1] ?? marginMm,
         y: marginMm + (block.row - 1) * (cellHeightMm + gapMm),
       };
 

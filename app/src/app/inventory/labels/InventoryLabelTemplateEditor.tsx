@@ -11,6 +11,7 @@ import {
   calculateInventoryLabelLength,
   getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
+  getInventoryLabelColumnWidthsMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   isInventoryLabelTextBlock,
@@ -892,6 +893,14 @@ function LabelCanvas({
 }) {
   const rowIndexes = Array.from({ length: rowCount }, (_, index) => index + 1);
   const colIndexes = Array.from({ length: columnCount }, (_, index) => index + 1);
+  // A single-column block with an explicit "Breite cm" pins its own
+  // column to that fixed width (converted to the canvas's own scaled-up
+  // px, matching how everything else here is sized) instead of sharing
+  // the label equally with the rest.
+  const columnWidthsMm = getInventoryLabelColumnWidthsMm(blocks, columnCount);
+  const gridTemplateColumns = columnWidthsMm
+    .map((widthMm) => (widthMm !== null ? `${widthMm * previewScale}px` : "minmax(0,1fr)"))
+    .join(" ");
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -949,7 +958,7 @@ function LabelCanvas({
           onPointerUp={onEndCellSelection}
           style={{
             gap: `${gapMm * previewScale}px`,
-            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+            gridTemplateColumns,
             gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,
             height: `${previewHeight * previewScale}px`,
             width: `${previewWidth * previewScale}px`,

@@ -6,6 +6,7 @@ import {
   calculateInventoryLabelLength,
   getEffectiveInventoryLabelBlockWidth,
   getInventoryLabelBlockMeta,
+  getInventoryLabelColumnWidthsMm,
   getInventoryLabelValue,
   isInventoryLabelSpacerBlock,
   parseInventoryLabelBlocks,
@@ -104,6 +105,12 @@ export default async function InventoryItemLabelPage({
     selectedTemplate?.orientation === "PORTRAIT"
       ? effectiveLabelLength
       : selectedTemplate?.tapeWidthMm ?? 24;
+  const columnWidthsMm = selectedTemplate
+    ? getInventoryLabelColumnWidthsMm(blocks, selectedTemplate.columnCount)
+    : [];
+  const gridTemplateColumns = columnWidthsMm
+    .map((widthMm) => (widthMm !== null ? `${widthMm}mm` : "minmax(0,1fr)"))
+    .join(" ");
 
   return (
     <AppShell
@@ -207,7 +214,7 @@ export default async function InventoryItemLabelPage({
               }`}
               style={{
                 gap: `${selectedTemplate.gapMm}mm`,
-                gridTemplateColumns: `repeat(${selectedTemplate.columnCount}, minmax(0, 1fr))`,
+                gridTemplateColumns,
                 gridTemplateRows: `repeat(${selectedTemplate.rowCount}, minmax(0, 1fr))`,
                 height: `${labelHeight}mm`,
                 width: `${labelWidth}mm`,

@@ -485,6 +485,31 @@ export function getInventoryStatusLabel(status: string | null | undefined) {
   return "Aktiv";
 }
 
+/** A single-column block with an explicit "Breite cm" pins its own
+ * column to that fixed mm width instead of sharing the label equally
+ * with the rest - e.g. a rotated logo that only needs to be narrow.
+ * Multi-column blocks don't participate (there's no unambiguous way to
+ * split one widthMm across several physical columns), so their columns
+ * stay flexible. */
+export function getInventoryLabelColumnWidthsMm(
+  blocks: InventoryLabelBlock[],
+  columnCount: number,
+): (number | null)[] {
+  const widths: (number | null)[] = Array.from({ length: columnCount }, () => null);
+
+  for (const block of blocks) {
+    if (!block.enabled || block.width !== 1) continue;
+    if (!block.widthMm || block.widthMm <= 0) continue;
+
+    const index = block.col - 1;
+    if (index < 0 || index >= columnCount) continue;
+
+    widths[index] = Math.max(widths[index] ?? 0, block.widthMm);
+  }
+
+  return widths;
+}
+
 export function calculateInventoryLabelLength(
   blocks: InventoryLabelBlock[],
   item?: InventoryLabelItem | null,
@@ -498,6 +523,7 @@ export function calculateInventoryLabelLength(
     return 35;
   }
 
+  const columnWidthsMm = getInventoryLabelColumnWidthsMm(enabledBlocks, columnCount);
   const rightMostColumnLength = enabledBlocks.reduce(
     (max, block) =>
       Math.max(max, block.col + getEffectiveInventoryLabelBlockWidth(block, columnCount) - 1),
@@ -508,17 +534,31 @@ export function calculateInventoryLabelLength(
     0,
   );
   const contentLength = enabledBlocks.reduce((max, block) => {
+    // A block sitting entirely inside a column that's been pinned to a
+    // fixed mm width doesn't need the uniform-division estimate below -
+    // its required length is simply "everything before it, plus its own
+    // fixed width", known exactly rather than guessed.
+    const ownColumnFixedWidthMm =
+      block.width === 1 ? columnWidthsMm[block.col - 1] : null;
+    if (ownColumnFixedWidthMm !== null) {
+      return Math.max(
+        max,
+        getColumnOffsetEstimateMm(block.col, columnWidthsMm) + ownColumnFixedWidthMm,
+      );
+    }
+
     if (isInventoryLabelSpacerBlock(block.key)) {
       return Math.max(
         max,
-        getColumnOffsetEstimateMm(block.col) + getRequiredBlockWidthMm(block, 8),
+        getColumnOffsetEstimateMm(block.col, columnWidthsMm) +
+          getRequiredBlockWidthMm(block, 8),
       );
     }
 
     if (block.key === "code" || block.key === "companyLogo") {
       return Math.max(
         max,
-        getRequiredVisualBlockLength(block, columnCount, tapeWidthMm, rowCount),
+        getRequiredVisualBlockLength(block, columnCount, tapeWidthMm, rowCount, columnWidthsMm),
       );
     }
 
@@ -534,7 +574,7 @@ export function calculateInventoryLabelLength(
         1.52;
     const requiredCellWidthMm = getRequiredBlockWidthMm(block, neededCellWidthMm);
     const effectiveWidth = getEffectiveInventoryLabelBlockWidth(block, columnCount);
-    const leftOffsetMm = getColumnOffsetEstimateMm(block.col);
+    const leftOffsetMm = getColumnOffsetEstimateMm(block.col, columnWidthsMm);
     const requiredTotalLengthForCell =
       (requiredCellWidthMm * Math.max(1, columnCount)) /
         Math.max(1, effectiveWidth) +
@@ -583,6 +623,7 @@ function getRequiredVisualBlockLength(
   columnCount: number,
   tapeWidthMm: number,
   rowCount: number,
+  columnWidthsMm: (number | null)[],
 ) {
   const rows = Math.max(1, rowCount);
   const blockHeightShare = Math.min(rows, Math.max(1, block.height)) / rows;
@@ -595,7 +636,7 @@ function getRequiredVisualBlockLength(
   return (
     (requiredBlockWidthMm * Math.max(1, columnCount)) /
       Math.max(1, effectiveWidth) +
-    getColumnOffsetEstimateMm(block.col)
+    getColumnOffsetEstimateMm(block.col, columnWidthsMm)
   );
 }
 
@@ -608,8 +649,12 @@ function getRequiredBlockWidthMm(
     : fallbackWidthMm;
 }
 
-function getColumnOffsetEstimateMm(col: number) {
-  return Math.max(0, col - 1) * 16;
+function getColumnOffsetEstimateMm(col: number, columnWidthsMm: (number | null)[]) {
+  let total = 0;
+  for (let index = 0; index < col - 1; index += 1) {
+    total += columnWidthsMm[index] ?? 16;
+  }
+  return total;
 }
 
 export function getEffectiveInventoryLabelBlockWidth(
