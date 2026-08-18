@@ -15,6 +15,19 @@ type HourEntryOption = {
   totalHours: string;
 };
 
+export type DetailEntryEditValues = {
+  id: string;
+  costType: string;
+  description: string;
+  entryDate: string;
+  notes: string;
+  quantity: string;
+  status: string;
+  unit: string;
+  unitPrice: string;
+  utilizationPercent: string;
+};
+
 const costTypes = ["Lohn", "Material", "Geräte", "Nachunternehmer", "Sonstiges"];
 const units = ["h", "Stk.", "m", "m²", "m³", "t", "pauschal", "€"];
 const entryStatuses = ["geschätzt", "geprüft", "gebucht", "offen", "erledigt"];
@@ -26,23 +39,32 @@ const primaryButtonClassName =
 
 export function DetailEntryForm({
   action,
+  cancelHref,
+  editingEntry,
   equipmentOptions,
   hourEntryOptions,
   projectId,
   reportId,
+  updateAction,
 }: {
   action: (formData: FormData) => Promise<void>;
+  cancelHref?: string;
+  editingEntry?: DetailEntryEditValues | null;
   equipmentOptions: EquipmentOption[];
   hourEntryOptions: HourEntryOption[];
   projectId: string;
   reportId: string;
+  updateAction: (formData: FormData) => Promise<void>;
 }) {
-  const [costType, setCostType] = useState(costTypes[0]);
-  const [description, setDescription] = useState("");
-  const [unit, setUnit] = useState(units[0]);
-  const [quantity, setQuantity] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [status, setStatus] = useState(entryStatuses[0]);
+  const [costType, setCostType] = useState(editingEntry?.costType ?? costTypes[0]);
+  const [description, setDescription] = useState(editingEntry?.description ?? "");
+  const [unit, setUnit] = useState(editingEntry?.unit ?? units[0]);
+  const [quantity, setQuantity] = useState(editingEntry?.quantity ?? "");
+  const [unitPrice, setUnitPrice] = useState(editingEntry?.unitPrice ?? "");
+  const [utilizationPercent, setUtilizationPercent] = useState(
+    editingEntry?.utilizationPercent ?? "100",
+  );
+  const [status, setStatus] = useState(editingEntry?.status ?? entryStatuses[0]);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [showEquipmentList, setShowEquipmentList] = useState(false);
 
@@ -85,8 +107,18 @@ export function DetailEntryForm({
     setUnit("h");
   }
 
+  const previewAmount =
+    (parseGermanNumber(quantity) * parseGermanNumber(unitPrice) * parseGermanNumber(utilizationPercent)) /
+    100;
+
   return (
-    <form action={action} className="mt-4 grid gap-3 md:grid-cols-2">
+    <form
+      action={editingEntry ? updateAction : action}
+      className="mt-4 grid gap-3 md:grid-cols-2"
+    >
+      {editingEntry ? (
+        <input name="id" type="hidden" value={editingEntry.id} />
+      ) : null}
       <input name="reportId" type="hidden" value={reportId} />
       <input name="projectId" type="hidden" value={projectId} />
 
@@ -144,7 +176,7 @@ export function DetailEntryForm({
       <Field label="Datum">
         <input
           className={inputClassName}
-          defaultValue={formatInputDate(new Date())}
+          defaultValue={editingEntry?.entryDate ?? formatInputDate(new Date())}
           name="entryDate"
           type="date"
         />
@@ -219,6 +251,24 @@ export function DetailEntryForm({
           value={unitPrice}
         />
       </Field>
+      <Field label="Anteil % (für Gesamtkosten, z.B. bei Teilauslastung)">
+        <input
+          className={inputClassName}
+          name="utilizationPercent"
+          onChange={(event) => setUtilizationPercent(event.target.value)}
+          placeholder="100"
+          value={utilizationPercent}
+        />
+      </Field>
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        Betrag: <strong>{formatMoneyPreview(previewAmount)} €</strong>
+        {utilizationPercent && utilizationPercent !== "100" ? (
+          <span>
+            {" "}
+            (Menge {quantity || 0} × Satz {unitPrice || 0} × {utilizationPercent}%)
+          </span>
+        ) : null}
+      </div>
       <Field label="Status">
         <select
           className={inputClassName}
@@ -234,11 +284,25 @@ export function DetailEntryForm({
         </select>
       </Field>
       <Field className="md:col-span-2" label="Bemerkung">
-        <input className={inputClassName} name="notes" />
+        <input
+          className={inputClassName}
+          defaultValue={editingEntry?.notes ?? ""}
+          name="notes"
+        />
       </Field>
-      <button className={primaryButtonClassName} type="submit">
-        Position hinzufügen
-      </button>
+      <div className="flex items-center gap-3 md:col-span-2">
+        <button className={primaryButtonClassName} type="submit">
+          {editingEntry ? "Änderungen speichern" : "Position hinzufügen"}
+        </button>
+        {editingEntry && cancelHref ? (
+          <a
+            className="text-sm font-semibold text-gray-600 hover:text-gray-900"
+            href={cancelHref}
+          >
+            Abbrechen
+          </a>
+        ) : null}
+      </div>
     </form>
   );
 }
@@ -266,6 +330,18 @@ function normalizeSearchText(value: string) {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .trim();
+}
+
+function parseGermanNumber(value: string) {
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoneyPreview(value: number) {
+  return new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(value);
 }
 
 function formatInputDate(date: Date) {

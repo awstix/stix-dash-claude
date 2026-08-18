@@ -55,6 +55,25 @@ function numberValue(value: FormDataEntryValue | null, label: string) {
   return number;
 }
 
+// Defaults to 100 (voller Satz) statt 0, wenn leer - anders als bei
+// numberValue wäre 0% als "leer bedeutet nichts angegeben" hier eine
+// versehentliche Reduzierung auf 0 € statt keine Änderung.
+function percentValue(value: FormDataEntryValue | null) {
+  const result = normalizeNumberText(text(value));
+
+  if (!result) {
+    return 100;
+  }
+
+  const number = Number(result);
+
+  if (Number.isNaN(number) || number < 0) {
+    return 100;
+  }
+
+  return Math.round(number);
+}
+
 function normalizeNumberText(value: string | null) {
   if (!value) return null;
 
@@ -383,7 +402,10 @@ export async function addControllingDetailEntry(formData: FormData) {
   const projectId = requiredText(formData.get("projectId"), "Projekt");
   const quantity = numberValue(formData.get("quantity"), "Menge");
   const unitPriceCents = moneyCents(formData.get("unitPrice"), "EP netto");
-  const amountCents = Math.round(quantity * unitPriceCents);
+  const utilizationPercent = percentValue(formData.get("utilizationPercent"));
+  const amountCents = Math.round(
+    (quantity * unitPriceCents * utilizationPercent) / 100,
+  );
 
   await prisma.controllingDetailEntry.create({
     data: {
@@ -403,9 +425,44 @@ export async function addControllingDetailEntry(formData: FormData) {
       quantity,
       unit: requiredText(formData.get("unit"), "Einheit"),
       unitPriceCents,
+      utilizationPercent,
       amountCents,
       status: requiredText(formData.get("status"), "Status"),
       source: "MANUAL",
+      notes: text(formData.get("notes")),
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+export async function updateControllingDetailEntry(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+  const quantity = numberValue(formData.get("quantity"), "Menge");
+  const unitPriceCents = moneyCents(formData.get("unitPrice"), "EP netto");
+  const utilizationPercent = percentValue(formData.get("utilizationPercent"));
+  const amountCents = Math.round(
+    (quantity * unitPriceCents * utilizationPercent) / 100,
+  );
+
+  await prisma.controllingDetailEntry.update({
+    where: {
+      id,
+    },
+    data: {
+      entryDate: requiredDate(formData.get("entryDate"), "Datum"),
+      costType: requiredText(formData.get("costType"), "Kostenart"),
+      description: requiredText(formData.get("description"), "Beschreibung"),
+      quantity,
+      unit: requiredText(formData.get("unit"), "Einheit"),
+      unitPriceCents,
+      utilizationPercent,
+      amountCents,
+      status: requiredText(formData.get("status"), "Status"),
       notes: text(formData.get("notes")),
     },
   });

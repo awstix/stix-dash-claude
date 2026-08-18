@@ -11,13 +11,14 @@ import {
   deleteControllingHourEntry,
   deleteControllingInvoiceItem,
   deletePerformanceReport,
+  updateControllingDetailEntry,
   importDetailEntriesFromExcel,
   importDispositionIntoPerformanceReport,
   importItwoInvoiceItems,
   updatePerformanceReport,
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
-import { DetailEntryForm } from "./DetailEntryForm";
+import { DetailEntryForm, type DetailEntryEditValues } from "./DetailEntryForm";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const reportStatuses = [
@@ -50,6 +51,7 @@ export default async function ControllingPerformancePage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    editDetailId?: string;
     notice?: string;
     noticeType?: string;
     projectId?: string;
@@ -754,6 +756,28 @@ export default async function ControllingPerformancePage({
 
               <EntrySection
                 action={addControllingDetailEntry}
+                cancelHref={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}`}
+                editingEntry={(() => {
+                  const entry = params.editDetailId
+                    ? report.detailEntries.find(
+                        (item) => item.id === params.editDetailId,
+                      )
+                    : null;
+                  return entry
+                    ? {
+                        id: entry.id,
+                        costType: entry.costType,
+                        description: entry.description,
+                        entryDate: formatInputDate(entry.entryDate),
+                        notes: entry.notes ?? "",
+                        quantity: formatDecimal(entry.quantity),
+                        status: entry.status,
+                        unit: entry.unit,
+                        unitPrice: formatRawMoney(entry.unitPriceCents),
+                        utilizationPercent: String(entry.utilizationPercent),
+                      }
+                    : null;
+                })()}
                 equipmentOptions={equipmentQuickEntryOptions}
                 hourEntryOptions={report.hourEntries.map((entry) => ({
                   id: entry.id,
@@ -764,6 +788,7 @@ export default async function ControllingPerformancePage({
                 projectId={report.projectId}
                 reportId={report.id}
                 title="Detailerfassung"
+                updateAction={updateControllingDetailEntry}
               />
               <HourSection
                 action={addControllingHourEntry}
@@ -811,22 +836,30 @@ export default async function ControllingPerformancePage({
                 </summary>
                 <div className="mt-4 space-y-4">
                   <DataTable
-                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Betrag", "Herkunft", "Aktion"]}
+                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Anteil %", "Betrag", "Herkunft", "Aktion"]}
                     rows={report.detailEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.costType,
                       entry.description,
                       `${formatDecimal(entry.quantity)} ${entry.unit}`,
                       formatMoney(entry.unitPriceCents),
+                      `${entry.utilizationPercent}%`,
                       formatMoney(entry.amountCents),
                       getSourceLabel(entry.source, entry.notes),
-                      <DeleteEntryButton
-                        action={deleteControllingDetailEntry}
-                        id={entry.id}
-                        key={`delete-${entry.id}`}
-                        projectId={report.projectId}
-                        reportId={report.id}
-                      />,
+                      <div className="flex gap-2" key={`actions-${entry.id}`}>
+                        <a
+                          className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                          href={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}&editDetailId=${entry.id}#detail-form`}
+                        >
+                          Bearbeiten
+                        </a>
+                        <DeleteEntryButton
+                          action={deleteControllingDetailEntry}
+                          id={entry.id}
+                          projectId={report.projectId}
+                          reportId={report.id}
+                        />
+                      </div>,
                     ])}
                     title="Detail"
                   />
@@ -919,20 +952,26 @@ export default async function ControllingPerformancePage({
 
 function EntrySection({
   action,
+  cancelHref,
+  editingEntry,
   equipmentOptions,
   hourEntryOptions,
   importAction,
   projectId,
   reportId,
   title,
+  updateAction,
 }: {
   action: (formData: FormData) => Promise<void>;
+  cancelHref?: string;
+  editingEntry?: DetailEntryEditValues | null;
   equipmentOptions: { id: string; category: string; label: string; unitPrice: string }[];
   hourEntryOptions: { id: string; label: string; totalHours: string }[];
   importAction: (formData: FormData) => Promise<void>;
   projectId: string;
   reportId: string;
   title: string;
+  updateAction: (formData: FormData) => Promise<void>;
 }) {
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -962,16 +1001,24 @@ function EntrySection({
         </div>
       </form>
 
-      <details className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <details
+        className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4"
+        id="detail-form"
+        open={Boolean(editingEntry) || undefined}
+      >
         <summary className="cursor-pointer text-sm font-bold text-gray-800">
-          Manuelle Detailposition erfassen
+          {editingEntry ? "Detailposition bearbeiten" : "Manuelle Detailposition erfassen"}
         </summary>
         <DetailEntryForm
           action={action}
+          cancelHref={cancelHref}
+          editingEntry={editingEntry}
           equipmentOptions={equipmentOptions}
           hourEntryOptions={hourEntryOptions}
+          key={editingEntry?.id ?? "new"}
           projectId={projectId}
           reportId={reportId}
+          updateAction={updateAction}
         />
       </details>
     </section>

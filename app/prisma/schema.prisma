@@ -2735,17 +2735,21 @@ model ControllingDetailEntry {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  entryDate      DateTime
-  costType       String
-  description    String
-  quantity       Float    @default(0)
-  unit           String   @default("Stk.")
-  unitPriceCents Int      @default(0)
-  amountCents    Int      @default(0)
-  status         String   @default("geschätzt")
-  source         String   @default("MANUAL")
-  sourceRef      String?
-  notes          String?
+  entryDate          DateTime
+  costType           String
+  description        String
+  quantity           Float    @default(0)
+  unit               String   @default("Stk.")
+  unitPriceCents     Int      @default(0)
+  // Reduziert amountCents ohne quantity zu verändern - z.B. ein Gerät war
+  // 6 Std eingeplant/erfasst, hat aber nur 60% davon tatsächlich
+  // gearbeitet. amountCents = quantity * unitPriceCents * utilizationPercent / 100.
+  utilizationPercent Int      @default(100)
+  amountCents        Int      @default(0)
+  status             String   @default("geschätzt")
+  source             String   @default("MANUAL")
+  sourceRef          String?
+  notes              String?
 
   inventoryItemId String?
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
