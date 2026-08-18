@@ -7,6 +7,7 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { getOpenTonsForDispatchEntry, roundTons } from "@/lib/asphalt-loads";
+import { assertShortSourceAvailability } from "@/lib/short-haul-conflicts";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -25,19 +26,6 @@ function parseDate(value: FormDataEntryValue | null) {
   }
 
   return new Date(`${result}T00:00:00.000Z`);
-}
-
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
-}
-
-function getDayRange(workDate: Date) {
-  return {
-    gte: workDate,
-    lt: addDays(workDate, 1),
-  };
 }
 
 // tonsPerTour is a native type="number" input, which per the HTML spec
@@ -175,166 +163,6 @@ function validatePayload({
   void vehicleLabel;
 }
 
-async function assertShortSourceAvailability({
-  driverId,
-  vehicleId,
-  workDate,
-}: {
-  driverId: string | null;
-  vehicleId: string | null;
-  workDate: Date;
-}) {
-  const orConditions = [];
-
-  if (driverId) {
-    orConditions.push({ driverId });
-  }
-
-  if (vehicleId) {
-    orConditions.push({ vehicleId });
-  }
-
-  if (orConditions.length === 0) {
-    return;
-  }
-
-  const existingShortHaul = await prisma.shortHaulAssignment.findFirst({
-    where: {
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingShortHaul) {
-    if (driverId && existingShortHaul.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingShortHaul.driverName ?? ""
-        } ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte den bestehenden Kurzstrecken-Eintrag öffnen und dort weitere Touren ergänzen.`,
-      );
-    }
-
-    if (vehicleId && existingShortHaul.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingShortHaul.licensePlate ??
-          existingShortHaul.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte den bestehenden Kurzstrecken-Eintrag öffnen und dort weitere Touren ergänzen.`,
-      );
-    }
-  }
-
-  const existingShortAllocation = await prisma.asphaltLoadAllocation.findFirst({
-    where: {
-      sourceType: "SHORT",
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingShortAllocation) {
-    if (driverId && existingShortAllocation.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingShortAllocation.driverName ?? ""
-        } ist an diesem Tag bereits über eine nicht verteilte Asphaltmenge eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`,
-      );
-    }
-
-    if (vehicleId && existingShortAllocation.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingShortAllocation.licensePlate ??
-          existingShortAllocation.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits über eine nicht verteilte Asphaltmenge eingeplant. Bitte die bestehende Asphalt-Zuteilung bearbeiten oder löschen.`,
-      );
-    }
-  }
-
-  const existingTackCoatAllocation = await prisma.tackCoatLoadAllocation.findFirst({
-    where: {
-      sourceType: "SHORT",
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingTackCoatAllocation) {
-    if (driverId && existingTackCoatAllocation.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingTackCoatAllocation.driverName ?? ""
-        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`,
-      );
-    }
-
-    if (vehicleId && existingTackCoatAllocation.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingTackCoatAllocation.licensePlate ??
-          existingTackCoatAllocation.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant. Bitte die bestehende Anspritzmittel-Zuteilung bearbeiten oder löschen.`,
-      );
-    }
-  }
-
-  const existingLongHaul = await prisma.truckLongHaulTruckAssignment.findFirst({
-    where: {
-      ownerType: "OWN",
-      OR: orConditions,
-      entry: {
-        workDate: getDayRange(workDate),
-      },
-    },
-    include: {
-      entry: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingLongHaul) {
-    if (driverId && existingLongHaul.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingLongHaul.driverName ?? ""
-        } ist an diesem Tag bereits in der Langstrecke bei Maßnahme ${
-          existingLongHaul.entry.projectNumber
-        } · ${
-          existingLongHaul.entry.projectName
-        } geplant. Bitte bewusst prüfen und dort ändern.`,
-      );
-    }
-
-    if (vehicleId && existingLongHaul.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingLongHaul.licensePlate ??
-          existingLongHaul.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits in der Langstrecke bei Maßnahme ${
-          existingLongHaul.entry.projectNumber
-        } · ${
-          existingLongHaul.entry.projectName
-        } geplant. Bitte bewusst prüfen und dort ändern.`,
-      );
-    }
-  }
-}
-
 async function createAsphaltLoadAllocationInternal(formData: FormData) {
   const workDate = parseDate(formData.get("workDate"));
   const asphaltDispatchEntryId = text(formData.get("asphaltDispatchEntryId"));
@@ -394,6 +222,8 @@ async function createAsphaltLoadAllocationInternal(formData: FormData) {
       driverId: resolvedDriverId,
       vehicleId: resolvedVehicleId,
       workDate,
+      startTime,
+      endTime,
     });
   }
 

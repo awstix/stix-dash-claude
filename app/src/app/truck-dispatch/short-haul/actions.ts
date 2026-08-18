@@ -485,7 +485,7 @@ async function assertShortHaulAvailability({
     ...(vehicleInventoryItemId ? [{ vehicleInventoryItemId }] : []),
   ];
 
-  const existing = await prisma.shortHaulAssignment.findFirst({
+  const existingAssignments = await prisma.shortHaulAssignment.findMany({
     where: {
       workDate: getDayRange(workDate),
       OR: [{ driverId }, ...vehicleConditions],
@@ -497,31 +497,36 @@ async function assertShortHaulAvailability({
           }
         : {}),
     },
+    include: {
+      tours: true,
+    },
   });
 
-  if (!existing) {
-    return;
-  }
+  const conflictingAssignment = existingAssignments.find(
+    (assignment) => findOverlappingTimeBlock(assignment.tours, tours) !== undefined
+  );
 
-  if (existing.driverId === driverId) {
-    throw new Error(
-      `Fahrer ${existing.driverName ?? ""} ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen.`
-    );
-  }
+  if (conflictingAssignment) {
+    if (conflictingAssignment.driverId === driverId) {
+      throw new Error(
+        `Fahrer ${conflictingAssignment.driverName ?? ""} ist an diesem Tag zu dieser Zeit bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen, oder eine andere Uhrzeit wählen.`
+      );
+    }
 
-  if (existing.vehicleId === vehicleId) {
-    throw new Error(
-      `Fahrzeug ${existing.licensePlate ?? existing.vehicleNumber ?? ""} ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen.`
-    );
-  }
+    if (conflictingAssignment.vehicleId === vehicleId) {
+      throw new Error(
+        `Fahrzeug ${conflictingAssignment.licensePlate ?? conflictingAssignment.vehicleNumber ?? ""} ist an diesem Tag zu dieser Zeit bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen, oder eine andere Uhrzeit wählen.`
+      );
+    }
 
-  if (
-    vehicleInventoryItemId &&
-    existing.vehicleInventoryItemId === vehicleInventoryItemId
-  ) {
-    throw new Error(
-      `Fahrzeug ${existing.licensePlate ?? existing.vehicleNumber ?? ""} ist an diesem Tag bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen.`
-    );
+    if (
+      vehicleInventoryItemId &&
+      conflictingAssignment.vehicleInventoryItemId === vehicleInventoryItemId
+    ) {
+      throw new Error(
+        `Fahrzeug ${conflictingAssignment.licensePlate ?? conflictingAssignment.vehicleNumber ?? ""} ist an diesem Tag zu dieser Zeit bereits in der Kurzstrecke eingeplant. Bitte diesen bestehenden Eintrag öffnen und dort weitere Touren ergänzen, oder eine andere Uhrzeit wählen.`
+      );
+    }
   }
 
   const existingAsphaltAllocations = await prisma.asphaltLoadAllocation.findMany({

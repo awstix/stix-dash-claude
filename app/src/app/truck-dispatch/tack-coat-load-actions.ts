@@ -7,10 +7,10 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import {
-  getDayRange,
   getOpenLitersForTackCoatPosition,
   roundLiters,
 } from "@/lib/tack-coat-loads";
+import { assertShortSourceAvailability } from "@/lib/short-haul-conflicts";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -108,162 +108,6 @@ function getAllocationLitersFromCapacity({
   return roundLiters(Math.min(capacityLiters, openLiters));
 }
 
-async function assertShortSourceAvailability({
-  driverId,
-  vehicleId,
-  workDate,
-}: {
-  driverId: string | null;
-  vehicleId: string | null;
-  workDate: Date;
-}) {
-  const orConditions = [];
-
-  if (driverId) {
-    orConditions.push({ driverId });
-  }
-
-  if (vehicleId) {
-    orConditions.push({ vehicleId });
-  }
-
-  if (orConditions.length === 0) {
-    return;
-  }
-
-  const existingShortHaul = await prisma.shortHaulAssignment.findFirst({
-    where: {
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingShortHaul) {
-    if (driverId && existingShortHaul.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingShortHaul.driverName ?? ""
-        } ist an diesem Tag bereits in der Kurzstrecke eingeplant.`,
-      );
-    }
-
-    if (vehicleId && existingShortHaul.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingShortHaul.licensePlate ??
-          existingShortHaul.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits in der Kurzstrecke eingeplant.`,
-      );
-    }
-  }
-
-  const existingAsphaltAllocation = await prisma.asphaltLoadAllocation.findFirst({
-    where: {
-      sourceType: "SHORT",
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingAsphaltAllocation) {
-    if (driverId && existingAsphaltAllocation.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingAsphaltAllocation.driverName ?? ""
-        } ist an diesem Tag bereits über eine Asphaltmenge eingeplant.`,
-      );
-    }
-
-    if (vehicleId && existingAsphaltAllocation.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingAsphaltAllocation.licensePlate ??
-          existingAsphaltAllocation.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits über eine Asphaltmenge eingeplant.`,
-      );
-    }
-  }
-
-  const existingTackCoatAllocation = await prisma.tackCoatLoadAllocation.findFirst({
-    where: {
-      sourceType: "SHORT",
-      workDate: getDayRange(workDate),
-      OR: orConditions,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingTackCoatAllocation) {
-    if (driverId && existingTackCoatAllocation.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingTackCoatAllocation.driverName ?? ""
-        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant.`,
-      );
-    }
-
-    if (vehicleId && existingTackCoatAllocation.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingTackCoatAllocation.licensePlate ??
-          existingTackCoatAllocation.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits über eine Anspritzmittel-Nachlieferung eingeplant.`,
-      );
-    }
-  }
-
-  const existingLongHaul = await prisma.truckLongHaulTruckAssignment.findFirst({
-    where: {
-      ownerType: "OWN",
-      OR: orConditions,
-      entry: {
-        workDate: getDayRange(workDate),
-      },
-    },
-    include: {
-      entry: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-
-  if (existingLongHaul) {
-    if (driverId && existingLongHaul.driverId === driverId) {
-      throw new Error(
-        `Fahrer ${
-          existingLongHaul.driverName ?? ""
-        } ist an diesem Tag bereits in der Langstrecke bei Maßnahme ${
-          existingLongHaul.entry.projectNumber
-        } · ${existingLongHaul.entry.projectName} geplant.`,
-      );
-    }
-
-    if (vehicleId && existingLongHaul.vehicleId === vehicleId) {
-      throw new Error(
-        `Fahrzeug ${
-          existingLongHaul.licensePlate ??
-          existingLongHaul.vehicleNumber ??
-          ""
-        } ist an diesem Tag bereits in der Langstrecke bei Maßnahme ${
-          existingLongHaul.entry.projectNumber
-        } · ${existingLongHaul.entry.projectName} geplant.`,
-      );
-    }
-  }
-}
-
 export async function createTackCoatLoadAllocation(formData: FormData) {
   const workDate = parseDate(formData.get("workDate"));
   const sourceType = text(formData.get("sourceType")) || "SHORT";
@@ -305,6 +149,8 @@ export async function createTackCoatLoadAllocation(formData: FormData) {
     driverId: manualDriverId,
     vehicleId: manualVehicleId,
     workDate,
+    startTime,
+    endTime,
   });
 
   const [vehicle, driver] = await Promise.all([
