@@ -80,6 +80,8 @@ export function AsphaltShortAllocationForm({
   vehicles,
   driverConflicts = {},
   vehicleConflicts = {},
+  shortDriverConflicts = {},
+  shortVehicleConflicts = {},
 }: {
   workDate: string;
   position: AsphaltPosition;
@@ -87,6 +89,11 @@ export function AsphaltShortAllocationForm({
   vehicles: VehicleOption[];
   driverConflicts?: ConflictMap;
   vehicleConflicts?: ConflictMap;
+  // Same-day Kurzstrecken-Einträge - nur ein Hinweis, kein Blocker: der
+  // Fahrer/das Fahrzeug kann zu einer anderen Uhrzeit trotzdem frei sein.
+  // Die eigentliche Prüfung übernimmt der Server (zeitfensterbasiert).
+  shortDriverConflicts?: ConflictMap;
+  shortVehicleConflicts?: ConflictMap;
 }) {
   const [driverId, setDriverId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
@@ -140,6 +147,14 @@ export function AsphaltShortAllocationForm({
 
   const selectedVehicleConflict = selectedVehicle
     ? vehicleConflicts[selectedVehicle.id]
+    : null;
+
+  const selectedDriverShortConflict = selectedDriver
+    ? shortDriverConflicts[selectedDriver.id]
+    : null;
+
+  const selectedVehicleShortConflict = selectedVehicle
+    ? shortVehicleConflicts[selectedVehicle.id]
     : null;
 
   // tonsPerTour comes from the native type="number" input below, which
@@ -295,6 +310,7 @@ export function AsphaltShortAllocationForm({
                 : null;
 
               const conflict = driverConflict ?? primaryVehicleConflict;
+              const shortConflict = shortDriverConflicts[driver.id];
 
               return (
                 <option
@@ -303,6 +319,9 @@ export function AsphaltShortAllocationForm({
                   disabled={Boolean(conflict)}
                 >
                   {conflict ? `⚠ ${conflict} · ` : ""}
+                  {!conflict && shortConflict
+                    ? `bereits ${shortConflict} (ggf. andere Uhrzeit) · `
+                    : ""}
                   {driver.lastName}, {driver.firstName}
                   {primaryVehicle
                     ? ` · Hauptfahrzeug ${getVehicleLabel(primaryVehicle)}`
@@ -333,6 +352,7 @@ export function AsphaltShortAllocationForm({
 
             {vehicles.map((vehicle) => {
               const conflict = vehicleConflicts[vehicle.id];
+              const shortConflict = shortVehicleConflicts[vehicle.id];
 
               return (
                 <option
@@ -341,6 +361,9 @@ export function AsphaltShortAllocationForm({
                   disabled={Boolean(conflict)}
                 >
                   {conflict ? `⚠ ${conflict} · ` : ""}
+                  {!conflict && shortConflict
+                    ? `bereits ${shortConflict} (ggf. andere Uhrzeit) · `
+                    : ""}
                   {getVehicleLabel(vehicle)}
                   {vehicle.asphaltPayloadTons > 0
                     ? ` · Nutzlast ${formatTons(vehicle.asphaltPayloadTons)} t`
@@ -361,6 +384,24 @@ export function AsphaltShortAllocationForm({
       {selectedVehicleConflict ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-semibold text-yellow-900">
           Fahrzeug bereits eingeplant: {selectedVehicleConflict}
+        </div>
+      ) : null}
+
+      {!selectedDriverConflict && selectedDriverShortConflict ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+          Hinweis: Fahrer ist an diesem Tag bereits {selectedDriverShortConflict}.
+          Falls das nicht den ganzen Tag betrifft, unten „Vollständigen
+          Arbeitstag anzeigen“ abhaken und Beginn/Ende auf die freie Zeit
+          setzen.
+        </div>
+      ) : null}
+
+      {!selectedVehicleConflict && selectedVehicleShortConflict ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+          Hinweis: Fahrzeug ist an diesem Tag bereits {selectedVehicleShortConflict}.
+          Falls das nicht den ganzen Tag betrifft, unten „Vollständigen
+          Arbeitstag anzeigen“ abhaken und Beginn/Ende auf die freie Zeit
+          setzen.
         </div>
       ) : null}
 

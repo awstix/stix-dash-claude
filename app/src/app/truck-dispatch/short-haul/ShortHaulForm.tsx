@@ -764,13 +764,9 @@ export function ShortHaulForm({
                 driver.id === timelinePrefillDriverId;
 
               return (
-                <option
-                  key={driver.id}
-                  value={driver.id}
-                  disabled={Boolean(shortConflict) && !isCurrentDriver}
-                >
+                <option key={driver.id} value={driver.id}>
                   {shortConflict && !isCurrentDriver
-                    ? `bereits Kurzstrecke ${shortConflict} · `
+                    ? `bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich) · `
                     : ""}
                   {shortConflict && isCurrentDriver
                     ? `aktuelle Einteilung · `
@@ -811,13 +807,9 @@ export function ShortHaulForm({
                 vehicle.id === timelinePrefillVehicleId;
 
               return (
-                <option
-                  key={vehicle.id}
-                  value={vehicle.id}
-                  disabled={Boolean(shortConflict) && !isCurrentVehicle}
-                >
+                <option key={vehicle.id} value={vehicle.id}>
                   {shortConflict && !isCurrentVehicle
-                    ? `bereits Kurzstrecke ${shortConflict} · `
+                    ? `bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich) · `
                     : ""}
                   {shortConflict && isCurrentVehicle
                     ? `aktuelle Einteilung · `

@@ -776,16 +776,6 @@ export default async function ShortHaulPage({
     ...shortVehicleConflicts,
   };
 
-  const tackCoatAllocationDriverConflicts = {
-    ...driverConflicts,
-    ...shortDriverConflicts,
-  };
-
-  const tackCoatAllocationVehicleConflicts = {
-    ...vehicleConflicts,
-    ...shortVehicleConflicts,
-  };
-
   function matchesDailyResource(
     target: { driverId: string | null; vehicleId: string | null },
     candidate: { driverId: string | null; vehicleId: string | null }
@@ -1977,8 +1967,10 @@ export default async function ShortHaulPage({
                           }}
                           drivers={drivers}
                           vehicles={vehicles}
-                          driverConflicts={asphaltAllocationDriverConflicts}
-                          vehicleConflicts={asphaltAllocationVehicleConflicts}
+                          driverConflicts={driverConflicts}
+                          vehicleConflicts={vehicleConflicts}
+                          shortDriverConflicts={shortDriverConflicts}
+                          shortVehicleConflicts={shortVehicleConflicts}
                         />
 
                         <AsphaltShortSuggestionForm
@@ -2114,8 +2106,10 @@ export default async function ShortHaulPage({
                           }}
                           drivers={drivers}
                           vehicles={vehicles}
-                          driverConflicts={tackCoatAllocationDriverConflicts}
-                          vehicleConflicts={tackCoatAllocationVehicleConflicts}
+                          driverConflicts={driverConflicts}
+                          vehicleConflicts={vehicleConflicts}
+                          shortDriverConflicts={shortDriverConflicts}
+                          shortVehicleConflicts={shortVehicleConflicts}
                         />
                       </EditDetailsPanel>
                     </DismissibleDetails>
