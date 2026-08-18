@@ -765,15 +765,13 @@ export function ShortHaulForm({
 
               return (
                 <option key={driver.id} value={driver.id}>
-                  {shortConflict && !isCurrentDriver
-                    ? `bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich) · `
-                    : ""}
-                  {shortConflict && isCurrentDriver
-                    ? `aktuelle Einteilung · `
-                    : ""}
-                  {longConflict ? `⚠ Langstrecke ${longConflict} · ` : ""}
                   {driver.lastName}, {driver.firstName} ·{" "}
                   {getPrimaryVehicleLabel(driver)}
+                  {longConflict ? ` · ⚠ Langstrecke ${longConflict}` : ""}
+                  {shortConflict && !isCurrentDriver
+                    ? ` · bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich)`
+                    : ""}
+                  {shortConflict && isCurrentDriver ? ` · aktuelle Einteilung` : ""}
                 </option>
               );
             })}
@@ -808,16 +806,14 @@ export function ShortHaulForm({
 
               return (
                 <option key={vehicle.id} value={vehicle.id}>
-                  {shortConflict && !isCurrentVehicle
-                    ? `bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich) · `
-                    : ""}
-                  {shortConflict && isCurrentVehicle
-                    ? `aktuelle Einteilung · `
-                    : ""}
-                  {longConflict ? `⚠ Langstrecke ${longConflict} · ` : ""}
                   {getVehicleAssignmentLabel(vehicle)} ·{" "}
                   {vehicle.vehicleNumber} · {vehicle.licensePlate ?? "-"} ·{" "}
                   {vehicle.category} · {vehicle.vehicleType}
+                  {longConflict ? ` · ⚠ Langstrecke ${longConflict}` : ""}
+                  {shortConflict && !isCurrentVehicle
+                    ? ` · bereits Kurzstrecke ${shortConflict} (ggf. andere Uhrzeit möglich)`
+                    : ""}
+                  {shortConflict && isCurrentVehicle ? ` · aktuelle Einteilung` : ""}
                 </option>
               );
             })}

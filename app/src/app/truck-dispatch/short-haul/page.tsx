@@ -742,6 +742,41 @@ export default async function ShortHaulPage({
   const shortDriverConflicts = buildShortDriverConflicts();
   const shortVehicleConflicts = buildShortVehicleConflicts();
 
+  // Späteste Endzeit eines bestehenden Kurzstrecken-Eintrags pro Fahrer/
+  // Fahrzeug an dem Tag - damit kann ein Zuteilungs-Formular beim Auswählen
+  // direkt ab der freien Uhrzeit statt wieder ab Arbeitsbeginn planen.
+  // "HH:MM" lässt sich als String direkt vergleichen (Zeitreihenfolge).
+  const shortDriverFreeFrom: Record<string, string> = {};
+  const shortVehicleFreeFrom: Record<string, string> = {};
+
+  function noteFreeFrom(
+    map: Record<string, string>,
+    key: string | null,
+    endTime: string
+  ) {
+    if (!key) return;
+    if (!map[key] || endTime > map[key]) {
+      map[key] = endTime;
+    }
+  }
+
+  for (const assignment of assignments) {
+    for (const tour of assignment.tours) {
+      noteFreeFrom(shortDriverFreeFrom, assignment.driverId, tour.endTime);
+      noteFreeFrom(shortVehicleFreeFrom, assignment.vehicleId, tour.endTime);
+    }
+  }
+
+  for (const allocation of shortAsphaltAllocations) {
+    noteFreeFrom(shortDriverFreeFrom, allocation.driverId, allocation.endTime);
+    noteFreeFrom(shortVehicleFreeFrom, allocation.vehicleId, allocation.endTime);
+  }
+
+  for (const allocation of shortTackCoatAllocations) {
+    noteFreeFrom(shortDriverFreeFrom, allocation.driverId, allocation.endTime);
+    noteFreeFrom(shortVehicleFreeFrom, allocation.vehicleId, allocation.endTime);
+  }
+
   const usedDriverIds = new Set([
     ...assignments
       .map((assignment) => assignment.driverId)
@@ -1971,6 +2006,8 @@ export default async function ShortHaulPage({
                           vehicleConflicts={vehicleConflicts}
                           shortDriverConflicts={shortDriverConflicts}
                           shortVehicleConflicts={shortVehicleConflicts}
+                          shortDriverFreeFrom={shortDriverFreeFrom}
+                          shortVehicleFreeFrom={shortVehicleFreeFrom}
                         />
 
                         <AsphaltShortSuggestionForm
@@ -2110,6 +2147,8 @@ export default async function ShortHaulPage({
                           vehicleConflicts={vehicleConflicts}
                           shortDriverConflicts={shortDriverConflicts}
                           shortVehicleConflicts={shortVehicleConflicts}
+                          shortDriverFreeFrom={shortDriverFreeFrom}
+                          shortVehicleFreeFrom={shortVehicleFreeFrom}
                         />
                       </EditDetailsPanel>
                     </DismissibleDetails>

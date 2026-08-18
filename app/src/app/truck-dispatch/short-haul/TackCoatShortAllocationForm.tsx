@@ -85,6 +85,8 @@ export function TackCoatShortAllocationForm({
   vehicleConflicts = {},
   shortDriverConflicts = {},
   shortVehicleConflicts = {},
+  shortDriverFreeFrom = {},
+  shortVehicleFreeFrom = {},
 }: {
   workDate: string;
   position: TackCoatPosition;
@@ -97,6 +99,10 @@ export function TackCoatShortAllocationForm({
   // Die eigentliche Prüfung übernimmt der Server (zeitfensterbasiert).
   shortDriverConflicts?: ConflictMap;
   shortVehicleConflicts?: ConflictMap;
+  // Späteste Endzeit eines bestehenden Eintrags - damit die Zeitfelder
+  // beim Auswählen direkt ab der freien Uhrzeit vorbelegt werden können.
+  shortDriverFreeFrom?: ConflictMap;
+  shortVehicleFreeFrom?: ConflictMap;
 }) {
   const [driverId, setDriverId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
@@ -207,6 +213,24 @@ export function TackCoatShortAllocationForm({
     }
   }
 
+  // Wenn Fahrer/Fahrzeug an dem Tag bereits einen Kurzstrecken-Eintrag
+  // haben, direkt ab der freien Uhrzeit planen statt wieder ab
+  // Arbeitsbeginn - "HH:MM"-Strings lassen sich direkt vergleichen.
+  function applyFreeFromTime(nextDriverId: string, nextVehicleId: string) {
+    const driverFreeFrom = nextDriverId ? shortDriverFreeFrom[nextDriverId] : undefined;
+    const vehicleFreeFrom = nextVehicleId ? shortVehicleFreeFrom[nextVehicleId] : undefined;
+    const freeFrom = [driverFreeFrom, vehicleFreeFrom]
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .pop();
+
+    if (freeFrom && freeFrom > workTime.startTime) {
+      setFullWorkDay(false);
+      setStartTime(freeFrom);
+      setEndTime((current) => (current > freeFrom ? current : workTime.endTime));
+    }
+  }
+
   function handleDriverChange(nextDriverId: string) {
     setErrorText("");
 
@@ -221,13 +245,17 @@ export function TackCoatShortAllocationForm({
     setDriverId(nextDriverId);
 
     const primaryVehicle = getPrimaryVehicle(driver);
+    let nextVehicleId = "";
 
     if (primaryVehicle && !vehicleConflicts[primaryVehicle.id]) {
+      nextVehicleId = primaryVehicle.id;
       setVehicleId(primaryVehicle.id);
       applyVehicleTank(primaryVehicle);
     } else if (primaryVehicle && vehicleConflicts[primaryVehicle.id]) {
       setVehicleId("");
     }
+
+    applyFreeFromTime(nextDriverId, nextVehicleId);
   }
 
   function handleVehicleChange(nextVehicleId: string) {
@@ -236,6 +264,7 @@ export function TackCoatShortAllocationForm({
 
     const vehicle = vehicles.find((item) => item.id === nextVehicleId);
     applyVehicleTank(vehicle);
+    applyFreeFromTime(driverId, nextVehicleId);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -310,14 +339,14 @@ export function TackCoatShortAllocationForm({
 
               return (
                 <option key={driver.id} value={driver.id} disabled={Boolean(conflict)}>
-                  {conflict ? `belegt ${conflict} · ` : ""}
-                  {!conflict && shortConflict
-                    ? `bereits ${shortConflict} (ggf. andere Uhrzeit) · `
-                    : ""}
                   {driver.lastName}, {driver.firstName}
                   {primaryVehicle
                     ? ` · Hauptfahrzeug ${getVehicleLabel(primaryVehicle)}`
                     : " · kein Hauptfahrzeug"}
+                  {conflict ? ` · belegt ${conflict}` : ""}
+                  {!conflict && shortConflict
+                    ? ` · bereits ${shortConflict} (ggf. andere Uhrzeit)`
+                    : ""}
                 </option>
               );
             })}
@@ -348,14 +377,14 @@ export function TackCoatShortAllocationForm({
 
               return (
                 <option key={vehicle.id} value={vehicle.id} disabled={Boolean(conflict)}>
-                  {conflict ? `belegt ${conflict} · ` : ""}
-                  {!conflict && shortConflict
-                    ? `bereits ${shortConflict} (ggf. andere Uhrzeit) · `
-                    : ""}
                   {getVehicleLabel(vehicle)}
                   {vehicle.tackCoatTankLiters > 0
                     ? ` · Arbeitsmitteltank ${formatLiters(vehicle.tackCoatTankLiters)} l`
                     : " · kein Arbeitsmitteltank hinterlegt"}
+                  {conflict ? ` · belegt ${conflict}` : ""}
+                  {!conflict && shortConflict
+                    ? ` · bereits ${shortConflict} (ggf. andere Uhrzeit)`
+                    : ""}
                 </option>
               );
             })}
