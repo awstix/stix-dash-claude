@@ -220,6 +220,30 @@ function getResponsibleLabel(item: {
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
+function getAssignmentStatus(item: {
+  currentLocationLabel: string | null;
+  currentProject: { name: string; projectNumber: string } | null;
+  responsibleCrew: { name: string } | null;
+  responsibleEmployee: { firstName: string; id?: string; lastName: string } | null;
+  responsibleType: string | null;
+}) {
+  const responsible = getResponsibleLabel(item);
+  const isAssigned = Boolean(item.currentProject || responsible !== "—");
+
+  if (!isAssigned) {
+    return { isAssigned: false as const, label: "FREI" };
+  }
+
+  const parts = [
+    item.currentProject
+      ? `${item.currentProject.projectNumber} · ${item.currentProject.name}`
+      : item.currentLocationLabel,
+    responsible !== "—" ? responsible : null,
+  ].filter(Boolean);
+
+  return { isAssigned: true as const, label: parts.join(" · ") };
+}
+
 function getCurrentLocationLabel(item: {
   currentLocationLabel: string | null;
   currentProject: { name: string; projectNumber: string } | null;
@@ -590,6 +614,27 @@ export default async function InventoryDetailPage({
         </section>
       ) : null}
 
+      {(() => {
+        const assignment = getAssignmentStatus(item);
+        return (
+          <div
+            className={`mb-6 flex flex-wrap items-center gap-2 rounded-2xl border-2 px-5 py-4 shadow-sm ${
+              assignment.isAssigned
+                ? "border-amber-400 bg-amber-100"
+                : "border-emerald-400 bg-emerald-100"
+            }`}
+          >
+            <span
+              className={`text-xl font-extrabold tracking-tight ${
+                assignment.isAssigned ? "text-amber-950" : "text-emerald-950"
+              }`}
+            >
+              {assignment.isAssigned ? `ZUGEWIESEN: ${assignment.label}` : "FREI"}
+            </span>
+          </div>
+        );
+      })()}
+
       <div className="mb-6 flex flex-wrap gap-2">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
@@ -748,9 +793,6 @@ export default async function InventoryDetailPage({
             </div>
           </div>
         </DismissibleDetails>
-        <span className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700">
-          Standort: {getCurrentLocationLabel(item)}
-        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
