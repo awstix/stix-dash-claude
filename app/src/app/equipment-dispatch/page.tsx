@@ -859,11 +859,17 @@ function getDefaultVisibleVehicleTypes({
     vehicleType: string;
   }[];
 }) {
+  // LKW und Sonderfahrzeuge haben eigene Dispo-Seiten (LKW-Dispo,
+  // Sonderfahrzeug-Dispo) und bleiben deshalb hier standardmäßig
+  // ausgeblendet. PKW hat keine eigene Seite - eine Kategorie über
+  // useInEquipmentDispatch für die Gerätedisposition freizugeben soll
+  // dort direkt sichtbar werden, ohne zusätzlich jeden einzelnen
+  // Fahrzeugtyp im "Gerätetypen anzeigen"-Filter manuell anhaken zu
+  // müssen.
   return getVehicleTypesForPredicate({
     options,
     vehicles,
-    predicate: (vehicle) =>
-      !vehicle.isSpecialVehicle && !isTruckVehicle(vehicle) && !isCarVehicle(vehicle),
+    predicate: (vehicle) => !vehicle.isSpecialVehicle && !isTruckVehicle(vehicle),
   });
 }
 
