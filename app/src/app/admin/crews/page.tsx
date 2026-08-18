@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
+import { CategoryDrillDownSelect } from "@/components/CategoryDrillDownSelect";
 import { SearchableComboSelect } from "@/components/SearchableComboSelect";
 import { prisma } from "@/lib/prisma";
 import { CrewColorPicker } from "./CrewColorPicker";
@@ -737,9 +738,9 @@ export default async function CrewsAdminPage() {
 
                       <label className="block text-xs font-medium text-gray-700">
                         Inventarobjekt
-                        <SearchableComboSelect
+                        <CategoryDrillDownSelect
                           hiddenInputName="inventoryItemId"
-                          options={inventoryVehicleItems.flatMap((item) => {
+                          items={inventoryVehicleItems.flatMap((item) => {
                             const vehicle = item.vehicle;
                             if (!vehicle || !item.vehicleId) {
                               return [];
@@ -753,23 +754,28 @@ export default async function CrewsAdminPage() {
                             const isAssignedToOtherCrew =
                               otherCrewNames.length > 0;
 
-                            const categoryLabel = item.category?.parentCategory
-                              ? `${item.category.parentCategory.name} / ${item.category.name}`
-                              : item.category?.name ?? "Ohne Kategorie";
+                            const parentCategoryName =
+                              item.category?.parentCategory?.name ??
+                              item.category?.name ??
+                              "Ohne Kategorie";
+                            const categoryName = item.category?.parentCategory
+                              ? item.category.name
+                              : (item.category?.name ?? "Ohne Kategorie");
 
                             return [
                               {
+                                category: categoryName,
                                 disabled: isAssignedToOtherCrew,
                                 disabledLabel: isAssignedToOtherCrew
                                   ? `bereits in: ${otherCrewNames.join(", ")}`
                                   : undefined,
-                                group: categoryLabel,
                                 id: item.id,
                                 label: getInventoryVehicleLabel(item),
+                                parentCategory: parentCategoryName,
                               },
                             ];
                           })}
-                          placeholder="Gerät/Fahrzeug suchen ..."
+                          placeholder="Gerät/Fahrzeug suchen oder Kategorie wählen ..."
                           required
                         />
                       </label>
