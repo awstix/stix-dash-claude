@@ -31,8 +31,13 @@ function optionalString(value: FormDataEntryValue | null) {
   return text.length > 0 ? text : null;
 }
 
+// quantity / tourQuantity_* are native type="number" inputs, which per
+// the HTML spec always serialize with a period decimal separator
+// regardless of browser/OS locale - stripping periods here (as a German
+// thousands-separator would need) instead corrupted values like "16.8"
+// into "168".
 function parseOptionalNumber(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
+  const text = String(value ?? "").trim();
 
   if (!text) return null;
 

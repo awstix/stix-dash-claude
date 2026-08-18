@@ -21,8 +21,13 @@ type DriverOption = {
   }[];
 };
 
+// tourCount/tonsPerTour come from native type="number" inputs, which per
+// the HTML spec always serialize with a period decimal separator
+// regardless of browser/OS locale - stripping periods here (as a German
+// thousands-separator would need) instead corrupted values like "16.8"
+// into "168".
 function parseNumber(value: string) {
-  const number = Number(String(value).replace(/\./g, "").replace(",", "."));
+  const number = Number(value);
   return Number.isNaN(number) ? 0 : number;
 }
 

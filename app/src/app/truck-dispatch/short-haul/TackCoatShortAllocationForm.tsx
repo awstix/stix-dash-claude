@@ -141,8 +141,13 @@ export function TackCoatShortAllocationForm({
     ? vehicleConflicts[selectedVehicle.id]
     : null;
 
+  // litersPerTour comes from the native type="number" input below, which
+  // per the HTML spec always serializes with a period decimal separator
+  // regardless of browser/OS locale - stripping periods here (as a
+  // German thousands-separator would need) instead corrupted values
+  // like "16.8" into "168".
   const calculatedTotal = useMemo(() => {
-    const liters = Number(String(litersPerTour).replace(/\./g, "").replace(",", "."));
+    const liters = Number(litersPerTour);
 
     if (Number.isNaN(liters)) return 0;
 
@@ -152,8 +157,7 @@ export function TackCoatShortAllocationForm({
   const tankWarning =
     selectedVehicle &&
     selectedVehicle.tackCoatTankLiters > 0 &&
-    Number(String(litersPerTour).replace(/\./g, "").replace(",", ".")) >
-      selectedVehicle.tackCoatTankLiters;
+    Number(litersPerTour) > selectedVehicle.tackCoatTankLiters;
 
   const openWarning = calculatedTotal > position.openLiters;
   const hasConflict = Boolean(selectedDriverConflict || selectedVehicleConflict);

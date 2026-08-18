@@ -14,8 +14,13 @@ function parseWorkDate(value: FormDataEntryValue | null) {
   return new Date(`${text}T00:00:00.000Z`);
 }
 
+// The fields this parses (quantityTons, tackCoatQuantity) are native
+// type="number" inputs, which per the HTML spec always serialize with a
+// period decimal separator regardless of browser/OS locale - stripping
+// periods here (as a German thousands-separator would need) instead
+// corrupted values like "16.8" into "168".
 function parseNumber(value: FormDataEntryValue | null) {
-  const number = Number(String(value ?? "0").replace(/\./g, "").replace(",", "."));
+  const number = Number(value ?? 0);
   return Number.isNaN(number) ? 0 : number;
 }
 

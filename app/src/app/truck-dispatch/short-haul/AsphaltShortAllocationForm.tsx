@@ -138,8 +138,13 @@ export function AsphaltShortAllocationForm({
     ? vehicleConflicts[selectedVehicle.id]
     : null;
 
+  // tonsPerTour comes from the native type="number" input below, which
+  // per the HTML spec always serializes with a period decimal separator
+  // regardless of browser/OS locale - stripping periods here (as a
+  // German thousands-separator would need) instead corrupted values
+  // like "16.8" into "168".
   const calculatedTotal = useMemo(() => {
-    const tons = Number(String(tonsPerTour).replace(/\./g, "").replace(",", "."));
+    const tons = Number(tonsPerTour);
 
     if (Number.isNaN(tons)) return 0;
 
@@ -149,8 +154,7 @@ export function AsphaltShortAllocationForm({
   const payloadWarning =
     selectedVehicle &&
     selectedVehicle.asphaltPayloadTons > 0 &&
-    Number(String(tonsPerTour).replace(/\./g, "").replace(",", ".")) >
-      selectedVehicle.asphaltPayloadTons;
+    Number(tonsPerTour) > selectedVehicle.asphaltPayloadTons;
 
   const openWarning = calculatedTotal > position.openTons;
   const hasConflict = Boolean(selectedDriverConflict || selectedVehicleConflict);

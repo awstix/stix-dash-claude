@@ -31,8 +31,12 @@ function parseDate(value: FormDataEntryValue | null) {
   return new Date(`${result}T00:00:00.000Z`);
 }
 
+// litersPerTour is a native type="number" input, which per the HTML
+// spec always serializes with a period decimal separator regardless of
+// browser/OS locale - stripping periods here (as a German thousands-
+// separator would need) instead corrupted values like "16.8" into "168".
 function parseNumber(value: FormDataEntryValue | null) {
-  const result = Number(text(value).replace(/\./g, "").replace(",", "."));
+  const result = Number(text(value));
 
   if (Number.isNaN(result)) {
     return 0;
