@@ -339,16 +339,26 @@ export async function syncDriverVehicleAssignmentForInventoryItem(
 }
 
 /** Lazy backfill, same pattern as syncDriversFromEmployees() on
- * /admin/drivers: runs on every /admin/driver-vehicles page load so
- * inventory items that predate this sync (or were touched by a script)
- * still end up with a linked Vehicle and, where applicable, a
- * DriverVehicleAssignment. One transaction per item, not one giant
- * transaction, to avoid the timeout issues bulk operations hit earlier. */
+ * /admin/drivers: runs on every /admin/driver-vehicles (and now
+ * /equipment-dispatch) page load so inventory items that predate this
+ * sync (or were touched by a script) still end up with a linked Vehicle
+ * and, where applicable, a DriverVehicleAssignment. One transaction per
+ * item, not one giant transaction, to avoid the timeout issues bulk
+ * operations hit earlier.
+ *
+ * Restricted to vehicleId: null - items that already have a Vehicle
+ * linked get refreshed directly whenever the item itself is edited
+ * (ensureVehicleForInventoryItem is called from there too), so re-running
+ * this for the full ~300-item catalog on every single page load was
+ * taking 2-3 minutes and made pages using it (equipment-dispatch
+ * especially, which loads far more often than the admin page this was
+ * designed for) appear to hang/not load at all. */
 export async function syncVehiclesFromInventory() {
   const items = await prisma.inventoryItem.findMany({
     where: {
       status: { not: "DELETED" },
       objectNumber: { not: null },
+      vehicleId: null,
       OR: [
         { category: { useInTruckDispatchSelection: true } },
         {
