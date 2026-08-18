@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { getWorkTimeDayForDate } from "@/lib/work-time";
+import { getNetWorkHoursForDay, getWorkTimeDayForDate } from "@/lib/work-time";
 import {
   addControllingDetailEntry,
   addControllingHourEntry,
@@ -424,36 +424,11 @@ export default async function ControllingPerformancePage({
       ),
     ),
   );
-  function netHoursFromWorkTimeDay(day: {
-    breakfastEnd: string;
-    breakfastStart: string;
-    endTime: string;
-    lunchEnd: string;
-    lunchStart: string;
-    startTime: string;
-  }) {
-    const startMinutes = timeStringToMinutes(day.startTime) ?? 0;
-    const endMinutes = timeStringToMinutes(day.endTime) ?? 0;
-    let minutes = Math.max(0, endMinutes - startMinutes);
-
-    if (day.breakfastStart && day.breakfastEnd) {
-      const breakfastStart = timeStringToMinutes(day.breakfastStart) ?? 0;
-      const breakfastEnd = timeStringToMinutes(day.breakfastEnd) ?? 0;
-      minutes -= Math.max(0, breakfastEnd - breakfastStart);
-    }
-    if (day.lunchStart && day.lunchEnd) {
-      const lunchStart = timeStringToMinutes(day.lunchStart) ?? 0;
-      const lunchEnd = timeStringToMinutes(day.lunchEnd) ?? 0;
-      minutes -= Math.max(0, lunchEnd - lunchStart);
-    }
-
-    return Math.max(0, minutes) / 60;
-  }
   for (const [crewId, days] of asphaltDispatchDaysByCrewId.entries()) {
     let addedHours = 0;
     for (const dayKey of days) {
       const workTimeDay = workTimeByDate.get(dayKey);
-      if (workTimeDay) addedHours += netHoursFromWorkTimeDay(workTimeDay);
+      if (workTimeDay) addedHours += getNetWorkHoursForDay(workTimeDay);
     }
     plannedHoursByCrewId.set(crewId, (plannedHoursByCrewId.get(crewId) ?? 0) + addedHours);
   }
