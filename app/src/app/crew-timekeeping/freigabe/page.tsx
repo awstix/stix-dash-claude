@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getProjectScopeForUser } from "@/lib/portal-permissions";
 import { PersonalZeitenEditDialog } from "@/app/personal/zeiten/PersonalZeitenEditDialog";
 import { ApproveButton } from "./ApproveButton";
+import { DeleteEmployeeButton } from "./DeleteEmployeeButton";
+import { DeleteEntryButton } from "./DeleteEntryButton";
 import { EditEntryDialog } from "./EditEntryDialog";
 import { MoveEmployeeControl } from "./MoveEmployeeControl";
 import { MoveProjectControl } from "./MoveProjectControl";
@@ -171,6 +173,11 @@ function EntryCard({ entry, projectOptions }: { entry: EntryWithDetails; project
           <EditEntryDialog entryId={entry.id} />
           <MoveProjectControl entryId={entry.id} projectId={entry.projectId} projectOptions={projectOptions} />
           {entry.status === "SUBMITTED" ? <ApproveButton entryId={entry.id} /> : null}
+          <DeleteEntryButton
+            crewName={entry.crewName}
+            entryId={entry.id}
+            workDateLabel={new Date(entry.workDate).toLocaleDateString("de-DE")}
+          />
           {entry.approvedByName ? (
             <span className="rounded-lg bg-green-800 px-3 py-2 text-sm font-black text-white">
               Freigegeben durch {entry.approvedByName}
@@ -222,6 +229,11 @@ function EntryCard({ entry, projectOptions }: { entry: EntryWithDetails; project
                       entryId={entry.id}
                       projectId={entry.projectId}
                       projectOptions={projectOptions}
+                    />
+                    <DeleteEmployeeButton
+                      employeeId={employee.id}
+                      employeeName={employee.employeeName}
+                      entryId={entry.id}
                     />
                   </div>
                 </td>

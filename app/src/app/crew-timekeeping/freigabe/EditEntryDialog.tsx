@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  getBookableEmployees,
   getCrewTimeEntryForEdit,
   saveCrewTimeEntry,
+  type BookableEmployee,
   type CrewTimeEmployeeInput,
   type CrewTimeEntryInput,
 } from "../actions";
@@ -21,17 +23,29 @@ export function EditEntryDialog({ entryId }: { entryId: string }) {
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [bookableEmployees, setBookableEmployees] = useState<{
+    crewMembers: BookableEmployee[];
+    otherEmployees: BookableEmployee[];
+  } | null>(null);
+  const [addEmployeeId, setAddEmployeeId] = useState("");
 
   function openDialog() {
     setOpen(true);
     setError("");
     setMessage("");
     setEntryInput(null);
+    setBookableEmployees(null);
+    setAddEmployeeId("");
     startLoading(async () => {
       try {
         const result = await getCrewTimeEntryForEdit(entryId);
         setEntryInput(result.input);
         setLocked(result.locked);
+        const bookable = await getBookableEmployees({
+          crewId: result.input.crewId,
+          workDate: result.input.workDate,
+        });
+        setBookableEmployees(bookable);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
       }
@@ -42,6 +56,56 @@ export function EditEntryDialog({ entryId }: { entryId: string }) {
     if (isSaving) return;
     setOpen(false);
     setEntryInput(null);
+  }
+
+  function addEmployee() {
+    if (!addEmployeeId || !bookableEmployees) return;
+    const option = [...bookableEmployees.crewMembers, ...bookableEmployees.otherEmployees].find(
+      (candidate) => candidate.employeeId === addEmployeeId,
+    );
+    if (!option) return;
+
+    setEntryInput((current) => {
+      if (!current) return current;
+      if (current.employees.some((employee) => employee.employeeId === option.employeeId)) {
+        return current;
+      }
+      return {
+        ...current,
+        employees: [
+          ...current.employees,
+          {
+            attendanceStatus: "CHECKED_OUT",
+            break1From: current.defaultBreak1From,
+            break1To: current.defaultBreak1To,
+            break2From: current.defaultBreak2From,
+            break2To: current.defaultBreak2To,
+            employeeId: option.employeeId,
+            employeeName: option.employeeName,
+            endTime: current.defaultEndTime,
+            isPresent: true,
+            notes: "",
+            roleLabel: option.roleLabel,
+            startTime: current.defaultStartTime,
+          },
+        ],
+      };
+    });
+    setAddEmployeeId("");
+  }
+
+  function removeEmployee(index: number) {
+    const employee = entryInput?.employees[index];
+    if (!employee) return;
+    if (!window.confirm(`Buchung von „${employee.employeeName}" wirklich entfernen?`)) return;
+
+    setEntryInput((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        employees: current.employees.filter((_, employeeIndex) => employeeIndex !== index),
+      };
+    });
   }
 
   function patchEntry(patch: Partial<CrewTimeEntryInput>) {
@@ -229,6 +293,7 @@ export function EditEntryDialog({ entryId }: { entryId: string }) {
                         <th className="p-2">Pause 1</th>
                         <th className="p-2">Pause 2</th>
                         <th className="p-2">Bemerkung</th>
+                        <th className="p-2">Aktion</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -297,11 +362,84 @@ export function EditEntryDialog({ entryId }: { entryId: string }) {
                               value={employee.notes}
                             />
                           </td>
+                          <td className="p-2">
+                            <button
+                              className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs font-black text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={locked}
+                              onClick={() => removeEmployee(index)}
+                              type="button"
+                            >
+                              Entfernen
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+
+                {bookableEmployees ? (
+                  <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+                    <label className="text-xs font-semibold text-gray-700">
+                      Mitarbeiter nachträglich hinzufügen
+                      <select
+                        className={inputClass}
+                        disabled={locked}
+                        onChange={(event) => setAddEmployeeId(event.target.value)}
+                        value={addEmployeeId}
+                      >
+                        <option value="">Bitte wählen …</option>
+                        {bookableEmployees.crewMembers.filter(
+                          (option) => !entryInput.employees.some((employee) => employee.employeeId === option.employeeId),
+                        ).length > 0 ? (
+                          <optgroup label="Eigene Kolonne">
+                            {bookableEmployees.crewMembers
+                              .filter(
+                                (option) =>
+                                  !entryInput.employees.some((employee) => employee.employeeId === option.employeeId),
+                              )
+                              .map((option) => (
+                                <option key={option.employeeId} value={option.employeeId}>
+                                  {option.employeeName}
+                                  {option.roleLabel ? ` · ${option.roleLabel}` : ""}
+                                  {option.bookedElsewhere ? " (anderswo gebucht)" : ""}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ) : null}
+                        {bookableEmployees.otherEmployees.filter(
+                          (option) => !entryInput.employees.some((employee) => employee.employeeId === option.employeeId),
+                        ).length > 0 ? (
+                          <optgroup label="Andere Mitarbeiter">
+                            {bookableEmployees.otherEmployees
+                              .filter(
+                                (option) =>
+                                  !entryInput.employees.some((employee) => employee.employeeId === option.employeeId),
+                              )
+                              .map((option) => (
+                                <option key={option.employeeId} value={option.employeeId}>
+                                  {option.employeeName}
+                                  {option.roleLabel ? ` · ${option.roleLabel}` : ""}
+                                  {option.bookedElsewhere ? " (anderswo gebucht)" : ""}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ) : null}
+                      </select>
+                    </label>
+                    <button
+                      className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={locked || !addEmployeeId}
+                      onClick={addEmployee}
+                      type="button"
+                    >
+                      Hinzufügen
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      Übernimmt Beginn/Ende/Pausen der Kolonne (oben), danach pro Zeile anpassbar.
+                    </span>
+                  </div>
+                ) : null}
 
                 {message ? (
                   <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-900">

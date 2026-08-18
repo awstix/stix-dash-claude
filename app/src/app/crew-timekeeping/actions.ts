@@ -529,6 +529,84 @@ export async function moveEmployeesToProject(input: {
   revalidateCrewTimes();
 }
 
+/** Entfernt einen einzelnen fälschlich gebuchten Mitarbeiter aus einem
+ * Kolonnen-Zeiteintrag (Stundenkontrolle) - z.B. wenn jemand versehentlich
+ * mitgebucht wurde. Löscht nur die Zeile für diesen Mitarbeiter, der
+ * restliche Eintrag bleibt bestehen. */
+export async function deleteCrewTimeEmployee(input: { employeeId: string; entryId: string }) {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const roles = String(user?.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  const canCorrect =
+    roles.includes("admin") ||
+    roles.includes("construction_manager") ||
+    roles.includes("construction_management") ||
+    Boolean(user?.canApproveLeaveRequests);
+  if (!canCorrect) {
+    throw new Error("Nur Bauleitung oder Admin darf gebuchte Stunden löschen.");
+  }
+
+  const employee = await prisma.crewTimeEmployee.findUnique({
+    include: { entry: true },
+    where: { id: input.employeeId },
+  });
+  if (!employee || employee.entryId !== input.entryId) {
+    throw new Error("Der Mitarbeiter-Eintrag wurde nicht gefunden.");
+  }
+  await assertProjectAccess(session.user.id, employee.entry.projectId);
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.crewTimeEmployee.delete({ where: { id: employee.id } });
+
+    const version = await tx.crewTimeEntryRevision.count({ where: { entryId: input.entryId } });
+    await tx.crewTimeEntryRevision.create({
+      data: {
+        changeKind: "KORREKTUR",
+        changedByName: session.user.name || session.user.email,
+        changedByUserId: session.user.id,
+        entryId: input.entryId,
+        snapshotJson: JSON.stringify({
+          employeeName: employee.employeeName,
+          note: `Buchung gelöscht: ${employee.employeeName} (${employee.startTime}–${employee.endTime})`,
+          type: "EMPLOYEE_DELETE",
+        }),
+        version: version + 1,
+      },
+    });
+  });
+
+  revalidateCrewTimes();
+}
+
+/** Löscht einen kompletten Kolonnen-Zeiteintrag (alle Mitarbeiter des Tages
+ * für diese Kolonne/Baustelle) - z.B. wenn eine ganze Buchung fälschlich
+ * angelegt wurde. Unwiderruflich, daher nur Bauleitung/Admin. */
+export async function deleteCrewTimeEntry(entryId: string) {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const roles = String(user?.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  const canCorrect =
+    roles.includes("admin") ||
+    roles.includes("construction_manager") ||
+    roles.includes("construction_management") ||
+    Boolean(user?.canApproveLeaveRequests);
+  if (!canCorrect) {
+    throw new Error("Nur Bauleitung oder Admin darf gebuchte Stunden löschen.");
+  }
+
+  const entry = await prisma.crewTimeEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new Error("Zeiterfassung wurde nicht gefunden.");
+  await assertProjectAccess(session.user.id, entry.projectId);
+
+  await prisma.crewTimeEntry.delete({ where: { id: entryId } });
+
+  revalidateCrewTimes();
+}
+
 export type BookableEmployee = {
   bookedElsewhere: boolean;
   employeeId: string;
