@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ImportForm } from "@/components/ImportForm";
 import { prisma } from "@/lib/prisma";
-import { importInventoryItems } from "./actions";
+import { importInventoryItems, syncInventoryVehicles } from "./actions";
 
 // Large Excel imports (hundreds of rows, each doing a couple of DB round
 // trips for object-number assignment etc.) can run well past Vercel's
@@ -19,6 +19,7 @@ export default async function InventoryImportsPage({
     error?: string;
     report?: string;
     skipped?: string;
+    synced?: string;
     updated?: string;
   }>;
 }) {
@@ -113,6 +114,18 @@ export default async function InventoryImportsPage({
               Importbericht herunterladen
             </a>
           ) : null}
+        </div>
+      ) : null}
+
+      {params.synced !== undefined ? (
+        <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-6 text-green-900">
+          <h2 className="text-lg font-semibold">
+            Fahrzeug-/Fahrer-Synchronisierung abgeschlossen
+          </h2>
+          <p className="mt-2 text-sm">
+            <strong>{params.synced}</strong> Objekte geprüft und ihre
+            Fahrzeuge/Fahrer-Zuordnungen aktualisiert.
+          </p>
         </div>
       ) : null}
 
@@ -257,6 +270,26 @@ export default async function InventoryImportsPage({
               pendingLabel="Import läuft … bitte warten"
             />
           </ImportForm>
+
+          <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-sm font-bold text-gray-900">
+              Zweiter Schritt: Fahrzeuge/Fahrer synchronisieren
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Läuft nicht mehr automatisch während des Imports (das hat
+              größere Importe zuverlässig über das Server-Zeitlimit gebracht
+              und zum Absturz geführt). Danach hier einmal separat anstoßen -
+              dauert nur Sekunden bis Minuten und die Seite bestätigt sofort,
+              wenn es fertig ist.
+            </p>
+            <form action={syncInventoryVehicles} className="mt-4">
+              <FormSubmitButton
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                idleLabel="Fahrzeuge/Fahrer jetzt synchronisieren"
+                pendingLabel="Synchronisierung läuft … bitte warten"
+              />
+            </form>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

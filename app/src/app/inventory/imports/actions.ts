@@ -8,10 +8,7 @@ import * as XLSX from "xlsx";
 import { formatInventoryObjectNumber } from "@/lib/inventory-object-numbers";
 import { prisma } from "@/lib/prisma";
 import { inventoryCategoryAllowsAssignment } from "@/lib/inventory-assignment-policy";
-import {
-  ensureVehicleForInventoryItem,
-  syncDriverVehicleAssignmentForInventoryItem,
-} from "@/lib/driver-vehicle-inventory-sync";
+import { syncVehiclesFromInventory } from "@/lib/driver-vehicle-inventory-sync";
 import { putFile, signedUrl } from "@/lib/storage";
 import {
   bool,
@@ -591,21 +588,6 @@ export async function importInventoryItems(formData: FormData) {
         continue;
       }
 
-      // Checked once here (from the already-loaded category list, no extra
-      // query) so the driver-vehicle sync below - which does its own DB
-      // round trips - only runs for the minority of rows that actually
-      // qualify, instead of on every single row. Skipping it for the rest
-      // is what keeps a few-hundred-row import inside Vercel's timeout.
-      // Covers both flags that need a synced Vehicle row (LKW-Dispo and
-      // Gerätedisposition) - syncDriverVehicleAssignmentForInventoryItem
-      // itself narrows back down to LKW-only before touching driver data.
-      const allowsVehicleSync = Boolean(
-        category.useInTruckDispatchSelection ||
-          category.parentCategory?.useInTruckDispatchSelection ||
-          category.useInEquipmentDispatch ||
-          category.parentCategory?.useInEquipmentDispatch,
-      );
-
       const requestedObjectNumber = objectNumber(rowValue(row, "Objekt-ID"));
       const inventoryNumber = text(rowValue(row, "Inventarnummer"));
       const stixId = text(rowValue(row, "STIX-ID"));
@@ -863,13 +845,6 @@ export async function importInventoryItems(formData: FormData) {
               })),
             });
           }
-          if (allowsVehicleSync) {
-            await ensureVehicleForInventoryItem(tx, existingItem.id);
-            await syncDriverVehicleAssignmentForInventoryItem(
-              tx,
-              existingItem.id,
-            );
-          }
           updated += 1;
           return {
             action: "updated" as const,
@@ -878,7 +853,7 @@ export async function importInventoryItems(formData: FormData) {
           };
         }
 
-        const createdItem = await tx.inventoryItem.create({
+        await tx.inventoryItem.create({
           data: {
             ...data,
             objectNumber: objectNumberToSave,
@@ -902,13 +877,6 @@ export async function importInventoryItems(formData: FormData) {
               : undefined,
           },
         });
-        if (allowsVehicleSync) {
-          await ensureVehicleForInventoryItem(tx, createdItem.id);
-          await syncDriverVehicleAssignmentForInventoryItem(
-            tx,
-            createdItem.id,
-          );
-        }
         created += 1;
         return {
           action: "created" as const,
@@ -1065,4 +1033,21 @@ export async function importInventoryItems(formData: FormData) {
       )}${reportUrl ? `&report=${encodeURIComponent(reportUrl)}` : ""}`,
     );
   }
+}
+
+// Explicit, on-demand step instead of running per-row during the import
+// above - that used to push a few-hundred-row import past Vercel's
+// execution limit and crash it silently. Triggered here so the user gets
+// an immediate, visible confirmation of when the sync actually happened,
+// instead of it happening invisibly whenever /admin/driver-vehicles or
+// /geräte-dispo next happens to load.
+export async function syncInventoryVehicles() {
+  await getInventoryActor();
+
+  const syncedCount = await syncVehiclesFromInventory();
+
+  revalidatePath("/inventory");
+  revalidatePath("/admin/driver-vehicles");
+  revalidatePath("/equipment-dispatch");
+  redirect(`/inventory/imports?synced=${syncedCount}`);
 }

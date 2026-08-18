@@ -370,4 +370,6 @@ export async function syncVehiclesFromInventory() {
       await syncDriverVehicleAssignmentForInventoryItem(tx, item.id);
     });
   }
+
+  return items.length;
 }
