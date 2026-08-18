@@ -49,6 +49,10 @@ function formatTons(value: number) {
   }).format(value);
 }
 
+function roundTons(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function getVehicleLabel(vehicle: VehicleOption) {
   return [
     vehicle.vehicleNumber,
@@ -156,7 +160,14 @@ export function AsphaltShortAllocationForm({
     selectedVehicle.asphaltPayloadTons > 0 &&
     Number(tonsPerTour) > selectedVehicle.asphaltPayloadTons;
 
-  const openWarning = calculatedTotal > position.openTons;
+  // Informational, not a hard block: real truck loads rarely divide
+  // evenly into the open quantity, and the dispatcher may want the
+  // overage on purpose (e.g. rounding up to a full last tour) - they
+  // still need to be able to order exactly what's actually needed.
+  const openOverageTons = roundTons(calculatedTotal - position.openTons);
+  const openWarning = openOverageTons > 0;
+  const exactTonsPerTour =
+    tourCount > 0 ? roundTons(position.openTons / tourCount) : position.openTons;
   const hasConflict = Boolean(selectedDriverConflict || selectedVehicleConflict);
 
   function resetForm() {
@@ -468,9 +479,27 @@ export function AsphaltShortAllocationForm({
       ) : null}
 
       {openWarning ? (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-xs font-medium text-red-900">
-          Die Gesamtmenge ist größer als die offene Asphaltmenge. Bitte Menge
-          reduzieren.
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-medium text-amber-900">
+          <p>
+            Die Gesamtmenge liegt {formatTons(openOverageTons)} t über der
+            offenen Menge ({formatTons(position.openTons)} t). Das ist okay,
+            falls z. B. die letzte Tour bewusst voll beladen werden soll -
+            wird die exakte Menge gebraucht, würde{" "}
+            {tourCount === 1 ? "diese eine Tour" : "jede der Touren"} nur{" "}
+            {formatTons(exactTonsPerTour)} t statt {tonsPerTour || 0} t
+            brauchen.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTonsPerTour(String(exactTonsPerTour));
+              setTonsPerTourWasEdited(true);
+            }}
+            className="mt-2 rounded-lg border border-amber-400 bg-white px-2 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+          >
+            Genau auf {formatTons(position.openTons)} t auffüllen (
+            {formatTons(exactTonsPerTour)} t/Tour)
+          </button>
         </div>
       ) : null}
 
@@ -498,7 +527,6 @@ export function AsphaltShortAllocationForm({
           !vehicleId ||
           !tonsPerTour ||
           calculatedTotal <= 0 ||
-          openWarning ||
           hasConflict
         }
         className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:bg-gray-300 disabled:text-gray-500"
