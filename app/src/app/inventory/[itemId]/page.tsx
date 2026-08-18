@@ -901,6 +901,7 @@ export default async function InventoryDetailPage({
               label="Lieferscheinnummer"
               value={item.deliveryNoteNumber ?? "—"}
             />
+            <Info label="Einheit" value={item.stockUnit || "—"} />
             <Info
               label="Verrechnungssatz €/Einheit"
               value={formatMoney(item.billingRateCents)}
