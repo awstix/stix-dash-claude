@@ -536,17 +536,30 @@ export async function saveAllInventoryItemRates(formData: FormData) {
   }
 }
 
+/** Matching key for an Inventarkategorie row: name + parent category name
+ * (case/whitespace-insensitive). Categories have no user-facing ID to
+ * match on, and showing the internal database id in the export sheet
+ * just reads as gibberish to someone editing it in Excel - name+parent
+ * is unique in practice (verified against production data before this
+ * was written) and is what a person actually recognizes a category by. */
+function categoryMatchKey(name: string, parentName: string | null) {
+  return `${name.trim().toLowerCase()}||${(parentName ?? "").trim().toLowerCase()}`;
+}
+
 /** Reads back the two sheets produced by the Excel export (Inventar-
  * kategorien / Inventarobjekte) and upserts a rate per row for the given
- * rate set, matched by the hidden Kategorie-ID/Objekt-ID column - same
- * upsert + audit-log path as saveAllInventoryCategoryRates/
- * saveAllInventoryItemRates above, just fed from parsed Excel rows
- * instead of table FormData arrays, and sharing one batchId so the whole
- * import shows up (and can be reverted) as a single entry in the
- * Änderungsarchiv. Rows are matched only by ID - no "create a new
- * category/item via import" support, this is for bulk-editing existing
- * rates. A blank rate cell clears the override back to the base rate,
- * matching the manual form's own blank-input behaviour. */
+ * rate set - same upsert + audit-log path as
+ * saveAllInventoryCategoryRates/saveAllInventoryItemRates above, just
+ * fed from parsed Excel rows instead of table FormData arrays, and
+ * sharing one batchId so the whole import shows up (and can be
+ * reverted) as a single entry in the Änderungsarchiv. Rows are matched
+ * by Objektnummer (items) or Kategorie+Übergeordnete Kategorie
+ * (categories) - human-readable columns instead of an internal id, so
+ * nothing "gibberish" needs to survive a round-trip through Excel - and
+ * only ever match existing rows; there's no "create a new category/item
+ * via import" support, this is for bulk-editing existing rates. A blank
+ * rate cell clears the override back to the base rate, matching the
+ * manual form's own blank-input behaviour. */
 export async function importInventoryRates(formData: FormData) {
   const actor = await getInventoryActor();
   try {
@@ -579,34 +592,52 @@ export async function importInventoryRates(formData: FormData) {
 
     if (categorySheet) {
       const rows = XLSX.utils.sheet_to_json<ExcelRow>(categorySheet, { defval: "" });
-      const categoryIds = rows
-        .map((row) => excelText(rowValue(row, "Kategorie-ID")))
-        .filter((id): id is string => Boolean(id));
-      const [categories, existingRates] = await Promise.all([
-        prisma.inventoryCategory.findMany({ where: { id: { in: categoryIds } } }),
-        prisma.controllingInventoryCategoryRate.findMany({
-          where: { categoryId: { in: categoryIds }, rateSetId },
-        }),
-      ]);
-      const categoryById = new Map(categories.map((category) => [category.id, category]));
+
+      // Loaded whole (not filtered to the sheet's rows) since matching
+      // happens by name, not by a key we can push into a WHERE ... IN.
+      const allCategories = await prisma.inventoryCategory.findMany({
+        include: { parentCategory: true },
+      });
+      const categoryByKey = new Map<string, (typeof allCategories)[number] | "AMBIGUOUS">();
+      for (const category of allCategories) {
+        const key = categoryMatchKey(category.name, category.parentCategory?.name ?? null);
+        categoryByKey.set(key, categoryByKey.has(key) ? "AMBIGUOUS" : category);
+      }
+      const categoryIds = allCategories.map((category) => category.id);
+      const existingRates = await prisma.controllingInventoryCategoryRate.findMany({
+        where: { categoryId: { in: categoryIds }, rateSetId },
+      });
       const existingRateByCategoryId = new Map(
         existingRates.map((rate) => [rate.categoryId, rate]),
       );
 
       for (const [index, row] of rows.entries()) {
         const excelRowNumber = index + 2;
-        const categoryId = excelText(rowValue(row, "Kategorie-ID"));
-        if (!categoryId) {
-          errors.push(`Inventarkategorien Zeile ${excelRowNumber}: Kategorie-ID fehlt.`);
+        const categoryName = excelText(rowValue(row, "Kategorie"));
+        if (!categoryName) {
+          errors.push(`Inventarkategorien Zeile ${excelRowNumber}: Kategorie fehlt.`);
           continue;
         }
-        const category = categoryById.get(categoryId);
-        if (!category) {
+        const parentName = excelText(rowValue(row, "Übergeordnete Kategorie"));
+        const match = categoryByKey.get(categoryMatchKey(categoryName, parentName));
+        if (!match) {
           errors.push(
-            `Inventarkategorien Zeile ${excelRowNumber}: Kategorie-ID unbekannt (${categoryId}).`,
+            `Inventarkategorien Zeile ${excelRowNumber}: Kategorie „${categoryName}“${
+              parentName ? ` unter „${parentName}“` : ""
+            } nicht gefunden.`,
           );
           continue;
         }
+        if (match === "AMBIGUOUS") {
+          errors.push(
+            `Inventarkategorien Zeile ${excelRowNumber}: Kategorie „${categoryName}“${
+              parentName ? ` unter „${parentName}“` : ""
+            } ist nicht eindeutig - Zeile übersprungen.`,
+          );
+          continue;
+        }
+        const category = match;
+        const categoryId = category.id;
 
         const existingRate = existingRateByCategoryId.get(categoryId) ?? null;
         const newReal = excelMoneyCents(rowValue(row, "Normal (€/Einheit)"));
@@ -664,34 +695,40 @@ export async function importInventoryRates(formData: FormData) {
 
     if (itemSheet) {
       const rows = XLSX.utils.sheet_to_json<ExcelRow>(itemSheet, { defval: "" });
-      const itemIds = rows
-        .map((row) => excelText(rowValue(row, "Objekt-ID")))
-        .filter((id): id is string => Boolean(id));
+      const objectNumbers = rows
+        .map((row) => excelText(rowValue(row, "Objektnummer")))
+        .filter((value): value is string => Boolean(value));
       const [items, existingRates] = await Promise.all([
-        prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } }),
+        prisma.inventoryItem.findMany({ where: { objectNumber: { in: objectNumbers } } }),
         prisma.controllingInventoryItemRate.findMany({
-          where: { itemId: { in: itemIds }, rateSetId },
+          where: {
+            rateSetId,
+            item: { objectNumber: { in: objectNumbers } },
+          },
         }),
       ]);
-      const itemById = new Map(items.map((item) => [item.id, item]));
+      const itemByObjectNumber = new Map(
+        items.filter((item) => item.objectNumber).map((item) => [item.objectNumber, item]),
+      );
       const existingRateByItemId = new Map(existingRates.map((rate) => [rate.itemId, rate]));
 
       for (const [index, row] of rows.entries()) {
         const excelRowNumber = index + 2;
-        const itemId = excelText(rowValue(row, "Objekt-ID"));
-        if (!itemId) {
-          errors.push(`Inventarobjekte Zeile ${excelRowNumber}: Objekt-ID fehlt.`);
+        const objectNumber = excelText(rowValue(row, "Objektnummer"));
+        if (!objectNumber) {
+          errors.push(`Inventarobjekte Zeile ${excelRowNumber}: Objektnummer fehlt.`);
           continue;
         }
-        const item = itemById.get(itemId);
+        const item = itemByObjectNumber.get(objectNumber);
         if (!item) {
           errors.push(
-            `Inventarobjekte Zeile ${excelRowNumber}: Objekt-ID unbekannt (${itemId}).`,
+            `Inventarobjekte Zeile ${excelRowNumber}: Objektnummer „${objectNumber}“ nicht gefunden.`,
           );
           continue;
         }
 
-        const itemLabel = item.objectNumber ? `${item.objectNumber} · ${item.name}` : item.name;
+        const itemId = item.id;
+        const itemLabel = `${objectNumber} · ${item.name}`;
         const existingRate = existingRateByItemId.get(itemId) ?? null;
         const newReal = excelMoneyCents(rowValue(row, "Normal (€/Einheit)"));
         const newIdle = excelMoneyCents(rowValue(row, "Stillstand (€/Einheit)"));

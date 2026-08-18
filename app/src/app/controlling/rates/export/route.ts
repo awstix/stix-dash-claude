@@ -51,7 +51,6 @@ export async function GET(request: Request) {
     const rate = categoryRateById.get(category.id);
 
     return {
-      "Kategorie-ID": category.id,
       Kategorie: category.name,
       "Übergeordnete Kategorie": category.parentCategory?.name ?? "",
       "Normal (€/Einheit)": toEuro(rate?.billingRateCents ?? category.billingRateCents),
@@ -65,7 +64,6 @@ export async function GET(request: Request) {
     const rate = itemRateById.get(item.id);
 
     return {
-      "Objekt-ID": item.id,
       Objektnummer: item.objectNumber ?? "",
       Name: item.name,
       Kategorie: item.category?.name ?? "",
@@ -77,9 +75,8 @@ export async function GET(request: Request) {
   const workbook = XLSX.utils.book_new();
 
   const categorySheet = XLSX.utils.json_to_sheet(categoryRows);
-  applyMoneyColumnFormat(categorySheet, categoryRows.length, [3, 4]);
+  applyMoneyColumnFormat(categorySheet, categoryRows.length, [2, 3]);
   categorySheet["!cols"] = [
-    { wch: 26 }, // Kategorie-ID
     { wch: 28 }, // Kategorie
     { wch: 28 }, // Übergeordnete Kategorie
     { wch: 16 }, // Normal
@@ -88,9 +85,8 @@ export async function GET(request: Request) {
   XLSX.utils.book_append_sheet(workbook, categorySheet, "Inventarkategorien");
 
   const itemSheet = XLSX.utils.json_to_sheet(itemRows);
-  applyMoneyColumnFormat(itemSheet, itemRows.length, [4, 5]);
+  applyMoneyColumnFormat(itemSheet, itemRows.length, [3, 4]);
   itemSheet["!cols"] = [
-    { wch: 26 }, // Objekt-ID
     { wch: 14 }, // Objektnummer
     { wch: 32 }, // Name
     { wch: 28 }, // Kategorie
@@ -104,7 +100,7 @@ export async function GET(request: Request) {
     [],
     ["Nur die Spalten „Normal (€/Einheit)“ und „Stillstand (€/Einheit)“ bearbeiten."],
     [
-      "Die -ID-Spalten (Kategorie-ID / Objekt-ID) nicht verändern - sie ordnen jede Zeile beim Import eindeutig zu.",
+      "Zeilen werden beim Import über die Objektnummer (Inventarobjekte) bzw. Kategorie + Übergeordnete Kategorie (Inventarkategorien) zugeordnet - diese Spalten bitte nicht ändern.",
     ],
     [
       "Beim erneuten Hochladen unter Controlling > Verrechnungssätze werden die Sätze dieser Zeilen überschrieben.",
