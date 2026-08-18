@@ -210,29 +210,26 @@ export default async function ControllingPerformancePage({
     inventoryCategoryRatesForQuickEntry.map((rate) => [rate.categoryId, rate.billingRateCents]),
   );
 
-  // Für die Geräte/Material-Schnellerfassung: nur Objekte mit einem
-  // tatsächlich hinterlegten Satz (Objekt-Satz > Kategorie-Satz aus dem
-  // aktiven Satzstand > Kategorie-Standardsatz) anbieten - alles andere
-  // hätte ohnehin keinen sinnvollen Vorschlagswert.
-  const equipmentQuickEntryOptions = inventoryItemsForQuickEntry
-    .map((item) => {
-      const rateCents =
-        (item.categoryId ? itemRateById.get(item.id) : null) ??
-        (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
-        item.category?.billingRateCents ??
-        null;
+  // Für die Geräte/Material-Schnellerfassung: das komplette aktive
+  // Inventar anbieten (Material hat z.B. i.d.R. keinen hinterlegten
+  // Verrechnungssatz, muss aber trotzdem wählbar sein) - der Satz wird
+  // nur als Vorschlag übernommen, wo einer existiert (Objekt-Satz >
+  // Kategorie-Satz aus dem aktiven Satzstand > Kategorie-Standardsatz),
+  // sonst bleibt EP netto € leer und wird manuell eingetragen.
+  const equipmentQuickEntryOptions = inventoryItemsForQuickEntry.map((item) => {
+    const rateCents =
+      (item.categoryId ? itemRateById.get(item.id) : null) ??
+      (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
+      item.category?.billingRateCents ??
+      null;
 
-      if (!rateCents || rateCents <= 0) return null;
-
-      return {
-        id: item.id,
-        label: [item.category?.name, item.objectNumber, item.name]
-          .filter(Boolean)
-          .join(" · "),
-        unitPrice: formatRawMoney(rateCents),
-      };
-    })
-    .filter((option): option is NonNullable<typeof option> => option !== null);
+    return {
+      id: item.id,
+      category: item.category?.name ?? "Ohne Kategorie",
+      label: [item.objectNumber, item.name].filter(Boolean).join(" · "),
+      unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
+    };
+  });
 
   const [crewsForHours, employeesForHours] = await Promise.all([
     prisma.crew.findMany({
@@ -930,7 +927,7 @@ function EntrySection({
   title,
 }: {
   action: (formData: FormData) => Promise<void>;
-  equipmentOptions: { id: string; label: string; unitPrice: string }[];
+  equipmentOptions: { id: string; category: string; label: string; unitPrice: string }[];
   hourEntryOptions: { id: string; label: string; totalHours: string }[];
   importAction: (formData: FormData) => Promise<void>;
   projectId: string;

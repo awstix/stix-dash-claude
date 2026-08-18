@@ -4,6 +4,7 @@ import { useState } from "react";
 
 type EquipmentOption = {
   id: string;
+  category: string;
   label: string;
   unitPrice: string;
 };
@@ -42,6 +43,27 @@ export function DetailEntryForm({
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [status, setStatus] = useState(entryStatuses[0]);
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [showEquipmentList, setShowEquipmentList] = useState(false);
+
+  const normalizedSearch = normalizeSearchText(equipmentSearch);
+  const filteredEquipmentOptions = normalizedSearch
+    ? equipmentOptions.filter((option) =>
+        normalizeSearchText(`${option.category} ${option.label}`).includes(
+          normalizedSearch,
+        ),
+      )
+    : equipmentOptions;
+
+  const equipmentGroups: { category: string; items: EquipmentOption[] }[] = [];
+  for (const option of filteredEquipmentOptions) {
+    const currentGroup = equipmentGroups[equipmentGroups.length - 1];
+    if (currentGroup && currentGroup.category === option.category) {
+      currentGroup.items.push(option);
+    } else {
+      equipmentGroups.push({ category: option.category, items: [option] });
+    }
+  }
 
   function handleEquipmentSelect(id: string) {
     const option = equipmentOptions.find((item) => item.id === id);
@@ -51,6 +73,8 @@ export function DetailEntryForm({
     setCostType("Geräte");
     setUnit("h");
     setUnitPrice(option.unitPrice);
+    setEquipmentSearch(`${option.category} · ${option.label}`);
+    setShowEquipmentList(false);
   }
 
   function handleHourEntrySelect(id: string) {
@@ -68,21 +92,52 @@ export function DetailEntryForm({
 
       {equipmentOptions.length > 0 ? (
         <Field
-          className="md:col-span-2"
-          label="Gerät/Material wählen (füllt Beschreibung, Kostenart, Einheit & Satz)"
+          className="relative md:col-span-2"
+          label="Gerät/Material aus Inventar suchen (füllt Beschreibung, Kostenart, Einheit & Satz)"
         >
-          <select
+          <input
+            autoComplete="off"
             className={inputClassName}
-            defaultValue=""
-            onChange={(event) => handleEquipmentSelect(event.target.value)}
-          >
-            <option value="">Manuell eingeben ...</option>
-            {equipmentOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onBlur={() => {
+              window.setTimeout(() => setShowEquipmentList(false), 150);
+            }}
+            onChange={(event) => {
+              setEquipmentSearch(event.target.value);
+              setShowEquipmentList(true);
+            }}
+            onFocus={() => setShowEquipmentList(true)}
+            placeholder="z.B. Stampfer, Sand, Walze ..."
+            value={equipmentSearch}
+          />
+          {showEquipmentList ? (
+            <div className="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-gray-300 bg-white shadow-lg">
+              {equipmentGroups.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500">
+                  Keine Treffer im Inventar.
+                </div>
+              ) : (
+                equipmentGroups.map((group) => (
+                  <div key={group.category}>
+                    <div className="sticky top-0 bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-gray-500">
+                      {group.category}
+                    </div>
+                    {group.items.map((option) => (
+                      <button
+                        className="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+                        key={option.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleEquipmentSelect(option.id)}
+                        type="button"
+                      >
+                        {option.label}
+                        {option.unitPrice ? ` · ${option.unitPrice} €` : ""}
+                      </button>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
         </Field>
       ) : null}
 
@@ -203,6 +258,14 @@ function Field({
       {children}
     </label>
   );
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
 }
 
 function formatInputDate(date: Date) {
