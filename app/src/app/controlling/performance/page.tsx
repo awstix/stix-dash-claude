@@ -986,7 +986,23 @@ function InvoiceSection({
             Umsatz, Kosten und Stunden berechnet.
           </p>
         </div>
+
+        <a
+          href="/controlling/performance/itwo-template"
+          className="inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+        >
+          Vorlage herunterladen
+        </a>
       </div>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Am einfachsten den vorhandenen Export aus iTWO (Leistungsverzeichnis bzw.
+        Rechnungsprüfung/Aufmaß, als Excel exportiert) direkt hochladen - die
+        Spalten müssen dafür nicht umbenannt werden, der Import erkennt die
+        gängigen iTWO-Bezeichnungen automatisch (OZ, Kurztext, ME, RE-Menge,
+        LV-Menge, Einheitspreis, Std/ME, Kosten/ME, ...). Details dazu stehen im
+        Hinweise-Blatt der Vorlage.
+      </p>
 
       <form
         action={importAction}
