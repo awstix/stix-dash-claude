@@ -10,6 +10,7 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { activeDispositionDaysOff, dateKey } from "@/lib/disposition-days-off";
+import { syncVehiclesFromInventory } from "@/lib/driver-vehicle-inventory-sync";
 import { AnchoredPopover } from "@/components/AnchoredPopover";
 import { CrewTimelineScrollButtons } from "../crew-dispatch/CrewTimelineScrollButtons";
 import {
@@ -1366,6 +1367,15 @@ export default async function EquipmentDispatchPage({
     showTrucks?: string | string[];
   }>;
 }) {
+  // Lazy backfill (same pattern as /admin/driver-vehicles): an
+  // InventoryItem only gets its linked Vehicle row synced when the item
+  // itself is created/edited, not retroactively when a category's
+  // useInEquipmentDispatch flag is toggled on afterwards. Without this,
+  // existing items in a newly-enabled category never get a vehicleId and
+  // so can never show up here (or in the category filter, which is
+  // derived from the same already-synced vehicles).
+  await syncVehiclesFromInventory();
+
   const params = await searchParams;
   const view = getTimelineView(params.view);
   const showWeekend = params.showWeekend === "1";
@@ -1474,11 +1484,11 @@ export default async function EquipmentDispatchPage({
         category: {
           OR: [
             {
-              useInTeamManagement: true,
+              useInEquipmentDispatch: true,
             },
             {
               parentCategory: {
-                useInTeamManagement: true,
+                useInEquipmentDispatch: true,
               },
             },
           ],
