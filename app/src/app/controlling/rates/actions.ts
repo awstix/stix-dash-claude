@@ -1,5 +1,6 @@
 "use server";
 import type { Prisma } from "@prisma/client";
+import * as XLSX from "xlsx";
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -7,6 +8,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
 import { getInventoryActor } from "@/app/inventory/actions";
+import {
+  moneyCents as excelMoneyCents,
+  rowValue,
+  text as excelText,
+  type ExcelRow,
+} from "@/lib/import-value-parsing";
 
 function text(value: FormDataEntryValue | null) {
   const result = String(value ?? "").trim();
@@ -526,6 +533,235 @@ export async function saveAllInventoryItemRates(formData: FormData) {
   );
   } catch (error) {
     handleRateActionError(error);
+  }
+}
+
+/** Reads back the two sheets produced by the Excel export (Inventar-
+ * kategorien / Inventarobjekte) and upserts a rate per row for the given
+ * rate set, matched by the hidden Kategorie-ID/Objekt-ID column - same
+ * upsert + audit-log path as saveAllInventoryCategoryRates/
+ * saveAllInventoryItemRates above, just fed from parsed Excel rows
+ * instead of table FormData arrays, and sharing one batchId so the whole
+ * import shows up (and can be reverted) as a single entry in the
+ * Änderungsarchiv. Rows are matched only by ID - no "create a new
+ * category/item via import" support, this is for bulk-editing existing
+ * rates. A blank rate cell clears the override back to the base rate,
+ * matching the manual form's own blank-input behaviour. */
+export async function importInventoryRates(formData: FormData) {
+  const actor = await getInventoryActor();
+  try {
+    const rateSetId = text(formData.get("rateSetId"));
+    if (!rateSetId) {
+      throw new Error("Satzstand fehlt.");
+    }
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error("Bitte eine Excel-Datei auswählen.");
+    }
+
+    const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), {
+      type: "buffer",
+    });
+    const categorySheet = workbook.Sheets["Inventarkategorien"];
+    const itemSheet = workbook.Sheets["Inventarobjekte"];
+    if (!categorySheet && !itemSheet) {
+      throw new Error(
+        "In der Datei wurden weder „Inventarkategorien“ noch „Inventarobjekte“ gefunden.",
+      );
+    }
+
+    const batchId = randomUUID();
+    const batchLabel = "Excel-Import Verrechnungssätze";
+    const errors: string[] = [];
+    let categoryCount = 0;
+    let itemCount = 0;
+
+    if (categorySheet) {
+      const rows = XLSX.utils.sheet_to_json<ExcelRow>(categorySheet, { defval: "" });
+      const categoryIds = rows
+        .map((row) => excelText(rowValue(row, "Kategorie-ID")))
+        .filter((id): id is string => Boolean(id));
+      const [categories, existingRates] = await Promise.all([
+        prisma.inventoryCategory.findMany({ where: { id: { in: categoryIds } } }),
+        prisma.controllingInventoryCategoryRate.findMany({
+          where: { categoryId: { in: categoryIds }, rateSetId },
+        }),
+      ]);
+      const categoryById = new Map(categories.map((category) => [category.id, category]));
+      const existingRateByCategoryId = new Map(
+        existingRates.map((rate) => [rate.categoryId, rate]),
+      );
+
+      for (const [index, row] of rows.entries()) {
+        const excelRowNumber = index + 2;
+        const categoryId = excelText(rowValue(row, "Kategorie-ID"));
+        if (!categoryId) {
+          errors.push(`Inventarkategorien Zeile ${excelRowNumber}: Kategorie-ID fehlt.`);
+          continue;
+        }
+        const category = categoryById.get(categoryId);
+        if (!category) {
+          errors.push(
+            `Inventarkategorien Zeile ${excelRowNumber}: Kategorie-ID unbekannt (${categoryId}).`,
+          );
+          continue;
+        }
+
+        const existingRate = existingRateByCategoryId.get(categoryId) ?? null;
+        const newReal = excelMoneyCents(rowValue(row, "Normal (€/Einheit)"));
+        const newIdle = excelMoneyCents(rowValue(row, "Stillstand (€/Einheit)"));
+        const previousReal = existingRate?.billingRateCents ?? null;
+        const previousIdle = existingRate?.idleBillingRateCents ?? null;
+
+        if (newReal === previousReal && newIdle === previousIdle) continue;
+
+        const rate = await prisma.controllingInventoryCategoryRate.upsert({
+          create: {
+            billingRateCents: newReal,
+            categoryId,
+            idleBillingRateCents: newIdle,
+            rateSetId,
+          },
+          update: {
+            billingRateCents: newReal,
+            idleBillingRateCents: newIdle,
+          },
+          where: {
+            rateSetId_categoryId: { categoryId, rateSetId },
+          },
+        });
+
+        const [realChanged, idleChanged] = await Promise.all([
+          logRateChange({
+            batchId,
+            batchLabel,
+            changedByName: actor.name,
+            changeType: "IMPORT",
+            fieldName: "billingRateCents",
+            newValueCents: newReal,
+            previousValueCents: previousReal,
+            targetId: rate.id,
+            targetLabel: category.name,
+            targetType: "INVENTORY_CATEGORY_RATE",
+          }),
+          logRateChange({
+            batchId,
+            batchLabel,
+            changedByName: actor.name,
+            changeType: "IMPORT",
+            fieldName: "idleBillingRateCents",
+            newValueCents: newIdle,
+            previousValueCents: previousIdle,
+            targetId: rate.id,
+            targetLabel: category.name,
+            targetType: "INVENTORY_CATEGORY_RATE",
+          }),
+        ]);
+        if (realChanged || idleChanged) categoryCount += 1;
+      }
+    }
+
+    if (itemSheet) {
+      const rows = XLSX.utils.sheet_to_json<ExcelRow>(itemSheet, { defval: "" });
+      const itemIds = rows
+        .map((row) => excelText(rowValue(row, "Objekt-ID")))
+        .filter((id): id is string => Boolean(id));
+      const [items, existingRates] = await Promise.all([
+        prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } }),
+        prisma.controllingInventoryItemRate.findMany({
+          where: { itemId: { in: itemIds }, rateSetId },
+        }),
+      ]);
+      const itemById = new Map(items.map((item) => [item.id, item]));
+      const existingRateByItemId = new Map(existingRates.map((rate) => [rate.itemId, rate]));
+
+      for (const [index, row] of rows.entries()) {
+        const excelRowNumber = index + 2;
+        const itemId = excelText(rowValue(row, "Objekt-ID"));
+        if (!itemId) {
+          errors.push(`Inventarobjekte Zeile ${excelRowNumber}: Objekt-ID fehlt.`);
+          continue;
+        }
+        const item = itemById.get(itemId);
+        if (!item) {
+          errors.push(
+            `Inventarobjekte Zeile ${excelRowNumber}: Objekt-ID unbekannt (${itemId}).`,
+          );
+          continue;
+        }
+
+        const itemLabel = item.objectNumber ? `${item.objectNumber} · ${item.name}` : item.name;
+        const existingRate = existingRateByItemId.get(itemId) ?? null;
+        const newReal = excelMoneyCents(rowValue(row, "Normal (€/Einheit)"));
+        const newIdle = excelMoneyCents(rowValue(row, "Stillstand (€/Einheit)"));
+        const previousReal = existingRate?.billingRateCents ?? null;
+        const previousIdle = existingRate?.idleBillingRateCents ?? null;
+
+        if (newReal === previousReal && newIdle === previousIdle) continue;
+
+        const rate = await prisma.controllingInventoryItemRate.upsert({
+          create: {
+            billingRateCents: newReal,
+            idleBillingRateCents: newIdle,
+            itemId,
+            rateSetId,
+          },
+          update: {
+            billingRateCents: newReal,
+            idleBillingRateCents: newIdle,
+          },
+          where: {
+            rateSetId_itemId: { itemId, rateSetId },
+          },
+        });
+
+        const [realChanged, idleChanged] = await Promise.all([
+          logRateChange({
+            batchId,
+            batchLabel,
+            changedByName: actor.name,
+            changeType: "IMPORT",
+            fieldName: "billingRateCents",
+            newValueCents: newReal,
+            previousValueCents: previousReal,
+            targetId: rate.id,
+            targetLabel: itemLabel,
+            targetType: "INVENTORY_ITEM_RATE",
+          }),
+          logRateChange({
+            batchId,
+            batchLabel,
+            changedByName: actor.name,
+            changeType: "IMPORT",
+            fieldName: "idleBillingRateCents",
+            newValueCents: newIdle,
+            previousValueCents: previousIdle,
+            targetId: rate.id,
+            targetLabel: itemLabel,
+            targetType: "INVENTORY_ITEM_RATE",
+          }),
+        ]);
+        if (realChanged || idleChanged) itemCount += 1;
+      }
+    }
+
+    revalidateRates();
+
+    const summary = `${categoryCount} Kategorie(n) und ${itemCount} Objekt(e) importiert.`;
+    if (errors.length > 0) {
+      const shown = errors.slice(0, 10).join(" | ");
+      const more = errors.length > 10 ? ` (+${errors.length - 10} weitere)` : "";
+      redirectWithError(
+        `${summary} ${errors.length} Zeile(n) übersprungen: ${shown}${more}`,
+        "inventory-category-rates",
+        formData.get("pageYear"),
+      );
+    }
+
+    redirectWithNotice(summary, "inventory-category-rates", formData.get("pageYear"));
+  } catch (error) {
+    handleRateActionError(error, "inventory-category-rates");
   }
 }
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createRateSetFromPreviousYear,
   deleteRateSet,
+  importInventoryRates,
   revertRateChange,
   revertRateChangeBatch,
   saveAllEmployeeGroupRates,
@@ -354,6 +355,49 @@ export default async function ControllingRatesPage({
             </form>
           </div>
         </RateDetails>
+
+        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-950">
+            Inventar-Sätze: Excel-Export/Import
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm text-gray-700">
+            Exportiert Kategorien- und Objektsätze des Satzstands {selectedYear} zusammen in
+            eine Excel-Datei zum Bearbeiten. Beim erneuten Hochladen werden die Sätze der
+            enthaltenen Zeilen überschrieben - leere Zellen löschen den Satz wieder (dann
+            gilt automatisch der Kategoriesatz).
+          </p>
+          <div className="mt-4 flex flex-wrap items-end gap-4">
+            <a
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/controlling/rates/export${
+                selectedRateSet ? `?rateSetId=${selectedRateSet.id}` : ""
+              }`}
+            >
+              Excel exportieren
+            </a>
+            <form
+              action={importInventoryRates}
+              className="flex flex-wrap items-end gap-3"
+              encType="multipart/form-data"
+            >
+              <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
+              <input name="pageYear" type="hidden" value={selectedYear} />
+              <label className="text-sm font-semibold text-gray-800">
+                Bearbeitete Datei importieren
+                <input
+                  accept=".xlsx"
+                  className="mt-1 block text-sm text-gray-700"
+                  name="file"
+                  required
+                  type="file"
+                />
+              </label>
+              <button className={primaryButtonClassName} type="submit">
+                Importieren (überschreibt)
+              </button>
+            </form>
+          </div>
+        </section>
 
         <RateDetails
           count={categories.length}
