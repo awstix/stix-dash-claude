@@ -194,6 +194,7 @@ export default async function ControllingPerformancePage({
         name: true,
         objectNumber: true,
         categoryId: true,
+        vehicleId: true,
         category: {
           select: {
             name: true,
@@ -212,18 +213,27 @@ export default async function ControllingPerformancePage({
     inventoryCategoryRatesForQuickEntry.map((rate) => [rate.categoryId, rate.billingRateCents]),
   );
 
+  function resolveItemRateCents(item: {
+    categoryId: string | null;
+    id: string;
+    category: { billingRateCents: number | null } | null;
+  }) {
+    return (
+      (item.categoryId ? itemRateById.get(item.id) : null) ??
+      (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
+      item.category?.billingRateCents ??
+      null
+    );
+  }
+
   // Für die Geräte/Material-Schnellerfassung: das komplette aktive
   // Inventar anbieten (Material hat z.B. i.d.R. keinen hinterlegten
   // Verrechnungssatz, muss aber trotzdem wählbar sein) - der Satz wird
   // nur als Vorschlag übernommen, wo einer existiert (Objekt-Satz >
   // Kategorie-Satz aus dem aktiven Satzstand > Kategorie-Standardsatz),
   // sonst bleibt EP netto € leer und wird manuell eingetragen.
-  const equipmentQuickEntryOptions = inventoryItemsForQuickEntry.map((item) => {
-    const rateCents =
-      (item.categoryId ? itemRateById.get(item.id) : null) ??
-      (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
-      item.category?.billingRateCents ??
-      null;
+  const generalEquipmentQuickEntryOptions = inventoryItemsForQuickEntry.map((item) => {
+    const rateCents = resolveItemRateCents(item);
 
     return {
       id: item.id,
@@ -232,6 +242,89 @@ export default async function ControllingPerformancePage({
       unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
     };
   });
+
+  // Geräte, die einer über Teams-Verwaltung/Personaleinsatzplanung für
+  // dieses Projekt eingeteilten Kolonne als Standardgerät hinterlegt sind -
+  // oben in der Auswahl, deutlich mit der Kolonne beschriftet, statt sie
+  // in der allgemeinen Inventarliste untergehen zu lassen.
+  const crewLookupProjectId = report?.projectId ?? selectedProject?.id ?? null;
+  const crewPlanningRows = crewLookupProjectId
+    ? await prisma.crewPlanningRow.findMany({
+        where: { projectId: crewLookupProjectId },
+        select: {
+          assignments: {
+            select: {
+              crewId: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+        },
+      })
+    : [];
+  const reportPeriodStart = report?.periodStart ?? null;
+  const reportPeriodEnd = report?.periodEnd ?? null;
+  const relevantCrewIds = Array.from(
+    new Set(
+      crewPlanningRows
+        .flatMap((row) => row.assignments)
+        .filter((assignment) => {
+          if (!assignment.crewId) return false;
+          if (!reportPeriodStart || !reportPeriodEnd) return true;
+          return (
+            assignment.startDate <= reportPeriodEnd &&
+            assignment.endDate >= reportPeriodStart
+          );
+        })
+        .map((assignment) => assignment.crewId as string),
+    ),
+  );
+  const assignedCrews = relevantCrewIds.length
+    ? await prisma.crew.findMany({
+        where: { id: { in: relevantCrewIds } },
+        select: {
+          name: true,
+          defaultVehicles: {
+            where: { isActive: true },
+            select: { vehicleId: true, inventoryItemId: true },
+          },
+        },
+      })
+    : [];
+
+  const itemByVehicleId = new Map(
+    inventoryItemsForQuickEntry
+      .filter((item) => item.vehicleId)
+      .map((item) => [item.vehicleId as string, item]),
+  );
+  const itemById = new Map(inventoryItemsForQuickEntry.map((item) => [item.id, item]));
+
+  const crewAssignedEquipmentOptions = assignedCrews.flatMap((crew) =>
+    crew.defaultVehicles.flatMap((defaultVehicle) => {
+      const item =
+        itemByVehicleId.get(defaultVehicle.vehicleId) ??
+        (defaultVehicle.inventoryItemId
+          ? itemById.get(defaultVehicle.inventoryItemId)
+          : null);
+      if (!item) return [];
+
+      const rateCents = resolveItemRateCents(item);
+
+      return [
+        {
+          id: item.id,
+          category: `Zugeteilt: Kolonne ${crew.name}`,
+          label: [item.objectNumber, item.name].filter(Boolean).join(" · "),
+          unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
+        },
+      ];
+    }),
+  );
+
+  const equipmentQuickEntryOptions = [
+    ...crewAssignedEquipmentOptions,
+    ...generalEquipmentQuickEntryOptions,
+  ];
 
   const [crewsForHours, employeesForHours] = await Promise.all([
     prisma.crew.findMany({

@@ -156,7 +156,7 @@ export function DetailEntryForm({
                     {group.items.map((option) => (
                       <button
                         className="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
-                        key={option.id}
+                        key={`${group.category}-${option.id}`}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => handleEquipmentSelect(option.id)}
                         type="button"
