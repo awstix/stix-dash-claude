@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getNetWorkHoursForDay, getWorkTimeDayForDate } from "@/lib/work-time";
@@ -19,6 +20,7 @@ import {
   updatePerformanceReport,
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
+import { DeleteEntryButton } from "./DeleteEntryButton";
 import { DetailEntryForm, type DetailEntryEditValues } from "./DetailEntryForm";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
@@ -1224,14 +1226,17 @@ export default async function ControllingPerformancePage({
                       getSourceLabel(entry.source, entry.notes),
                       <div className="flex gap-2" key={`actions-${entry.id}`}>
                         <a
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                          href={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}&editDetailId=${entry.id}#detail-form`}
+                          aria-label="Bearbeiten"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                          href={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}&editDetailId=${entry.id}`}
+                          title="Bearbeiten"
                         >
-                          Bearbeiten
+                          <ActionIcon className="h-4 w-4" name="edit" />
                         </a>
                         <DeleteEntryButton
                           action={deleteControllingDetailEntry}
                           id={entry.id}
+                          label={entry.description}
                           projectId={report.projectId}
                           reportId={report.id}
                         />
@@ -1254,6 +1259,7 @@ export default async function ControllingPerformancePage({
                         action={deleteControllingHourEntry}
                         id={entry.id}
                         key={`delete-${entry.id}`}
+                        label={entry.label}
                         projectId={report.projectId}
                         reportId={report.id}
                       />,
@@ -1297,6 +1303,7 @@ export default async function ControllingPerformancePage({
                         action={deleteControllingInvoiceItem}
                         id={entry.id}
                         key={`delete-${entry.id}`}
+                        label={entry.shortText}
                         projectId={report.projectId}
                         reportId={report.id}
                       />,
@@ -1519,21 +1526,50 @@ function EntrySection({
         </div>
       </form>
 
+      {editingEntry ? (
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/50 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-lg font-bold text-gray-900">
+                Detailposition bearbeiten
+              </h2>
+              {cancelHref ? (
+                <a
+                  aria-label="Schließen"
+                  className="rounded-lg border border-gray-300 bg-white p-2 text-gray-700 hover:bg-gray-50"
+                  href={cancelHref}
+                >
+                  <ActionIcon className="h-4 w-4" name="close" />
+                </a>
+              ) : null}
+            </div>
+            <DetailEntryForm
+              action={action}
+              cancelHref={cancelHref}
+              editingEntry={editingEntry}
+              equipmentOptions={equipmentOptions}
+              hourEntryOptions={hourEntryOptions}
+              key={editingEntry.id}
+              projectId={projectId}
+              reportId={reportId}
+              updateAction={updateAction}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <details
         className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4"
         id="detail-form"
-        open={Boolean(editingEntry) || undefined}
       >
         <summary className="cursor-pointer text-sm font-bold text-gray-800">
-          {editingEntry ? "Detailposition bearbeiten" : "Manuelle Detailposition erfassen"}
+          Manuelle Detailposition erfassen
         </summary>
         <DetailEntryForm
           action={action}
-          cancelHref={cancelHref}
-          editingEntry={editingEntry}
           equipmentOptions={equipmentOptions}
           hourEntryOptions={hourEntryOptions}
-          key={editingEntry?.id ?? "new"}
+          key="new"
           projectId={projectId}
           reportId={reportId}
           updateAction={updateAction}
@@ -1939,32 +1975,6 @@ function StatusPill({
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${getAnalysisToneClass(tone).pill}`}>
       {children}
     </span>
-  );
-}
-
-function DeleteEntryButton({
-  action,
-  id,
-  projectId,
-  reportId,
-}: {
-  action: (formData: FormData) => Promise<void>;
-  id: string;
-  projectId: string;
-  reportId: string;
-}) {
-  return (
-    <form action={action}>
-      <input name="id" type="hidden" value={id} />
-      <input name="reportId" type="hidden" value={reportId} />
-      <input name="projectId" type="hidden" value={projectId} />
-      <button
-        className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-        type="submit"
-      >
-        Löschen
-      </button>
-    </form>
   );
 }
 
