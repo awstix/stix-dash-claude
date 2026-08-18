@@ -2705,6 +2705,12 @@ model ControllingPerformanceReport {
   status      String    @default("DRAFT")
   note        String?
 
+  // Steuert, welche Quelle die Kolonnen-Vorschläge (Personal-/Gerätestunden
+  // aus zugeteilten Kolonnen) für diese Leistungsmeldung verwenden: "PLANNED"
+  // = Personaleinsatzplanung (geplante Dispo-Stunden), "APPROVED_TIME" =
+  // freigegebene Zeiterfassung (tatsächlich gebuchte Stunden).
+  hoursSource String @default("PLANNED")
+
   contractValueNetCents Int   @default(0)
   changeOrdersNetCents  Int   @default(0)
   progressPercent       Float @default(0)

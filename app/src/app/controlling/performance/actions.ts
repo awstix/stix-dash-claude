@@ -297,6 +297,8 @@ export async function updatePerformanceReport(formData: FormData) {
   const rateSetId = text(formData.get("rateSetId"));
   const status = requiredText(formData.get("status"), "Status");
   const progressPercent = numberValue(formData.get("progressPercent"), "Leistungsstand");
+  const hoursSource =
+    text(formData.get("hoursSource")) === "APPROVED_TIME" ? "APPROVED_TIME" : "PLANNED";
 
   if (periodStart > periodEnd) {
     throw new Error("Zeitraum von darf nicht nach Zeitraum bis liegen.");
@@ -312,6 +314,7 @@ export async function updatePerformanceReport(formData: FormData) {
       reportDate: periodEnd,
       title: text(formData.get("title")),
       status,
+      hoursSource,
       note: text(formData.get("note")),
       contractValueNetCents: moneyCents(formData.get("contractValueNet"), "Hauptauftrag"),
       changeOrdersNetCents: moneyCents(formData.get("changeOrdersNet"), "Nachträge"),

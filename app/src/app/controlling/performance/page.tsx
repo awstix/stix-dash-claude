@@ -257,6 +257,8 @@ export default async function ControllingPerformancePage({
               crewId: true,
               startDate: true,
               endDate: true,
+              startTime: true,
+              endTime: true,
             },
           },
         },
@@ -264,25 +266,24 @@ export default async function ControllingPerformancePage({
     : [];
   const reportPeriodStart = report?.periodStart ?? null;
   const reportPeriodEnd = report?.periodEnd ?? null;
+  const relevantAssignments = crewPlanningRows
+    .flatMap((row) => row.assignments)
+    .filter((assignment) => {
+      if (!assignment.crewId) return false;
+      if (!reportPeriodStart || !reportPeriodEnd) return true;
+      return (
+        assignment.startDate <= reportPeriodEnd &&
+        assignment.endDate >= reportPeriodStart
+      );
+    });
   const relevantCrewIds = Array.from(
-    new Set(
-      crewPlanningRows
-        .flatMap((row) => row.assignments)
-        .filter((assignment) => {
-          if (!assignment.crewId) return false;
-          if (!reportPeriodStart || !reportPeriodEnd) return true;
-          return (
-            assignment.startDate <= reportPeriodEnd &&
-            assignment.endDate >= reportPeriodStart
-          );
-        })
-        .map((assignment) => assignment.crewId as string),
-    ),
+    new Set(relevantAssignments.map((assignment) => assignment.crewId as string)),
   );
   const assignedCrews = relevantCrewIds.length
     ? await prisma.crew.findMany({
         where: { id: { in: relevantCrewIds } },
         select: {
+          id: true,
           name: true,
           defaultVehicles: {
             where: { isActive: true },
@@ -291,6 +292,111 @@ export default async function ControllingPerformancePage({
         },
       })
     : [];
+
+  // Kolonnen-Stunden für die Buchungsvorschläge unten: je nach
+  // report.hoursSource entweder aus der Personaleinsatzplanung (geplante
+  // Schichtdauer × überlappende Tage im Berichtszeitraum) oder aus der
+  // freigegebenen Zeiterfassung (echte Stunden pro Mitarbeiter für
+  // Personal, Schichtspanne frühester Beginn bis spätestes Ende für die
+  // Gerätelaufzeit, summiert über alle Tage im Zeitraum).
+  function timeStringToMinutes(value: string) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours > 24 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  }
+
+  function countDaysInclusive(start: Date, end: Date) {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.max(1, Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1);
+  }
+
+  const plannedHoursByCrewId = new Map<string, number>();
+  for (const assignment of relevantAssignments) {
+    if (!assignment.crewId) continue;
+
+    const clippedStart =
+      reportPeriodStart && assignment.startDate < reportPeriodStart
+        ? reportPeriodStart
+        : assignment.startDate;
+    const clippedEnd =
+      reportPeriodEnd && assignment.endDate > reportPeriodEnd
+        ? reportPeriodEnd
+        : assignment.endDate;
+    const days = countDaysInclusive(clippedStart, clippedEnd);
+    const startMinutes = timeStringToMinutes(assignment.startTime) ?? 0;
+    const endMinutes = timeStringToMinutes(assignment.endTime) ?? 0;
+    const shiftHours = Math.max(0, (endMinutes - startMinutes) / 60);
+
+    plannedHoursByCrewId.set(
+      assignment.crewId,
+      (plannedHoursByCrewId.get(assignment.crewId) ?? 0) + days * shiftHours,
+    );
+  }
+
+  const approvedTimeEntries =
+    relevantCrewIds.length && crewLookupProjectId
+      ? await prisma.crewTimeEntry.findMany({
+          where: {
+            projectId: crewLookupProjectId,
+            crewId: { in: relevantCrewIds },
+            status: "APPROVED",
+            ...(reportPeriodStart && reportPeriodEnd
+              ? { workDate: { gte: reportPeriodStart, lte: reportPeriodEnd } }
+              : {}),
+          },
+          select: {
+            crewId: true,
+            employees: {
+              select: { netHours: true, startTime: true, endTime: true },
+            },
+          },
+        })
+      : [];
+
+  const approvedPersonnelHoursByCrewId = new Map<string, number>();
+  const approvedEquipmentHoursByCrewId = new Map<string, number>();
+  for (const entry of approvedTimeEntries) {
+    const personnelHours = entry.employees.reduce((sum, employee) => sum + employee.netHours, 0);
+    approvedPersonnelHoursByCrewId.set(
+      entry.crewId,
+      (approvedPersonnelHoursByCrewId.get(entry.crewId) ?? 0) + personnelHours,
+    );
+
+    const startMinutesList = entry.employees
+      .map((employee) => timeStringToMinutes(employee.startTime))
+      .filter((value): value is number => value !== null);
+    const endMinutesList = entry.employees
+      .map((employee) => timeStringToMinutes(employee.endTime))
+      .filter((value): value is number => value !== null);
+
+    if (startMinutesList.length && endMinutesList.length) {
+      const spanHours = Math.max(
+        0,
+        (Math.max(...endMinutesList) - Math.min(...startMinutesList)) / 60,
+      );
+      approvedEquipmentHoursByCrewId.set(
+        entry.crewId,
+        (approvedEquipmentHoursByCrewId.get(entry.crewId) ?? 0) + spanHours,
+      );
+    }
+  }
+
+  const reportHoursSource = report?.hoursSource ?? "PLANNED";
+
+  function getPersonnelHoursForCrew(crewId: string) {
+    return reportHoursSource === "APPROVED_TIME"
+      ? (approvedPersonnelHoursByCrewId.get(crewId) ?? 0)
+      : (plannedHoursByCrewId.get(crewId) ?? 0);
+  }
+
+  function getEquipmentHoursForCrew(crewId: string) {
+    return reportHoursSource === "APPROVED_TIME"
+      ? (approvedEquipmentHoursByCrewId.get(crewId) ?? 0)
+      : (plannedHoursByCrewId.get(crewId) ?? 0);
+  }
 
   const itemByVehicleId = new Map(
     inventoryItemsForQuickEntry
@@ -418,6 +524,51 @@ export default async function ControllingPerformancePage({
       realRate: formatRawMoney(rate.realRateCents),
     };
   });
+
+  // Buchungsvorschläge für Kolonnen, die über Teams-Verwaltung/
+  // Personaleinsatzplanung diesem Projekt zugeteilt sind: Personalstunden
+  // (mit dem für die Kolonne ermittelten Durchschnittssatz) und je
+  // Standardgerät die Gerätestunden - beides ein Klick, kein Doppelbuchen,
+  // da es nur ein Vorschlag ist, keine automatische Buchung.
+  const crewSuggestions = assignedCrews
+    .map((crew) => {
+      const personnelHours = roundToTwoDecimals(getPersonnelHoursForCrew(crew.id));
+      const equipmentHours = roundToTwoDecimals(getEquipmentHoursForCrew(crew.id));
+      const crewRate = crewHourOptions.find((option) => option.id === crew.id);
+
+      const equipmentItems = crew.defaultVehicles.flatMap((defaultVehicle) => {
+        const item =
+          itemByVehicleId.get(defaultVehicle.vehicleId) ??
+          (defaultVehicle.inventoryItemId
+            ? itemById.get(defaultVehicle.inventoryItemId)
+            : null);
+        if (!item) return [];
+
+        const rateCents = resolveItemRateCents(item);
+
+        return [
+          {
+            itemId: item.id,
+            label: [item.objectNumber, item.name].filter(Boolean).join(" · "),
+            unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
+          },
+        ];
+      });
+
+      return {
+        crewId: crew.id,
+        crewName: crew.name,
+        equipmentHours,
+        equipmentItems,
+        internalRate: crewRate?.internalRate ?? "",
+        personnelCostCategory: crewRate?.costCategory ?? "LOHN",
+        personnelHours,
+        realRate: crewRate?.realRate ?? "",
+      };
+    })
+    .filter(
+      (suggestion) => suggestion.personnelHours > 0 || suggestion.equipmentHours > 0,
+    );
 
   const activeProjectId = report?.projectId ?? selectedProject?.id ?? null;
   const detailCostCents =
@@ -808,6 +959,23 @@ export default async function ControllingPerformancePage({
                       ))}
                     </select>
                   </Field>
+                  <Field
+                    className="lg:col-span-2"
+                    label="Kolonnen-Vorschläge: Stunden aus"
+                  >
+                    <select
+                      className={inputClassName}
+                      defaultValue={report.hoursSource}
+                      name="hoursSource"
+                    >
+                      <option value="PLANNED">
+                        Geplante Dispo-Stunden (Personaleinsatzplanung)
+                      </option>
+                      <option value="APPROVED_TIME">
+                        Tatsächlich gebuchte Stunden (freigegebene Zeiterfassung)
+                      </option>
+                    </select>
+                  </Field>
                   <Field label="Hauptauftrag netto">
                     <input
                       className={inputClassName}
@@ -846,6 +1014,20 @@ export default async function ControllingPerformancePage({
                   </div>
                 </form>
               </section>
+
+              {crewSuggestions.length > 0 ? (
+                <CrewSuggestionsSection
+                  crewSuggestions={crewSuggestions}
+                  entryDate={formatInputDate(
+                    report.periodEnd ?? report.reportDate ?? new Date(),
+                  )}
+                  hourAction={addControllingHourEntry}
+                  hoursSource={reportHoursSource}
+                  detailAction={addControllingDetailEntry}
+                  projectId={report.projectId}
+                  reportId={report.id}
+                />
+              ) : null}
 
               <EntrySection
                 action={addControllingDetailEntry}
@@ -1040,6 +1222,140 @@ export default async function ControllingPerformancePage({
         </div>
       </div>
     </AppShell>
+  );
+}
+
+type CrewSuggestion = {
+  crewId: string;
+  crewName: string;
+  equipmentHours: number;
+  equipmentItems: { itemId: string; label: string; unitPrice: string }[];
+  internalRate: string;
+  personnelCostCategory: string;
+  personnelHours: number;
+  realRate: string;
+};
+
+function CrewSuggestionsSection({
+  crewSuggestions,
+  detailAction,
+  entryDate,
+  hourAction,
+  hoursSource,
+  projectId,
+  reportId,
+}: {
+  crewSuggestions: CrewSuggestion[];
+  detailAction: (formData: FormData) => Promise<void>;
+  entryDate: string;
+  hourAction: (formData: FormData) => Promise<void>;
+  hoursSource: string;
+  projectId: string;
+  reportId: string;
+}) {
+  const sourceLabel =
+    hoursSource === "APPROVED_TIME"
+      ? "freigegebene Zeiterfassung"
+      : "geplante Dispo-Stunden";
+
+  return (
+    <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+      <h2 className="text-lg font-semibold text-blue-950">
+        Vorschläge aus Kolonnen-Zuteilung
+      </h2>
+      <p className="mt-1 text-sm text-blue-900">
+        Aus {sourceLabel} für die diesem Projekt zugeteilten Kolonnen. Ein
+        Klick bucht die Position direkt (mit Datum {entryDate}) - danach
+        über &quot;Bearbeiten&quot; korrigierbar. Kein automatisches
+        Doppelbuchen, nichts wird ohne Klick gespeichert. Quelle unter
+        &quot;Leistungsmeldungsdaten&quot; -&gt; &quot;Kolonnen-Vorschläge:
+        Stunden aus&quot; umstellbar.
+      </p>
+
+      <div className="mt-4 space-y-3">
+        {crewSuggestions.map((suggestion) => (
+          <div
+            className="rounded-xl border border-blue-200 bg-white p-3"
+            key={suggestion.crewId}
+          >
+            <div className="text-sm font-bold text-gray-950">
+              Kolonne {suggestion.crewName}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {suggestion.personnelHours > 0 ? (
+                <form action={hourAction}>
+                  <input name="reportId" type="hidden" value={reportId} />
+                  <input name="projectId" type="hidden" value={projectId} />
+                  <input name="labelType" type="hidden" value="CREW" />
+                  <input name="crewLabel" type="hidden" value={suggestion.crewName} />
+                  <input name="employeeCount" type="hidden" value="1" />
+                  <input
+                    name="hoursPerEmployee"
+                    type="hidden"
+                    value={String(suggestion.personnelHours)}
+                  />
+                  <input name="entryDate" type="hidden" value={entryDate} />
+                  <input name="breakHours" type="hidden" value="0" />
+                  <input name="realRate" type="hidden" value={suggestion.realRate} />
+                  <input
+                    name="internalRate"
+                    type="hidden"
+                    value={suggestion.internalRate}
+                  />
+                  <input
+                    name="costCategory"
+                    type="hidden"
+                    value={suggestion.personnelCostCategory}
+                  />
+                  <input
+                    name="notes"
+                    type="hidden"
+                    value={`Vorschlag Kolonnen-Zuteilung (${sourceLabel})`}
+                  />
+                  <button
+                    className="rounded-lg border border-blue-300 bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-200"
+                    type="submit"
+                  >
+                    Personalstunden buchen: {formatDecimal(suggestion.personnelHours)} h
+                  </button>
+                </form>
+              ) : null}
+              {suggestion.equipmentHours > 0
+                ? suggestion.equipmentItems.map((item) => (
+                    <form action={detailAction} key={item.itemId}>
+                      <input name="reportId" type="hidden" value={reportId} />
+                      <input name="projectId" type="hidden" value={projectId} />
+                      <input name="entryDate" type="hidden" value={entryDate} />
+                      <input name="costType" type="hidden" value="Geräte" />
+                      <input name="description" type="hidden" value={item.label} />
+                      <input
+                        name="quantity"
+                        type="hidden"
+                        value={String(suggestion.equipmentHours)}
+                      />
+                      <input name="unit" type="hidden" value="h" />
+                      <input name="unitPrice" type="hidden" value={item.unitPrice} />
+                      <input name="utilizationPercent" type="hidden" value="100" />
+                      <input name="status" type="hidden" value="geschätzt" />
+                      <input
+                        name="notes"
+                        type="hidden"
+                        value={`Vorschlag Kolonne ${suggestion.crewName} (${sourceLabel})`}
+                      />
+                      <button
+                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                        type="submit"
+                      >
+                        {item.label}: {formatDecimal(suggestion.equipmentHours)} h buchen
+                      </button>
+                    </form>
+                  ))
+                : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1745,6 +2061,10 @@ function formatDecimal(value: number, digits = 2) {
     maximumFractionDigits: digits,
     minimumFractionDigits: 0,
   });
+}
+
+function roundToTwoDecimals(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function formatMarkup(revenueUnitCents: number, costUnitCents: number) {
