@@ -34,14 +34,16 @@ function uniqueInOrder(values: string[]) {
  * für lange Inventarlisten, bei denen eine einzige lange (auch gruppierte)
  * Liste unübersichtlich wird. Eine Live-Suche daneben springt bei Eingabe
  * direkt in eine flache Trefferliste, unabhängig von der aktuellen Stufe. */
-export function CategoryDrillDownSelect({
+export function CategoryDrillDownSelect<T extends CategoryDrillDownItem>({
   hiddenInputName,
   items,
+  onSelect,
   placeholder,
   required = false,
 }: {
-  hiddenInputName: string;
-  items: CategoryDrillDownItem[];
+  hiddenInputName?: string;
+  items: T[];
+  onSelect?: (item: T) => void;
   placeholder: string;
   required?: boolean;
 }) {
@@ -55,7 +57,7 @@ export function CategoryDrillDownSelect({
   const normalizedSearch = normalizeSearchText(search);
   const isSearching = normalizedSearch.length > 0;
 
-  function handleSelect(item: CategoryDrillDownItem) {
+  function handleSelect(item: T) {
     if (item.disabled) return;
 
     setSelectedId(item.id);
@@ -64,6 +66,7 @@ export function CategoryDrillDownSelect({
     setSearch("");
     setParentCategory(null);
     setCategory(null);
+    onSelect?.(item);
   }
 
   function openPanel() {
@@ -152,12 +155,14 @@ export function CategoryDrillDownSelect({
 
   return (
     <div className="relative">
-      <input
-        name={hiddenInputName}
-        required={required}
-        type="hidden"
-        value={selectedId}
-      />
+      {hiddenInputName ? (
+        <input
+          name={hiddenInputName}
+          required={required}
+          type="hidden"
+          value={selectedId}
+        />
+      ) : null}
       <input
         autoComplete="off"
         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
@@ -204,12 +209,12 @@ function PanelHeader({
   );
 }
 
-function ItemList({
+function ItemList<T extends CategoryDrillDownItem>({
   items,
   onSelect,
 }: {
-  items: CategoryDrillDownItem[];
-  onSelect: (item: CategoryDrillDownItem) => void;
+  items: T[];
+  onSelect: (item: T) => void;
 }) {
   if (items.length === 0) {
     return (

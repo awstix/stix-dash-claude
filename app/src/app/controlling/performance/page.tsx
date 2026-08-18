@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { getWorkTimeDayForDate } from "@/lib/work-time";
 import {
   addControllingDetailEntry,
   addControllingHourEntry,
@@ -195,10 +196,16 @@ export default async function ControllingPerformancePage({
         objectNumber: true,
         categoryId: true,
         vehicleId: true,
+        billingRateCents: true,
+        stockUnit: true,
         category: {
           select: {
             name: true,
             billingRateCents: true,
+            dailyReportSection: true,
+            parentCategory: {
+              select: { name: true },
+            },
           },
         },
       },
@@ -214,6 +221,7 @@ export default async function ControllingPerformancePage({
   );
 
   function resolveItemRateCents(item: {
+    billingRateCents: number | null;
     categoryId: string | null;
     id: string;
     category: { billingRateCents: number | null } | null;
@@ -221,9 +229,26 @@ export default async function ControllingPerformancePage({
     return (
       (item.categoryId ? itemRateById.get(item.id) : null) ??
       (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
+      item.billingRateCents ??
       item.category?.billingRateCents ??
       null
     );
+  }
+
+  // "h" ist die richtige Vorschlags-Einheit für Geräte/Baumaschinen
+  // (Stunden übernehmen ist der Regelfall dort), Material dagegen hat
+  // meist eine eigene Lagereinheit (m, to, Stk. ...) hinterlegt - dieselbe
+  // MATERIAL/MACHINES-Unterscheidung, die auch beim iTWO-Import
+  // (src/app/controlling/performance/actions.ts) für die Kostenart
+  // verwendet wird.
+  function resolveItemUnitAndCostType(item: {
+    stockUnit: string;
+    category: { dailyReportSection: string } | null;
+  }) {
+    if (item.category?.dailyReportSection === "MATERIAL") {
+      return { costType: "Material", unit: item.stockUnit || "Stk." };
+    }
+    return { costType: "Geräte", unit: "h" };
   }
 
   // Für die Geräte/Material-Schnellerfassung: das komplette aktive
@@ -234,10 +259,15 @@ export default async function ControllingPerformancePage({
   // sonst bleibt EP netto € leer und wird manuell eingetragen.
   const generalEquipmentQuickEntryOptions = inventoryItemsForQuickEntry.map((item) => {
     const rateCents = resolveItemRateCents(item);
+    const { costType, unit } = resolveItemUnitAndCostType(item);
 
     return {
       id: item.id,
       category: item.category?.name ?? "Ohne Kategorie",
+      parentCategory:
+        item.category?.parentCategory?.name ?? item.category?.name ?? "Ohne Kategorie",
+      costType,
+      unit,
       label: [item.objectNumber, item.name].filter(Boolean).join(" · "),
       unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
     };
@@ -276,8 +306,44 @@ export default async function ControllingPerformancePage({
         assignment.endDate >= reportPeriodStart
       );
     });
+  // Asphalt-Dispo speichert die Kolonne nur als freien Textnamen
+  // (AsphaltDispatchEntry.crew), nicht als eigene CrewPlanningAssignment-
+  // Zeile - läuft aber in derselben Kolonnen-Planung (crew-dispatch) als
+  // zusammengeführte Kalenderansicht mit ein. Für die Vorschläge hier
+  // zählt das genauso als "Kolonne war an dem Tag diesem Projekt
+  // zugeteilt".
+  const allActiveCrews = await prisma.crew.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true },
+  });
+  const crewIdByName = new Map(allActiveCrews.map((crew) => [crew.name, crew.id]));
+  const asphaltDispatchEntries = crewLookupProjectId
+    ? await prisma.asphaltDispatchEntry.findMany({
+        where: {
+          projectId: crewLookupProjectId,
+          ...(reportPeriodStart && reportPeriodEnd
+            ? { workDate: { gte: reportPeriodStart, lte: reportPeriodEnd } }
+            : {}),
+        },
+        select: { crew: true, workDate: true },
+      })
+    : [];
+  const asphaltDispatchDaysByCrewId = new Map<string, Set<string>>();
+  for (const entry of asphaltDispatchEntries) {
+    const crewId = crewIdByName.get(entry.crew);
+    if (!crewId) continue;
+
+    const dayKey = entry.workDate.toISOString().slice(0, 10);
+    const days = asphaltDispatchDaysByCrewId.get(crewId) ?? new Set<string>();
+    days.add(dayKey);
+    asphaltDispatchDaysByCrewId.set(crewId, days);
+  }
+
   const relevantCrewIds = Array.from(
-    new Set(relevantAssignments.map((assignment) => assignment.crewId as string)),
+    new Set([
+      ...relevantAssignments.map((assignment) => assignment.crewId as string),
+      ...asphaltDispatchDaysByCrewId.keys(),
+    ]),
   );
   const assignedCrews = relevantCrewIds.length
     ? await prisma.crew.findMany({
@@ -334,6 +400,62 @@ export default async function ControllingPerformancePage({
       assignment.crewId,
       (plannedHoursByCrewId.get(assignment.crewId) ?? 0) + days * shiftHours,
     );
+  }
+
+  // Asphalt-Dispo-Tage zählen für die geplanten Stunden mit dazu, mit dem
+  // admin-konfigurierten Standard-Arbeitstag (dieselbe Quelle, die auch
+  // für andere Vorschläge ohne konkrete Personalzuordnung genutzt wird,
+  // z.B. Bautagesbericht) - bewusst ohne Abgleich gegen bereits über
+  // Personaleinsatzplanung gezählte Tage, ein seltener doppelter
+  // Überschneidungsfall lässt sich über "Anteil %" beim Bearbeiten der
+  // gebuchten Position korrigieren.
+  const distinctAsphaltDispatchDates = Array.from(
+    new Set(
+      Array.from(asphaltDispatchDaysByCrewId.values()).flatMap((days) =>
+        Array.from(days),
+      ),
+    ),
+  );
+  const workTimeByDate = new Map(
+    await Promise.all(
+      distinctAsphaltDispatchDates.map(
+        async (dayKey) =>
+          [dayKey, await getWorkTimeDayForDate(new Date(`${dayKey}T00:00:00.000Z`))] as const,
+      ),
+    ),
+  );
+  function netHoursFromWorkTimeDay(day: {
+    breakfastEnd: string;
+    breakfastStart: string;
+    endTime: string;
+    lunchEnd: string;
+    lunchStart: string;
+    startTime: string;
+  }) {
+    const startMinutes = timeStringToMinutes(day.startTime) ?? 0;
+    const endMinutes = timeStringToMinutes(day.endTime) ?? 0;
+    let minutes = Math.max(0, endMinutes - startMinutes);
+
+    if (day.breakfastStart && day.breakfastEnd) {
+      const breakfastStart = timeStringToMinutes(day.breakfastStart) ?? 0;
+      const breakfastEnd = timeStringToMinutes(day.breakfastEnd) ?? 0;
+      minutes -= Math.max(0, breakfastEnd - breakfastStart);
+    }
+    if (day.lunchStart && day.lunchEnd) {
+      const lunchStart = timeStringToMinutes(day.lunchStart) ?? 0;
+      const lunchEnd = timeStringToMinutes(day.lunchEnd) ?? 0;
+      minutes -= Math.max(0, lunchEnd - lunchStart);
+    }
+
+    return Math.max(0, minutes) / 60;
+  }
+  for (const [crewId, days] of asphaltDispatchDaysByCrewId.entries()) {
+    let addedHours = 0;
+    for (const dayKey of days) {
+      const workTimeDay = workTimeByDate.get(dayKey);
+      if (workTimeDay) addedHours += netHoursFromWorkTimeDay(workTimeDay);
+    }
+    plannedHoursByCrewId.set(crewId, (plannedHoursByCrewId.get(crewId) ?? 0) + addedHours);
   }
 
   const approvedTimeEntries =
@@ -415,11 +537,15 @@ export default async function ControllingPerformancePage({
       if (!item) return [];
 
       const rateCents = resolveItemRateCents(item);
+      const { costType, unit } = resolveItemUnitAndCostType(item);
 
       return [
         {
           id: item.id,
-          category: `Zugeteilt: Kolonne ${crew.name}`,
+          category: item.category?.name ?? "Ohne Kategorie",
+          parentCategory: `Zugeteilt: Kolonne ${crew.name}`,
+          costType,
+          unit,
           label: [item.objectNumber, item.name].filter(Boolean).join(" · "),
           unitPrice: rateCents && rateCents > 0 ? formatRawMoney(rateCents) : "",
         },
@@ -1374,7 +1500,15 @@ function EntrySection({
   action: (formData: FormData) => Promise<void>;
   cancelHref?: string;
   editingEntry?: DetailEntryEditValues | null;
-  equipmentOptions: { id: string; category: string; label: string; unitPrice: string }[];
+  equipmentOptions: {
+    id: string;
+    category: string;
+    costType: string;
+    label: string;
+    parentCategory: string;
+    unit: string;
+    unitPrice: string;
+  }[];
   hourEntryOptions: { id: string; label: string; totalHours: string }[];
   importAction: (formData: FormData) => Promise<void>;
   projectId: string;
