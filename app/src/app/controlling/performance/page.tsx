@@ -17,10 +17,9 @@ import {
   updatePerformanceReport,
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
+import { DetailEntryForm } from "./DetailEntryForm";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
-const costTypes = ["Lohn", "Material", "Geräte", "Nachunternehmer", "Sonstiges"];
-const entryStatuses = ["geschätzt", "geprüft", "gebucht", "offen", "erledigt"];
 const reportStatuses = [
   { label: "Entwurf", value: "DRAFT" },
   { label: "Laufend", value: "laufend" },
@@ -28,7 +27,6 @@ const reportStatuses = [
   { label: "Fertig", value: "fertig" },
   { label: "Kritisch", value: "kritisch" },
 ];
-const units = ["h", "Stk.", "m", "m²", "m³", "t", "pauschal", "€"];
 
 type HourSelectionOption = {
   costCategory: string;
@@ -168,6 +166,74 @@ export default async function ControllingPerformancePage({
     ],
     take: 20,
   });
+  const [
+    inventoryItemRatesForQuickEntry,
+    inventoryCategoryRatesForQuickEntry,
+    inventoryItemsForQuickEntry,
+  ] = await Promise.all([
+    activeRateSet
+      ? prisma.controllingInventoryItemRate.findMany({
+          where: { rateSetId: activeRateSet.id },
+          select: { itemId: true, billingRateCents: true },
+        })
+      : Promise.resolve([]),
+    activeRateSet
+      ? prisma.controllingInventoryCategoryRate.findMany({
+          where: { rateSetId: activeRateSet.id },
+          select: { categoryId: true, billingRateCents: true },
+        })
+      : Promise.resolve([]),
+    prisma.inventoryItem.findMany({
+      where: {
+        status: { not: "INACTIVE" },
+      },
+      select: {
+        id: true,
+        name: true,
+        objectNumber: true,
+        categoryId: true,
+        category: {
+          select: {
+            name: true,
+            billingRateCents: true,
+          },
+        },
+      },
+      orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
+    }),
+  ]);
+
+  const itemRateById = new Map(
+    inventoryItemRatesForQuickEntry.map((rate) => [rate.itemId, rate.billingRateCents]),
+  );
+  const categoryRateById = new Map(
+    inventoryCategoryRatesForQuickEntry.map((rate) => [rate.categoryId, rate.billingRateCents]),
+  );
+
+  // Für die Geräte/Material-Schnellerfassung: nur Objekte mit einem
+  // tatsächlich hinterlegten Satz (Objekt-Satz > Kategorie-Satz aus dem
+  // aktiven Satzstand > Kategorie-Standardsatz) anbieten - alles andere
+  // hätte ohnehin keinen sinnvollen Vorschlagswert.
+  const equipmentQuickEntryOptions = inventoryItemsForQuickEntry
+    .map((item) => {
+      const rateCents =
+        (item.categoryId ? itemRateById.get(item.id) : null) ??
+        (item.categoryId ? categoryRateById.get(item.categoryId) : null) ??
+        item.category?.billingRateCents ??
+        null;
+
+      if (!rateCents || rateCents <= 0) return null;
+
+      return {
+        id: item.id,
+        label: [item.category?.name, item.objectNumber, item.name]
+          .filter(Boolean)
+          .join(" · "),
+        unitPrice: formatRawMoney(rateCents),
+      };
+    })
+    .filter((option): option is NonNullable<typeof option> => option !== null);
+
   const [crewsForHours, employeesForHours] = await Promise.all([
     prisma.crew.findMany({
       where: {
@@ -691,6 +757,12 @@ export default async function ControllingPerformancePage({
 
               <EntrySection
                 action={addControllingDetailEntry}
+                equipmentOptions={equipmentQuickEntryOptions}
+                hourEntryOptions={report.hourEntries.map((entry) => ({
+                  id: entry.id,
+                  label: `${formatDate(entry.entryDate)} · ${entry.label} · ${formatDecimal(entry.totalHours)} h`,
+                  totalHours: formatDecimal(entry.totalHours),
+                }))}
                 importAction={importDetailEntriesFromExcel}
                 projectId={report.projectId}
                 reportId={report.id}
@@ -850,12 +922,16 @@ export default async function ControllingPerformancePage({
 
 function EntrySection({
   action,
+  equipmentOptions,
+  hourEntryOptions,
   importAction,
   projectId,
   reportId,
   title,
 }: {
   action: (formData: FormData) => Promise<void>;
+  equipmentOptions: { id: string; label: string; unitPrice: string }[];
+  hourEntryOptions: { id: string; label: string; totalHours: string }[];
   importAction: (formData: FormData) => Promise<void>;
   projectId: string;
   reportId: string;
@@ -893,55 +969,13 @@ function EntrySection({
         <summary className="cursor-pointer text-sm font-bold text-gray-800">
           Manuelle Detailposition erfassen
         </summary>
-      <form action={action} className="mt-4 grid gap-3 md:grid-cols-2">
-        <input name="reportId" type="hidden" value={reportId} />
-        <input name="projectId" type="hidden" value={projectId} />
-        <Field label="Datum">
-          <input className={inputClassName} defaultValue={formatInputDate(new Date())} name="entryDate" type="date" />
-        </Field>
-        <Field label="Kostenart">
-          <select className={inputClassName} name="costType">
-            {costTypes.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field className="md:col-span-2" label="Beschreibung">
-          <input className={inputClassName} name="description" />
-        </Field>
-        <Field label="Menge">
-          <input className={inputClassName} name="quantity" placeholder="0,00" />
-        </Field>
-        <Field label="Einheit">
-          <select className={inputClassName} name="unit">
-            {units.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="EP netto €">
-          <input className={inputClassName} name="unitPrice" placeholder="0,00" />
-        </Field>
-        <Field label="Status">
-          <select className={inputClassName} name="status">
-            {entryStatuses.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field className="md:col-span-2" label="Bemerkung">
-          <input className={inputClassName} name="notes" />
-        </Field>
-        <button className={primaryButtonClassName} type="submit">
-          Position hinzufügen
-        </button>
-      </form>
+        <DetailEntryForm
+          action={action}
+          equipmentOptions={equipmentOptions}
+          hourEntryOptions={hourEntryOptions}
+          projectId={projectId}
+          reportId={reportId}
+        />
       </details>
     </section>
   );
