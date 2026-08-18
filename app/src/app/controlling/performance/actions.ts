@@ -329,6 +329,54 @@ export async function deletePerformanceReport(formData: FormData) {
   redirect(pathFor(null, projectId));
 }
 
+export async function deleteControllingDetailEntry(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingDetailEntry.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+export async function deleteControllingHourEntry(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingHourEntry.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+export async function deleteControllingInvoiceItem(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingInvoiceItem.delete({
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
 export async function addControllingDetailEntry(formData: FormData) {
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");

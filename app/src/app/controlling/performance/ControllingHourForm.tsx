@@ -37,6 +37,11 @@ export function ControllingHourForm({
   const [internalRate, setInternalRate] = useState("");
   const [realRate, setRealRate] = useState("");
   const [costCategory, setCostCategory] = useState("LOHN");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [breakHours, setBreakHours] = useState("");
+  const [hoursPerEmployee, setHoursPerEmployee] = useState("");
+  const [hoursWasEdited, setHoursWasEdited] = useState(false);
   const parsedEmployeeCount = parseEmployeeCount(employeeCount);
   const employeeSelectCount =
     labelType === "EMPLOYEE" ? Math.max(1, Math.min(parsedEmployeeCount, 50)) : 1;
@@ -50,6 +55,28 @@ export function ControllingHourForm({
     setRealRate(formatMoneyInput(average(realRates)));
     setInternalRate(formatMoneyInput(average(internalRates)));
     setCostCategory(majorityCostCategory(options.map((option) => option.costCategory)));
+  }
+
+  // Stunden je Mitarbeiter aus Beginn/Ende/Pause herleiten, solange der
+  // Nutzer das Feld nicht direkt selbst bearbeitet hat (dann hat die
+  // manuelle Eingabe Vorrang, analog zu den Sätzen oben).
+  function recomputeHours(
+    nextStartsAt: string,
+    nextEndsAt: string,
+    nextBreakHours: string,
+  ) {
+    if (hoursWasEdited) return;
+
+    const startMinutes = timeToMinutes(nextStartsAt);
+    const endMinutes = timeToMinutes(nextEndsAt);
+    if (startMinutes === null || endMinutes === null) return;
+
+    let diffMinutes = endMinutes - startMinutes;
+    if (diffMinutes < 0) diffMinutes += 24 * 60;
+
+    const breakHoursValue = parseMoney(nextBreakHours);
+    const hours = Math.max(0, diffMinutes / 60 - breakHoursValue);
+    setHoursPerEmployee(formatMoneyInput(Math.round(hours * 100) / 100));
   }
 
   return (
@@ -170,13 +197,40 @@ export function ControllingHourForm({
           />
         </Field>
         <Field label="Beginn">
-          <input className={inputClassName} name="startsAt" type="time" />
+          <input
+            className={inputClassName}
+            name="startsAt"
+            onChange={(event) => {
+              setStartsAt(event.target.value);
+              recomputeHours(event.target.value, endsAt, breakHours);
+            }}
+            type="time"
+            value={startsAt}
+          />
         </Field>
         <Field label="Ende">
-          <input className={inputClassName} name="endsAt" type="time" />
+          <input
+            className={inputClassName}
+            name="endsAt"
+            onChange={(event) => {
+              setEndsAt(event.target.value);
+              recomputeHours(startsAt, event.target.value, breakHours);
+            }}
+            type="time"
+            value={endsAt}
+          />
         </Field>
         <Field label="Pause h">
-          <input className={inputClassName} name="breakHours" placeholder="0" />
+          <input
+            className={inputClassName}
+            name="breakHours"
+            onChange={(event) => {
+              setBreakHours(event.target.value);
+              recomputeHours(startsAt, endsAt, event.target.value);
+            }}
+            placeholder="0"
+            value={breakHours}
+          />
         </Field>
         <Field label="Anzahl Mitarbeiter">
           <input
@@ -192,7 +246,16 @@ export function ControllingHourForm({
           />
         </Field>
         <Field label="Stunden je Mitarbeiter">
-          <input className={inputClassName} name="hoursPerEmployee" placeholder="0,00" />
+          <input
+            className={inputClassName}
+            name="hoursPerEmployee"
+            onChange={(event) => {
+              setHoursWasEdited(true);
+              setHoursPerEmployee(event.target.value);
+            }}
+            placeholder="0,00"
+            value={hoursPerEmployee}
+          />
         </Field>
       </FormPanel>
 
@@ -288,6 +351,17 @@ function FormPanel({
 function parseMoney(value: string) {
   const parsed = Number(value.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function timeToMinutes(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+
+  return hours * 60 + minutes;
 }
 
 function parseEmployeeCount(value: string) {

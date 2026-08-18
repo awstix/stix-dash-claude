@@ -7,6 +7,9 @@ import {
   addControllingHourEntry,
   addControllingInvoiceItem,
   createPerformanceReport,
+  deleteControllingDetailEntry,
+  deleteControllingHourEntry,
+  deleteControllingInvoiceItem,
   deletePerformanceReport,
   importDetailEntriesFromExcel,
   importDispositionIntoPerformanceReport,
@@ -732,7 +735,7 @@ export default async function ControllingPerformancePage({
                 </summary>
                 <div className="mt-4 space-y-4">
                   <DataTable
-                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Betrag", "Herkunft"]}
+                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Betrag", "Herkunft", "Aktion"]}
                     rows={report.detailEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.costType,
@@ -741,11 +744,18 @@ export default async function ControllingPerformancePage({
                       formatMoney(entry.unitPriceCents),
                       formatMoney(entry.amountCents),
                       getSourceLabel(entry.source, entry.notes),
+                      <DeleteEntryButton
+                        action={deleteControllingDetailEntry}
+                        id={entry.id}
+                        key={`delete-${entry.id}`}
+                        projectId={report.projectId}
+                        reportId={report.id}
+                      />,
                     ])}
                     title="Detail"
                   />
                   <DataTable
-                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Kostenart", "Herkunft"]}
+                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Kostenart", "Herkunft", "Aktion"]}
                     rows={report.hourEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.label,
@@ -755,6 +765,13 @@ export default async function ControllingPerformancePage({
                       formatMoney(entry.realCostCents),
                       entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
                       getSourceLabel(entry.source, entry.notes),
+                      <DeleteEntryButton
+                        action={deleteControllingHourEntry}
+                        id={entry.id}
+                        key={`delete-${entry.id}`}
+                        projectId={report.projectId}
+                        reportId={report.id}
+                      />,
                     ])}
                     title="Stunden"
                   />
@@ -774,6 +791,7 @@ export default async function ControllingPerformancePage({
                       "Zuschlag",
                       "Umsatz",
                       "Herkunft",
+                      "Aktion",
                     ]}
                     rows={report.invoiceItems.map((entry) => [
                       entry.positionCode ?? "—",
@@ -790,6 +808,13 @@ export default async function ControllingPerformancePage({
                       formatMarkup(entry.unitPriceCents, entry.costPerUnitCents),
                       formatMoney(entry.revenueCents),
                       getSourceLabel(entry.source, entry.notes),
+                      <DeleteEntryButton
+                        action={deleteControllingInvoiceItem}
+                        id={entry.id}
+                        key={`delete-${entry.id}`}
+                        projectId={report.projectId}
+                        reportId={report.id}
+                      />,
                     ])}
                     title="Rechnungsmengen / iTWO"
                   />
@@ -1304,13 +1329,39 @@ function StatusPill({
   );
 }
 
+function DeleteEntryButton({
+  action,
+  id,
+  projectId,
+  reportId,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  id: string;
+  projectId: string;
+  reportId: string;
+}) {
+  return (
+    <form action={action}>
+      <input name="id" type="hidden" value={id} />
+      <input name="reportId" type="hidden" value={reportId} />
+      <input name="projectId" type="hidden" value={projectId} />
+      <button
+        className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+        type="submit"
+      >
+        Löschen
+      </button>
+    </form>
+  );
+}
+
 function DataTable({
   columns,
   rows,
   title,
 }: {
   columns: string[];
-  rows: string[][];
+  rows: ReactNode[][];
   title: string;
 }) {
   return (
