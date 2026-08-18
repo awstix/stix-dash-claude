@@ -291,10 +291,17 @@ export default async function ControllingPerformancePage({
   const resultBaseCents = Math.max(performanceValueCents, invoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
   const openWipCents = Math.max(0, performanceValueCents - invoiceRevenueCents);
+  // Gehalt/Sonstiges-Stunden fließen bewusst nicht in die Stunden-Bilanz
+  // ein - die sind bereits über die Kosten in der Zeile "Sonstiges"
+  // verrechnet, würden hier also doppelt gezählt.
   const actualHours = report?.hourEntries.reduce(
-    (sum, entry) => sum + entry.totalHours,
+    (sum, entry) =>
+      entry.costCategory === "GEHALT_SONSTIGES" ? sum : sum + entry.totalHours,
     0,
   ) ?? 0;
+  const hasGehaltHours =
+    report?.hourEntries.some((entry) => entry.costCategory === "GEHALT_SONSTIGES") ??
+    false;
   const billedHours = report?.invoiceItems.reduce(
     (sum, entry) => sum + entry.billedHours,
     0,
@@ -828,6 +835,7 @@ export default async function ControllingPerformancePage({
               actualHours={actualHours}
               billedHours={billedHours}
               costAnalysisRows={costAnalysisRows}
+              hasGehaltHours={hasGehaltHours}
               invoiceRevenueCents={invoiceRevenueCents}
               openWipCents={openWipCents}
               performanceValueCents={performanceValueCents}
@@ -1122,6 +1130,7 @@ function PerformanceAnalysisSection({
   actualHours,
   billedHours,
   costAnalysisRows,
+  hasGehaltHours,
   invoiceRevenueCents,
   openWipCents,
   performanceValueCents,
@@ -1130,6 +1139,7 @@ function PerformanceAnalysisSection({
   actualHours: number;
   billedHours: number;
   costAnalysisRows: CostAnalysisRow[];
+  hasGehaltHours: boolean;
   invoiceRevenueCents: number;
   openWipCents: number;
   performanceValueCents: number;
@@ -1203,6 +1213,13 @@ function PerformanceAnalysisSection({
           value={`${hoursDelta > 0 ? "+" : ""}${formatDecimal(hoursDelta)} h`}
         />
       </div>
+
+      {hasGehaltHours ? (
+        <p className="mt-2 text-xs text-gray-500">
+          Hinweis: Gehalt-Stunden nicht berücksichtigt, da mit Position
+          Sonstiges abgerechnet.
+        </p>
+      ) : null}
 
       <div className="mt-5 overflow-x-auto rounded-2xl border border-gray-200">
         <table className="w-full min-w-[980px] text-left text-sm">
