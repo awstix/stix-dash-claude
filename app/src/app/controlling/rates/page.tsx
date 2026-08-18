@@ -327,12 +327,13 @@ export default async function ControllingRatesPage({
               <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
               <input name="pageYear" type="hidden" value={selectedYear} />
               <div className="rounded-xl border border-gray-200 bg-white text-sm text-gray-900">
-                <div className="hidden grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr] gap-2 rounded-t-xl bg-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-950 lg:grid">
+                <div className="hidden grid-cols-[1.1fr_0.5fr_0.7fr_0.85fr_1.1fr_1.1fr] gap-2 rounded-t-xl bg-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-950 lg:grid">
                   <span>Gruppe</span>
                   <span>Jahr</span>
                   <span>EK real €/h</span>
                   <span>Interner Satz €/h</span>
                   <span>Beschreibung</span>
+                  <span>Kostenart Leistungsmeldung</span>
                 </div>
                 <div className="divide-y divide-gray-100">
                   {employeeGroupRates.map((rate) => (
@@ -768,7 +769,7 @@ function EmployeeGroupRateForm({
   return (
     <form
       action={saveEmployeeGroupRate}
-      className="grid gap-3 rounded-xl border border-gray-200 bg-white p-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr_auto] lg:items-end"
+      className="grid gap-3 rounded-xl border border-gray-200 bg-white p-3 lg:grid-cols-[1.1fr_0.5fr_0.7fr_0.85fr_1.1fr_1.1fr_auto] lg:items-end"
     >
       <input name="rateSetId" type="hidden" value={rateSetId} />
       <CompactInput
@@ -791,6 +792,7 @@ function EmployeeGroupRateForm({
         name="description"
         placeholder="Beschreibung"
       />
+      <CostCategorySelect defaultValue="LOHN" />
       <button className={`${smallButtonClassName} w-full lg:w-auto`} type="submit">
         Neuen Satz speichern
       </button>
@@ -807,6 +809,7 @@ function EmployeeGroupRateRow({
 }: {
   lastChange?: { changedByName: string | null; createdAt: Date };
   rate: {
+    costCategory: string;
     description: string | null;
     id: string;
     internalRateCents: number;
@@ -816,7 +819,7 @@ function EmployeeGroupRateRow({
   };
 }) {
   return (
-    <div className="grid gap-2 px-3 py-3 lg:grid-cols-[1.25fr_0.55fr_0.75fr_0.9fr_1.25fr] lg:items-center">
+    <div className="grid gap-2 px-3 py-3 lg:grid-cols-[1.1fr_0.5fr_0.7fr_0.85fr_1.1fr_1.1fr] lg:items-center">
       <input name="id" type="hidden" value={rate.id} />
       <div>
         <CompactInput defaultValue={rate.name} label="Gruppe" name="name" placeholder="Gruppe" readOnly />
@@ -846,7 +849,27 @@ function EmployeeGroupRateRow({
         name="description"
         placeholder="Beschreibung"
       />
+      <CostCategorySelect defaultValue={rate.costCategory} />
     </div>
+  );
+}
+
+/** Ordnet eine Mitarbeitergruppe der Leistungsmeldungs-Kostenart "Lohn"
+ * oder "Gehalt / Sonstiges" zu (fällt dort in die Zeile "Sonstiges",
+ * passend zur iTWO-Spalte "5 Gehalt / Sonstiges"). */
+function CostCategorySelect({ defaultValue }: { defaultValue: string }) {
+  return (
+    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-800 lg:text-[0px]">
+      <span className="lg:sr-only">Kostenart Leistungsmeldung</span>
+      <select
+        className={compactInputClassName}
+        defaultValue={defaultValue}
+        name="costCategory"
+      >
+        <option value="LOHN">Lohn</option>
+        <option value="GEHALT_SONSTIGES">Gehalt / Sonstiges</option>
+      </select>
+    </label>
   );
 }
 

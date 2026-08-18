@@ -388,6 +388,8 @@ export async function addControllingHourEntry(formData: FormData) {
   const totalHours = Math.round(hoursPerEmployee * employeeCount * 100) / 100;
   const realRateCents = moneyCents(formData.get("realRate"), "EK real");
   const internalRateCents = moneyCents(formData.get("internalRate"), "Interner Satz");
+  const costCategory =
+    text(formData.get("costCategory")) === "GEHALT_SONSTIGES" ? "GEHALT_SONSTIGES" : "LOHN";
 
   await prisma.controllingHourEntry.create({
     data: {
@@ -413,6 +415,7 @@ export async function addControllingHourEntry(formData: FormData) {
       internalRateCents,
       realCostCents: Math.round(totalHours * realRateCents),
       internalCostCents: Math.round(totalHours * internalRateCents),
+      costCategory,
       source: "MANUAL",
       notes: text(formData.get("notes")),
     },

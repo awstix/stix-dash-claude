@@ -20,6 +20,10 @@ function text(value: FormDataEntryValue | null) {
   return result.length > 0 ? result : null;
 }
 
+function normalizeCostCategory(value: FormDataEntryValue | null) {
+  return String(value ?? "") === "GEHALT_SONSTIGES" ? "GEHALT_SONSTIGES" : "LOHN";
+}
+
 function normalizeNumberText(value: string | null) {
   if (!value) return null;
   const trimmed = value.trim();
@@ -159,6 +163,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
   const description = text(formData.get("description"));
   const realRateCents = moneyCents(formData.get("realRate"), "EK real");
   const internalRateCents = moneyCents(formData.get("internalRate"), "Interner Satz");
+  const costCategory = normalizeCostCategory(formData.get("costCategory"));
 
   const existing = id
     ? await prisma.controllingEmployeeGroupRate.findUnique({
@@ -178,6 +183,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
   const saved = existing
     ? await prisma.controllingEmployeeGroupRate.update({
         data: {
+          costCategory,
           description,
           internalRateCents,
           isActive: true,
@@ -193,6 +199,7 @@ export async function saveEmployeeGroupRate(formData: FormData) {
       })
     : await prisma.controllingEmployeeGroupRate.create({
         data: {
+          costCategory,
           description,
           internalRateCents,
           name,
@@ -235,6 +242,7 @@ export async function saveAllEmployeeGroupRates(formData: FormData) {
   const realRates = formData.getAll("realRate");
   const internalRates = formData.getAll("internalRate");
   const descriptions = formData.getAll("description");
+  const costCategories = formData.getAll("costCategory");
 
   const existingRates = await prisma.controllingEmployeeGroupRate.findMany({
     where: {
@@ -260,11 +268,13 @@ export async function saveAllEmployeeGroupRates(formData: FormData) {
     );
     const validFrom = yearStart(year);
     const validTo = yearEnd(year);
+    const costCategory = normalizeCostCategory(costCategories[index] ?? null);
 
     const unchanged =
       realRateCents === existing.realRateCents &&
       internalRateCents === existing.internalRateCents &&
       description === existing.description &&
+      costCategory === existing.costCategory &&
       (validFrom?.getTime() ?? null) === (existing.validFrom?.getTime() ?? null) &&
       (validTo?.getTime() ?? null) === (existing.validTo?.getTime() ?? null);
 
@@ -272,6 +282,7 @@ export async function saveAllEmployeeGroupRates(formData: FormData) {
 
     await prisma.controllingEmployeeGroupRate.update({
       data: {
+        costCategory,
         description,
         internalRateCents,
         isActive: true,

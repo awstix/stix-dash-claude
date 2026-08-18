@@ -2788,6 +2788,12 @@ model ControllingHourEntry {
   internalCostCents Int      @default(0)
   source            String   @default("MANUAL")
   notes             String?
+  // Snapshot der Mitarbeitergruppen-Kategorie zum Zeitpunkt der Erfassung
+  // ("LOHN" oder "GEHALT_SONSTIGES") - steuert, in welche Kostenart-Zeile
+  // der Leistungsmeldung dieser Eintrag einfließt. Bewusst kopiert statt
+  // verknüpft, damit spätere Änderungen an der Gruppe alte Einträge nicht
+  // rückwirkend verschieben.
+  costCategory      String   @default("LOHN")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2851,6 +2857,10 @@ model ControllingEmployeeGroupRate {
   visibilityLevel   String    @default("CONTROLLING")
   isActive          Boolean   @default(true)
   sortOrder         Int       @default(0)
+  // Welcher Kostenart-Zeile in der Leistungsmeldung diese Mitarbeitergruppe
+  // zugeordnet wird: "LOHN" oder "GEHALT_SONSTIGES" (fällt dort in die
+  // Zeile "Sonstiges", passend zur iTWO-Spalte "5 Gehalt / Sonstiges").
+  costCategory      String    @default("LOHN")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

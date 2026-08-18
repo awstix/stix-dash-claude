@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 type HourSelectionOption = {
+  costCategory: string;
   internalRate: string;
   id: string;
   label: string;
@@ -35,6 +36,7 @@ export function ControllingHourForm({
   const [employeeCount, setEmployeeCount] = useState("1");
   const [internalRate, setInternalRate] = useState("");
   const [realRate, setRealRate] = useState("");
+  const [costCategory, setCostCategory] = useState("LOHN");
   const parsedEmployeeCount = parseEmployeeCount(employeeCount);
   const employeeSelectCount =
     labelType === "EMPLOYEE" ? Math.max(1, Math.min(parsedEmployeeCount, 50)) : 1;
@@ -47,6 +49,7 @@ export function ControllingHourForm({
 
     setRealRate(formatMoneyInput(average(realRates)));
     setInternalRate(formatMoneyInput(average(internalRates)));
+    setCostCategory(majorityCostCategory(options.map((option) => option.costCategory)));
   }
 
   return (
@@ -215,6 +218,17 @@ export function ControllingHourForm({
             value={internalRate}
           />
         </Field>
+        <Field label="Kostenart Leistungsmeldung">
+          <select
+            className={inputClassName}
+            name="costCategory"
+            onChange={(event) => setCostCategory(event.target.value)}
+            value={costCategory}
+          >
+            <option value="LOHN">Lohn</option>
+            <option value="GEHALT_SONSTIGES">Gehalt / Sonstiges</option>
+          </select>
+        </Field>
         <Field className="md:col-span-2" label="Bemerkung">
           <input className={inputClassName} name="notes" />
         </Field>
@@ -289,6 +303,26 @@ function parseEmployeeCount(value: string) {
 function average(values: number[]) {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function majorityCostCategory(categories: string[]) {
+  if (categories.length === 0) return "LOHN";
+
+  const counts = new Map<string, number>();
+  for (const category of categories) {
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+
+  let best = "LOHN";
+  let bestCount = 0;
+  for (const [category, count] of counts) {
+    if (count > bestCount) {
+      best = category;
+      bestCount = count;
+    }
+  }
+
+  return best;
 }
 
 function formatMoneyInput(value: number) {

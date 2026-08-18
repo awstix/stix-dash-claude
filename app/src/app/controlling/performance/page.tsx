@@ -28,6 +28,7 @@ const reportStatuses = [
 const units = ["h", "Stk.", "m", "m²", "m³", "t", "pauschal", "€"];
 
 type HourSelectionOption = {
+  costCategory: string;
   internalRate: string;
   id: string;
   label: string;
@@ -238,22 +239,24 @@ export default async function ControllingPerformancePage({
     const internalRateCents = averageRate(memberRates.map((rate) => rate.internalRateCents));
 
     return {
+      costCategory: majorityCostCategory(memberRates.map((rate) => rate.costCategory)),
       id: crew.id,
       internalRate: formatRawMoney(internalRateCents),
       label: crew.typeLabel ? `${crew.name} · ${crew.typeLabel}` : crew.name,
       realRate: formatRawMoney(realRateCents),
     };
   });
-  const employeeHourOptions = employeesForHours.map((employee) => ({
-    id: employee.id,
-    internalRate: formatRawMoney(
-      getEmployeeHourRate(employee, employeeRateByGroup).internalRateCents,
-    ),
-    label: `${employee.lastName}, ${employee.firstName}`,
-    realRate: formatRawMoney(
-      getEmployeeHourRate(employee, employeeRateByGroup).realRateCents,
-    ),
-  }));
+  const employeeHourOptions = employeesForHours.map((employee) => {
+    const rate = getEmployeeHourRate(employee, employeeRateByGroup);
+
+    return {
+      costCategory: rate.costCategory,
+      id: employee.id,
+      internalRate: formatRawMoney(rate.internalRateCents),
+      label: `${employee.lastName}, ${employee.firstName}`,
+      realRate: formatRawMoney(rate.realRateCents),
+    };
+  });
 
   const activeProjectId = report?.projectId ?? selectedProject?.id ?? null;
   const detailCostCents =
@@ -296,7 +299,7 @@ export default async function ControllingPerformancePage({
   const costAnalysisRows = report
     ? buildCostAnalysisRows({
         detailEntries: report.detailEntries,
-        hourRealCostCents,
+        hourEntries: report.hourEntries,
         invoiceItems: report.invoiceItems,
       })
     : [];
@@ -742,7 +745,7 @@ export default async function ControllingPerformancePage({
                     title="Detail"
                   />
                   <DataTable
-                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Herkunft"]}
+                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Kostenart", "Herkunft"]}
                     rows={report.hourEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.label,
@@ -750,6 +753,7 @@ export default async function ControllingPerformancePage({
                       formatDecimal(entry.totalHours),
                       formatMoney(entry.realRateCents),
                       formatMoney(entry.realCostCents),
+                      entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
                       getSourceLabel(entry.source, entry.notes),
                     ])}
                     title="Stunden"
@@ -1419,6 +1423,7 @@ function getEmployeeHourRate(
   ratesByGroup: Map<
     string,
     {
+      costCategory: string;
       internalRateCents: number;
       realRateCents: number;
     }
@@ -1439,9 +1444,30 @@ function getEmployeeHourRate(
   }
 
   return {
+    costCategory: "LOHN",
     internalRateCents: 0,
     realRateCents: 0,
   };
+}
+
+function majorityCostCategory(categories: string[]) {
+  if (categories.length === 0) return "LOHN";
+
+  const counts = new Map<string, number>();
+  for (const category of categories) {
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+
+  let best = "LOHN";
+  let bestCount = 0;
+  for (const [category, count] of counts) {
+    if (count > bestCount) {
+      best = category;
+      bestCount = count;
+    }
+  }
+
+  return best;
 }
 
 function averageRate(values: number[]) {
@@ -1517,14 +1543,17 @@ function getReportStatusLabel(value: string) {
 
 function buildCostAnalysisRows({
   detailEntries,
-  hourRealCostCents,
+  hourEntries,
   invoiceItems,
 }: {
   detailEntries: Array<{
     amountCents: number;
     costType: string;
   }>;
-  hourRealCostCents: number;
+  hourEntries: Array<{
+    costCategory: string;
+    realCostCents: number;
+  }>;
   invoiceItems: Array<{
     equipmentCostCents: number;
     laborCostCents: number;
@@ -1541,12 +1570,20 @@ function buildCostAnalysisRows({
     ["Sonstiges", 0],
   ]);
   const actualByType = new Map<string, number>([
-    ["Lohn", hourRealCostCents],
+    ["Lohn", 0],
     ["Material", 0],
     ["Geräte", 0],
     ["Nachunternehmer", 0],
     ["Sonstiges", 0],
   ]);
+
+  // Mitarbeiterstunden fließen je nach Kostenart der zugrunde liegenden
+  // Mitarbeitergruppe entweder in "Lohn" oder in "Sonstiges" (= Gehalt/
+  // Sonstiges) ein, statt pauschal alles als Lohn zu werten.
+  for (const entry of hourEntries) {
+    const key = entry.costCategory === "GEHALT_SONSTIGES" ? "Sonstiges" : "Lohn";
+    actualByType.set(key, (actualByType.get(key) ?? 0) + entry.realCostCents);
+  }
 
   for (const item of invoiceItems) {
     budgetByType.set("Lohn", (budgetByType.get("Lohn") ?? 0) + item.laborCostCents);
