@@ -28,16 +28,19 @@ export async function ensureVehicleForInventoryItem(
     return;
   }
 
-  // Both flags need a synced Vehicle row - LKW-Dispo/Fahrer-Zuordnung via
-  // useInTruckDispatchSelection, Gerätedisposition via useInEquipmentDispatch.
-  // Which of the two is set determines whether the item is ALSO eligible
-  // for driver-assignment sync, checked separately in
-  // syncDriverVehicleAssignmentForInventoryItem below.
+  // All three flags need a synced Vehicle row - LKW-Dispo/Fahrer-Zuordnung
+  // via useInTruckDispatchSelection, Gerätedisposition via
+  // useInEquipmentDispatch, Kolonnen/Teams-Verwaltung (Geräte/Mitarbeiter
+  // zuweisen) via useInTeamManagement. Which of these is set determines
+  // whether the item is ALSO eligible for driver-assignment sync, checked
+  // separately in syncDriverVehicleAssignmentForInventoryItem below.
   const allowsVehicleSync = Boolean(
     item.category?.useInTruckDispatchSelection ||
       item.category?.parentCategory?.useInTruckDispatchSelection ||
       item.category?.useInEquipmentDispatch ||
-      item.category?.parentCategory?.useInEquipmentDispatch,
+      item.category?.parentCategory?.useInEquipmentDispatch ||
+      item.category?.useInTeamManagement ||
+      item.category?.parentCategory?.useInTeamManagement,
   );
 
   if (!allowsVehicleSync) {
@@ -357,6 +360,12 @@ export async function syncVehiclesFromInventory() {
         {
           category: {
             parentCategory: { useInEquipmentDispatch: true },
+          },
+        },
+        { category: { useInTeamManagement: true } },
+        {
+          category: {
+            parentCategory: { useInTeamManagement: true },
           },
         },
       ],
