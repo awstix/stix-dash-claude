@@ -11,14 +11,25 @@ type SidebarProject = {
   projectNumber: string;
 };
 
-const YEAR_GROUP_ORDER = ["2026", "2025", "2024", "Rest", "Sonstige"];
+const YEAR_GROUP_ORDER = [
+  "2026",
+  "2025",
+  "2024",
+  "2023",
+  "2022",
+  "Vor 2022",
+  "Rest",
+  "Sonstige",
+];
 
 function getYearGroup(projectNumber: string) {
-  const prefix = projectNumber.slice(0, 2);
-  if (prefix === "24") return "2024";
-  if (prefix === "25") return "2025";
-  if (prefix === "26") return "2026";
   if (projectNumber.startsWith("9")) return "Rest";
+
+  const prefix = Number(projectNumber.slice(0, 2));
+  if (!Number.isInteger(prefix)) return "Sonstige";
+  if (prefix >= 22 && prefix <= 26) return String(2000 + prefix);
+  if (prefix >= 0 && prefix < 22) return "Vor 2022";
+
   return "Sonstige";
 }
 
@@ -30,6 +41,18 @@ export function ProjectPerformanceSidebar({
   projects: SidebarProject[];
 }) {
   const [search, setSearch] = useState("");
+  // Collapsed by default - only the year holding the currently active
+  // project starts open, so switching projects doesn't bury you in every
+  // other year's list. Toggling is remembered per group; while a search
+  // is active, every group with a match force-opens regardless of this
+  // (handled below, not stored here) so results are never hidden behind
+  // a collapsed year.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const activeProject = projects.find((project) => project.id === activeProjectId);
+    return new Set(activeProject ? [getYearGroup(activeProject.projectNumber)] : []);
+  });
+
+  const isSearching = search.trim().length > 0;
 
   const groups = useMemo(() => {
     const query = normalizeProjectSearchText(search);
@@ -55,6 +78,15 @@ export function ProjectPerformanceSidebar({
     })).filter((entry) => entry.projects.length > 0);
   }, [projects, search]);
 
+  function toggleGroup(group: string, open: boolean) {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (open) next.add(group);
+      else next.delete(group);
+      return next;
+    });
+  }
+
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-semibold text-gray-950">Projekt auswählen</h2>
@@ -69,13 +101,23 @@ export function ProjectPerformanceSidebar({
       {groups.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">Keine Projekte gefunden.</p>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 space-y-2">
           {groups.map(({ group, projects: groupProjects }) => (
-            <div key={group}>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
-                {group}
-              </h3>
-              <div className="space-y-2">
+            <details
+              className="group"
+              key={group}
+              onToggle={(event) => toggleGroup(group, event.currentTarget.open)}
+              open={isSearching || openGroups.has(group)}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-1 py-2 text-xs font-bold uppercase tracking-wide text-gray-500 hover:text-gray-800">
+                <span>
+                  {group} · {groupProjects.length}
+                </span>
+                <span className="text-gray-400 transition-transform group-open:rotate-90">
+                  ›
+                </span>
+              </summary>
+              <div className="mt-2 space-y-2">
                 {groupProjects.map((project) => {
                   const active = project.id === activeProjectId;
                   return (
@@ -99,7 +141,7 @@ export function ProjectPerformanceSidebar({
                   );
                 })}
               </div>
-            </div>
+            </details>
           ))}
         </div>
       )}
