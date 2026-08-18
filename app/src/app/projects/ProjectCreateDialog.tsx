@@ -425,6 +425,18 @@ function TextField({
   );
 }
 
+/** Displays whatever the user is actively typing (own local state), not a
+ * value reformatted from the parsed number on every render - a purely
+ * value-driven input would erase a just-typed "," (or any trailing
+ * partial decimal) the instant it's typed, since re-rendering with the
+ * unchanged parsed number reformats back to the pre-comma string before
+ * the user can type a fraction digit. Parsing still happens on every
+ * keystroke (via onChange) so dependent live totals stay in sync - only
+ * the input's own displayed text is decoupled from that round-trip.
+ * Safe to initialize state once from `value`: both call sites (the
+ * create dialog and the edit form in ProjectManager.tsx) fully unmount/
+ * remount this field whenever the underlying record changes, rather
+ * than reusing the same mounted instance across different projects. */
 function NumberField({
   label,
   onChange,
@@ -434,15 +446,22 @@ function NumberField({
   onChange: (value: number) => void;
   value: number;
 }) {
+  const [text, setText] = useState(() =>
+    value === 0 ? "" : formatNumberInputValue(value),
+  );
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700">{label}</label>
       <input
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
         inputMode="decimal"
-        onChange={(event) => onChange(parseNumberInputValue(event.target.value))}
+        onChange={(event) => {
+          setText(event.target.value);
+          onChange(parseNumberInputValue(event.target.value));
+        }}
         type="text"
-        value={value === 0 ? "" : formatNumberInputValue(value)}
+        value={text}
       />
     </div>
   );
@@ -496,7 +515,8 @@ function parseNumberInputValue(value: string) {
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", {
     currency: "EUR",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
     style: "currency",
   }).format(value);
 }

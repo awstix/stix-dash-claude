@@ -246,10 +246,14 @@ export async function createPerformanceReport(formData: FormData) {
       periodStart,
       reportDate: periodEnd,
       title,
-      contractValueNetCents: project.contractValueNet * 100,
-      changeOrdersNetCents: project.changeOrdersNet * 100,
+      // contractValueNet/changeOrdersNet/paymentsNet are Floats now (real
+      // cent precision, e.g. 6765.91) - Math.round guards against binary
+      // floating-point drift (6765.91 * 100 can land on
+      // 676590.9999999999) before it hits these Int Cents columns.
+      contractValueNetCents: Math.round(project.contractValueNet * 100),
+      changeOrdersNetCents: Math.round(project.changeOrdersNet * 100),
       progressPercent: project.progressPercent,
-      paymentsNetCents: project.paymentsNet * 100,
+      paymentsNetCents: Math.round(project.paymentsNet * 100),
       createdByName: "System",
       rateSet: rateSetId
         ? {

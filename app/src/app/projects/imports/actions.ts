@@ -21,12 +21,12 @@ import { syncUserProjectAccessForConstructionManagers } from "@/lib/project-acce
 const STORAGE_BUCKET = "uploads";
 
 // Unlike inventory's *Cents fields, Project.contractValueNet/changeOrdersNet/
-// paymentsNet/finalInvoiceNet store whole euros (see formatEuro() usage
-// throughout ProjectManager.tsx and controlling/auftraege/page.tsx, which
-// never divides by 100) - so money values here are rounded, not ×100'd.
-function wholeEuro(value: unknown) {
-  const parsed = floatValue(value);
-  return parsed === null ? null : Math.round(parsed);
+// paymentsNet/finalInvoiceNet store real euros with cents (a plain Float
+// column, not ×100'd into an Int) - see formatEuro() usage throughout
+// ProjectManager.tsx and controlling/auftraege/page.tsx, which format
+// with 2 decimal places directly, no /100 anywhere.
+function euroAmount(value: unknown) {
+  return floatValue(value);
 }
 
 function statusValue(value: unknown): ProjectStatus {
@@ -137,24 +137,24 @@ export async function importProjects(formData: FormData) {
       const data = {
         actualEnd: dateValue(rowValue(row, "Tatsächliches Ende")),
         actualStart: dateValue(rowValue(row, "Tatsächlicher Start")),
-        changeOrdersNet: wholeEuro(rowValue(row, "Nachträge netto EUR")) ?? 0,
+        changeOrdersNet: euroAmount(rowValue(row, "Nachträge netto EUR")) ?? 0,
         client: text(rowValue(row, "Auftraggeber")),
         constructionManager:
           constructionManagers[0]?.name ?? null,
         constructionManagersJson: JSON.stringify(constructionManagers),
         contractValueNet:
-          wholeEuro(rowValue(row, "Auftragssumme netto EUR")) ?? 0,
+          euroAmount(rowValue(row, "Auftragssumme netto EUR")) ?? 0,
         dvgw: bool(rowValue(row, "DVGW")),
         finalInvoiceCreated,
         finalInvoiceNet: finalInvoiceCreated
-          ? wholeEuro(rowValue(row, "Schlussrechnung netto EUR"))
+          ? euroAmount(rowValue(row, "Schlussrechnung netto EUR"))
           : null,
         finalInvoiceNumber: text(rowValue(row, "Schlussrechnungsnummer")),
         guetezeichenKanalbau: bool(rowValue(row, "Gütezeichen Kanalbau")),
         lieferscheine: bool(rowValue(row, "Lieferscheine")),
         name,
         notes: text(rowValue(row, "Notizen")),
-        paymentsNet: wholeEuro(rowValue(row, "Zahlungen netto EUR")) ?? 0,
+        paymentsNet: euroAmount(rowValue(row, "Zahlungen netto EUR")) ?? 0,
         plannedEnd: dateValue(rowValue(row, "Geplantes Ende")),
         plannedStart: dateValue(rowValue(row, "Geplanter Start")),
         progressPercent: floatValue(rowValue(row, "Fortschritt %")) ?? 0,

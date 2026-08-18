@@ -1115,6 +1115,13 @@ function TextField({
   );
 }
 
+/** Displays whatever the user is actively typing (own local state), not a
+ * value reformatted from the parsed number on every render - see the
+ * identical component in ProjectCreateDialog.tsx for the full reasoning.
+ * Safe to initialize state once from `value`: the edit form's wrapping
+ * `showForm ? <div>...` fully unmounts/remounts on every resetForm()/
+ * startEdit() (never reused in-place across a different project), so a
+ * fresh mount always starts from the right initial text. */
 function NumberField({
   label,
   value,
@@ -1124,14 +1131,21 @@ function NumberField({
   value: number;
   onChange: (value: number) => void;
 }) {
+  const [text, setText] = useState(() =>
+    value === 0 ? "" : formatNumberInputValue(value),
+  );
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700">{label}</label>
       <input
         inputMode="decimal"
         type="text"
-        value={value === 0 ? "" : formatNumberInputValue(value)}
-        onChange={(event) => onChange(parseNumberInputValue(event.target.value))}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value);
+          onChange(parseNumberInputValue(event.target.value));
+        }}
         className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
       />
     </div>
@@ -1189,7 +1203,8 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   }).format(value);
 }
 

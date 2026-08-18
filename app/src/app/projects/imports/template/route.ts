@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const headers: string[] = [...PROJECT_IMPORT_HEADERS];
 
 const exampleRow: Record<string, string> = {
-  "Auftragssumme netto EUR": "125000",
+  "Auftragssumme netto EUR": "125000,50",
   Auftraggeber: "Stadtwerke Musterstadt",
   Baustellenadresse: "Musterstraße 1, 12345 Musterstadt",
   "Bauleiter 1": "Max Mustermann",
@@ -59,7 +59,7 @@ export async function GET() {
       "Status: noch nicht begonnen, aktiv, ruht, beendet, storniert. Ja/Nein-Felder: Ja, Nein, X oder leer (= Nein).",
     ],
     [
-      "Datum am besten als TT.MM.JJJJ eintragen. Geldbeträge netto in ganzen EUR ohne Cent, z. B. 12500.",
+      "Datum am besten als TT.MM.JJJJ eintragen. Geldbeträge netto in EUR, Cent-Beträge mit Komma, z. B. 12500,50.",
     ],
     [
       "Schlussrechnung netto EUR wird nur übernommen, wenn „Schlussrechnung erstellt“ auf Ja steht.",

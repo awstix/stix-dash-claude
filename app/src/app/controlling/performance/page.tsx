@@ -258,9 +258,15 @@ export default async function ControllingPerformancePage({
   const invoiceCostCents =
     report?.invoiceItems.reduce((sum, entry) => sum + entry.costCents, 0) ?? 0;
   const currentProjectForValues = report?.project ?? selectedProject;
-  const contractValueNetCents = (currentProjectForValues?.contractValueNet ?? 0) * 100;
-  const changeOrdersNetCents = (currentProjectForValues?.changeOrdersNet ?? 0) * 100;
-  const paymentsNetCents = (currentProjectForValues?.paymentsNet ?? 0) * 100;
+  // Math.round guards against binary floating-point drift now that these
+  // are real Float euro values (e.g. 6765.91), not whole-euro ints.
+  const contractValueNetCents = Math.round(
+    (currentProjectForValues?.contractValueNet ?? 0) * 100,
+  );
+  const changeOrdersNetCents = Math.round(
+    (currentProjectForValues?.changeOrdersNet ?? 0) * 100,
+  );
+  const paymentsNetCents = Math.round((currentProjectForValues?.paymentsNet ?? 0) * 100);
   const totalContractCents =
     contractValueNetCents + changeOrdersNetCents;
   const performanceValueCents = Math.round(

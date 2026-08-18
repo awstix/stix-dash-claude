@@ -111,14 +111,14 @@ model Project {
   guetezeichenKanalbau Boolean @default(false)
   lieferscheine        Boolean @default(false)
 
-  contractValueNet Int   @default(0)
-  changeOrdersNet  Int   @default(0)
+  contractValueNet Float @default(0)
+  changeOrdersNet  Float @default(0)
   progressPercent  Float @default(0)
-  paymentsNet      Int   @default(0)
+  paymentsNet      Float @default(0)
 
   finalInvoiceCreated Boolean @default(false)
   finalInvoiceNumber  String?
-  finalInvoiceNet     Int?
+  finalInvoiceNet     Float?
 
   siteAddress         String?
   siteDirectionsNote  String?

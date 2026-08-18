@@ -24,7 +24,8 @@ const statusColors: Record<ProjectStatus, string> = {
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", {
     currency: "EUR",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
     style: "currency",
   }).format(value);
 }
