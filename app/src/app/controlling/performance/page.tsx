@@ -82,10 +82,19 @@ export default async function ControllingPerformancePage({
     },
   });
 
+  // projects ist absteigend nach projectNumber (String) sortiert - "9xxxxx"
+  // (Sonstige/Rest-Projekte) sortieren dadurch lexikografisch vor jedem
+  // echten Jahres-Projekt. Ohne explizite Auswahl soll trotzdem das
+  // neueste echte Projekt vorausgewählt sein, nicht das erstbeste
+  // Rest-Projekt.
+  const defaultProject =
+    projects.find((project) => !project.projectNumber.startsWith("9")) ??
+    projects[0] ??
+    null;
   const selectedProjectId =
-    requestedReport?.projectId ?? params.projectId ?? projects[0]?.id ?? null;
+    requestedReport?.projectId ?? params.projectId ?? defaultProject?.id ?? null;
   const selectedProject =
-    projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null;
+    projects.find((project) => project.id === selectedProjectId) ?? defaultProject;
   const nextPeriodStart = getNextPeriodStart(selectedProject?.performanceReports ?? []);
   const nextPeriodEnd = getNextPeriodEnd(nextPeriodStart);
   const rateSets = await prisma.controllingRateSet.findMany({
