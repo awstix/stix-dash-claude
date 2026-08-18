@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { EmployeeQualificationBadges } from "@/components/EmployeeQualificationBadges";
+import { SearchableComboSelect } from "@/components/SearchableComboSelect";
 import { prisma } from "@/lib/prisma";
 import { CrewColorPicker } from "./CrewColorPicker";
 import { pickRandomUnusedCrewColor } from "@/lib/crew-colors";
@@ -578,17 +579,9 @@ export default async function CrewsAdminPage() {
 
                       <label className="block text-xs font-medium text-gray-700">
                         Mitarbeiter
-                        <select
-                          name="employeeId"
-                          required
-                          defaultValue=""
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-                        >
-                          <option value="" disabled>
-                            Mitarbeiter wählen
-                          </option>
-
-                          {employees.map((employee) => {
+                        <SearchableComboSelect
+                          hiddenInputName="employeeId"
+                          options={employees.map((employee) => {
                             const otherCrewNames =
                               getOtherCrewNamesForEmployee({
                                 employeeId: employee.id,
@@ -599,27 +592,19 @@ export default async function CrewsAdminPage() {
                             const isAssignedToOtherCrew =
                               otherCrewNames.length > 0;
 
-                            const employeeLabel = `${getEmployeeName(
-                              employee
-                            )} · ${getEmployeePositionLabel(employee)}`;
-
-                            const assignedLabel = isAssignedToOtherCrew
-                              ? `! ${employeeLabel} · bereits in: ${otherCrewNames.join(
-                                  ", "
-                                )}`
-                              : employeeLabel;
-
-                            return (
-                              <option
-                                key={employee.id}
-                                value={employee.id}
-                                disabled={isAssignedToOtherCrew}
-                              >
-                                {assignedLabel}
-                              </option>
-                            );
+                            return {
+                              disabled: isAssignedToOtherCrew,
+                              disabledLabel: isAssignedToOtherCrew
+                                ? `bereits in: ${otherCrewNames.join(", ")}`
+                                : undefined,
+                              group: getEmployeePositionLabel(employee),
+                              id: employee.id,
+                              label: getEmployeeName(employee),
+                            };
                           })}
-                        </select>
+                          placeholder="Mitarbeiter suchen ..."
+                          required
+                        />
                       </label>
 
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
@@ -752,20 +737,12 @@ export default async function CrewsAdminPage() {
 
                       <label className="block text-xs font-medium text-gray-700">
                         Inventarobjekt
-                        <select
-                          name="inventoryItemId"
-                          required
-                          defaultValue=""
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
-                        >
-                          <option value="" disabled>
-                            Inventarobjekt wählen
-                          </option>
-
-                          {inventoryVehicleItems.map((item) => {
+                        <SearchableComboSelect
+                          hiddenInputName="inventoryItemId"
+                          options={inventoryVehicleItems.flatMap((item) => {
                             const vehicle = item.vehicle;
                             if (!vehicle || !item.vehicleId) {
-                              return null;
+                              return [];
                             }
                             const otherCrewNames =
                               getOtherCrewNamesForVehicle({
@@ -776,25 +753,25 @@ export default async function CrewsAdminPage() {
                             const isAssignedToOtherCrew =
                               otherCrewNames.length > 0;
 
-                            const vehicleLabel = getInventoryVehicleLabel(item);
+                            const categoryLabel = item.category?.parentCategory
+                              ? `${item.category.parentCategory.name} / ${item.category.name}`
+                              : item.category?.name ?? "Ohne Kategorie";
 
-                            const assignedLabel = isAssignedToOtherCrew
-                              ? `! ${vehicleLabel} · bereits in: ${otherCrewNames.join(
-                                  ", "
-                                )}`
-                              : vehicleLabel;
-
-                            return (
-                              <option
-                                key={item.id}
-                                value={item.id}
-                                disabled={isAssignedToOtherCrew}
-                              >
-                                {assignedLabel}
-                              </option>
-                            );
+                            return [
+                              {
+                                disabled: isAssignedToOtherCrew,
+                                disabledLabel: isAssignedToOtherCrew
+                                  ? `bereits in: ${otherCrewNames.join(", ")}`
+                                  : undefined,
+                                group: categoryLabel,
+                                id: item.id,
+                                label: getInventoryVehicleLabel(item),
+                              },
+                            ];
                           })}
-                        </select>
+                          placeholder="Gerät/Fahrzeug suchen ..."
+                          required
+                        />
                       </label>
 
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
