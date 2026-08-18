@@ -42,12 +42,29 @@ export async function GET() {
   }));
 
   const hintSheet = XLSX.utils.aoa_to_sheet([
-    ["Hinweis"],
+    ["So kommen Sie an die Daten (Export aus iTWO)"],
+    [
+      "1. Kalkulation in iTWO öffnen, oben im Menü \"Ansicht\" wählen.",
+    ],
+    [
+      "2. Die Vorlage \"Standard_Artur_Controlling\" auswählen.",
+    ],
+    [
+      "3. Die gesamte Tabelle markieren, kopieren und in Excel einfügen.",
+    ],
+    [
+      "4. Diese Excel-Datei direkt im Import-Formular hochladen.",
+    ],
+    [
+      "Falls die Ansicht \"Standard_Artur_Controlling\" nicht verfügbar ist: selbst eine Ansicht erstellen und die benötigten Spalten gemäß dieser Importvorlage auswählen. Wichtig: Die Spaltenreihenfolge muss dabei genau der Importvorlage entsprechen!",
+    ],
+    [""],
+    ["Hinweis zu den Spalten"],
     [
       "Zeile 1 sind die Spaltennamen, ab Zeile 2 stehen die Daten. Pro Zeile eine LV-Position.",
     ],
     [
-      "Am einfachsten: den vorhandenen Export aus iTWO (Leistungsverzeichnis bzw. Rechnungsprüfung/Aufmaß, als Excel exportiert) direkt hochladen - die Spalten müssen dafür nicht umbenannt werden. Der Import erkennt automatisch auch diese gängigen iTWO-Bezeichnungen:",
+      "Der so erzeugte Export kann direkt hochgeladen werden - die Spalten müssen dafür nicht umbenannt werden. Der Import erkennt automatisch auch diese gängigen iTWO-Bezeichnungen:",
     ],
     ["OZ: OZ, Position, Pos., Ordnungszahl"],
     ["Kurztext: Kurztext, Kurz-Info, Beschreibung, Leistung"],

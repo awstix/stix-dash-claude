@@ -995,14 +995,29 @@ function InvoiceSection({
         </a>
       </div>
 
-      <p className="mt-3 text-sm text-gray-600">
-        Am einfachsten den vorhandenen Export aus iTWO (Leistungsverzeichnis bzw.
-        Rechnungsprüfung/Aufmaß, als Excel exportiert) direkt hochladen - die
-        Spalten müssen dafür nicht umbenannt werden, der Import erkennt die
-        gängigen iTWO-Bezeichnungen automatisch (OZ, Kurztext, ME, RE-Menge,
-        LV-Menge, Einheitspreis, Std/ME, Kosten/ME, ...). Details dazu stehen im
-        Hinweise-Blatt der Vorlage.
-      </p>
+      <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-gray-800">
+          Wie komme ich an die Daten? (Export aus iTWO)
+        </summary>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-600">
+          <li>Kalkulation in iTWO öffnen, oben im Menü &bdquo;Ansicht&ldquo; wählen.</li>
+          <li>Die Vorlage &bdquo;Standard_Artur_Controlling&ldquo; auswählen.</li>
+          <li>Die gesamte Tabelle markieren, kopieren und in Excel einfügen.</li>
+          <li>Diese Excel-Datei unten direkt hochladen.</li>
+        </ol>
+        <p className="mt-2 text-sm text-gray-600">
+          Falls die Ansicht &bdquo;Standard_Artur_Controlling&ldquo; nicht verfügbar
+          ist: selbst eine Ansicht erstellen und die benötigten Spalten gemäß der
+          Importvorlage auswählen. Wichtig: Die Spaltenreihenfolge muss dabei genau
+          der Importvorlage entsprechen!
+        </p>
+        <p className="mt-2 text-sm text-gray-600">
+          Die Spalten müssen dafür nicht umbenannt werden - der Import erkennt die
+          gängigen iTWO-Bezeichnungen automatisch (OZ, Kurztext, ME, RE-Menge,
+          LV-Menge, Einheitspreis, Std/ME, Kosten/ME, ...). Alle Details dazu stehen
+          auch im Hinweise-Blatt der Vorlage.
+        </p>
+      </details>
 
       <form
         action={importAction}
