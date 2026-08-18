@@ -14,6 +14,7 @@ import {
   updatePerformanceReport,
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
+import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const costTypes = ["Lohn", "Material", "Geräte", "Nachunternehmer", "Sonstiges"];
 const entryStatuses = ["geschätzt", "geprüft", "gebucht", "offen", "erledigt"];
@@ -292,33 +293,15 @@ export default async function ControllingPerformancePage({
     >
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-950">Projekt auswählen</h2>
-            <div className="mt-4 space-y-2">
-              {projects.map((project) => {
-                const active = project.id === activeProjectId;
-                return (
-                  <Link
-                    className={`block rounded-xl border px-3 py-3 text-sm ${
-                      active
-                        ? "border-gray-900 bg-gray-950 text-white"
-                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-                    }`}
-                    href={`/controlling/performance?projectId=${project.id}`}
-                    key={project.id}
-                    scroll={false}
-                  >
-                    <span className="block font-semibold">
-                      {project.projectNumber} · {project.name}
-                    </span>
-                    <span className={active ? "text-gray-200" : "text-gray-500"}>
-                      {project.performanceReports.length} Leistungsmeldung(en)
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
+          <ProjectPerformanceSidebar
+            activeProjectId={activeProjectId}
+            projects={projects.map((project) => ({
+              id: project.id,
+              name: project.name,
+              performanceReportCount: project.performanceReports.length,
+              projectNumber: project.projectNumber,
+            }))}
+          />
 
           {selectedProject ? (
             <>
