@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ActionIcon } from "@/components/ActionIcon";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getNetWorkHoursForDay, getWorkTimeDayForDate } from "@/lib/work-time";
@@ -21,7 +20,8 @@ import {
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
 import { DeleteEntryButton } from "./DeleteEntryButton";
-import { DetailEntryForm, type DetailEntryEditValues } from "./DetailEntryForm";
+import { DetailEntryForm } from "./DetailEntryForm";
+import { EditDetailEntryButton } from "./EditDetailEntryButton";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const reportStatuses = [
@@ -54,7 +54,6 @@ export default async function ControllingPerformancePage({
   searchParams,
 }: {
   searchParams?: Promise<{
-    editDetailId?: string;
     notice?: string;
     noticeType?: string;
     projectId?: string;
@@ -725,6 +724,13 @@ export default async function ControllingPerformancePage({
         invoiceItems: report.invoiceItems,
       })
     : [];
+  const detailHourEntryOptions = report
+    ? report.hourEntries.map((entry) => ({
+        id: entry.id,
+        label: `${formatDate(entry.entryDate)} · ${entry.label} · ${formatDecimal(entry.totalHours)} h`,
+        totalHours: formatDecimal(entry.totalHours),
+      }))
+    : [];
 
   return (
     <AppShell
@@ -1134,34 +1140,8 @@ export default async function ControllingPerformancePage({
 
               <EntrySection
                 action={addControllingDetailEntry}
-                cancelHref={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}`}
-                editingEntry={(() => {
-                  const entry = params.editDetailId
-                    ? report.detailEntries.find(
-                        (item) => item.id === params.editDetailId,
-                      )
-                    : null;
-                  return entry
-                    ? {
-                        id: entry.id,
-                        costType: entry.costType,
-                        description: entry.description,
-                        entryDate: formatInputDate(entry.entryDate),
-                        notes: entry.notes ?? "",
-                        quantity: formatDecimal(entry.quantity),
-                        status: entry.status,
-                        unit: entry.unit,
-                        unitPrice: formatRawMoney(entry.unitPriceCents),
-                        utilizationPercent: String(entry.utilizationPercent),
-                      }
-                    : null;
-                })()}
                 equipmentOptions={equipmentQuickEntryOptions}
-                hourEntryOptions={report.hourEntries.map((entry) => ({
-                  id: entry.id,
-                  label: `${formatDate(entry.entryDate)} · ${entry.label} · ${formatDecimal(entry.totalHours)} h`,
-                  totalHours: formatDecimal(entry.totalHours),
-                }))}
+                hourEntryOptions={detailHourEntryOptions}
                 importAction={importDetailEntriesFromExcel}
                 projectId={report.projectId}
                 reportId={report.id}
@@ -1225,14 +1205,26 @@ export default async function ControllingPerformancePage({
                       formatMoney(entry.amountCents),
                       getSourceLabel(entry.source, entry.notes),
                       <div className="flex gap-2" key={`actions-${entry.id}`}>
-                        <a
-                          aria-label="Bearbeiten"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
-                          href={`/controlling/performance?projectId=${report.projectId}&reportId=${report.id}&editDetailId=${entry.id}`}
-                          title="Bearbeiten"
-                        >
-                          <ActionIcon className="h-4 w-4" name="edit" />
-                        </a>
+                        <EditDetailEntryButton
+                          action={addControllingDetailEntry}
+                          entry={{
+                            id: entry.id,
+                            costType: entry.costType,
+                            description: entry.description,
+                            entryDate: formatInputDate(entry.entryDate),
+                            notes: entry.notes ?? "",
+                            quantity: formatDecimal(entry.quantity),
+                            status: entry.status,
+                            unit: entry.unit,
+                            unitPrice: formatRawMoney(entry.unitPriceCents),
+                            utilizationPercent: String(entry.utilizationPercent),
+                          }}
+                          equipmentOptions={equipmentQuickEntryOptions}
+                          hourEntryOptions={detailHourEntryOptions}
+                          projectId={report.projectId}
+                          reportId={report.id}
+                          updateAction={updateControllingDetailEntry}
+                        />
                         <DeleteEntryButton
                           action={deleteControllingDetailEntry}
                           id={entry.id}
@@ -1469,8 +1461,6 @@ function CrewSuggestionsSection({
 
 function EntrySection({
   action,
-  cancelHref,
-  editingEntry,
   equipmentOptions,
   hourEntryOptions,
   importAction,
@@ -1480,8 +1470,6 @@ function EntrySection({
   updateAction,
 }: {
   action: (formData: FormData) => Promise<void>;
-  cancelHref?: string;
-  editingEntry?: DetailEntryEditValues | null;
   equipmentOptions: {
     id: string;
     category: string;
@@ -1526,38 +1514,6 @@ function EntrySection({
         </div>
       </form>
 
-      {editingEntry ? (
-        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/50 p-4">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg font-bold text-gray-900">
-                Detailposition bearbeiten
-              </h2>
-              {cancelHref ? (
-                <a
-                  aria-label="Schließen"
-                  className="rounded-lg border border-gray-300 bg-white p-2 text-gray-700 hover:bg-gray-50"
-                  href={cancelHref}
-                >
-                  <ActionIcon className="h-4 w-4" name="close" />
-                </a>
-              ) : null}
-            </div>
-            <DetailEntryForm
-              action={action}
-              cancelHref={cancelHref}
-              editingEntry={editingEntry}
-              equipmentOptions={equipmentOptions}
-              hourEntryOptions={hourEntryOptions}
-              key={editingEntry.id}
-              projectId={projectId}
-              reportId={reportId}
-              updateAction={updateAction}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <details
         className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4"
         id="detail-form"
@@ -1569,7 +1525,6 @@ function EntrySection({
           action={action}
           equipmentOptions={equipmentOptions}
           hourEntryOptions={hourEntryOptions}
-          key="new"
           projectId={projectId}
           reportId={reportId}
           updateAction={updateAction}

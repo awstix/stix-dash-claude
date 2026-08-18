@@ -47,6 +47,7 @@ export function DetailEntryForm({
   editingEntry,
   equipmentOptions,
   hourEntryOptions,
+  onCancel,
   projectId,
   reportId,
   updateAction,
@@ -56,6 +57,7 @@ export function DetailEntryForm({
   editingEntry?: DetailEntryEditValues | null;
   equipmentOptions: EquipmentOption[];
   hourEntryOptions: HourEntryOption[];
+  onCancel?: () => void;
   projectId: string;
   reportId: string;
   updateAction: (formData: FormData) => Promise<void>;
@@ -241,6 +243,15 @@ export function DetailEntryForm({
           >
             Abbrechen
           </a>
+        ) : null}
+        {editingEntry && !cancelHref && onCancel ? (
+          <button
+            className="text-sm font-semibold text-gray-600 hover:text-gray-900"
+            onClick={onCancel}
+            type="button"
+          >
+            Abbrechen
+          </button>
         ) : null}
       </div>
     </form>
