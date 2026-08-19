@@ -1396,6 +1396,10 @@ export async function updateInventoryAssignment(formData: FormData) {
 
   const responsibleEmployeeId = optionalId(formData.get("responsibleEmployeeId"));
   const responsibleCrewId = optionalId(formData.get("responsibleCrewId"));
+  // Manuelle Baustellen-Zuordnung ohne Planung - das Objekt steht dann ab
+  // sofort auf dieser Baustelle, bis Planung, Kolonnenzuordnung,
+  // Gerätedisposition oder LKW-Disposition es wieder umbuchen.
+  const currentProjectId = optionalId(formData.get("currentProjectId"));
   const notes = optionalString(formData.get("notes"));
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -1404,6 +1408,7 @@ export async function updateInventoryAssignment(formData: FormData) {
         id,
       },
       data: {
+        currentProject: relationUpdate(currentProjectId),
         responsibleCrew: relationUpdate(responsibleCrewId),
         responsibleEmployee: relationUpdate(responsibleEmployeeId),
         responsibleType:
@@ -1427,6 +1432,13 @@ export async function updateInventoryAssignment(formData: FormData) {
           },
         },
         notes,
+        project: currentProjectId
+          ? {
+              connect: {
+                id: currentProjectId,
+              },
+            }
+          : undefined,
       },
     });
 

@@ -1210,8 +1210,10 @@ export default async function InventoryDetailPage({
         </h2>
         <p className="mt-1 text-sm text-gray-600">
           Hier wird gepflegt, ob das Objekt grundsätzlich zu einer Kolonne oder
-          zu einem Mitarbeiter gehört. Die Baustelle ergibt sich aus Planung,
-          Kolonnenzuordnung, Gerätedisposition oder LKW-Disposition.
+          zu einem Mitarbeiter gehört, und kann auch direkt einer Baustelle
+          zugeordnet werden - ohne Planung, das Objekt steht dann ab sofort
+          dort. Über Planung, Kolonnenzuordnung, Gerätedisposition oder
+          LKW-Disposition wird die Baustelle danach automatisch aktualisiert.
         </p>
 
         <form
@@ -1219,6 +1221,21 @@ export default async function InventoryDetailPage({
           className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
         >
           <input name="id" type="hidden" value={item.id} />
+          <label className="text-sm font-semibold text-gray-800">
+            Baustelle
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              defaultValue={item.currentProjectId ?? "__none"}
+              name="currentProjectId"
+            >
+              <option value="__none">Keine Baustelle</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.projectNumber} · {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="text-sm font-semibold text-gray-800">
             Verantwortlicher Mitarbeiter/Fahrer
             <select
