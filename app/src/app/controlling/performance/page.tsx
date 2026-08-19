@@ -737,7 +737,8 @@ export default async function ControllingPerformancePage({
   const normalUmlagePercent =
     (currentProjectForValues?.normalAgkPercent ?? 10) +
     (currentProjectForValues?.normalWugPercent ?? 6) +
-    (currentProjectForValues?.normalBgkPercent ?? 6);
+    (currentProjectForValues?.normalBgkPercent ?? 6) +
+    (currentProjectForValues?.normalFreierZuschlagPercent ?? 0);
   const actualUmlagePercent =
     (currentProjectForValues?.actualAgkPercent ?? 10) +
     (currentProjectForValues?.actualWugPercent ?? 6) +
@@ -1441,6 +1442,9 @@ export default async function ControllingPerformancePage({
                 ergebnisVorUmlageCents={ergebnisVorUmlageCents}
                 normalAgkPercent={currentProjectForValues?.normalAgkPercent ?? 10}
                 normalBgkPercent={currentProjectForValues?.normalBgkPercent ?? 6}
+                normalFreierZuschlagPercent={
+                  currentProjectForValues?.normalFreierZuschlagPercent ?? 0
+                }
                 normalUmlagePercent={normalUmlagePercent}
                 normalWugPercent={currentProjectForValues?.normalWugPercent ?? 6}
                 totalContractCents={totalContractCents}
@@ -2126,6 +2130,7 @@ function UmlageComparisonSection({
   ergebnisVorUmlageCents,
   normalAgkPercent,
   normalBgkPercent,
+  normalFreierZuschlagPercent,
   normalUmlagePercent,
   normalWugPercent,
   totalContractCents,
@@ -2141,6 +2146,7 @@ function UmlageComparisonSection({
   ergebnisVorUmlageCents: number;
   normalAgkPercent: number;
   normalBgkPercent: number;
+  normalFreierZuschlagPercent: number;
   normalUmlagePercent: number;
   normalWugPercent: number;
   totalContractCents: number;
@@ -2174,7 +2180,9 @@ function UmlageComparisonSection({
         <AnalysisCard
           detail={`AGK ${formatPercent(normalAgkPercent / 100)} · WuG ${formatPercent(
             normalWugPercent / 100,
-          )} · BGK ${formatPercent(normalBgkPercent / 100)}`}
+          )} · BGK ${formatPercent(normalBgkPercent / 100)} · Zuschlag ${formatPercent(
+            normalFreierZuschlagPercent / 100,
+          )}`}
           label="Normale Umlage"
           tone="neutral"
           value={formatPercent(normalUmlagePercent / 100)}

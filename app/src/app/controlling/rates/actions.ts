@@ -154,17 +154,23 @@ export async function updateOverheadRateDefaults(formData: FormData) {
     const agkPercent = numberValue(formData.get("agkPercent"), "AGK %");
     const wugPercent = numberValue(formData.get("wugPercent"), "WuG %");
     const bgkPercent = numberValue(formData.get("bgkPercent"), "BGK %");
+    const freierZuschlagPercent = numberValue(
+      formData.get("freierZuschlagPercent"),
+      "Freier Zuschlag %",
+    );
 
     await prisma.overheadRateDefaults.upsert({
       create: {
         agkPercent,
         bgkPercent,
+        freierZuschlagPercent,
         id: "default",
         wugPercent,
       },
       update: {
         agkPercent,
         bgkPercent,
+        freierZuschlagPercent,
         wugPercent,
       },
       where: {

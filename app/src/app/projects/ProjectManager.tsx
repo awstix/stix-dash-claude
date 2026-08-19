@@ -74,6 +74,7 @@ const emptyProject: ProjectFormInput = {
   normalAgkPercent: 10,
   normalWugPercent: 6,
   normalBgkPercent: 6,
+  normalFreierZuschlagPercent: 0,
   actualAgkPercent: 10,
   actualWugPercent: 6,
   actualBgkPercent: 6,
@@ -130,9 +131,11 @@ export function ProjectManager({
         ...emptyProject,
         actualAgkPercent: defaultOverheadRates.agkPercent,
         actualBgkPercent: defaultOverheadRates.bgkPercent,
+        actualFreierZuschlagPercent: defaultOverheadRates.freierZuschlagPercent,
         actualWugPercent: defaultOverheadRates.wugPercent,
         normalAgkPercent: defaultOverheadRates.agkPercent,
         normalBgkPercent: defaultOverheadRates.bgkPercent,
+        normalFreierZuschlagPercent: defaultOverheadRates.freierZuschlagPercent,
         normalWugPercent: defaultOverheadRates.wugPercent,
       }
     : emptyProject;
@@ -345,7 +348,10 @@ export function ProjectManager({
   const formInvoiceQuotePercent =
     formTotalContract > 0 ? (form.finalInvoiceNet / formTotalContract) * 100 : 0;
   const formNormalUmlage =
-    form.normalAgkPercent + form.normalWugPercent + form.normalBgkPercent;
+    form.normalAgkPercent +
+    form.normalWugPercent +
+    form.normalBgkPercent +
+    form.normalFreierZuschlagPercent;
   const formActualUmlage =
     form.actualAgkPercent +
     form.actualWugPercent +
@@ -358,10 +364,11 @@ export function ProjectManager({
       ...current,
       actualAgkPercent: defaultOverheadRates.agkPercent,
       actualBgkPercent: defaultOverheadRates.bgkPercent,
-      actualFreierZuschlagPercent: 0,
+      actualFreierZuschlagPercent: defaultOverheadRates.freierZuschlagPercent,
       actualWugPercent: defaultOverheadRates.wugPercent,
       normalAgkPercent: defaultOverheadRates.agkPercent,
       normalBgkPercent: defaultOverheadRates.bgkPercent,
+      normalFreierZuschlagPercent: defaultOverheadRates.freierZuschlagPercent,
       normalWugPercent: defaultOverheadRates.wugPercent,
     }));
   }
@@ -719,48 +726,61 @@ export function ProjectManager({
             genutzt.
           </p>
 
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Normale Umlage
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-4 md:grid-cols-5">
             <NumberField
-              label="Normale Umlage: AGK %"
+              label="AGK %"
               value={form.normalAgkPercent}
               onChange={(value) => updateForm("normalAgkPercent", value)}
             />
             <NumberField
-              label="Normale Umlage: WuG %"
+              label="WuG %"
               value={form.normalWugPercent}
               onChange={(value) => updateForm("normalWugPercent", value)}
             />
             <NumberField
-              label="Normale Umlage: BGK %"
+              label="BGK %"
               value={form.normalBgkPercent}
               onChange={(value) => updateForm("normalBgkPercent", value)}
             />
-            <FormMetricCard label="Normale Umlage gesamt" value={formatPercent(formNormalUmlage)} />
-
             <NumberField
-              label="Tatsächliche Umlage: AGK %"
+              label="Freier Zuschlag %"
+              value={form.normalFreierZuschlagPercent}
+              onChange={(value) => updateForm("normalFreierZuschlagPercent", value)}
+            />
+            <FormMetricCard label="Summe" value={formatPercent(formNormalUmlage)} />
+          </div>
+
+          <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Tatsächliche Umlage
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-4 md:grid-cols-5">
+            <NumberField
+              label="AGK %"
               value={form.actualAgkPercent}
               onChange={(value) => updateForm("actualAgkPercent", value)}
             />
             <NumberField
-              label="Tatsächliche Umlage: WuG %"
+              label="WuG %"
               value={form.actualWugPercent}
               onChange={(value) => updateForm("actualWugPercent", value)}
             />
             <NumberField
-              label="Tatsächliche Umlage: BGK %"
+              label="BGK %"
               value={form.actualBgkPercent}
               onChange={(value) => updateForm("actualBgkPercent", value)}
             />
             <NumberField
-              label="Tatsächliche Umlage: freier Zuschlag %"
+              label="Freier Zuschlag %"
               value={form.actualFreierZuschlagPercent}
               onChange={(value) => updateForm("actualFreierZuschlagPercent", value)}
             />
+            <FormMetricCard label="Summe" value={formatPercent(formActualUmlage)} />
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <FormMetricCard label="Tatsächliche Umlage gesamt" value={formatPercent(formActualUmlage)} />
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <NumberField
               label="Skonto %"
               value={form.skontoPercent}

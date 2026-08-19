@@ -83,14 +83,16 @@ model TimeTrackingSettings {
   updatedAt DateTime @updatedAt
 }
 
-// Dauerhafter globaler Standard für die Umlage (AGK/WuG/BGK), mit dem neue
-// Projekte vorbefüllt werden. Siehe Project.normal*Percent/actual*Percent.
+// Dauerhafter globaler Standard für die Umlage (AGK/WuG/BGK/freier
+// Zuschlag), mit dem neue Projekte vorbefüllt werden. Siehe
+// Project.normal*Percent/actual*Percent.
 model OverheadRateDefaults {
   id String @id @default("default")
 
-  agkPercent Float @default(10)
-  wugPercent Float @default(6)
-  bgkPercent Float @default(6)
+  agkPercent            Float @default(10)
+  wugPercent            Float @default(6)
+  bgkPercent            Float @default(6)
+  freierZuschlagPercent Float @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -138,6 +140,7 @@ model Project {
   normalAgkPercent            Float @default(10)
   normalWugPercent            Float @default(6)
   normalBgkPercent            Float @default(6)
+  normalFreierZuschlagPercent Float @default(0)
   actualAgkPercent            Float @default(10)
   actualWugPercent            Float @default(6)
   actualBgkPercent            Float @default(6)

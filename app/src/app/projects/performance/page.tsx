@@ -132,6 +132,7 @@ export default async function ProjectPerformancePage({
       normalAgkPercent: project.normalAgkPercent,
       normalWugPercent: project.normalWugPercent,
       normalBgkPercent: project.normalBgkPercent,
+      normalFreierZuschlagPercent: project.normalFreierZuschlagPercent,
       actualAgkPercent: project.actualAgkPercent,
       actualWugPercent: project.actualWugPercent,
       actualBgkPercent: project.actualBgkPercent,
@@ -420,7 +421,12 @@ export default async function ProjectPerformancePage({
       <ProjectManager
         constructionManagerOptions={constructionManagerOptions}
         defaultOverheadRates={
-          overheadRateDefaults ?? { agkPercent: 10, bgkPercent: 6, wugPercent: 6 }
+          overheadRateDefaults ?? {
+            agkPercent: 10,
+            bgkPercent: 6,
+            freierZuschlagPercent: 0,
+            wugPercent: 6,
+          }
         }
         projects={filteredProjects}
       />

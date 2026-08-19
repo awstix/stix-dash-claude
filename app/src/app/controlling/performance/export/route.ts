@@ -128,7 +128,10 @@ function computeReportMetrics(
     effectiveInvoiceRevenueCents > 0 ? costCoverageCents / effectiveInvoiceRevenueCents : 0;
 
   const normalUmlagePercent =
-    project.normalAgkPercent + project.normalWugPercent + project.normalBgkPercent;
+    project.normalAgkPercent +
+    project.normalWugPercent +
+    project.normalBgkPercent +
+    project.normalFreierZuschlagPercent;
   const actualUmlagePercent =
     project.actualAgkPercent +
     project.actualWugPercent +

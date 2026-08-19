@@ -80,6 +80,7 @@ export type ProjectFormInput = {
   normalAgkPercent: number;
   normalWugPercent: number;
   normalBgkPercent: number;
+  normalFreierZuschlagPercent: number;
   actualAgkPercent: number;
   actualWugPercent: number;
   actualBgkPercent: number;
@@ -565,6 +566,7 @@ export async function createProject(input: ProjectFormInput) {
         normalAgkPercent: cleanNumber(input.normalAgkPercent),
         normalWugPercent: cleanNumber(input.normalWugPercent),
         normalBgkPercent: cleanNumber(input.normalBgkPercent),
+        normalFreierZuschlagPercent: cleanNumber(input.normalFreierZuschlagPercent),
         actualAgkPercent: cleanNumber(input.actualAgkPercent),
         actualWugPercent: cleanNumber(input.actualWugPercent),
         actualBgkPercent: cleanNumber(input.actualBgkPercent),
@@ -627,6 +629,7 @@ export async function updateProject(input: ProjectFormInput) {
         normalAgkPercent: cleanNumber(input.normalAgkPercent),
         normalWugPercent: cleanNumber(input.normalWugPercent),
         normalBgkPercent: cleanNumber(input.normalBgkPercent),
+        normalFreierZuschlagPercent: cleanNumber(input.normalFreierZuschlagPercent),
         actualAgkPercent: cleanNumber(input.actualAgkPercent),
         actualWugPercent: cleanNumber(input.actualWugPercent),
         actualBgkPercent: cleanNumber(input.actualBgkPercent),

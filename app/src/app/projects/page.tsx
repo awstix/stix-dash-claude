@@ -313,7 +313,12 @@ export default async function ProjectsPage({
             <ProjectCreateDialog
               constructionManagerOptions={constructionManagerOptions}
               defaultOverheadRates={
-                overheadRateDefaults ?? { agkPercent: 10, bgkPercent: 6, wugPercent: 6 }
+                overheadRateDefaults ?? {
+                  agkPercent: 10,
+                  bgkPercent: 6,
+                  freierZuschlagPercent: 0,
+                  wugPercent: 6,
+                }
               }
             />
             <Link

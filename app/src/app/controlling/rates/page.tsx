@@ -313,7 +313,7 @@ export default async function ControllingRatesPage({
         id="overhead-defaults"
       >
         <h2 className="text-lg font-semibold text-gray-950">
-          Standard-Umlage (AGK / WuG / BGK)
+          Standard-Umlage (AGK / WuG / BGK / freier Zuschlag)
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-gray-700">
           Dauerhafter Standardsatz, mit dem neue Projekte für die
@@ -323,7 +323,7 @@ export default async function ControllingRatesPage({
         </p>
         <form
           action={updateOverheadRateDefaults}
-          className="mt-4 grid gap-3 sm:grid-cols-4"
+          className="mt-4 grid gap-3 sm:grid-cols-6 sm:items-end"
         >
           <CompactInput
             defaultValue={formatPercentInput(overheadRateDefaults?.agkPercent ?? 10)}
@@ -343,21 +343,30 @@ export default async function ControllingRatesPage({
             name="bgkPercent"
             placeholder="BGK %"
           />
-          <div className="flex items-end">
-            <button className={`${smallButtonClassName} w-full`} type="submit">
-              Standard speichern
-            </button>
+          <CompactInput
+            defaultValue={formatPercentInput(overheadRateDefaults?.freierZuschlagPercent ?? 0)}
+            label="Freier Zuschlag %"
+            name="freierZuschlagPercent"
+            placeholder="Freier Zuschlag %"
+          />
+          <div className="text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Summe
+            </p>
+            <p className="mt-1 text-lg font-bold text-gray-950">
+              {formatPercentInput(
+                (overheadRateDefaults?.agkPercent ?? 10) +
+                  (overheadRateDefaults?.wugPercent ?? 6) +
+                  (overheadRateDefaults?.bgkPercent ?? 6) +
+                  (overheadRateDefaults?.freierZuschlagPercent ?? 0),
+              )}
+              %
+            </p>
           </div>
+          <button className={`${smallButtonClassName} w-full`} type="submit">
+            Standard speichern
+          </button>
         </form>
-        <p className="mt-2 text-xs text-gray-500">
-          Aktuelle Summe:{" "}
-          {formatPercentInput(
-            (overheadRateDefaults?.agkPercent ?? 10) +
-              (overheadRateDefaults?.wugPercent ?? 6) +
-              (overheadRateDefaults?.bgkPercent ?? 6),
-          )}
-          %
-        </p>
       </section>
 
       <RaiseRatesPanel
