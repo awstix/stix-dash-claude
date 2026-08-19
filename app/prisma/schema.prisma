@@ -1250,7 +1250,6 @@ model Employee {
   inventoryTransportHistory         InventoryUsageHistory[]            @relation("InventoryUsageTransporter")
   personalInventoryAssignments      InventoryPersonalAssignment[]
   controllingHourEntries            ControllingHourEntry[]
-  controllingRates                  ControllingEmployeeRate[]
   safetyAccidentReports             SafetyAccidentReport[]
   safetyInstructionSignatures       SafetyInstructionSignature[]
   projectStartChecklistParticipants ProjectStartChecklistParticipant[]
@@ -2940,27 +2939,6 @@ model ControllingInventoryItemRate {
 
   @@unique([rateSetId, itemId])
   @@index([itemId])
-}
-
-model ControllingEmployeeRate {
-  id String @id @default(cuid())
-
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  realRateCents     Int       @default(0)
-  internalRateCents Int       @default(0)
-  validFrom         DateTime?
-  validTo           DateTime?
-  visibilityLevel   String    @default("CONTROLLING")
-  isActive          Boolean   @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([employeeId])
-  @@index([isActive])
-  @@index([visibilityLevel])
 }
 
 model ControllingRateChangeLog {

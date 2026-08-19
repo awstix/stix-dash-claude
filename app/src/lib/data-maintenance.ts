@@ -124,7 +124,6 @@ const ALL_MODEL_TABLES = [
   "ControllingRateSet",
   "ControllingInventoryCategoryRate",
   "ControllingInventoryItemRate",
-  "ControllingEmployeeRate",
   "ControllingRateChangeLog",
   "SafetyAccidentReport",
   "SafetyAccidentOfficer",
