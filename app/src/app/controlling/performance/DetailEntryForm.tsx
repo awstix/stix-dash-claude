@@ -173,6 +173,11 @@ export function DetailEntryForm({
           placeholder="0,00"
           value={quantity}
         />
+        {unit === "h" ? (
+          <span className="mt-1 block text-xs font-normal text-gray-500">
+            Geräte- und Maschinenzeiten bitte abzüglich Pausen eintragen.
+          </span>
+        ) : null}
       </Field>
       {hourEntryOptions.length > 0 ? (
         <Field label="... oder Stunden übernehmen von">

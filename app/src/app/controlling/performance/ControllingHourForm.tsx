@@ -256,6 +256,9 @@ export function ControllingHourForm({
             placeholder="0,00"
             value={hoursPerEmployee}
           />
+          <span className="mt-1 block text-xs font-normal text-gray-500">
+            Arbeitszeit abzüglich Pausen.
+          </span>
         </Field>
       </FormPanel>
 

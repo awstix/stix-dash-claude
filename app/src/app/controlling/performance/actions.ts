@@ -1202,6 +1202,20 @@ async function runDispositionImport(
 
   const employeeById = new Map(employeesForDriverNames.map((employee) => [employee.id, employee]));
 
+  // Für den Abgleich Fahrzeug-/Gerätestunden <-> reale (pausenbereinigte)
+  // Zeiterfassung des Fahrers/Bedieners bei "Leistungsmeldung nach
+  // Leistung" - die Disposition kennt keine Pausen, die Zeiterfassung
+  // schon (netHours ist bereits um Frühstücks-/Mittagspause bereinigt).
+  const netHoursByNameAndDay = new Map<string, number>();
+  for (const entry of crewTimeEntries) {
+    const dayKey = entry.workDate.toISOString();
+    for (const employee of entry.employees) {
+      if (!employee.isPresent) continue;
+      const key = `${normalizePersonName(employee.employeeName)}|${dayKey}`;
+      netHoursByNameAndDay.set(key, (netHoursByNameAndDay.get(key) ?? 0) + employee.netHours);
+    }
+  }
+
   function resolveAssignmentEmployeeIds(assignment: (typeof crewAssignments)[number]) {
     const excluded = new Set(
       assignment.extraEmployees.filter((item) => item.mode === "EXCLUDE").map((item) => item.employeeId),
@@ -1598,11 +1612,23 @@ async function runDispositionImport(
     (allocation) => allocation.workDate,
   )) {
     const first = group.items[0];
-    const totalHours = group.items.reduce(
+    const dispatchHours = group.items.reduce(
       (sum, allocation) => sum + timeRangeHours(allocation.startTime, allocation.endTime),
       0,
     );
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
+    // Bei "Leistungsmeldung nach Leistung": die reale, pausenbereinigte
+    // Zeiterfassung des Fahrers verwenden statt der rohen Tourenzeiten aus
+    // der Disposition (die Pausen zwischen Touren nicht kennt) - fällt
+    // auf die Dispo-Stunden zurück, falls der Fahrer für den Tag (noch)
+    // keine Zeiterfassung hat.
+    const actualHours =
+      useActualHours && driverNames.length === 1
+        ? netHoursByNameAndDay.get(
+            `${normalizePersonName(driverNames[0])}|${group.workDate.toISOString()}`,
+          )
+        : undefined;
+    const totalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
 
     pushDetailEntry({
       amountCents: 0,
@@ -1610,7 +1636,9 @@ async function runDispositionImport(
       description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
       entryDate: group.workDate,
       inventoryItemId: first.vehicleInventoryItemId,
-      notes: `LKW aus Asphalt-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      notes: `LKW aus Asphalt-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}${
+        totalHours === actualHours ? " · Std. aus Zeiterfassung" : ""
+      }`,
       quantity: Math.round(totalHours * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
@@ -1649,11 +1677,18 @@ async function runDispositionImport(
     (allocation) => allocation.workDate,
   )) {
     const first = group.items[0];
-    const totalHours = group.items.reduce(
+    const dispatchHours = group.items.reduce(
       (sum, allocation) => sum + timeRangeHours(allocation.startTime, allocation.endTime),
       0,
     );
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
+    const actualHours =
+      useActualHours && driverNames.length === 1
+        ? netHoursByNameAndDay.get(
+            `${normalizePersonName(driverNames[0])}|${group.workDate.toISOString()}`,
+          )
+        : undefined;
+    const totalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
 
     pushDetailEntry({
       amountCents: 0,
@@ -1661,7 +1696,9 @@ async function runDispositionImport(
       description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
       entryDate: group.workDate,
       inventoryItemId: first.vehicleInventoryItemId,
-      notes: `LKW aus Anspritzmittel-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      notes: `LKW aus Anspritzmittel-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}${
+        totalHours === actualHours ? " · Std. aus Zeiterfassung" : ""
+      }`,
       quantity: Math.round(totalHours * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
