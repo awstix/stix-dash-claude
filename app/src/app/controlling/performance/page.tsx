@@ -1027,7 +1027,10 @@ export default async function ControllingPerformancePage({
                   {getReportStatusLabel(report.status)}
                 </p>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                <p className="mt-5 text-xs font-semibold text-gray-500">
+                  Alle Beträge netto.
+                </p>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                   <MetricCard
                     dark
                     label="Ergebnis aktuell"
@@ -1060,6 +1063,30 @@ export default async function ControllingPerformancePage({
                     detail="aus Rechnungsmengen, nicht als Istkosten gezählt"
                   />
                 </div>
+                <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <summary className="cursor-pointer font-semibold text-gray-700">
+                    Wie berechnen sich die Werte?
+                  </summary>
+                  <ul className="mt-2 space-y-1.5 leading-5">
+                    <li>
+                      <span className="font-semibold text-gray-800">Ergebnis aktuell</span> = der
+                      höhere Wert aus Leistungsstand (kalkulierter Auftragswert × Leistungsstand %)
+                      oder bisher abgerechnetem Umsatz, minus erfasste Istkosten (Lohn +
+                      Detailpositionen). Der Hinweistext darunter zeigt, welche der beiden Basis
+                      gerade verwendet wird.
+                    </li>
+                    <li>
+                      <span className="font-semibold text-gray-800">Leistungsstand</span> = der in
+                      &quot;Leistungsmeldungsdaten&quot; eingetragene Prozentsatz, umgerechnet auf
+                      den Gesamtauftrag (netto).
+                    </li>
+                    <li>
+                      <span className="font-semibold text-gray-800">Istkosten erfasst</span> =
+                      Summe aller erfassten Stunden (zu EK real) plus aller Detailpositionen
+                      (Material, Geräte, Nachunternehmer, Sonstiges) dieser Leistungsmeldung.
+                    </li>
+                  </ul>
+                </details>
                 <form action={importDispositionIntoPerformanceReport} className="mt-5">
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
@@ -1909,6 +1936,35 @@ function PerformanceAnalysisSection({
           Sonstiges abgerechnet.
         </p>
       ) : null}
+
+      <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        <summary className="cursor-pointer font-semibold text-gray-700">
+          Wie berechnen sich die Werte? (alle Beträge netto)
+        </summary>
+        <ul className="mt-2 space-y-1.5 leading-5">
+          <li>
+            <span className="font-semibold text-gray-800">Auftrag / Abrechnung</span> = bisher
+            abgerechneter Umsatz (aus den Rechnungsmengen/iTWO-Import dieser Leistungsmeldung).
+            Rechnungsstand = Anteil davon am Gesamtauftrag.
+          </li>
+          <li>
+            <span className="font-semibold text-gray-800">Offene Leistung / WIP</span> = bereits
+            erbrachte, aber noch nicht abgerechnete Leistung (Leistungswert minus abgerechneter
+            Umsatz, mindestens 0).
+          </li>
+          <li>
+            <span className="font-semibold text-gray-800">Ergebnis nach Istkosten</span> =
+            abgerechneter Umsatz minus erfasste Istkosten. <span className="font-semibold text-gray-800">DB</span>{" "}
+            (Deckungsbeitrag) zeigt dasselbe Ergebnis als Prozentsatz vom abgerechneten Umsatz -
+            also wie viel vom Umsatz nach Abzug aller erfassten Kosten noch übrig bleibt.
+          </li>
+          <li>
+            <span className="font-semibold text-gray-800">Stunden</span> = Differenz zwischen
+            erfassten Ist-Stunden und den durch die Abrechnung &quot;verdienten&quot; Stunden
+            (Rechnungsmenge × Std./ME je Position).
+          </li>
+        </ul>
+      </details>
 
       <div className="mt-5 overflow-x-auto rounded-2xl border border-gray-200">
         <table className="w-full min-w-[980px] text-left text-sm">
