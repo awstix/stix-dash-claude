@@ -412,6 +412,31 @@ export async function deleteControllingDetailEntry(formData: FormData) {
   redirect(pathFor(reportId, projectId));
 }
 
+/** Schnelle Freigabe ohne das Bearbeiten-Popup zu öffnen - für den Fall,
+ * dass die aus der Disposition vorgeschlagene Menge bereits der realen
+ * Menge (z.B. laut Lieferschein) entspricht und nur bestätigt werden
+ * muss, statt geändert zu werden. Setzt Status auf "tatsächlich verbaut",
+ * damit in "Leistungsmeldung nach Leistung" auf einen Blick sichtbar ist,
+ * welche Positionen bereits geprüft sind. */
+export async function markControllingDetailEntryActual(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingDetailEntry.update({
+    data: {
+      status: "tatsächlich verbaut",
+    },
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
 export async function deleteControllingHourEntry(formData: FormData) {
   await requireSession();
   const id = requiredText(formData.get("id"), "Eintrag");

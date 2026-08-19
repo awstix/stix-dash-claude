@@ -12,6 +12,7 @@ import {
   deleteControllingHourEntry,
   deleteControllingInvoiceItem,
   deletePerformanceReport,
+  markControllingDetailEntryActual,
   updateControllingDetailEntry,
   importDetailEntriesFromExcel,
   importDispositionIntoPerformanceReport,
@@ -24,6 +25,7 @@ import { DeletePerformanceReportButton } from "./DeletePerformanceReportButton";
 import { DetailEntryForm } from "./DetailEntryForm";
 import { EditDetailEntryButton } from "./EditDetailEntryButton";
 import { HoursSourceToggle } from "./HoursSourceToggle";
+import { MarkDetailEntryActualButton } from "./MarkDetailEntryActualButton";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const reportStatuses = [
@@ -1103,6 +1105,7 @@ export default async function ControllingPerformancePage({
                 importAction={importDetailEntriesFromExcel}
                 projectId={report.projectId}
                 reportId={report.id}
+                showActualQuantityHint={reportHoursSource === "APPROVED_TIME"}
                 title="Detailerfassung"
                 updateAction={updateControllingDetailEntry}
               />
@@ -1152,7 +1155,7 @@ export default async function ControllingPerformancePage({
                 </summary>
                 <div className="mt-4 space-y-4">
                   <DataTable
-                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Anteil %", "Betrag", "Herkunft", "Aktion"]}
+                    columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Anteil %", "Betrag", "Herkunft", "Status", "Aktion"]}
                     rows={report.detailEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.costType,
@@ -1162,6 +1165,7 @@ export default async function ControllingPerformancePage({
                       `${entry.utilizationPercent}%`,
                       formatMoney(entry.amountCents),
                       getSourceLabel(entry.source, entry.notes),
+                      getDetailStatusBadge(entry.status, entry.costType, reportHoursSource),
                       <div className="flex gap-2" key={`actions-${entry.id}`}>
                         <EditDetailEntryButton
                           action={addControllingDetailEntry}
@@ -1183,6 +1187,15 @@ export default async function ControllingPerformancePage({
                           reportId={report.id}
                           updateAction={updateControllingDetailEntry}
                         />
+                        {(entry.costType === "Material" || entry.costType === "Geräte") &&
+                        entry.status !== "tatsächlich verbaut" ? (
+                          <MarkDetailEntryActualButton
+                            action={markControllingDetailEntryActual}
+                            id={entry.id}
+                            projectId={report.projectId}
+                            reportId={report.id}
+                          />
+                        ) : null}
                         <DeleteEntryButton
                           action={deleteControllingDetailEntry}
                           id={entry.id}
@@ -1455,6 +1468,7 @@ function EntrySection({
   importAction,
   projectId,
   reportId,
+  showActualQuantityHint,
   title,
   updateAction,
 }: {
@@ -1472,12 +1486,20 @@ function EntrySection({
   importAction: (formData: FormData) => Promise<void>;
   projectId: string;
   reportId: string;
+  showActualQuantityHint?: boolean;
   title: string;
   updateAction: (formData: FormData) => Promise<void>;
 }) {
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-semibold text-gray-950">{title}</h2>
+      {showActualQuantityHint ? (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+          Material- und Gerätemengen kommen zunächst aus der Disposition. Bitte durch die
+          tatsächlichen Mengen (z.B. nach Lieferschein) ersetzen oder unten in der Tabelle mit ✓
+          bestätigen, wenn die Dispo-Menge bereits stimmt.
+        </div>
+      ) : null}
       <form
         action={importAction}
         className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"
@@ -2350,6 +2372,33 @@ function getNextPeriodEnd(periodStart: Date) {
   end.setDate(end.getDate() + 13);
   end.setHours(0, 0, 0, 0);
   return end;
+}
+
+/** Zeigt bei Material/Geräte in "Leistungsmeldung nach Leistung" deutlich,
+ * ob die Menge schon als tatsächlich verbaut bestätigt wurde oder noch
+ * die reine Dispo-Schätzung ist - in "nach Disposition" ist die Menge
+ * bewusst nur die Dispo-Schätzung, daher dort kein Warnhinweis. */
+function getDetailStatusBadge(status: string, costType: string, hoursSource: string) {
+  if (status === "tatsächlich verbaut") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+        ✓ tatsächlich verbaut
+      </span>
+    );
+  }
+
+  const needsCheck =
+    (costType === "Material" || costType === "Geräte") && hoursSource === "APPROVED_TIME";
+
+  if (needsCheck) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
+        ⚠ {status}
+      </span>
+    );
+  }
+
+  return <span className="text-xs text-gray-600">{status}</span>;
 }
 
 function getSourceLabel(source: string, notes?: string | null) {
