@@ -20,6 +20,7 @@ import {
 } from "./actions";
 import { ControllingHourForm } from "./ControllingHourForm";
 import { DeleteEntryButton } from "./DeleteEntryButton";
+import { DeletePerformanceReportButton } from "./DeletePerformanceReportButton";
 import { DetailEntryForm } from "./DetailEntryForm";
 import { EditDetailEntryButton } from "./EditDetailEntryButton";
 import { HoursSourceToggle } from "./HoursSourceToggle";
@@ -749,103 +750,6 @@ export default async function ControllingPerformancePage({
               projectNumber: project.projectNumber,
             }))}
           />
-
-          {selectedProject ? (
-            <>
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-950">Neue Leistungsmeldung</h2>
-              <form action={createPerformanceReport} className="mt-4 space-y-3">
-                  <input name="projectId" type="hidden" value={selectedProject.id} />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Zeitraum von
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatInputDate(nextPeriodStart)}
-                      name="periodStart"
-                      type="date"
-                    />
-                  </label>
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Zeitraum bis
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatInputDate(nextPeriodEnd)}
-                      name="periodEnd"
-                      type="date"
-                    />
-                  </label>
-                </div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Verrechnungssatz-Satzstand
-                  <select
-                    className={inputClassName}
-                    defaultValue={suggestedNewRateSet?.id ?? ""}
-                    name="rateSetId"
-                  >
-                    <option value="">
-                      Vorschlag nach Zeitraum ({suggestedNewRateYear}) verwenden
-                    </option>
-                    {rateSets.map((rateSet) => (
-                      <option key={rateSet.id} value={rateSet.id}>
-                        {rateSet.name} ({rateSet.year})
-                        {rateSet.id === suggestedNewRateSet?.id ? " · vorgeschlagen" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Titel / Thema
-                  <input
-                    className={inputClassName}
-                    name="title"
-                    placeholder="z. B. Juli Abschlag / Asphalt"
-                    type="text"
-                  />
-                </label>
-                <button className={primaryButtonClassName} type="submit">
-                  Leistungsmeldung anlegen
-                </button>
-              </form>
-            </section>
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-950">
-                Leistungsmeldungen verwalten
-              </h2>
-              <div className="mt-4 space-y-2">
-                {selectedProject.performanceReports.length ? (
-                  selectedProject.performanceReports.map((performanceReport) => {
-                    const active = performanceReport.id === report?.id;
-
-                    return (
-                      <Link
-                        className={`block rounded-xl border px-3 py-3 text-sm ${
-                          active
-                            ? "border-blue-300 bg-blue-50 text-blue-950"
-                            : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-                        }`}
-                        href={`/controlling/performance?projectId=${selectedProject.id}&reportId=${performanceReport.id}`}
-                        key={performanceReport.id}
-                        scroll={false}
-                      >
-                        <span className="block font-semibold">
-                          {performanceReport.title || "Leistungsmeldung"}
-                        </span>
-                        <span className="text-gray-500">
-                          {formatDate(performanceReport.periodStart ?? performanceReport.reportDate)} –{" "}
-                          {formatDate(performanceReport.periodEnd ?? performanceReport.reportDate)} ·{" "}
-                          {getReportStatusLabel(performanceReport.status)}
-                        </span>
-                      </Link>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-gray-500">Noch keine Leistungsmeldung angelegt.</p>
-                )}
-              </div>
-            </section>
-            </>
-          ) : null}
         </aside>
 
         <div className="space-y-6">
@@ -865,8 +769,101 @@ export default async function ControllingPerformancePage({
             <EmptyState text="Noch kein Projekt vorhanden. Sobald Projekte angelegt sind, können hier Leistungsmeldungen erstellt werden." />
           ) : null}
 
-          {selectedProject && !report ? (
-            <EmptyState text="Für dieses Projekt gibt es noch keine Leistungsmeldung. Lege links die erste Meldung mit Zeitraum von/bis an." />
+          {selectedProject ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-950">Neue Leistungsmeldung</h2>
+                <form action={createPerformanceReport} className="mt-4 space-y-3">
+                  <input name="projectId" type="hidden" value={selectedProject.id} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Zeitraum von
+                      <input
+                        className={inputClassName}
+                        defaultValue={formatInputDate(nextPeriodStart)}
+                        name="periodStart"
+                        type="date"
+                      />
+                    </label>
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Zeitraum bis
+                      <input
+                        className={inputClassName}
+                        defaultValue={formatInputDate(nextPeriodEnd)}
+                        name="periodEnd"
+                        type="date"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Verrechnungssatz-Satzstand
+                    <select
+                      className={inputClassName}
+                      defaultValue={suggestedNewRateSet?.id ?? ""}
+                      name="rateSetId"
+                    >
+                      <option value="">
+                        Vorschlag nach Zeitraum ({suggestedNewRateYear}) verwenden
+                      </option>
+                      {rateSets.map((rateSet) => (
+                        <option key={rateSet.id} value={rateSet.id}>
+                          {rateSet.name} ({rateSet.year})
+                          {rateSet.id === suggestedNewRateSet?.id ? " · vorgeschlagen" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Titel / Thema
+                    <input
+                      className={inputClassName}
+                      name="title"
+                      placeholder="z. B. Juli Abschlag / Asphalt"
+                      type="text"
+                    />
+                  </label>
+                  <button className={primaryButtonClassName} type="submit">
+                    Leistungsmeldung anlegen
+                  </button>
+                </form>
+              </section>
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-950">
+                  Leistungsmeldungen verwalten
+                </h2>
+                <div className="mt-4 space-y-2">
+                  {selectedProject.performanceReports.length ? (
+                    selectedProject.performanceReports.map((performanceReport) => {
+                      const active = performanceReport.id === report?.id;
+
+                      return (
+                        <Link
+                          className={`block rounded-xl border px-3 py-3 text-sm ${
+                            active
+                              ? "border-blue-300 bg-blue-50 text-blue-950"
+                              : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                          href={`/controlling/performance?projectId=${selectedProject.id}&reportId=${performanceReport.id}`}
+                          key={performanceReport.id}
+                          scroll={false}
+                        >
+                          <span className="block font-semibold">
+                            {performanceReport.title || "Leistungsmeldung"}
+                          </span>
+                          <span className="text-gray-500">
+                            {formatDate(performanceReport.periodStart ?? performanceReport.reportDate)} –{" "}
+                            {formatDate(performanceReport.periodEnd ?? performanceReport.reportDate)} ·{" "}
+                            {getReportStatusLabel(performanceReport.status)}
+                          </span>
+                        </Link>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-gray-500">Noch keine Leistungsmeldung angelegt.</p>
+                  )}
+                </div>
+              </section>
+            </div>
           ) : null}
 
           {report ? (
@@ -1031,16 +1028,12 @@ export default async function ControllingPerformancePage({
                     >
                       PDF exportieren
                     </Link>
-                    <form action={deletePerformanceReport}>
-                      <input name="reportId" type="hidden" value={report.id} />
-                      <input name="projectId" type="hidden" value={report.projectId} />
-                      <button
-                        className="inline-flex rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
-                        type="submit"
-                      >
-                        Löschen
-                      </button>
-                    </form>
+                    <DeletePerformanceReportButton
+                      action={deletePerformanceReport}
+                      label={`${report.title || "Leistungsmeldung"} · ${formatDate(report.periodStart ?? report.reportDate)} – ${formatDate(report.periodEnd ?? report.reportDate)}`}
+                      projectId={report.projectId}
+                      reportId={report.id}
+                    />
                   </div>
                 </div>
 
