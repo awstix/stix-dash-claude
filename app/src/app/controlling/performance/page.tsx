@@ -2335,36 +2335,37 @@ function getNextPeriodEnd(periodStart: Date) {
 }
 
 function getSourceLabel(source: string, notes?: string | null) {
-  if (source === "DISPOSITION_IMPORT") {
+  if (source === "DISPOSITION_IMPORT" || source === "DISPOSITION_IMPORT_EDITED") {
+    const suffix = source === "DISPOSITION_IMPORT_EDITED" ? " (angepasst)" : "";
     const normalizedNotes = notes?.toLowerCase() ?? "";
 
     if (normalizedNotes.includes("zeiterfassung")) {
-      return "Zeiterfassung";
+      return `Zeiterfassung${suffix}`;
     }
     if (normalizedNotes.includes("planung")) {
-      return "Personaleinsatzplanung";
+      return `Personaleinsatzplanung${suffix}`;
     }
     if (normalizedNotes.includes("sonderfahrzeugdisposition")) {
-      return "Sonderfahrzeugdispo";
+      return `Sonderfahrzeugdispo${suffix}`;
     }
     if (
       normalizedNotes.includes("lkw") ||
       normalizedNotes.includes("asphalt-zuteilung") ||
       normalizedNotes.includes("anspritzmittel-zuteilung")
     ) {
-      return "LKW-Disposition";
+      return `LKW-Disposition${suffix}`;
     }
     if (normalizedNotes.includes("asphaltdisposition")) {
-      return "Asphaltdispo";
+      return `Asphaltdispo${suffix}`;
     }
     if (normalizedNotes.includes("gerätedisposition")) {
-      return "Gerätedispo";
+      return `Gerätedispo${suffix}`;
     }
     if (normalizedNotes.includes("inventar-zuweisung")) {
-      return "Inventar-Zuweisung";
+      return `Inventar-Zuweisung${suffix}`;
     }
 
-    return "Disposition / Inventar";
+    return `Disposition / Inventar${suffix}`;
   }
   if (source === "DETAIL_EXCEL_IMPORT") return "Detail-Excel";
   if (source === "ITWO_IMPORT") return "iTWO-Import";

@@ -352,7 +352,14 @@ export async function updatePerformanceReport(formData: FormData) {
  * -Leistung-Umschalter (HoursSourceToggle) - kein redirect(), damit das
  * Umschalten die Kolonnen-Vorschläge (die von report.hoursSource abhängen)
  * per router.refresh() live neu berechnet, ohne die Seite über eine
- * echte Navigation neu zu laden und dabei nach oben zu springen. */
+ * echte Navigation neu zu laden und dabei nach oben zu springen.
+ *
+ * Stößt danach auch gleich einen Dispo-Import an, sonst würden die schon
+ * gebuchten Stunden-/Detailzeilen (aus dem letzten Import) weiter den
+ * alten Modus zeigen, bis jemand manuell noch mal den Import-Knopf
+ * klickt. Sicher, weil manuell korrigierte Detailzeilen seit dem
+ * Bearbeiten als "DISPOSITION_IMPORT_EDITED" markiert sind und der Import
+ * nur noch unangetastete "DISPOSITION_IMPORT"-Zeilen ersetzt. */
 export async function updateReportHoursSource(input: {
   hoursSource: string;
   reportId: string;
@@ -360,7 +367,7 @@ export async function updateReportHoursSource(input: {
   await requireSession();
   const hoursSource = input.hoursSource === "APPROVED_TIME" ? "APPROVED_TIME" : "PLANNED";
 
-  await prisma.controllingPerformanceReport.update({
+  const report = await prisma.controllingPerformanceReport.update({
     data: {
       hoursSource,
     },
@@ -368,6 +375,8 @@ export async function updateReportHoursSource(input: {
       id: input.reportId,
     },
   });
+
+  await runDispositionImport(report.id, report.projectId);
 
   revalidateControlling();
 }
@@ -488,6 +497,18 @@ export async function updateControllingDetailEntry(formData: FormData) {
     (quantity * unitPriceCents * utilizationPercent) / 100,
   );
 
+  // Ein per Dispo-Import angelegter Eintrag, der jetzt manuell korrigiert
+  // wird (z.B. reale Menge nach Lieferschein bei "Leistungsmeldung nach
+  // Leistung"), zählt danach als bearbeitet und darf nicht mehr vom
+  // nächsten Dispo-Import überschrieben werden - der Import ersetzt nur
+  // Zeilen mit source "DISPOSITION_IMPORT", nicht "_EDITED".
+  const existing = await prisma.controllingDetailEntry.findUniqueOrThrow({
+    select: { source: true },
+    where: { id },
+  });
+  const source =
+    existing.source === "DISPOSITION_IMPORT" ? "DISPOSITION_IMPORT_EDITED" : existing.source;
+
   await prisma.controllingDetailEntry.update({
     where: {
       id,
@@ -503,6 +524,7 @@ export async function updateControllingDetailEntry(formData: FormData) {
       amountCents,
       status: requiredText(formData.get("status"), "Status"),
       notes: text(formData.get("notes")),
+      source,
     },
   });
 
