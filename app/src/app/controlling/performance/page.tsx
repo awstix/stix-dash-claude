@@ -2367,6 +2367,12 @@ function getSourceLabel(source: string, notes?: string | null) {
   if (source === "DISPOSITION_IMPORT") {
     const normalizedNotes = notes?.toLowerCase() ?? "";
 
+    if (normalizedNotes.includes("zeiterfassung")) {
+      return "Zeiterfassung";
+    }
+    if (normalizedNotes.includes("planung")) {
+      return "Personaleinsatzplanung";
+    }
     if (normalizedNotes.includes("sonderfahrzeugdisposition")) {
       return "Sonderfahrzeugdispo";
     }

@@ -1225,128 +1225,172 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
     hourEntries.push(entry);
   }
 
-  const asphaltCrewByName = new Map(asphaltCrews.map((crew) => [crew.name, crew]));
+  // Kolonnen-/Fahrer-Stunden aus Asphalt-/LKW-/Sonderfahrzeugdisposition sind
+  // Planungs-/Dispo-Annahmen, keine bestätigten Ist-Stunden - bei "Tatsächlich
+  // gebuchte Stunden" (useActualHours) sollen ausschließlich die oben aus
+  // crewTimeEntries (freigegebene Zeiterfassung) übernommenen Stunden zählen.
+  // Ein Fahrer ohne eigenen Zeiterfassungseintrag darf dort also fehlen,
+  // statt aus der Disposition nachgetragen zu werden.
+  if (!useActualHours) {
+    const asphaltCrewByName = new Map(asphaltCrews.map((crew) => [crew.name, crew]));
 
-  for (const asphaltEntry of asphaltDispatchEntries) {
-    const crew = asphaltCrewByName.get(asphaltEntry.crew);
-    const employeeCount = crew?.members.length ?? 0;
-    const hoursPerEmployee = 10.5;
+    for (const asphaltEntry of asphaltDispatchEntries) {
+      const crew = asphaltCrewByName.get(asphaltEntry.crew);
+      const employeeCount = crew?.members.length ?? 0;
+      const hoursPerEmployee = 10.5;
 
-    if (crew?.members.length) {
-      for (const member of crew.members) {
-        const employee = member.employee;
-        const rates = employeeRateFor(employee);
-        const label = [employee.lastName, employee.firstName]
-          .filter(Boolean)
-          .join(", ");
+      if (crew?.members.length) {
+        for (const member of crew.members) {
+          const employee = member.employee;
+          const rates = employeeRateFor(employee);
+          const label = [employee.lastName, employee.firstName]
+            .filter(Boolean)
+            .join(", ");
 
-        pushHourEntry(costedHourEntry({
-          employeeCount: 1,
-          employeeId: employee.id,
-          endsAt: "17:00",
-          entryDate: asphaltEntry.workDate,
-          hoursPerEmployee,
-          internalRateCents: rates.internalRateCents,
-          label: label || asphaltEntry.crew || "Asphaltkolonne",
-          notes: `aus Asphaltdisposition übernommen · ${asphaltEntry.crew} · ${asphaltEntry.projectNumber} ${asphaltEntry.projectName}`.trim(),
-          realRateCents: rates.realRateCents,
-          source: "DISPOSITION_IMPORT",
-          startsAt: "06:30",
-          totalHours: hoursPerEmployee,
-        }));
+          pushHourEntry(costedHourEntry({
+            employeeCount: 1,
+            employeeId: employee.id,
+            endsAt: "17:00",
+            entryDate: asphaltEntry.workDate,
+            hoursPerEmployee,
+            internalRateCents: rates.internalRateCents,
+            label: label || asphaltEntry.crew || "Asphaltkolonne",
+            notes: `aus Asphaltdisposition übernommen · ${asphaltEntry.crew} · ${asphaltEntry.projectNumber} ${asphaltEntry.projectName}`.trim(),
+            realRateCents: rates.realRateCents,
+            source: "DISPOSITION_IMPORT",
+            startsAt: "06:30",
+            totalHours: hoursPerEmployee,
+          }));
+        }
+
+        continue;
       }
 
-      continue;
+      pushHourEntry(costedHourEntry({
+        employeeCount: employeeCount || 1,
+        endsAt: "17:00",
+        entryDate: asphaltEntry.workDate,
+        hoursPerEmployee,
+        internalRateCents: 0,
+        label: asphaltEntry.crew || "Asphaltkolonne",
+        notes: `aus Asphaltdisposition übernommen · ${asphaltEntry.projectNumber} ${asphaltEntry.projectName}`.trim(),
+        realRateCents: 0,
+        source: "DISPOSITION_IMPORT",
+        startsAt: "06:30",
+        totalHours: Math.round((employeeCount || 1) * hoursPerEmployee * 100) / 100,
+      }));
     }
 
-    pushHourEntry(costedHourEntry({
-      employeeCount: employeeCount || 1,
-      endsAt: "17:00",
-      entryDate: asphaltEntry.workDate,
-      hoursPerEmployee,
-      internalRateCents: 0,
-      label: asphaltEntry.crew || "Asphaltkolonne",
-      notes: `aus Asphaltdisposition übernommen · ${asphaltEntry.projectNumber} ${asphaltEntry.projectName}`.trim(),
-      realRateCents: 0,
-      source: "DISPOSITION_IMPORT",
-      startsAt: "06:30",
-      totalHours: Math.round((employeeCount || 1) * hoursPerEmployee * 100) / 100,
-    }));
-  }
+    // Ein Fahrer kann an einem Tag mehrere Touren fahren (mehrere
+    // Zuteilungs-Zeilen mit demselben Namen/Datum) - pushHourEntry dedupliziert
+    // nach Datum+Bezeichnung, ohne Aggregation würde daher nur die erste Tour
+    // des Tages gezählt und alle weiteren Touren stillschweigend verworfen.
+    // Deshalb hier je Fahrer/Tag erst alle Touren aufsummieren, dann eine
+    // einzige Stundenzeile mit der Gesamtstundenzahl anlegen.
+    function aggregateLoadsByDriverDay<T extends { driverName: string | null; endTime: string; startTime: string; workDate: Date }>(
+      loads: T[],
+      quantityOf: (load: T) => number,
+    ) {
+      const groups = new Map<
+        string,
+        { driverName: string; earliestStart: string; latestEnd: string; totalHours: number; totalQuantity: number; tourCount: number; workDate: Date }
+      >();
 
-  for (const allocation of asphaltLoads) {
-    if (!allocation.driverName) {
-      continue;
+      for (const load of loads) {
+        if (!load.driverName) continue;
+        const key = `${load.driverName}|${load.workDate.toISOString()}`;
+        const hours = timeRangeHours(load.startTime, load.endTime);
+        const existing = groups.get(key);
+
+        if (existing) {
+          existing.totalHours += hours;
+          existing.totalQuantity += quantityOf(load);
+          existing.tourCount += 1;
+          if (load.startTime < existing.earliestStart) existing.earliestStart = load.startTime;
+          if (load.endTime > existing.latestEnd) existing.latestEnd = load.endTime;
+        } else {
+          groups.set(key, {
+            driverName: load.driverName,
+            earliestStart: load.startTime,
+            latestEnd: load.endTime,
+            totalHours: hours,
+            totalQuantity: quantityOf(load),
+            tourCount: 1,
+            workDate: load.workDate,
+          });
+        }
+      }
+
+      return [...groups.values()];
     }
 
-    const hoursPerEmployee = timeRangeHours(allocation.startTime, allocation.endTime);
-    const employee = employeeForName(allocation.driverName);
-    const rates = employeeRateFor(employee);
+    for (const group of aggregateLoadsByDriverDay(asphaltLoads, (load) => load.totalTons)) {
+      const employee = employeeForName(group.driverName);
+      const rates = employeeRateFor(employee);
+      const totalHours = Math.round(group.totalHours * 100) / 100;
 
-    pushHourEntry(costedHourEntry({
-      employeeCount: 1,
-      employeeId: employee?.id,
-      endsAt: allocation.endTime,
-      entryDate: allocation.workDate,
-      hoursPerEmployee,
-      internalRateCents: rates.internalRateCents,
-      label: `LKW-Fahrer ${allocation.driverName}`,
-      notes: `aus Asphalt-/LKW-Zuteilung übernommen · ${allocation.totalTons} t`,
-      realRateCents: rates.realRateCents,
-      source: "DISPOSITION_IMPORT",
-      startsAt: allocation.startTime,
-      totalHours: hoursPerEmployee,
-    }));
-  }
-
-  for (const allocation of tackCoatLoads) {
-    if (!allocation.driverName) {
-      continue;
+      pushHourEntry(costedHourEntry({
+        employeeCount: 1,
+        employeeId: employee?.id,
+        endsAt: group.latestEnd,
+        entryDate: group.workDate,
+        hoursPerEmployee: totalHours,
+        internalRateCents: rates.internalRateCents,
+        label: `LKW-Fahrer ${group.driverName}`,
+        notes: `aus Asphalt-/LKW-Zuteilung übernommen · ${group.tourCount} Tour${group.tourCount === 1 ? "" : "en"} · ${Math.round(group.totalQuantity * 100) / 100} t`,
+        realRateCents: rates.realRateCents,
+        source: "DISPOSITION_IMPORT",
+        startsAt: group.earliestStart,
+        totalHours,
+      }));
     }
 
-    const hoursPerEmployee = timeRangeHours(allocation.startTime, allocation.endTime);
-    const employee = employeeForName(allocation.driverName);
-    const rates = employeeRateFor(employee);
+    for (const group of aggregateLoadsByDriverDay(tackCoatLoads, (load) => load.totalLiters)) {
+      const employee = employeeForName(group.driverName);
+      const rates = employeeRateFor(employee);
+      const totalHours = Math.round(group.totalHours * 100) / 100;
+      const unit = tackCoatLoads.find((load) => load.driverName === group.driverName)?.quantityUnit ?? "l";
 
-    pushHourEntry(costedHourEntry({
-      employeeCount: 1,
-      employeeId: employee?.id,
-      endsAt: allocation.endTime,
-      entryDate: allocation.workDate,
-      hoursPerEmployee,
-      internalRateCents: rates.internalRateCents,
-      label: `LKW-Fahrer ${allocation.driverName}`,
-      notes: `aus Anspritzmittel-Zuteilung übernommen · ${allocation.totalLiters} ${allocation.quantityUnit}`,
-      realRateCents: rates.realRateCents,
-      source: "DISPOSITION_IMPORT",
-      startsAt: allocation.startTime,
-      totalHours: hoursPerEmployee,
-    }));
-  }
-
-  for (const assignment of specialVehicleAssignments) {
-    if (!assignment.operatorDriverName) {
-      continue;
+      pushHourEntry(costedHourEntry({
+        employeeCount: 1,
+        employeeId: employee?.id,
+        endsAt: group.latestEnd,
+        entryDate: group.workDate,
+        hoursPerEmployee: totalHours,
+        internalRateCents: rates.internalRateCents,
+        label: `LKW-Fahrer ${group.driverName}`,
+        notes: `aus Anspritzmittel-Zuteilung übernommen · ${group.tourCount} Tour${group.tourCount === 1 ? "" : "en"} · ${Math.round(group.totalQuantity * 100) / 100} ${unit}`,
+        realRateCents: rates.realRateCents,
+        source: "DISPOSITION_IMPORT",
+        startsAt: group.earliestStart,
+        totalHours,
+      }));
     }
 
-    const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
-    const employee = employeeForName(assignment.operatorDriverName);
-    const rates = employeeRateFor(employee);
+    for (const assignment of specialVehicleAssignments) {
+      if (!assignment.operatorDriverName) {
+        continue;
+      }
 
-    pushHourEntry(costedHourEntry({
-      employeeCount: 1,
-      employeeId: employee?.id,
-      endsAt: assignment.endTime,
-      entryDate: assignment.workDate,
-      hoursPerEmployee,
-      internalRateCents: rates.internalRateCents,
-      label: `Bediener ${assignment.operatorDriverName}`,
-      notes: `aus Sonderfahrzeugdisposition übernommen · ${assignment.vehicleName}`,
-      realRateCents: rates.realRateCents,
-      source: "DISPOSITION_IMPORT",
-      startsAt: assignment.startTime,
-      totalHours: hoursPerEmployee,
-    }));
+      const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
+      const employee = employeeForName(assignment.operatorDriverName);
+      const rates = employeeRateFor(employee);
+
+      pushHourEntry(costedHourEntry({
+        employeeCount: 1,
+        employeeId: employee?.id,
+        endsAt: assignment.endTime,
+        entryDate: assignment.workDate,
+        hoursPerEmployee,
+        internalRateCents: rates.internalRateCents,
+        label: `Bediener ${assignment.operatorDriverName}`,
+        notes: `aus Sonderfahrzeugdisposition übernommen · ${assignment.vehicleName}`,
+        realRateCents: rates.realRateCents,
+        source: "DISPOSITION_IMPORT",
+        startsAt: assignment.startTime,
+        totalHours: hoursPerEmployee,
+      }));
+    }
   }
 
   const detailEntries: Array<{
