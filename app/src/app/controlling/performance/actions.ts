@@ -284,8 +284,20 @@ export async function createPerformanceReport(formData: FormData) {
     },
   });
 
+  // Neue Leistungsmeldung soll nicht leer starten - direkt mit den zum
+  // Zeitraum passenden Dispo-/Zeiterfassungsdaten vorbefüllen (derselbe
+  // Import wie beim manuellen Knopf "aus Planung/Disposition
+  // übernehmen"), sonst müsste das für jede neue Meldung extra angestoßen
+  // werden.
+  const importResult = await runDispositionImport(report.id, projectId);
+
   revalidateControlling();
-  redirect(pathFor(report.id, projectId));
+  redirect(
+    pathFor(report.id, projectId, {
+      message: dispositionImportMessage(importResult),
+      type: importResult.ok ? "success" : "error",
+    }),
+  );
 }
 
 export async function updatePerformanceReport(formData: FormData) {
@@ -809,10 +821,27 @@ export async function importDetailEntriesFromExcel(formData: FormData) {
   redirect(pathFor(reportId, projectId));
 }
 
-export async function importDispositionIntoPerformanceReport(formData: FormData) {
-  await requireSession();
-  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
-  const projectId = requiredText(formData.get("projectId"), "Projekt");
+type DispositionImportResult =
+  | {
+      detailCount: number;
+      hourCount: number;
+      ok: true;
+      rateSetName: string;
+      rateSetYear: number;
+      useActualHours: boolean;
+    }
+  | { ok: false; reason: string };
+
+/** Kernlogik des Dispo-Imports, ohne redirect() - wird sowohl vom
+ * manuellen Knopf (importDispositionIntoPerformanceReport) als auch beim
+ * Anlegen einer neuen Leistungsmeldung (createPerformanceReport)
+ * aufgerufen, damit eine frische Meldung sofort mit den zum Zeitraum
+ * passenden Dispo-/Zeiterfassungsdaten vorbefüllt ist statt leer zu
+ * starten. */
+async function runDispositionImport(
+  reportId: string,
+  projectId: string,
+): Promise<DispositionImportResult> {
   const report = await prisma.controllingPerformanceReport.findUniqueOrThrow({
     where: {
       id: reportId,
@@ -834,12 +863,10 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   if (!rateSet) {
     const rateYear = (report.periodEnd ?? report.reportDate).getFullYear();
 
-    redirect(
-      pathFor(reportId, projectId, {
-        message: `Für ${rateYear} ist noch kein Satzstand angelegt. Bitte unter Controlling > Verrechnungssätze zuerst den Satzstand ${rateYear} erstellen.`,
-        type: "error",
-      }),
-    );
+    return {
+      ok: false,
+      reason: `Für ${rateYear} ist noch kein Satzstand angelegt. Bitte unter Controlling > Verrechnungssätze zuerst den Satzstand ${rateYear} erstellen.`,
+    };
   }
 
   const [
@@ -1854,11 +1881,37 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
     }
   });
 
-  revalidateControlling();
+  return {
+    detailCount: detailEntries.length,
+    hourCount: hourEntries.length,
+    ok: true,
+    rateSetName: rateSet.name,
+    rateSetYear: rateSet.year,
+    useActualHours,
+  };
+}
+
+function dispositionImportMessage(result: DispositionImportResult) {
+  if (!result.ok) return result.reason;
+
+  return `Übernommen: ${result.hourCount} Stundenzeilen (${result.useActualHours ? "aus Zeiterfassung, freigegeben" : "aus Planung/Disposition"}) und ${result.detailCount} Positionszeilen aus Planung/Disposition. Verwendeter Satzstand: ${result.rateSetName} (${result.rateSetYear}).`;
+}
+
+export async function importDispositionIntoPerformanceReport(formData: FormData) {
+  await requireSession();
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  const result = await runDispositionImport(reportId, projectId);
+
+  if (result.ok) {
+    revalidateControlling();
+  }
+
   redirect(
     pathFor(reportId, projectId, {
-      message: `Übernommen: ${hourEntries.length} Stundenzeilen (${useActualHours ? "aus Zeiterfassung, freigegeben" : "aus Planung/Disposition"}) und ${detailEntries.length} Positionszeilen aus Planung/Disposition. Verwendeter Satzstand: ${rateSet.name} (${rateSet.year}).`,
-      type: "success",
+      message: dispositionImportMessage(result),
+      type: result.ok ? "success" : "error",
     }),
   );
 }
