@@ -751,6 +751,17 @@ export default async function ControllingPerformancePage({
     umlageCostBasisCents * (1 + normalUmlagePercent / 100),
   );
   const umlageGewinnCents = totalContractCents - normalContractCents;
+  // Ergebnis vor Umlage: dieselbe Rückrechnung wie beim Umlage-Vergleich,
+  // aber auf den tatsächlich abgerechneten (um Skonto/Nachlass bereinigten)
+  // Umsatz angewendet statt auf die Auftragssumme - zeigt, was vom
+  // Ergebnis übrig bleibt, wenn man den Umlage-Zuschlag komplett rausrechnet.
+  const umsatzVorUmlageCents =
+    actualUmlagePercent > -100
+      ? Math.round(effectiveInvoiceRevenueCents / (1 + actualUmlagePercent / 100))
+      : effectiveInvoiceRevenueCents;
+  const ergebnisVorUmlageCents = umsatzVorUmlageCents - actualCostCents;
+  const dbVorUmlagePercent =
+    umsatzVorUmlageCents > 0 ? ergebnisVorUmlageCents / umsatzVorUmlageCents : 0;
   // Gehalt/Sonstiges-Stunden fließen bewusst nicht in die Stunden-Bilanz
   // ein - die sind bereits über die Kosten in der Zeile "Sonstiges"
   // verrechnet, würden hier also doppelt gezählt.
@@ -1426,12 +1437,15 @@ export default async function ControllingPerformancePage({
                 }
                 actualUmlagePercent={actualUmlagePercent}
                 actualWugPercent={currentProjectForValues?.actualWugPercent ?? 6}
+                dbVorUmlagePercent={dbVorUmlagePercent}
+                ergebnisVorUmlageCents={ergebnisVorUmlageCents}
                 normalAgkPercent={currentProjectForValues?.normalAgkPercent ?? 10}
                 normalBgkPercent={currentProjectForValues?.normalBgkPercent ?? 6}
                 normalUmlagePercent={normalUmlagePercent}
                 normalWugPercent={currentProjectForValues?.normalWugPercent ?? 6}
                 totalContractCents={totalContractCents}
                 umlageGewinnCents={umlageGewinnCents}
+                umsatzVorUmlageCents={umsatzVorUmlageCents}
               />
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -2108,24 +2122,30 @@ function UmlageComparisonSection({
   actualFreierZuschlagPercent,
   actualUmlagePercent,
   actualWugPercent,
+  dbVorUmlagePercent,
+  ergebnisVorUmlageCents,
   normalAgkPercent,
   normalBgkPercent,
   normalUmlagePercent,
   normalWugPercent,
   totalContractCents,
   umlageGewinnCents,
+  umsatzVorUmlageCents,
 }: {
   actualAgkPercent: number;
   actualBgkPercent: number;
   actualFreierZuschlagPercent: number;
   actualUmlagePercent: number;
   actualWugPercent: number;
+  dbVorUmlagePercent: number;
+  ergebnisVorUmlageCents: number;
   normalAgkPercent: number;
   normalBgkPercent: number;
   normalUmlagePercent: number;
   normalWugPercent: number;
   totalContractCents: number;
   umlageGewinnCents: number;
+  umsatzVorUmlageCents: number;
 }) {
   if (totalContractCents <= 0) return null;
 
@@ -2165,6 +2185,18 @@ function UmlageComparisonSection({
           tone={umlageGewinnCents >= 0 ? "good" : "bad"}
           value={formatMoney(umlageGewinnCents)}
         />
+        <AnalysisCard
+          detail="abgerechneter Umsatz ohne Umlage-Anteil"
+          label="Umsatz vor Umlage"
+          tone="neutral"
+          value={formatMoney(umsatzVorUmlageCents)}
+        />
+        <AnalysisCard
+          detail={`DB vor Umlage ${formatPercent(dbVorUmlagePercent)}`}
+          label="Ergebnis vor Umlage"
+          tone={ergebnisVorUmlageCents >= 0 ? "good" : "bad"}
+          value={formatMoney(ergebnisVorUmlageCents)}
+        />
       </div>
 
       <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -2177,6 +2209,12 @@ function UmlageComparisonSection({
           Umlage%)). Daraus wird eine hypothetische Auftragssumme mit der normalen Umlage
           berechnet. Die Differenz zur echten Auftragssumme zeigt, wie viel zusätzlichen
           (oder weniger) Gewinn der abweichende Zuschlag gegenüber dem Standard bringt.
+        </p>
+        <p className="mt-2 leading-5">
+          <span className="font-semibold text-gray-800">Umsatz/Ergebnis vor Umlage</span> =
+          dieselbe Rückrechnung, aber angewendet auf den tatsächlich abgerechneten Umsatz
+          (nach Skonto/Nachlass) statt auf die Auftragssumme - zeigt, was vom Ergebnis übrig
+          bleibt, wenn man den kompletten Umlage-Zuschlag herausrechnet.
         </p>
       </details>
     </section>

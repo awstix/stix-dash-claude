@@ -142,14 +142,26 @@ function computeReportMetrics(
     umlageCostBasisCents * (1 + normalUmlagePercent / 100),
   );
   const umlageGewinnCents = contractCents - normalContractCents;
+  // Ergebnis vor Umlage: dieselbe Rückrechnung wie beim Umlage-Vergleich,
+  // aber auf den tatsächlich abgerechneten (um Skonto/Nachlass bereinigten)
+  // Umsatz statt auf die Auftragssumme.
+  const umsatzVorUmlageCents =
+    actualUmlagePercent > -100
+      ? Math.round(effectiveInvoiceRevenueCents / (1 + actualUmlagePercent / 100))
+      : effectiveInvoiceRevenueCents;
+  const ergebnisVorUmlageCents = umsatzVorUmlageCents - actualCostCents;
+  const dbVorUmlagePercent =
+    umsatzVorUmlageCents > 0 ? ergebnisVorUmlageCents / umsatzVorUmlageCents : 0;
 
   return {
     actualCostCents,
     actualUmlagePercent,
     contractCents,
     costCoverageCents,
+    dbVorUmlagePercent,
     detailCostCents,
     effectiveInvoiceRevenueCents,
+    ergebnisVorUmlageCents,
     forecastCents,
     forecastPercent,
     hourCostCents,
@@ -162,6 +174,7 @@ function computeReportMetrics(
     skontoNachlassPercent,
     skontoPercent,
     umlageGewinnCents,
+    umsatzVorUmlageCents,
   };
 }
 
@@ -191,6 +204,9 @@ function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>
         "Tatsächliche Umlage %": metrics.actualUmlagePercent,
         "Normale Umlage %": metrics.normalUmlagePercent,
         "Zusätzlicher Gewinn durch Umlage €": euros(metrics.umlageGewinnCents),
+        "Umsatz vor Umlage €": euros(metrics.umsatzVorUmlageCents),
+        "Ergebnis vor Umlage €": euros(metrics.ergebnisVorUmlageCents),
+        "DB vor Umlage %": metrics.dbVorUmlagePercent * 100,
         "Skonto %": metrics.skontoPercent,
         "Nachlass %": metrics.nachlassPercent,
       },
@@ -420,6 +436,16 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
     );
     y -= 16;
   }
+
+  // Ergebnis vor Umlage - Umsatz um die tatsächliche Umlage bereinigt
+  ensureSpace(20);
+  page!.drawText(
+    `Ergebnis vor Umlage: ${formatEuro(metrics.ergebnisVorUmlageCents)} (DB ${formatPercent(
+      metrics.dbVorUmlagePercent,
+    )}) · Umsatz vor Umlage ${formatEuro(metrics.umsatzVorUmlageCents)}`,
+    { color: mutedColor, font: regular, size: 8, x: MARGIN, y },
+  );
+  y -= 16;
 
   // Skonto/Nachlass-Hinweis
   if (metrics.skontoNachlassPercent > 0) {
