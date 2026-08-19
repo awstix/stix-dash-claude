@@ -22,6 +22,7 @@ import { ControllingHourForm } from "./ControllingHourForm";
 import { DeleteEntryButton } from "./DeleteEntryButton";
 import { DetailEntryForm } from "./DetailEntryForm";
 import { EditDetailEntryButton } from "./EditDetailEntryButton";
+import { HoursSourceToggle } from "./HoursSourceToggle";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const reportStatuses = [
@@ -961,30 +962,7 @@ export default async function ControllingPerformancePage({
                     )}
                   </div>
 
-                  <label className="lg:col-span-6 flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                    <input
-                      className="mt-1 h-4 w-4"
-                      defaultChecked={report.hoursSource === "APPROVED_TIME"}
-                      name="hoursSource"
-                      type="checkbox"
-                      value="APPROVED_TIME"
-                    />
-                    <span className="text-sm">
-                      <span className="block font-bold text-gray-900">
-                        Leistungsmeldung nach Leistung
-                      </span>
-                      <span className="mt-1 block text-xs text-gray-600">
-                        Aktiviert: Personalstunden kommen aus der freigegebenen Zeiterfassung
-                        (Stundenfreigabe). Material/Geräte werden zunächst nach
-                        Dispositionsmengen vorgeschlagen - die realen Mengen nach Lieferschein
-                        müssen von Bauleitung/Controlling eingetragen werden.
-                      </span>
-                      <span className="mt-1 block text-xs text-gray-600">
-                        Deaktiviert (Leistungsmeldung nach Disposition): Personalstunden kommen
-                        aus der Personaleinsatzplanung, Material aus der Disposition.
-                      </span>
-                    </span>
-                  </label>
+                  <HoursSourceToggle defaultValue={report.hoursSource} />
 
                   <Field label="Hauptauftrag netto">
                     <input
