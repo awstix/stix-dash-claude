@@ -22,7 +22,7 @@ import {
   type WatermarkFields,
 } from "./photoWatermark";
 
-type ResolvedWatermarkOptions = {
+export type ResolvedWatermarkOptions = {
   compassPosition: WatermarkCorner;
   fields: WatermarkFields;
   mapPosition: WatermarkCorner;
@@ -34,7 +34,7 @@ type ResolvedWatermarkOptions = {
  * values, filling in the defaults for anything never saved yet - shared
  * between the bulk "mit Infos" download and the live info overlay in the
  * detail viewer, so both always agree on the user's current settings. */
-function parseWatermarkOptions(settingsJson: string | null): ResolvedWatermarkOptions {
+export function parseWatermarkOptions(settingsJson: string | null): ResolvedWatermarkOptions {
   const parsed = settingsJson
     ? (JSON.parse(settingsJson) as {
         compassPosition?: WatermarkCorner;

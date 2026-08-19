@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   deleteProjectPhoto,
+  getPhotoWatermarkSettings,
   updateProjectPhoto,
 } from "@/app/projects/actions";
 import {
   formatDateTime,
   getUploaderLabel,
+  parseWatermarkOptions,
   PhotoDetailModal,
   type ProjectPhotoGalleryItem,
+  type ResolvedWatermarkOptions,
 } from "@/app/projects/ProjectPhotoGallery";
 
 export type DashboardPhoto = ProjectPhotoGalleryItem & {
@@ -32,7 +35,24 @@ export function DashboardPhotoWidget({
   const [index, setIndex] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [watermarkOptions, setWatermarkOptions] = useState<ResolvedWatermarkOptions | null>(
+    null,
+  );
   const photo = photos[index] ?? photos[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    getPhotoWatermarkSettings()
+      .then((json) => {
+        if (!cancelled) setWatermarkOptions(parseWatermarkOptions(json));
+      })
+      .catch(() => {
+        if (!cancelled) setWatermarkOptions(parseWatermarkOptions(null));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -133,6 +153,7 @@ export function DashboardPhotoWidget({
           }}
           photo={photo}
           totalCount={photos.length}
+          watermarkOptions={watermarkOptions}
         />
       ) : null}
     </>
