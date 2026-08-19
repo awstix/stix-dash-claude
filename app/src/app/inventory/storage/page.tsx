@@ -261,6 +261,10 @@ export default async function InventoryStoragePage({
             { category: { name: { contains: searchQuery, mode: "insensitive" } } },
             { currentProject: { name: { contains: searchQuery, mode: "insensitive" } } },
             { currentProject: { projectNumber: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleEmployee: { firstName: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleEmployee: { lastName: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleCrew: { name: { contains: searchQuery, mode: "insensitive" } } },
+            { notes: { contains: searchQuery, mode: "insensitive" } },
           ],
         }
       : {}),

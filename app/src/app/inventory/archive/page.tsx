@@ -83,6 +83,10 @@ export default async function InventoryArchivePage({
             { serialNumber: { contains: searchQuery, mode: "insensitive" } },
             { inventoryNumber: { contains: searchQuery, mode: "insensitive" } },
             { category: { name: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleEmployee: { firstName: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleEmployee: { lastName: { contains: searchQuery, mode: "insensitive" } } },
+            { responsibleCrew: { name: { contains: searchQuery, mode: "insensitive" } } },
+            { notes: { contains: searchQuery, mode: "insensitive" } },
           ],
         }
       : {}),
