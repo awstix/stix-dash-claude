@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { IScannerControls } from "@zxing/browser";
 
+class LocationRequiredError extends Error {}
+
 function getInventoryTarget(value: string) {
   const text = value.trim();
 
@@ -66,10 +68,16 @@ export function InventoryScannerClient() {
   const [isScanning, setIsScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
-  const [shouldUseLocation, setShouldUseLocation] = useState(true);
   const [isOpening, setIsOpening] = useState(false);
   const [isPhotoScanning, setIsPhotoScanning] = useState(false);
   const [isSecureContext, setIsSecureContext] = useState<boolean | null>(null);
+  // Kamera-/Foto-Scan brauchen den Standort zwingend (steuert die
+  // automatische Baustellen-Abgleich-Warnung serverseitig) - schlägt der
+  // Standort fehl, wird der Scan blockiert statt ihn stillschweigend ohne
+  // Standort zu speichern. Manuelle Eingabe bleibt best-effort (kein Scan
+  // im eigentlichen Sinn, z.B. Nachschlagen vom Büro-PC ohne GPS).
+  const [locationBlockedError, setLocationBlockedError] = useState<string | null>(null);
+  const [isRetryingLocation, setIsRetryingLocation] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -107,8 +115,25 @@ export function InventoryScannerClient() {
     setIsScanning(false);
   }
 
-  async function getLocationPayload() {
-    if (!shouldUseLocation || !navigator.geolocation) {
+  function describeGeolocationError(geoError: unknown) {
+    if (
+      geoError &&
+      typeof geoError === "object" &&
+      "code" in geoError &&
+      (geoError as GeolocationPositionError).code === 1
+    ) {
+      return "Standort-Zugriff wurde blockiert. Bitte für diese Seite erlauben (Anleitung unten) und erneut versuchen.";
+    }
+    return "Standort konnte nicht ermittelt werden (z. B. schwaches GPS-Signal). Bitte erneut versuchen, möglichst im Freien.";
+  }
+
+  async function getLocationPayload(required: boolean) {
+    if (!navigator.geolocation) {
+      if (required) {
+        throw new LocationRequiredError(
+          "Dieses Gerät/dieser Browser unterstützt keine Standortermittlung.",
+        );
+      }
       return {};
     }
 
@@ -117,7 +142,7 @@ export function InventoryScannerClient() {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           maximumAge: 60_000,
-          timeout: 5_000,
+          timeout: 8_000,
         });
       });
 
@@ -126,20 +151,20 @@ export function InventoryScannerClient() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       };
-    } catch {
-      setError(
-        "Standort konnte nicht erfasst werden. Scan wird ohne Standort gespeichert.",
-      );
+    } catch (geoError) {
+      if (required) {
+        throw new LocationRequiredError(describeGeolocationError(geoError));
+      }
       return {};
     }
   }
 
-  async function recordScan(target: string, rawValue: string) {
+  async function recordScan(target: string, rawValue: string, requireLocation: boolean) {
     const itemId = getInventoryItemIdFromTarget(target);
 
     if (!itemId) return false;
 
-    const locationPayload = await getLocationPayload();
+    const locationPayload = await getLocationPayload(requireLocation);
 
     const response = await fetch("/inventory/scanner/log", {
       body: JSON.stringify({
@@ -163,8 +188,10 @@ export function InventoryScannerClient() {
     return Boolean(payload?.locationAlertCreated);
   }
 
-  async function openTarget(rawValue: string) {
+  async function openTarget(rawValue: string, requireLocation: boolean) {
     setLastScan(rawValue);
+    setError(null);
+    setLocationBlockedError(null);
     setIsOpening(true);
     const target = await resolveInventoryTarget(rawValue);
 
@@ -175,13 +202,25 @@ export function InventoryScannerClient() {
     }
 
     stopCamera();
-    const locationAlertCreated = await recordScan(target, rawValue).catch(() => {
+
+    try {
+      const locationAlertCreated = await recordScan(target, rawValue, requireLocation);
+      window.location.href = locationAlertCreated ? `${target}?locationAlert=1` : target;
+    } catch (recordError) {
+      if (recordError instanceof LocationRequiredError) {
+        setIsOpening(false);
+        setLocationBlockedError(recordError.message);
+        return;
+      }
       setError("Scan konnte nicht gespeichert werden. Objekt wird trotzdem geöffnet.");
-      return false;
-    });
-    window.location.href = locationAlertCreated
-      ? `${target}?locationAlert=1`
-      : target;
+      window.location.href = target;
+    }
+  }
+
+  function retryLocationAndOpen() {
+    if (!lastScan) return;
+    setIsRetryingLocation(true);
+    void openTarget(lastScan, true).finally(() => setIsRetryingLocation(false));
   }
 
   async function startCamera() {
@@ -234,7 +273,7 @@ export function InventoryScannerClient() {
             scanControls.stop();
             controlsRef.current = null;
             setIsScanning(false);
-            void openTarget(result.getText());
+            void openTarget(result.getText(), true);
             return;
           }
 
@@ -271,7 +310,7 @@ export function InventoryScannerClient() {
       if (!rawValue) {
         throw new Error("Kein Code erkannt");
       }
-      await openTarget(rawValue);
+      await openTarget(rawValue, true);
     } catch {
       setError(
         "Auf dem Foto wurde kein lesbarer QR- oder DataMatrix-Code erkannt. Bitte Code gerade, vollständig und bei gutem Licht fotografieren.",
@@ -284,7 +323,7 @@ export function InventoryScannerClient() {
 
   function submitManualCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void openTarget(manualValue);
+    void openTarget(manualValue, false);
   }
 
   return (
@@ -310,6 +349,81 @@ export function InventoryScannerClient() {
             {isSupported === false ? "Fallback" : "Scanner bereit"}
           </span>
         </div>
+
+        <div className="mt-4 rounded-2xl border-2 border-blue-300 bg-blue-50 p-4">
+          <p className="text-sm font-bold text-blue-950">
+            📍 Standort ist beim Scannen zwingend erforderlich
+          </p>
+          <p className="mt-1 text-xs leading-5 text-blue-900">
+            Nur so kann automatisch erkannt werden, wenn ein Objekt auf der falschen
+            Baustelle steht. Beim ersten Scan fragt der Browser nach der
+            Standort-Berechtigung – bitte „Erlauben“ antippen. Ohne Standort wird der
+            Scan (Kamera/Foto) nicht gespeichert.
+          </p>
+          <details className="mt-3 text-xs text-blue-900">
+            <summary className="cursor-pointer font-semibold">
+              Standort ist deaktiviert oder wurde blockiert? So aktivierst du ihn
+            </summary>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-blue-200 bg-white p-3">
+                <p className="font-bold text-blue-950">Android (Chrome)</p>
+                <ol className="mt-1.5 list-decimal space-y-1 pl-4 leading-5">
+                  <li>Schloss-/Info-Symbol links in der Adressleiste antippen.</li>
+                  <li>„Berechtigungen“ → „Standort“ → „Zulassen“ wählen.</li>
+                  <li>
+                    Falls die Seite gar nicht auftaucht: Chrome-Menü (⋮) →
+                    Einstellungen → Website-Einstellungen → Standort → diese Seite
+                    suchen und erlauben.
+                  </li>
+                  <li>
+                    Zusätzlich prüfen: Handy-Einstellungen → Apps → Chrome →
+                    Berechtigungen → Standort auf „Nur bei Nutzung der App“ oder
+                    „Immer“, und der Standortdienst des Handys selbst muss an sein.
+                  </li>
+                </ol>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-white p-3">
+                <p className="font-bold text-blue-950">iPhone (Safari)</p>
+                <ol className="mt-1.5 list-decimal space-y-1 pl-4 leading-5">
+                  <li>
+                    Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste →
+                    sicherstellen, dass Ortungsdienste generell an sind.
+                  </li>
+                  <li>
+                    Dort runterscrollen zu „Safari-Websites“ → „Beim Verwenden der
+                    App fragen“ auswählen.
+                  </li>
+                  <li>
+                    Zurück in Safari auf dieser Seite erneut scannen – die
+                    Standortabfrage erscheint wieder, „Erlauben“ antippen.
+                  </li>
+                  <li>
+                    Schon einmal „Nicht erlauben“ gewählt? In Safari auf „aA“ in der
+                    Adressleiste → „Website-Einstellungen“ → Standort auf
+                    „Erlauben“ stellen.
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        {locationBlockedError ? (
+          <div className="mt-4 rounded-2xl border-2 border-red-300 bg-red-50 p-4">
+            <p className="text-sm font-bold text-red-950">
+              Scan nicht gespeichert – Standort fehlt
+            </p>
+            <p className="mt-1 text-xs leading-5 text-red-900">{locationBlockedError}</p>
+            <button
+              className="mt-3 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-wait disabled:opacity-70"
+              disabled={isRetryingLocation || !lastScan}
+              onClick={retryLocationAndOpen}
+              type="button"
+            >
+              {isRetryingLocation ? "Versucht erneut..." : "Standort erneut versuchen"}
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm md:grid-cols-2">
           <label className="font-semibold text-gray-800">
@@ -434,23 +548,11 @@ export function InventoryScannerClient() {
           </button>
         </form>
 
-        <div className="mt-5 space-y-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-          <label className="flex items-start gap-2 text-sm font-semibold text-blue-950">
-            <input
-              checked={shouldUseLocation}
-              className="mt-1 h-4 w-4 rounded border-blue-300"
-              onChange={(event) => setShouldUseLocation(event.target.checked)}
-              type="checkbox"
-            />
-            <span>
-              Standort beim Scan speichern
-              <span className="block text-xs font-normal leading-5 text-blue-800">
-                Wenn erlaubt, wird GPS mit Genauigkeit gespeichert. Ohne Erlaubnis
-                wird der Scan trotzdem protokolliert.
-              </span>
-            </span>
-          </label>
-        </div>
+        <p className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">
+          Manuelle Eingabe ist kein physischer Scan (z. B. Nachschlagen vom Büro-PC) –
+          Standort wird hier nur miterfasst, wenn er ohnehin verfügbar ist, ist aber
+          nicht zwingend erforderlich.
+        </p>
       </section>
     </div>
   );
