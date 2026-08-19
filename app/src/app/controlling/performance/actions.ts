@@ -813,12 +813,16 @@ export async function importDispositionIntoPerformanceReport(formData: FormData)
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
   const projectId = requiredText(formData.get("projectId"), "Projekt");
-  const useActualHours = formData.get("hourSource") === "actual";
   const report = await prisma.controllingPerformanceReport.findUniqueOrThrow({
     where: {
       id: reportId,
     },
   });
+  // Derselbe Modus wie "Leistungsmeldungsdaten" -> Leistungsmeldung nach
+  // Leistung/Disposition (report.hoursSource) - eine eigene Auswahl an
+  // dieser Stelle gab es früher zusätzlich, das war dieselbe Entscheidung
+  // zweimal an zwei verschiedenen Stellen auf derselben Seite.
+  const useActualHours = report.hoursSource === "APPROVED_TIME";
   const { start } = dayBounds(report.periodStart ?? report.reportDate);
   const { end } = dayBounds(report.periodEnd ?? report.reportDate);
   const rateSet = await resolvePerformanceRateSet(

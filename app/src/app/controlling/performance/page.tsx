@@ -870,6 +870,161 @@ export default async function ControllingPerformancePage({
 
           {report ? (
             <>
+              <section
+                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                key={`report-data-${report.id}`}
+              >
+                <h2 className="text-lg font-semibold text-gray-950">
+                  Leistungsmeldungsdaten
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Zeitraum, Status und Basiswerte dieser Leistungsmeldung. Die Projektstammdaten
+                  bleiben unverändert.
+                </p>
+                <form action={updatePerformanceReport} className="mt-4 grid gap-3 lg:grid-cols-6">
+                  <input name="reportId" type="hidden" value={report.id} />
+                  <input name="projectId" type="hidden" value={report.projectId} />
+                  <Field label="Zeitraum von">
+                    <input
+                      className={inputClassName}
+                      defaultValue={formatInputDate(report.periodStart ?? report.reportDate)}
+                      name="periodStart"
+                      type="date"
+                    />
+                  </Field>
+                  <Field label="Zeitraum bis">
+                    <input
+                      className={inputClassName}
+                      defaultValue={formatInputDate(report.periodEnd ?? report.reportDate)}
+                      name="periodEnd"
+                      type="date"
+                    />
+                  </Field>
+                  <Field className="lg:col-span-2" label="Titel / Thema">
+                    <input
+                      className={inputClassName}
+                      defaultValue={report.title ?? ""}
+                      name="title"
+                    />
+                  </Field>
+                  <Field label="Status">
+                    <select className={inputClassName} defaultValue={report.status} name="status">
+                      {reportStatuses.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field className="lg:col-span-2" label="Verrechnungssatz-Satzstand">
+                    <select
+                      className={inputClassName}
+                      defaultValue={activeRateSet?.id ?? ""}
+                      name="rateSetId"
+                    >
+                      <option value="">
+                        Vorschlag nach Zeitraum ({suggestedRateYear}) verwenden
+                      </option>
+                      {rateSets.map((rateSet) => (
+                        <option key={rateSet.id} value={rateSet.id}>
+                          {rateSet.name} ({rateSet.year})
+                          {rateSet.id === suggestedRateSet?.id ? " · vorgeschlagen" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <div
+                    className={`lg:col-span-6 rounded-2xl border p-4 text-sm ${
+                      activeRateSet
+                        ? "border-blue-100 bg-blue-50 text-blue-950"
+                        : "border-red-200 bg-red-50 text-red-800"
+                    }`}
+                  >
+                    {activeRateSet ? (
+                      <>
+                        <span className="font-bold">Verwendeter Satzstand:</span>{" "}
+                        {activeRateSet.name} ({activeRateSet.year})
+                        {suggestedRateSet && suggestedRateSet.id !== activeRateSet.id
+                          ? ` · manuell gewählt, Vorschlag wäre ${suggestedRateSet.name} (${suggestedRateSet.year})`
+                          : " · Vorschlag nach Zeitraum"}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold">Satzstand fehlt:</span> Für{" "}
+                        {activeRateYear} ist noch kein Satzstand angelegt. Bitte unter{" "}
+                        <Link className="underline" href="/controlling/rates">
+                          Controlling &gt; Verrechnungssätze
+                        </Link>{" "}
+                        zuerst den passenden Satzstand erstellen.
+                      </>
+                    )}
+                  </div>
+
+                  <label className="lg:col-span-6 flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <input
+                      className="mt-1 h-4 w-4"
+                      defaultChecked={report.hoursSource === "APPROVED_TIME"}
+                      name="hoursSource"
+                      type="checkbox"
+                      value="APPROVED_TIME"
+                    />
+                    <span className="text-sm">
+                      <span className="block font-bold text-gray-900">
+                        Leistungsmeldung nach Leistung
+                      </span>
+                      <span className="mt-1 block text-xs text-gray-600">
+                        Aktiviert: Personalstunden kommen aus der freigegebenen Zeiterfassung
+                        (Stundenfreigabe). Material/Geräte werden zunächst nach
+                        Dispositionsmengen vorgeschlagen - die realen Mengen nach Lieferschein
+                        müssen von Bauleitung/Controlling eingetragen werden.
+                      </span>
+                      <span className="mt-1 block text-xs text-gray-600">
+                        Deaktiviert (Leistungsmeldung nach Disposition): Personalstunden kommen
+                        aus der Personaleinsatzplanung, Material aus der Disposition.
+                      </span>
+                    </span>
+                  </label>
+
+                  <Field label="Hauptauftrag netto">
+                    <input
+                      className={inputClassName}
+                      defaultValue={formatRawMoney(contractValueNetCents)}
+                      name="contractValueNet"
+                    />
+                  </Field>
+                  <Field label="Nachträge netto">
+                    <input
+                      className={inputClassName}
+                      defaultValue={formatRawMoney(changeOrdersNetCents)}
+                      name="changeOrdersNet"
+                    />
+                  </Field>
+                  <Field label="Leistungsstand %">
+                    <input
+                      className={inputClassName}
+                      defaultValue={report.progressPercent}
+                      name="progressPercent"
+                    />
+                  </Field>
+                  <Field label="Zahlungen netto">
+                    <input
+                      className={inputClassName}
+                      defaultValue={formatRawMoney(paymentsNetCents)}
+                      name="paymentsNet"
+                    />
+                  </Field>
+                  <Field className="lg:col-span-4" label="Kurznotiz">
+                    <input className={inputClassName} defaultValue={report.note ?? ""} name="note" />
+                  </Field>
+                  <div className="lg:col-span-6">
+                    <button className={primaryButtonClassName} type="submit">
+                      Leistungsmeldungsdaten speichern
+                    </button>
+                  </div>
+                </form>
+              </section>
+
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -944,50 +1099,11 @@ export default async function ControllingPerformancePage({
                     detail="aus Rechnungsmengen, nicht als Istkosten gezählt"
                   />
                 </div>
-                <div
-                  className={`mt-5 rounded-2xl border p-4 text-sm ${
-                    activeRateSet
-                      ? "border-blue-100 bg-blue-50 text-blue-950"
-                      : "border-red-200 bg-red-50 text-red-800"
-                  }`}
-                >
-                  {activeRateSet ? (
-                    <>
-                      <span className="font-bold">Verwendeter Satzstand:</span>{" "}
-                      {activeRateSet.name} ({activeRateSet.year})
-                      {suggestedRateSet && suggestedRateSet.id !== activeRateSet.id
-                        ? ` · manuell gewählt, Vorschlag wäre ${suggestedRateSet.name} (${suggestedRateSet.year})`
-                        : " · Vorschlag nach Zeitraum"}
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold">Satzstand fehlt:</span> Für{" "}
-                      {activeRateYear} ist noch kein Satzstand angelegt. Bitte unter{" "}
-                      <Link className="underline" href="/controlling/rates">
-                        Controlling &gt; Verrechnungssätze
-                      </Link>{" "}
-                      zuerst den passenden Satzstand erstellen.
-                    </>
-                  )}
-                </div>
                 <form action={importDispositionIntoPerformanceReport} className="mt-5">
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
-                  <fieldset className="flex flex-wrap gap-4 text-xs font-semibold text-gray-700">
-                    <legend className="mb-1.5 w-full text-xs font-bold text-gray-900">
-                      Personalstunden aus:
-                    </legend>
-                    <label className="flex items-center gap-1.5">
-                      <input defaultChecked name="hourSource" type="radio" value="planned" />
-                      Geplante Dispo-Stunden (Personaleinsatzplanung)
-                    </label>
-                    <label className="flex items-center gap-1.5">
-                      <input name="hourSource" type="radio" value="actual" />
-                      Tatsächlich gebuchte Stunden (freigegebene Zeiterfassung)
-                    </label>
-                  </fieldset>
                   <button
-                    className={`mt-3 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
+                    className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
                       activeRateSet
                         ? "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
                         : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
@@ -998,129 +1114,14 @@ export default async function ControllingPerformancePage({
                     Stunden, Material und Geräte aus Planung/Disposition übernehmen
                   </button>
                   <p className="mt-2 text-xs text-gray-500">
-                    Ersetzt nur automatisch übernommene Controlling-Zeilen für diesen Zeitraum.
-                    Manuelle Einträge bleiben erhalten. Material und Geräte kommen unabhängig von der
-                    Auswahl oben weiterhin aus der Disposition.
+                    Nutzt den Modus aus &quot;Leistungsmeldungsdaten&quot; oben (aktuell:{" "}
+                    {report.hoursSource === "APPROVED_TIME"
+                      ? "Leistungsmeldung nach Leistung"
+                      : "Leistungsmeldung nach Disposition"}
+                    ). Ersetzt nur automatisch übernommene Controlling-Zeilen für diesen Zeitraum.
+                    Manuelle Einträge bleiben erhalten. Material und Geräte kommen unabhängig vom
+                    Modus weiterhin aus der Disposition.
                   </p>
-                </form>
-              </section>
-
-              <section
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-                key={`report-data-${report.id}`}
-              >
-                <h2 className="text-lg font-semibold text-gray-950">
-                  Leistungsmeldungsdaten
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Zeitraum, Status und Basiswerte dieser Leistungsmeldung. Die Projektstammdaten
-                  bleiben unverändert.
-                </p>
-                <form action={updatePerformanceReport} className="mt-4 grid gap-3 lg:grid-cols-6">
-                  <input name="reportId" type="hidden" value={report.id} />
-                  <input name="projectId" type="hidden" value={report.projectId} />
-                  <Field label="Zeitraum von">
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatInputDate(report.periodStart ?? report.reportDate)}
-                      name="periodStart"
-                      type="date"
-                    />
-                  </Field>
-                  <Field label="Zeitraum bis">
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatInputDate(report.periodEnd ?? report.reportDate)}
-                      name="periodEnd"
-                      type="date"
-                    />
-                  </Field>
-                  <Field className="lg:col-span-2" label="Titel / Thema">
-                    <input
-                      className={inputClassName}
-                      defaultValue={report.title ?? ""}
-                      name="title"
-                    />
-                  </Field>
-                  <Field label="Status">
-                    <select className={inputClassName} defaultValue={report.status} name="status">
-                      {reportStatuses.map((status) => (
-                        <option key={status.value} value={status.value}>
-                          {status.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field className="lg:col-span-2" label="Verrechnungssatz-Satzstand">
-                    <select
-                      className={inputClassName}
-                      defaultValue={activeRateSet?.id ?? ""}
-                      name="rateSetId"
-                    >
-                      <option value="">
-                        Vorschlag nach Zeitraum ({suggestedRateYear}) verwenden
-                      </option>
-                      {rateSets.map((rateSet) => (
-                        <option key={rateSet.id} value={rateSet.id}>
-                          {rateSet.name} ({rateSet.year})
-                          {rateSet.id === suggestedRateSet?.id ? " · vorgeschlagen" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field
-                    className="lg:col-span-2"
-                    label="Kolonnen-Vorschläge: Stunden aus"
-                  >
-                    <select
-                      className={inputClassName}
-                      defaultValue={report.hoursSource}
-                      name="hoursSource"
-                    >
-                      <option value="PLANNED">
-                        Geplante Dispo-Stunden (Personaleinsatzplanung)
-                      </option>
-                      <option value="APPROVED_TIME">
-                        Tatsächlich gebuchte Stunden (freigegebene Zeiterfassung)
-                      </option>
-                    </select>
-                  </Field>
-                  <Field label="Hauptauftrag netto">
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatRawMoney(contractValueNetCents)}
-                      name="contractValueNet"
-                    />
-                  </Field>
-                  <Field label="Nachträge netto">
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatRawMoney(changeOrdersNetCents)}
-                      name="changeOrdersNet"
-                    />
-                  </Field>
-                  <Field label="Leistungsstand %">
-                    <input
-                      className={inputClassName}
-                      defaultValue={report.progressPercent}
-                      name="progressPercent"
-                    />
-                  </Field>
-                  <Field label="Zahlungen netto">
-                    <input
-                      className={inputClassName}
-                      defaultValue={formatRawMoney(paymentsNetCents)}
-                      name="paymentsNet"
-                    />
-                  </Field>
-                  <Field className="lg:col-span-4" label="Kurznotiz">
-                    <input className={inputClassName} defaultValue={report.note ?? ""} name="note" />
-                  </Field>
-                  <div className="lg:col-span-6">
-                    <button className={primaryButtonClassName} type="submit">
-                      Leistungsmeldungsdaten speichern
-                    </button>
-                  </div>
                 </form>
               </section>
 
@@ -1355,8 +1356,8 @@ function CrewSuggestionsSection({
 }) {
   const sourceLabel =
     hoursSource === "APPROVED_TIME"
-      ? "freigegebene Zeiterfassung"
-      : "geplante Dispo-Stunden";
+      ? "freigegebener Zeiterfassung (Leistungsmeldung nach Leistung)"
+      : "geplanter Personaleinsatzplanung (Leistungsmeldung nach Disposition)";
 
   return (
     <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
@@ -1367,9 +1368,8 @@ function CrewSuggestionsSection({
         Aus {sourceLabel} für die diesem Projekt zugeteilten Kolonnen. Ein
         Klick bucht die Position direkt (mit Datum {entryDate}) - danach
         über &quot;Bearbeiten&quot; korrigierbar. Kein automatisches
-        Doppelbuchen, nichts wird ohne Klick gespeichert. Quelle unter
-        &quot;Leistungsmeldungsdaten&quot; -&gt; &quot;Kolonnen-Vorschläge:
-        Stunden aus&quot; umstellbar.
+        Doppelbuchen, nichts wird ohne Klick gespeichert. Modus oben unter
+        &quot;Leistungsmeldungsdaten&quot; umstellbar.
       </p>
 
       <div className="mt-4 space-y-3">
