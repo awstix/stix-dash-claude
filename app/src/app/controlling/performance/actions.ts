@@ -453,6 +453,116 @@ export async function deleteControllingHourEntry(formData: FormData) {
   redirect(pathFor(reportId, projectId));
 }
 
+/** Bearbeitet nur die Zahlen in DIESER Leistungsmeldung
+ * (ControllingHourEntry) - komplett getrennt von der echten Zeiterfassung
+ * (CrewTimeEntry) und der Lohnabrechnung. Eine Korrektur hier bucht/ändert
+ * nichts an gebuchten Stunden, Löhnen oder Personalzeiten um. */
+export async function updateControllingHourEntry(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+  const label = requiredText(formData.get("label"), "Bezeichnung");
+  const hoursPerEmployee = numberValue(formData.get("hoursPerEmployee"), "Std je MA");
+  const employeeCount = numberValue(formData.get("employeeCount"), "Anzahl MA") || 1;
+  const totalHours = Math.round(hoursPerEmployee * employeeCount * 100) / 100;
+  const realRateCents = moneyCents(formData.get("realRate"), "EK real");
+  const internalRateCents = moneyCents(formData.get("internalRate"), "Interner Satz");
+  const costCategory =
+    text(formData.get("costCategory")) === "GEHALT_SONSTIGES" ? "GEHALT_SONSTIGES" : "LOHN";
+  const status = requiredText(formData.get("status"), "Status");
+
+  await prisma.controllingHourEntry.update({
+    data: {
+      breakHours: numberValue(formData.get("breakHours"), "Pause"),
+      costCategory,
+      employeeCount,
+      endsAt: text(formData.get("endsAt")),
+      entryDate: requiredDate(formData.get("entryDate"), "Datum"),
+      hoursPerEmployee,
+      internalCostCents: Math.round(totalHours * internalRateCents),
+      internalRateCents,
+      label,
+      notes: text(formData.get("notes")),
+      realCostCents: Math.round(totalHours * realRateCents),
+      realRateCents,
+      startsAt: text(formData.get("startsAt")),
+      status,
+      totalHours,
+    },
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+/** Schnelle Freigabe ohne das Bearbeiten-Popup zu öffnen, analog zu
+ * markControllingDetailEntryActual. */
+export async function markControllingHourEntryActual(formData: FormData) {
+  await requireSession();
+  const id = requiredText(formData.get("id"), "Eintrag");
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingHourEntry.update({
+    data: {
+      status: "tatsächlich verbaut",
+    },
+    where: {
+      id,
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+/** Setzt alle noch "geschätzt" markierten Detail-Positionen dieser
+ * Leistungsmeldung auf einen Schlag auf "tatsächlich verbaut" - für den
+ * Fall, dass die Dispo-Mengen nach Prüfung insgesamt schon gepasst haben
+ * und nicht jede Zeile einzeln bestätigt werden soll. */
+export async function markAllDetailEntriesActual(formData: FormData) {
+  await requireSession();
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingDetailEntry.updateMany({
+    data: {
+      status: "tatsächlich verbaut",
+    },
+    where: {
+      reportId,
+      status: "geschätzt",
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
+/** Wie markAllDetailEntriesActual, nur für die Stunden-Positionen. */
+export async function markAllHourEntriesActual(formData: FormData) {
+  await requireSession();
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+
+  await prisma.controllingHourEntry.updateMany({
+    data: {
+      status: "tatsächlich verbaut",
+    },
+    where: {
+      reportId,
+      status: "geschätzt",
+    },
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
 export async function deleteControllingInvoiceItem(formData: FormData) {
   await requireSession();
   const id = requiredText(formData.get("id"), "Eintrag");

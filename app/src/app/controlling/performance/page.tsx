@@ -12,8 +12,12 @@ import {
   deleteControllingHourEntry,
   deleteControllingInvoiceItem,
   deletePerformanceReport,
+  markAllDetailEntriesActual,
+  markAllHourEntriesActual,
   markControllingDetailEntryActual,
+  markControllingHourEntryActual,
   updateControllingDetailEntry,
+  updateControllingHourEntry,
   importDetailEntriesFromExcel,
   importDispositionIntoPerformanceReport,
   importItwoInvoiceItems,
@@ -24,8 +28,10 @@ import { DeleteEntryButton } from "./DeleteEntryButton";
 import { DeletePerformanceReportButton } from "./DeletePerformanceReportButton";
 import { DetailEntryForm } from "./DetailEntryForm";
 import { EditDetailEntryButton } from "./EditDetailEntryButton";
+import { EditHourEntryButton } from "./EditHourEntryButton";
 import { HoursSourceToggle } from "./HoursSourceToggle";
-import { MarkDetailEntryActualButton } from "./MarkDetailEntryActualButton";
+import { MarkAllActualButton } from "./MarkAllActualButton";
+import { MarkEntryActualButton } from "./MarkEntryActualButton";
 import { ProjectPerformanceSidebar } from "./ProjectPerformanceSidebar";
 
 const reportStatuses = [
@@ -1156,6 +1162,14 @@ export default async function ControllingPerformancePage({
                 <div className="mt-4 space-y-4">
                   <DataTable
                     columns={["Datum", "Art", "Beschreibung", "Menge", "Satz", "Anteil %", "Betrag", "Herkunft", "Status", "Aktion"]}
+                    headerAction={
+                      <MarkAllActualButton
+                        action={markAllDetailEntriesActual}
+                        count={report.detailEntries.filter((entry) => entry.status === "geschätzt").length}
+                        projectId={report.projectId}
+                        reportId={report.id}
+                      />
+                    }
                     rows={report.detailEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.costType,
@@ -1189,7 +1203,7 @@ export default async function ControllingPerformancePage({
                         />
                         {(entry.costType === "Material" || entry.costType === "Geräte") &&
                         entry.status !== "tatsächlich verbaut" ? (
-                          <MarkDetailEntryActualButton
+                          <MarkEntryActualButton
                             action={markControllingDetailEntryActual}
                             id={entry.id}
                             projectId={report.projectId}
@@ -1208,7 +1222,15 @@ export default async function ControllingPerformancePage({
                     title="Detail"
                   />
                   <DataTable
-                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Kostenart", "Herkunft", "Aktion"]}
+                    columns={["Datum", "Bezeichnung", "MA", "Std", "Satz", "Kosten", "Kostenart", "Herkunft", "Status", "Aktion"]}
+                    headerAction={
+                      <MarkAllActualButton
+                        action={markAllHourEntriesActual}
+                        count={report.hourEntries.filter((entry) => entry.status === "geschätzt").length}
+                        projectId={report.projectId}
+                        reportId={report.id}
+                      />
+                    }
                     rows={report.hourEntries.map((entry) => [
                       formatDate(entry.entryDate),
                       entry.label,
@@ -1218,14 +1240,44 @@ export default async function ControllingPerformancePage({
                       formatMoney(entry.realCostCents),
                       entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
                       getSourceLabel(entry.source, entry.notes),
-                      <DeleteEntryButton
-                        action={deleteControllingHourEntry}
-                        id={entry.id}
-                        key={`delete-${entry.id}`}
-                        label={entry.label}
-                        projectId={report.projectId}
-                        reportId={report.id}
-                      />,
+                      getHourStatusBadge(entry.status, reportHoursSource),
+                      <div className="flex gap-2" key={`actions-${entry.id}`}>
+                        <EditHourEntryButton
+                          entry={{
+                            id: entry.id,
+                            breakHours: formatDecimal(entry.breakHours),
+                            costCategory: entry.costCategory,
+                            employeeCount: formatDecimal(entry.employeeCount),
+                            endsAt: entry.endsAt ?? "",
+                            entryDate: formatInputDate(entry.entryDate),
+                            hoursPerEmployee: formatDecimal(entry.hoursPerEmployee),
+                            internalRate: formatRawMoney(entry.internalRateCents),
+                            label: entry.label,
+                            notes: entry.notes ?? "",
+                            realRate: formatRawMoney(entry.realRateCents),
+                            startsAt: entry.startsAt ?? "",
+                            status: entry.status,
+                          }}
+                          projectId={report.projectId}
+                          reportId={report.id}
+                          updateAction={updateControllingHourEntry}
+                        />
+                        {entry.status !== "tatsächlich verbaut" ? (
+                          <MarkEntryActualButton
+                            action={markControllingHourEntryActual}
+                            id={entry.id}
+                            projectId={report.projectId}
+                            reportId={report.id}
+                          />
+                        ) : null}
+                        <DeleteEntryButton
+                          action={deleteControllingHourEntry}
+                          id={entry.id}
+                          label={entry.label}
+                          projectId={report.projectId}
+                          reportId={report.id}
+                        />
+                      </div>,
                     ])}
                     title="Stunden"
                   />
@@ -1946,16 +1998,21 @@ function StatusPill({
 
 function DataTable({
   columns,
+  headerAction,
   rows,
   title,
 }: {
   columns: string[];
+  headerAction?: ReactNode;
   rows: ReactNode[][];
   title: string;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200">
-      <div className="bg-gray-50 px-3 py-2 text-sm font-bold text-gray-950">{title}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 px-3 py-2">
+        <span className="text-sm font-bold text-gray-950">{title}</span>
+        {headerAction}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-xs">
           <thead className="bg-gray-100 text-gray-600">
@@ -2391,6 +2448,29 @@ function getDetailStatusBadge(status: string, costType: string, hoursSource: str
     (costType === "Material" || costType === "Geräte") && hoursSource === "APPROVED_TIME";
 
   if (needsCheck) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
+        ⚠ {status}
+      </span>
+    );
+  }
+
+  return <span className="text-xs text-gray-600">{status}</span>;
+}
+
+/** Gleiches Prinzip wie getDetailStatusBadge, für Stunden-Positionen -
+ * ohne costType-Filter, da bei Stunden die Unterscheidung
+ * geschätzt/tatsächlich verbaut unabhängig von einer Kostenart gilt. */
+function getHourStatusBadge(status: string, hoursSource: string) {
+  if (status === "tatsächlich verbaut") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+        ✓ tatsächlich verbaut
+      </span>
+    );
+  }
+
+  if (hoursSource === "APPROVED_TIME") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
         ⚠ {status}

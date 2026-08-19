@@ -2791,6 +2791,10 @@ model ControllingHourEntry {
   employeeCount     Float    @default(1)
   hoursPerEmployee  Float    @default(0)
   totalHours        Float    @default(0)
+  // Gleiches Konzept wie ControllingDetailEntry.status - "geschätzt" für
+  // automatisch/vorläufig übernommene Stunden, "tatsächlich verbaut" nach
+  // Prüfung/Bestätigung durch Bauleitung/Controlling.
+  status            String   @default("geschätzt")
   realRateCents     Int      @default(0)
   internalRateCents Int      @default(0)
   realCostCents     Int      @default(0)
