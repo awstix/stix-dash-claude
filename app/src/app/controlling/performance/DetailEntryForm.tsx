@@ -33,8 +33,28 @@ export type DetailEntryEditValues = {
 };
 
 const costTypes = ["Lohn", "Material", "Geräte", "Nachunternehmer", "Sonstiges"];
-const units = ["h", "Stk.", "m", "m²", "m³", "t", "pauschal", "€"];
-const entryStatuses = ["geschätzt", "geprüft", "gebucht", "offen", "erledigt"];
+// Muss jede im Inventar tatsächlich vorkommende stockUnit als exakt
+// passende Option enthalten - sonst zeigt der Browser bei einer Auswahl
+// aus dem Objekt-Picker (unit kommt 1:1 aus InventoryItem.stockUnit) die
+// erste Option ("h") an, weil kein <option> zum Wert passt, obwohl
+// intern der richtige Wert gesetzt ist. "to"/"Stück"/"m2"/"m3" sind die
+// im Inventar tatsächlich verwendeten Schreibweisen (nicht "t"/"m²"/"m³").
+const units = [
+  "h",
+  "Stk.",
+  "Stück",
+  "m",
+  "m2",
+  "m²",
+  "m3",
+  "m³",
+  "t",
+  "to",
+  "l",
+  "pauschal",
+  "€",
+];
+const entryStatuses = ["geschätzt", "geprüft", "tatsächlich verbaut", "gebucht", "offen", "erledigt"];
 
 const inputClassName =
   "mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-gray-900";
