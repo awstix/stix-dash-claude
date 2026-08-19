@@ -48,6 +48,20 @@ type TackCoatSummaryItem = {
   count: number;
 };
 
+type ProjectBreakdownItem = {
+  count: number;
+  label: string;
+  quantity: number;
+  unit: string;
+};
+
+type ProjectBreakdownGroup = {
+  items: ProjectBreakdownItem[];
+  projectName: string;
+  projectNumber: string;
+  totalQuantity: number;
+};
+
 type VehiclePayloadSummary = {
   category: string;
   vehicleCount: number;
@@ -621,6 +635,93 @@ export default async function AsphaltDispatchPage({
     a.materialNumber.localeCompare(b.materialNumber, "de-DE"),
   );
 
+  // Detailansicht Wochenzusammenfassung: dieselben Wochen-Daten wie oben,
+  // nur zusätzlich je Baustelle aufgeschlüsselt statt nur nach Sorte
+  // gesamt - eigener Abschnitt, damit die Grundansicht kompakt bleibt.
+  function resolveTackCoatMaterial(position: (typeof tackCoatOpenPositions)[number]) {
+    const material =
+      (position.tackCoatMaterialTypeId
+        ? tackCoatMaterialById.get(position.tackCoatMaterialTypeId)
+        : null) ?? tackCoatMaterialByName.get(position.materialName.trim().toLowerCase());
+    return {
+      materialName: material?.name ?? position.materialName ?? "Ohne Bezeichnung",
+      materialNumber: material?.materialNumber ?? "-",
+    };
+  }
+
+  function buildProjectBreakdown<T>(
+    items: T[],
+    getProject: (item: T) => { projectName: string; projectNumber: string },
+    getEntry: (item: T) => { key: string; label: string; quantity: number; unit: string },
+  ): ProjectBreakdownGroup[] {
+    const groups = new Map<
+      string,
+      { items: Map<string, ProjectBreakdownItem>; projectName: string; projectNumber: string }
+    >();
+
+    for (const item of items) {
+      const { projectName, projectNumber } = getProject(item);
+      const projectKey = `${projectNumber || "-"}-${projectName || "ohne Baustelle"}`;
+      const group = groups.get(projectKey) ?? {
+        items: new Map<string, ProjectBreakdownItem>(),
+        projectName: projectName || "Ohne Baustelle",
+        projectNumber: projectNumber || "-",
+      };
+
+      const entry = getEntry(item);
+      const existing = group.items.get(entry.key) ?? {
+        count: 0,
+        label: entry.label,
+        quantity: 0,
+        unit: entry.unit,
+      };
+      existing.quantity += entry.quantity;
+      existing.count += 1;
+      group.items.set(entry.key, existing);
+      groups.set(projectKey, group);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => {
+        const groupItems = Array.from(group.items.values()).sort((a, b) =>
+          a.label.localeCompare(b.label, "de-DE"),
+        );
+        return {
+          items: groupItems,
+          projectName: group.projectName,
+          projectNumber: group.projectNumber,
+          totalQuantity: groupItems.reduce((sum, item) => sum + item.quantity, 0),
+        };
+      })
+      .sort((a, b) => a.projectNumber.localeCompare(b.projectNumber, "de-DE"));
+  }
+
+  const asphaltByProject = buildProjectBreakdown(
+    asphaltEntries,
+    (entry) => ({ projectName: entry.projectName, projectNumber: entry.projectNumber }),
+    (entry) => ({
+      key: `${entry.asphaltMixNumber ?? "-"}-${entry.asphaltMixName ?? "Ohne Bezeichnung"}`,
+      label: `${entry.asphaltMixNumber ?? "-"} · ${entry.asphaltMixName ?? "Ohne Bezeichnung"}`,
+      quantity: entry.quantityTons,
+      unit: "t",
+    }),
+  );
+
+  const tackCoatByProject = buildProjectBreakdown(
+    tackCoatOpenPositions,
+    (position) => ({ projectName: position.projectName, projectNumber: position.projectNumber }),
+    (position) => {
+      const { materialName, materialNumber } = resolveTackCoatMaterial(position);
+      const unit = normalizeTackCoatUnit(position.quantityUnit);
+      return {
+        key: `${materialNumber}-${materialName}-${unit}`,
+        label: `${materialNumber} · ${materialName}`,
+        quantity: position.plannedLiters,
+        unit,
+      };
+    },
+  );
+
   const gridStyle = {
     gridTemplateColumns: `130px repeat(${days.length}, minmax(0, 1fr))`,
   };
@@ -794,6 +895,117 @@ export default async function AsphaltDispatchPage({
             )}
           </div>
         </div>
+
+        <details className="group mt-6 rounded-xl border border-gray-200 bg-gray-50">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm font-semibold text-gray-900">
+              Detailansicht Wochenzusammenfassung (nach Baustelle)
+            </span>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-950 transition-transform group-open:rotate-180"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2.5"
+                viewBox="0 0 24 24"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </span>
+          </summary>
+
+          <div className="space-y-6 border-t border-gray-200 p-4">
+            <div>
+              <h3 className="text-sm font-semibold uppercase text-gray-500">
+                Asphalt nach Baustelle &amp; Mischgut
+              </h3>
+              {asphaltByProject.length === 0 ? (
+                <p className="mt-3 text-sm text-gray-500">
+                  Noch keine Asphalteinträge in dieser Woche.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-4">
+                  {asphaltByProject.map((project) => (
+                    <div
+                      className="rounded-xl border border-gray-200 bg-white"
+                      key={`${project.projectNumber}-${project.projectName}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {project.projectNumber} · {project.projectName}
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {formatTons(project.totalQuantity)} t
+                        </span>
+                      </div>
+                      <table className="w-full text-left text-sm">
+                        <tbody>
+                          {project.items.map((item) => (
+                            <tr className="border-t border-gray-100" key={item.label}>
+                              <td className="px-3 py-2 text-gray-700">{item.label}</td>
+                              <td className="px-3 py-2 text-gray-500">
+                                {item.count} Eintrag{item.count === 1 ? "" : "e"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-gray-900">
+                                {formatTons(item.quantity)} {item.unit}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold uppercase text-purple-700">
+                Anspritzmittel nach Baustelle &amp; Material
+              </h3>
+              {tackCoatByProject.length === 0 ? (
+                <p className="mt-3 text-sm text-gray-500">
+                  Noch kein Anspritzmittel in dieser Woche.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-4">
+                  {tackCoatByProject.map((project) => (
+                    <div
+                      className="rounded-xl border border-gray-200 bg-white"
+                      key={`${project.projectNumber}-${project.projectName}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {project.projectNumber} · {project.projectName}
+                        </span>
+                      </div>
+                      <table className="w-full text-left text-sm">
+                        <tbody>
+                          {project.items.map((item) => (
+                            <tr className="border-t border-gray-100" key={item.label}>
+                              <td className="px-3 py-2 text-gray-700">{item.label}</td>
+                              <td className="px-3 py-2 text-gray-500">
+                                {item.count} Eintrag{item.count === 1 ? "" : "e"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-gray-900">
+                                {formatLiters(item.quantity)} {item.unit}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </details>
       </div>
 
       <div className="relative overflow-visible rounded-2xl border border-gray-200 bg-white shadow-sm">
