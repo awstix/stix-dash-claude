@@ -719,11 +719,20 @@ export default async function ControllingPerformancePage({
   // Skonto/Nachlass mindern den abgerechneten Umsatz, bevor daraus
   // Ergebnis/DB berechnet werden - der rohe invoiceRevenueCents bleibt
   // für "Auftrag / Abrechnung" (Rechnungsstand) unverändert sichtbar.
+  // Nachlass mindert den Nettopreis direkt, Skonto wird beim
+  // Zahlungseingang vom (bereits um Nachlass reduzierten) Bruttobetrag
+  // abgezogen - beides nacheinander (nicht einfach addiert), sonst
+  // stimmt der Endbetrag bei beiden zusammen nicht. Da die MwSt ein
+  // fester Faktor ist, kürzt sie sich beim Zurückrechnen auf netto
+  // wieder heraus - der Skonto-Prozentsatz wirkt in Netto-Rechnung also
+  // genauso wie in Brutto-Rechnung, nur eben auf den (um Nachlass schon
+  // reduzierten) Betrag.
   const skontoPercent = currentProjectForValues?.skontoPercent ?? 0;
   const nachlassPercent = currentProjectForValues?.nachlassPercent ?? 0;
   const skontoNachlassPercent = skontoPercent + nachlassPercent;
+  const revenueAfterNachlassCents = invoiceRevenueCents * (1 - nachlassPercent / 100);
   const effectiveInvoiceRevenueCents = Math.round(
-    invoiceRevenueCents * (1 - skontoNachlassPercent / 100),
+    revenueAfterNachlassCents * (1 - skontoPercent / 100),
   );
   const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
@@ -1424,9 +1433,11 @@ export default async function ControllingPerformancePage({
                 effectiveInvoiceRevenueCents={effectiveInvoiceRevenueCents}
                 hasGehaltHours={hasGehaltHours}
                 invoiceRevenueCents={invoiceRevenueCents}
+                nachlassPercent={nachlassPercent}
                 openWipCents={openWipCents}
                 performanceValueCents={performanceValueCents}
                 skontoNachlassPercent={skontoNachlassPercent}
+                skontoPercent={skontoPercent}
                 totalContractCents={totalContractCents}
               />
 
@@ -1928,9 +1939,11 @@ function PerformanceAnalysisSection({
   effectiveInvoiceRevenueCents,
   hasGehaltHours,
   invoiceRevenueCents,
+  nachlassPercent,
   openWipCents,
   performanceValueCents,
   skontoNachlassPercent,
+  skontoPercent,
   totalContractCents,
 }: {
   actualHours: number;
@@ -1939,9 +1952,11 @@ function PerformanceAnalysisSection({
   effectiveInvoiceRevenueCents: number;
   hasGehaltHours: boolean;
   invoiceRevenueCents: number;
+  nachlassPercent: number;
   openWipCents: number;
   performanceValueCents: number;
   skontoNachlassPercent: number;
+  skontoPercent: number;
   totalContractCents: number;
 }) {
   const actualCostCents =
@@ -2047,6 +2062,14 @@ function PerformanceAnalysisSection({
             also wie viel vom Umsatz nach Abzug aller erfassten Kosten noch übrig bleibt.
           </li>
           <li>
+            <span className="font-semibold text-gray-800">Skonto/Nachlass</span> = Nachlass
+            mindert zuerst den Netto-Umsatz, danach mindert Skonto den (bereits um Nachlass
+            reduzierten) Betrag - nacheinander, nicht einfach addiert (Skonto wirkt in der Praxis
+            auf den Bruttobetrag, was in Netto-Rechnung auf denselben Prozentsatz hinausläuft, nur
+            eben auf den bereits nachlassreduzierten Betrag). Der resultierende Betrag steht ganz
+            unten als eigene Zeile &bdquo;Umsatz nach Skonto/Nachlass&ldquo;.
+          </li>
+          <li>
             <span className="font-semibold text-gray-800">Stunden</span> = Differenz zwischen
             erfassten Ist-Stunden und den durch die Abrechnung &quot;verdienten&quot; Stunden
             (Rechnungsmenge × Std./ME je Position).
@@ -2115,6 +2138,15 @@ function PerformanceAnalysisSection({
           tone="neutral"
           value={formatMoney(totalContractCents)}
         />
+        {skontoNachlassPercent > 0 ? (
+          <SmallAnalysisLine
+            label={`Umsatz nach Skonto (${formatPercent(skontoPercent / 100)}) / Nachlass (${formatPercent(
+              nachlassPercent / 100,
+            )})`}
+            tone="neutral"
+            value={formatMoney(effectiveInvoiceRevenueCents)}
+          />
+        ) : null}
       </div>
     </section>
   );

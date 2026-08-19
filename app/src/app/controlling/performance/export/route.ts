@@ -112,11 +112,17 @@ function computeReportMetrics(
     contractCents * (report.progressPercent / 100),
   );
 
+  // Nachlass mindert den Nettopreis, Skonto wird vom (bereits um
+  // Nachlass reduzierten) Bruttobetrag abgezogen - nacheinander, nicht
+  // addiert. Die MwSt kürzt sich beim Zurückrechnen auf netto wieder
+  // heraus, der Skonto-Prozentsatz wirkt also gleich, egal ob auf netto
+  // oder brutto gerechnet - nur eben auf den nachlassreduzierten Betrag.
   const skontoPercent = project.skontoPercent;
   const nachlassPercent = project.nachlassPercent;
   const skontoNachlassPercent = skontoPercent + nachlassPercent;
+  const revenueAfterNachlassCents = invoiceRevenueCents * (1 - nachlassPercent / 100);
   const effectiveInvoiceRevenueCents = Math.round(
-    invoiceRevenueCents * (1 - skontoNachlassPercent / 100),
+    revenueAfterNachlassCents * (1 - skontoPercent / 100),
   );
 
   const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
