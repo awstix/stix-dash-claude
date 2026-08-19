@@ -879,7 +879,11 @@ export default async function ControllingPerformancePage({
                   Zeitraum, Status und Basiswerte dieser Leistungsmeldung. Die Projektstammdaten
                   bleiben unverändert.
                 </p>
-                <form action={updatePerformanceReport} className="mt-4 grid gap-3 lg:grid-cols-6">
+                <form
+                  action={updatePerformanceReport}
+                  className="mt-4 grid gap-3 lg:grid-cols-6"
+                  id="leistungsmeldungsdaten-form"
+                >
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
                   <Field label="Zeitraum von">
@@ -992,50 +996,21 @@ export default async function ControllingPerformancePage({
                   <Field className="lg:col-span-4" label="Kurznotiz">
                     <input className={inputClassName} defaultValue={report.note ?? ""} name="note" />
                   </Field>
-                  <div className="lg:col-span-6">
-                    <button className={primaryButtonClassName} type="submit">
-                      Leistungsmeldungsdaten speichern
-                    </button>
-                  </div>
                 </form>
               </section>
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
-                      Schnellcheck
-                    </p>
-                    <h2 className="mt-1 text-2xl font-bold text-gray-950">
-                      {report.project.projectNumber} · {report.project.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Zeitraum {formatDate(report.periodStart ?? report.reportDate)} –{" "}
-                      {formatDate(report.periodEnd ?? report.reportDate)} · Status{" "}
-                      {getReportStatusLabel(report.status)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      className="inline-flex rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                      href={`/controlling/performance/export?reportId=${report.id}&format=xlsx`}
-                    >
-                      Excel exportieren
-                    </Link>
-                    <Link
-                      className="inline-flex rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                      href={`/controlling/performance/export?reportId=${report.id}&format=pdf`}
-                    >
-                      PDF exportieren
-                    </Link>
-                    <DeletePerformanceReportButton
-                      action={deletePerformanceReport}
-                      label={`${report.title || "Leistungsmeldung"} · ${formatDate(report.periodStart ?? report.reportDate)} – ${formatDate(report.periodEnd ?? report.reportDate)}`}
-                      projectId={report.projectId}
-                      reportId={report.id}
-                    />
-                  </div>
-                </div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
+                  Schnellcheck
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-gray-950">
+                  {report.project.projectNumber} · {report.project.name}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Zeitraum {formatDate(report.periodStart ?? report.reportDate)} –{" "}
+                  {formatDate(report.periodEnd ?? report.reportDate)} · Status{" "}
+                  {getReportStatusLabel(report.status)}
+                </p>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                   <MetricCard
@@ -1280,16 +1255,48 @@ export default async function ControllingPerformancePage({
           ) : null}
 
           {report ? (
-            <PerformanceAnalysisSection
-              actualHours={actualHours}
-              billedHours={billedHours}
-              costAnalysisRows={costAnalysisRows}
-              hasGehaltHours={hasGehaltHours}
-              invoiceRevenueCents={invoiceRevenueCents}
-              openWipCents={openWipCents}
-              performanceValueCents={performanceValueCents}
-              totalContractCents={totalContractCents}
-            />
+            <>
+              <PerformanceAnalysisSection
+                actualHours={actualHours}
+                billedHours={billedHours}
+                costAnalysisRows={costAnalysisRows}
+                hasGehaltHours={hasGehaltHours}
+                invoiceRevenueCents={invoiceRevenueCents}
+                openWipCents={openWipCents}
+                performanceValueCents={performanceValueCents}
+                totalContractCents={totalContractCents}
+              />
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    className={primaryButtonClassName}
+                    form="leistungsmeldungsdaten-form"
+                    type="submit"
+                  >
+                    Leistungsmeldungsdaten speichern
+                  </button>
+                  <Link
+                    className="inline-flex rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                    href={`/controlling/performance/export?reportId=${report.id}&format=xlsx`}
+                  >
+                    Excel exportieren
+                  </Link>
+                  <Link
+                    className="inline-flex rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                    href={`/controlling/performance/export?reportId=${report.id}&format=pdf`}
+                  >
+                    PDF exportieren
+                  </Link>
+                  <DeletePerformanceReportButton
+                    action={deletePerformanceReport}
+                    label={`${report.title || "Leistungsmeldung"} · ${formatDate(report.periodStart ?? report.reportDate)} – ${formatDate(report.periodEnd ?? report.reportDate)}`}
+                    projectId={report.projectId}
+                    reportId={report.id}
+                  />
+                </div>
+              </section>
+            </>
           ) : null}
         </div>
       </div>
