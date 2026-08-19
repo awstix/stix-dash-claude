@@ -1983,6 +1983,62 @@ async function runDispositionImport(
     }
   });
 
+  // Geräte, die über "Vorschläge aus Kolonnen-Zuteilung" gebucht wurden
+  // (source MANUAL, daher vom obigen deleteMany/createMany unangetastet),
+  // sollen dieselbe Stundenzahl zeigen wie die Kolonne gerade tatsächlich
+  // hat - je nachdem, ob "Leistungsmeldung nach Disposition" oder "nach
+  // Leistung" aktiv ist. Referenz dafür ist die frisch importierte
+  // Personalstunden-Zeile eines Kolonnenmitglieds (oben gerade neu
+  // geschrieben), nicht die Personalstunden selbst - die stehen für die
+  // Kolonne schon direkt aus dem Import korrekt da.
+  const crewSuggestionEquipmentEntries = await prisma.controllingDetailEntry.findMany({
+    where: {
+      costType: "Geräte",
+      notes: { startsWith: "Vorschlag Kolonne " },
+      reportId,
+      source: "MANUAL",
+    },
+  });
+
+  for (const entry of crewSuggestionEquipmentEntries) {
+    const crewName = entry.notes?.match(/^Vorschlag Kolonne (.+?) \(/)?.[1];
+    if (!crewName) continue;
+
+    const crew = await prisma.crew.findFirst({
+      include: {
+        members: {
+          select: { employee: { select: { firstName: true, lastName: true } } },
+          where: { isActive: true },
+        },
+      },
+      where: { name: crewName },
+    });
+    if (!crew) continue;
+
+    const employeeLabels = crew.members.map(
+      (member) => `${member.employee.lastName}, ${member.employee.firstName}`,
+    );
+    if (!employeeLabels.length) continue;
+
+    const referenceHourEntry = await prisma.controllingHourEntry.findFirst({
+      where: { label: { in: employeeLabels }, reportId },
+    });
+    if (!referenceHourEntry) continue;
+
+    const newQuantity = Math.round(referenceHourEntry.hoursPerEmployee * 100) / 100;
+    if (Math.abs(newQuantity - entry.quantity) < 0.01) continue;
+
+    await prisma.controllingDetailEntry.update({
+      data: {
+        amountCents: Math.round(
+          (newQuantity * entry.unitPriceCents * entry.utilizationPercent) / 100,
+        ),
+        quantity: newQuantity,
+      },
+      where: { id: entry.id },
+    });
+  }
+
   return {
     detailCount: detailEntries.length,
     hourCount: hourEntries.length,
