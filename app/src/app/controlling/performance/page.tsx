@@ -718,6 +718,7 @@ export default async function ControllingPerformancePage({
   const actualCostCents = detailCostCents + hourRealCostCents;
   const resultBaseCents = Math.max(performanceValueCents, invoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
+  const forecastPercent = resultBaseCents > 0 ? forecastCents / resultBaseCents : 0;
   const openWipCents = Math.max(0, performanceValueCents - invoiceRevenueCents);
   // Gehalt/Sonstiges-Stunden fließen bewusst nicht in die Stunden-Bilanz
   // ein - die sind bereits über die Kosten in der Zeile "Sonstiges"
@@ -1035,11 +1036,11 @@ export default async function ControllingPerformancePage({
                     dark
                     label="Ergebnis aktuell"
                     value={formatMoney(forecastCents)}
-                    detail={
+                    detail={`DB ${formatPercent(forecastPercent)} · Basis: ${
                       invoiceRevenueCents > performanceValueCents
-                        ? "Basis: abgerechneter Umsatz"
-                        : "Basis: Leistungsstand"
-                    }
+                        ? "abgerechneter Umsatz"
+                        : "Leistungsstand"
+                    }`}
                   />
                   <MetricCard label="Gesamtauftrag" value={formatMoney(totalContractCents)} />
                   <MetricCard
@@ -1072,8 +1073,13 @@ export default async function ControllingPerformancePage({
                       <span className="font-semibold text-gray-800">Ergebnis aktuell</span> = der
                       höhere Wert aus Leistungsstand (kalkulierter Auftragswert × Leistungsstand %)
                       oder bisher abgerechnetem Umsatz, minus erfasste Istkosten (Lohn +
-                      Detailpositionen). Der Hinweistext darunter zeigt, welche der beiden Basis
-                      gerade verwendet wird.
+                      Detailpositionen). DB darunter ist dasselbe Ergebnis als Prozentsatz von
+                      dieser Basis. Der Hinweistext zeigt, welche der beiden Basis gerade verwendet
+                      wird - solange Leistungsstand und abgerechneter Umsatz auseinanderliegen
+                      (normal, wenn die Abrechnung der Arbeit hinterherhinkt), weicht dieser Wert
+                      bewusst von &quot;Ergebnis nach Istkosten&quot; weiter unten ab, das immer
+                      nur den abgerechneten Umsatz als Basis nimmt - erst wenn beides
+                      übereinstimmt, zeigen beide dasselbe.
                     </li>
                     <li>
                       <span className="font-semibold text-gray-800">Leistungsstand</span> = der in
