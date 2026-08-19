@@ -716,10 +716,41 @@ export default async function ControllingPerformancePage({
     totalContractCents * ((report?.progressPercent ?? selectedProject?.progressPercent ?? 0) / 100),
   );
   const actualCostCents = detailCostCents + hourRealCostCents;
-  const resultBaseCents = Math.max(performanceValueCents, invoiceRevenueCents);
+  // Skonto/Nachlass mindern den abgerechneten Umsatz, bevor daraus
+  // Ergebnis/DB berechnet werden - der rohe invoiceRevenueCents bleibt
+  // für "Auftrag / Abrechnung" (Rechnungsstand) unverändert sichtbar.
+  const skontoPercent = currentProjectForValues?.skontoPercent ?? 0;
+  const nachlassPercent = currentProjectForValues?.nachlassPercent ?? 0;
+  const skontoNachlassPercent = skontoPercent + nachlassPercent;
+  const effectiveInvoiceRevenueCents = Math.round(
+    invoiceRevenueCents * (1 - skontoNachlassPercent / 100),
+  );
+  const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
   const forecastPercent = resultBaseCents > 0 ? forecastCents / resultBaseCents : 0;
   const openWipCents = Math.max(0, performanceValueCents - invoiceRevenueCents);
+  // Umlage-Vergleich: aus der echten Auftragssumme wird die
+  // Kalkulations-Kostenbasis mit der tatsächlichen Umlage zurückgerechnet,
+  // damit wird eine hypothetische Auftragssumme mit der normalen Umlage
+  // berechnet - die Differenz ist der zusätzliche Gewinn durch einen
+  // höheren (oder niedrigeren) Zuschlag als üblich.
+  const normalUmlagePercent =
+    (currentProjectForValues?.normalAgkPercent ?? 10) +
+    (currentProjectForValues?.normalWugPercent ?? 6) +
+    (currentProjectForValues?.normalBgkPercent ?? 6);
+  const actualUmlagePercent =
+    (currentProjectForValues?.actualAgkPercent ?? 10) +
+    (currentProjectForValues?.actualWugPercent ?? 6) +
+    (currentProjectForValues?.actualBgkPercent ?? 6) +
+    (currentProjectForValues?.actualFreierZuschlagPercent ?? 0);
+  const umlageCostBasisCents =
+    actualUmlagePercent > -100
+      ? totalContractCents / (1 + actualUmlagePercent / 100)
+      : totalContractCents;
+  const normalContractCents = Math.round(
+    umlageCostBasisCents * (1 + normalUmlagePercent / 100),
+  );
+  const umlageGewinnCents = totalContractCents - normalContractCents;
   // Gehalt/Sonstiges-Stunden fließen bewusst nicht in die Stunden-Bilanz
   // ein - die sind bereits über die Kosten in der Zeile "Sonstiges"
   // verrechnet, würden hier also doppelt gezählt.
@@ -1035,8 +1066,10 @@ export default async function ControllingPerformancePage({
                   <MetricCard
                     dark
                     detail={`Basis: ${
-                      invoiceRevenueCents > performanceValueCents
-                        ? "abgerechneter Umsatz"
+                      effectiveInvoiceRevenueCents > performanceValueCents
+                        ? skontoNachlassPercent > 0
+                          ? "abgerechneter Umsatz (nach Skonto/Nachlass)"
+                          : "abgerechneter Umsatz"
                         : "Leistungsstand"
                     }`}
                     label="Ergebnis aktuell"
@@ -1076,14 +1109,14 @@ export default async function ControllingPerformancePage({
                     <li>
                       <span className="font-semibold text-gray-800">Ergebnis aktuell</span> = der
                       höhere Wert aus Leistungsstand (kalkulierter Auftragswert × Leistungsstand %)
-                      oder bisher abgerechnetem Umsatz, minus erfasste Istkosten (Lohn +
-                      Detailpositionen). DB darunter ist dasselbe Ergebnis als Prozentsatz von
-                      dieser Basis. Der Hinweistext zeigt, welche der beiden Basis gerade verwendet
-                      wird - solange Leistungsstand und abgerechneter Umsatz auseinanderliegen
-                      (normal, wenn die Abrechnung der Arbeit hinterherhinkt), weicht dieser Wert
-                      bewusst von &quot;Ergebnis nach Istkosten&quot; weiter unten ab, das immer
-                      nur den abgerechneten Umsatz als Basis nimmt - erst wenn beides
-                      übereinstimmt, zeigen beide dasselbe.
+                      oder bisher abgerechnetem Umsatz (bei Skonto/Nachlass &gt; 0% bereits davon
+                      abgezogen), minus erfasste Istkosten (Lohn + Detailpositionen). DB darunter
+                      ist dasselbe Ergebnis als Prozentsatz von dieser Basis. Der Hinweistext zeigt,
+                      welche der beiden Basis gerade verwendet wird - solange Leistungsstand und
+                      abgerechneter Umsatz auseinanderliegen (normal, wenn die Abrechnung der Arbeit
+                      hinterherhinkt), weicht dieser Wert bewusst von &quot;Ergebnis nach
+                      Istkosten&quot; weiter unten ab, das immer nur den abgerechneten Umsatz als
+                      Basis nimmt - erst wenn beides übereinstimmt, zeigen beide dasselbe.
                     </li>
                     <li>
                       <span className="font-semibold text-gray-800">Leistungsstand</span> = der in
@@ -1376,11 +1409,29 @@ export default async function ControllingPerformancePage({
                 actualHours={actualHours}
                 billedHours={billedHours}
                 costAnalysisRows={costAnalysisRows}
+                effectiveInvoiceRevenueCents={effectiveInvoiceRevenueCents}
                 hasGehaltHours={hasGehaltHours}
                 invoiceRevenueCents={invoiceRevenueCents}
                 openWipCents={openWipCents}
                 performanceValueCents={performanceValueCents}
+                skontoNachlassPercent={skontoNachlassPercent}
                 totalContractCents={totalContractCents}
+              />
+
+              <UmlageComparisonSection
+                actualAgkPercent={currentProjectForValues?.actualAgkPercent ?? 10}
+                actualBgkPercent={currentProjectForValues?.actualBgkPercent ?? 6}
+                actualFreierZuschlagPercent={
+                  currentProjectForValues?.actualFreierZuschlagPercent ?? 0
+                }
+                actualUmlagePercent={actualUmlagePercent}
+                actualWugPercent={currentProjectForValues?.actualWugPercent ?? 6}
+                normalAgkPercent={currentProjectForValues?.normalAgkPercent ?? 10}
+                normalBgkPercent={currentProjectForValues?.normalBgkPercent ?? 6}
+                normalUmlagePercent={normalUmlagePercent}
+                normalWugPercent={currentProjectForValues?.normalWugPercent ?? 6}
+                totalContractCents={totalContractCents}
+                umlageGewinnCents={umlageGewinnCents}
               />
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -1856,31 +1907,35 @@ function PerformanceAnalysisSection({
   actualHours,
   billedHours,
   costAnalysisRows,
+  effectiveInvoiceRevenueCents,
   hasGehaltHours,
   invoiceRevenueCents,
   openWipCents,
   performanceValueCents,
+  skontoNachlassPercent,
   totalContractCents,
 }: {
   actualHours: number;
   billedHours: number;
   costAnalysisRows: CostAnalysisRow[];
+  effectiveInvoiceRevenueCents: number;
   hasGehaltHours: boolean;
   invoiceRevenueCents: number;
   openWipCents: number;
   performanceValueCents: number;
+  skontoNachlassPercent: number;
   totalContractCents: number;
 }) {
   const actualCostCents =
     costAnalysisRows.find((row) => row.label === "∑ Kosten")?.actualCents ?? 0;
-  const resultBaseCents = Math.max(performanceValueCents, invoiceRevenueCents);
+  const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
   const billingPercent = totalContractCents > 0
     ? invoiceRevenueCents / totalContractCents
     : 0;
-  const costCoverageCents = invoiceRevenueCents - actualCostCents;
-  const marginPercent = invoiceRevenueCents > 0
-    ? costCoverageCents / invoiceRevenueCents
+  const costCoverageCents = effectiveInvoiceRevenueCents - actualCostCents;
+  const marginPercent = effectiveInvoiceRevenueCents > 0
+    ? costCoverageCents / effectiveInvoiceRevenueCents
     : 0;
   const hoursDelta = actualHours - billedHours;
   const overallTone =
@@ -1915,7 +1970,11 @@ function PerformanceAnalysisSection({
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <AnalysisCard
-          detail={`Rechnungsstand ${formatPercent(billingPercent)}`}
+          detail={
+            skontoNachlassPercent > 0
+              ? `Rechnungsstand ${formatPercent(billingPercent)} · nach Skonto/Nachlass ${formatMoney(effectiveInvoiceRevenueCents)}`
+              : `Rechnungsstand ${formatPercent(billingPercent)}`
+          }
           label="Auftrag / Abrechnung"
           tone={invoiceRevenueCents >= performanceValueCents ? "good" : "warn"}
           value={formatMoney(invoiceRevenueCents)}
@@ -1964,7 +2023,8 @@ function PerformanceAnalysisSection({
           </li>
           <li>
             <span className="font-semibold text-gray-800">Ergebnis nach Istkosten</span> =
-            abgerechneter Umsatz minus erfasste Istkosten. <span className="font-semibold text-gray-800">DB</span>{" "}
+            abgerechneter Umsatz (bei Skonto/Nachlass &gt; 0% bereits davon abgezogen) minus
+            erfasste Istkosten. <span className="font-semibold text-gray-800">DB</span>{" "}
             (Deckungsbeitrag) zeigt dasselbe Ergebnis als Prozentsatz vom abgerechneten Umsatz -
             also wie viel vom Umsatz nach Abzug aller erfassten Kosten noch übrig bleibt.
           </li>
@@ -2038,6 +2098,87 @@ function PerformanceAnalysisSection({
           value={formatMoney(totalContractCents)}
         />
       </div>
+    </section>
+  );
+}
+
+function UmlageComparisonSection({
+  actualAgkPercent,
+  actualBgkPercent,
+  actualFreierZuschlagPercent,
+  actualUmlagePercent,
+  actualWugPercent,
+  normalAgkPercent,
+  normalBgkPercent,
+  normalUmlagePercent,
+  normalWugPercent,
+  totalContractCents,
+  umlageGewinnCents,
+}: {
+  actualAgkPercent: number;
+  actualBgkPercent: number;
+  actualFreierZuschlagPercent: number;
+  actualUmlagePercent: number;
+  actualWugPercent: number;
+  normalAgkPercent: number;
+  normalBgkPercent: number;
+  normalUmlagePercent: number;
+  normalWugPercent: number;
+  totalContractCents: number;
+  umlageGewinnCents: number;
+}) {
+  if (totalContractCents <= 0) return null;
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
+        Auswertung
+      </p>
+      <h2 className="mt-1 text-xl font-bold text-gray-950">Umlage-Vergleich</h2>
+      <p className="mt-1 text-sm text-gray-600">
+        Zusätzlicher Gewinn durch einen von der normalen Umlage abweichenden
+        Kalkulationszuschlag auf die Leistungen.
+      </p>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <AnalysisCard
+          detail={`AGK ${formatPercent(actualAgkPercent / 100)} · WuG ${formatPercent(
+            actualWugPercent / 100,
+          )} · BGK ${formatPercent(actualBgkPercent / 100)} · Zuschlag ${formatPercent(
+            actualFreierZuschlagPercent / 100,
+          )}`}
+          label="Tatsächliche Umlage"
+          tone="neutral"
+          value={formatPercent(actualUmlagePercent / 100)}
+        />
+        <AnalysisCard
+          detail={`AGK ${formatPercent(normalAgkPercent / 100)} · WuG ${formatPercent(
+            normalWugPercent / 100,
+          )} · BGK ${formatPercent(normalBgkPercent / 100)}`}
+          label="Normale Umlage"
+          tone="neutral"
+          value={formatPercent(normalUmlagePercent / 100)}
+        />
+        <AnalysisCard
+          detail="ggü. Auftragssumme mit normaler Umlage"
+          label="Zusätzlicher Gewinn durch Umlage"
+          tone={umlageGewinnCents >= 0 ? "good" : "bad"}
+          value={formatMoney(umlageGewinnCents)}
+        />
+      </div>
+
+      <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        <summary className="cursor-pointer font-semibold text-gray-700">
+          Wie berechnet sich der Umlage-Vergleich?
+        </summary>
+        <p className="mt-2 leading-5">
+          Aus der echten Auftragssumme wird mit der tatsächlichen Umlage die
+          Kalkulations-Kostenbasis zurückgerechnet (Auftragssumme ÷ (1 + tatsächliche
+          Umlage%)). Daraus wird eine hypothetische Auftragssumme mit der normalen Umlage
+          berechnet. Die Differenz zur echten Auftragssumme zeigt, wie viel zusätzlichen
+          (oder weniger) Gewinn der abweichende Zuschlag gegenüber dem Standard bringt.
+        </p>
+      </details>
     </section>
   );
 }

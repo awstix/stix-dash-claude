@@ -42,7 +42,7 @@ export default async function ProjectPerformancePage({
   const billingOperator = getPercentOperator(params.billingOperator);
   const billingValue = getPercentValue(params.billingValue);
 
-  const [projects, constructionManagerOptions] = await Promise.all([
+  const [projects, constructionManagerOptions, overheadRateDefaults] = await Promise.all([
     prisma.project.findMany({
       orderBy: {
         createdAt: "desc",
@@ -67,6 +67,11 @@ export default async function ProjectPerformancePage({
       },
     }),
     getConstructionManagerOptions(),
+    prisma.overheadRateDefaults.findUnique({
+      where: {
+        id: "default",
+      },
+    }),
   ]);
 
   const mappedProjects = projects.map((project) => {
@@ -124,6 +129,15 @@ export default async function ProjectPerformancePage({
       changeOrdersNet: project.changeOrdersNet,
       progressPercent: project.progressPercent,
       paymentsNet: project.paymentsNet,
+      normalAgkPercent: project.normalAgkPercent,
+      normalWugPercent: project.normalWugPercent,
+      normalBgkPercent: project.normalBgkPercent,
+      actualAgkPercent: project.actualAgkPercent,
+      actualWugPercent: project.actualWugPercent,
+      actualBgkPercent: project.actualBgkPercent,
+      actualFreierZuschlagPercent: project.actualFreierZuschlagPercent,
+      skontoPercent: project.skontoPercent,
+      nachlassPercent: project.nachlassPercent,
       finalInvoiceCreated: project.finalInvoiceCreated,
       finalInvoiceNumber: project.finalInvoiceNumber ?? "",
       finalInvoiceNet: project.finalInvoiceNet ?? 0,
@@ -405,6 +419,9 @@ export default async function ProjectPerformancePage({
 
       <ProjectManager
         constructionManagerOptions={constructionManagerOptions}
+        defaultOverheadRates={
+          overheadRateDefaults ?? { agkPercent: 10, bgkPercent: 6, wugPercent: 6 }
+        }
         projects={filteredProjects}
       />
     </AppShell>

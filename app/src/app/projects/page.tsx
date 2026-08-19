@@ -51,6 +51,11 @@ export default async function ProjectsPage({
   const billingOperator = getPercentOperator(params.billingOperator);
   const billingValue = getPercentValue(params.billingValue);
   const accessibleProjectIds = await getAccessibleProjectIds();
+  const overheadRateDefaults = await prisma.overheadRateDefaults.findUnique({
+    where: {
+      id: "default",
+    },
+  });
 
   const projects = await prisma.project.findMany({
     where:
@@ -307,6 +312,9 @@ export default async function ProjectsPage({
           <div className="flex flex-wrap gap-2">
             <ProjectCreateDialog
               constructionManagerOptions={constructionManagerOptions}
+              defaultOverheadRates={
+                overheadRateDefaults ?? { agkPercent: 10, bgkPercent: 6, wugPercent: 6 }
+              }
             />
             <Link
               className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"

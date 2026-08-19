@@ -83,6 +83,19 @@ model TimeTrackingSettings {
   updatedAt DateTime @updatedAt
 }
 
+// Dauerhafter globaler Standard für die Umlage (AGK/WuG/BGK), mit dem neue
+// Projekte vorbefüllt werden. Siehe Project.normal*Percent/actual*Percent.
+model OverheadRateDefaults {
+  id String @id @default("default")
+
+  agkPercent Float @default(10)
+  wugPercent Float @default(6)
+  bgkPercent Float @default(6)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model DispositionCategoryCredit {
   id String @id @default(cuid())
 
@@ -115,6 +128,25 @@ model Project {
   changeOrdersNet  Float @default(0)
   progressPercent  Float @default(0)
   paymentsNet      Float @default(0)
+
+  // Umlage-Zuschlag auf die Detailerfassung/Leistungen. "normal*" ist der
+  // Standardsatz (Default aus OverheadRateDefaults, i.d.R. 10+6+6=22%),
+  // "actual*" ist der tatsächlich für dieses Projekt kalkulierte Satz -
+  // kann durch einen freien Zuschlag höher liegen (z.B. 26%). Wird in der
+  // Leistungsmeldung für den Umlage-Vergleich (zusätzlicher Gewinn durch
+  // höheren Zuschlag) genutzt.
+  normalAgkPercent            Float @default(10)
+  normalWugPercent            Float @default(6)
+  normalBgkPercent            Float @default(6)
+  actualAgkPercent            Float @default(10)
+  actualWugPercent            Float @default(6)
+  actualBgkPercent            Float @default(6)
+  actualFreierZuschlagPercent Float @default(0)
+
+  // Feste Vertragskonditionen, mindern den abgerechneten Umsatz in der
+  // Ergebnis-/DB-Berechnung der Leistungsmeldung.
+  skontoPercent   Float @default(0)
+  nachlassPercent Float @default(0)
 
   finalInvoiceCreated Boolean @default(false)
   finalInvoiceNumber  String?

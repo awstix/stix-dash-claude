@@ -144,6 +144,40 @@ function handleRateActionError(error: unknown, anchor?: string): never {
   );
 }
 
+/** Dauerhafter globaler Standard für die Umlage (AGK/WuG/BGK) - befüllt neue
+ * Projekte vor. Die je Projekt hinterlegten normalen/tatsächlichen
+ * Umlage-Sätze bleiben davon unberührt (@see Project.normal*Percent). */
+export async function updateOverheadRateDefaults(formData: FormData) {
+  await requireSession();
+
+  try {
+    const agkPercent = numberValue(formData.get("agkPercent"), "AGK %");
+    const wugPercent = numberValue(formData.get("wugPercent"), "WuG %");
+    const bgkPercent = numberValue(formData.get("bgkPercent"), "BGK %");
+
+    await prisma.overheadRateDefaults.upsert({
+      create: {
+        agkPercent,
+        bgkPercent,
+        id: "default",
+        wugPercent,
+      },
+      update: {
+        agkPercent,
+        bgkPercent,
+        wugPercent,
+      },
+      where: {
+        id: "default",
+      },
+    });
+
+    redirectWithNotice("Standard-Umlage gespeichert.", "overhead-defaults");
+  } catch (error) {
+    handleRateActionError(error, "overhead-defaults");
+  }
+}
+
 export async function saveEmployeeGroupRate(formData: FormData) {
   const actor = await getInventoryActor();
   try {

@@ -11,6 +11,7 @@ import {
   saveAllInventoryCategoryRates,
   saveAllInventoryItemRates,
   saveEmployeeGroupRate,
+  updateOverheadRateDefaults,
 } from "./actions";
 import { RaiseRatesPanel } from "./RaiseRatesPanel";
 
@@ -33,6 +34,11 @@ export default async function ControllingRatesPage({
   const rateSets = await prisma.controllingRateSet.findMany({
     orderBy: {
       year: "desc",
+    },
+  });
+  const overheadRateDefaults = await prisma.overheadRateDefaults.findUnique({
+    where: {
+      id: "default",
     },
   });
   const selectedYear =
@@ -300,6 +306,58 @@ export default async function ControllingRatesPage({
             </details>
           </div>
         </div>
+      </section>
+
+      <section
+        className="mb-6 scroll-mt-28 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+        id="overhead-defaults"
+      >
+        <h2 className="text-lg font-semibold text-gray-950">
+          Standard-Umlage (AGK / WuG / BGK)
+        </h2>
+        <p className="mt-1 max-w-3xl text-sm text-gray-700">
+          Dauerhafter Standardsatz, mit dem neue Projekte für die
+          &bdquo;normale Umlage&ldquo; vorbefüllt werden (Angebots-Kalkulationszuschlag). Wird in
+          der Leistungsmeldung als Vergleichsbasis genutzt, wenn ein Projekt einen höheren
+          Zuschlag hat. Bestehende Projekte ändern sich dadurch nicht rückwirkend.
+        </p>
+        <form
+          action={updateOverheadRateDefaults}
+          className="mt-4 grid gap-3 sm:grid-cols-4"
+        >
+          <CompactInput
+            defaultValue={formatPercentInput(overheadRateDefaults?.agkPercent ?? 10)}
+            label="AGK %"
+            name="agkPercent"
+            placeholder="AGK %"
+          />
+          <CompactInput
+            defaultValue={formatPercentInput(overheadRateDefaults?.wugPercent ?? 6)}
+            label="WuG %"
+            name="wugPercent"
+            placeholder="WuG %"
+          />
+          <CompactInput
+            defaultValue={formatPercentInput(overheadRateDefaults?.bgkPercent ?? 6)}
+            label="BGK %"
+            name="bgkPercent"
+            placeholder="BGK %"
+          />
+          <div className="flex items-end">
+            <button className={`${smallButtonClassName} w-full`} type="submit">
+              Standard speichern
+            </button>
+          </div>
+        </form>
+        <p className="mt-2 text-xs text-gray-500">
+          Aktuelle Summe:{" "}
+          {formatPercentInput(
+            (overheadRateDefaults?.agkPercent ?? 10) +
+              (overheadRateDefaults?.wugPercent ?? 6) +
+              (overheadRateDefaults?.bgkPercent ?? 6),
+          )}
+          %
+        </p>
       </section>
 
       <RaiseRatesPanel
@@ -979,6 +1037,13 @@ function formatLastChange(
   }).format(entry.createdAt);
 
   return entry.changedByName ? `${date} · ${entry.changedByName}` : date;
+}
+
+function formatPercentInput(value?: number | null) {
+  if (value === null || value === undefined) return "";
+  return new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function formatMoneyInput(cents?: number | null) {

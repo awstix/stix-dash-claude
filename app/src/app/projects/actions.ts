@@ -77,6 +77,15 @@ export type ProjectFormInput = {
   changeOrdersNet: number;
   progressPercent: number;
   paymentsNet: number;
+  normalAgkPercent: number;
+  normalWugPercent: number;
+  normalBgkPercent: number;
+  actualAgkPercent: number;
+  actualWugPercent: number;
+  actualBgkPercent: number;
+  actualFreierZuschlagPercent: number;
+  skontoPercent: number;
+  nachlassPercent: number;
   finalInvoiceCreated: boolean;
   finalInvoiceNumber: string;
   finalInvoiceNet: number;
@@ -553,6 +562,15 @@ export async function createProject(input: ProjectFormInput) {
         changeOrdersNet: cleanNumber(input.changeOrdersNet),
         progressPercent: cleanNumber(input.progressPercent),
         paymentsNet: cleanNumber(input.paymentsNet),
+        normalAgkPercent: cleanNumber(input.normalAgkPercent),
+        normalWugPercent: cleanNumber(input.normalWugPercent),
+        normalBgkPercent: cleanNumber(input.normalBgkPercent),
+        actualAgkPercent: cleanNumber(input.actualAgkPercent),
+        actualWugPercent: cleanNumber(input.actualWugPercent),
+        actualBgkPercent: cleanNumber(input.actualBgkPercent),
+        actualFreierZuschlagPercent: cleanNumber(input.actualFreierZuschlagPercent),
+        skontoPercent: cleanNumber(input.skontoPercent),
+        nachlassPercent: cleanNumber(input.nachlassPercent),
         finalInvoiceCreated: input.finalInvoiceCreated,
         finalInvoiceNumber: input.finalInvoiceNumber || null,
         finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
@@ -606,6 +624,15 @@ export async function updateProject(input: ProjectFormInput) {
         changeOrdersNet: cleanNumber(input.changeOrdersNet),
         progressPercent: cleanNumber(input.progressPercent),
         paymentsNet: cleanNumber(input.paymentsNet),
+        normalAgkPercent: cleanNumber(input.normalAgkPercent),
+        normalWugPercent: cleanNumber(input.normalWugPercent),
+        normalBgkPercent: cleanNumber(input.normalBgkPercent),
+        actualAgkPercent: cleanNumber(input.actualAgkPercent),
+        actualWugPercent: cleanNumber(input.actualWugPercent),
+        actualBgkPercent: cleanNumber(input.actualBgkPercent),
+        actualFreierZuschlagPercent: cleanNumber(input.actualFreierZuschlagPercent),
+        skontoPercent: cleanNumber(input.skontoPercent),
+        nachlassPercent: cleanNumber(input.nachlassPercent),
         finalInvoiceCreated: input.finalInvoiceCreated,
         finalInvoiceNumber: input.finalInvoiceNumber || null,
         finalInvoiceNet: input.finalInvoiceCreated ? cleanNumber(input.finalInvoiceNet) : null,
