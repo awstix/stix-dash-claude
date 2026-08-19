@@ -125,6 +125,12 @@ const adminSections: AdminSection[] = [
           "Materialien, Fahrzeuge, Sonderfahrzeuge, Maschinen und Lagerobjekte über eine zentrale Vorlage importieren.",
         href: "/inventory/imports",
       },
+      {
+        title: "Buchungsoptionen",
+        description:
+          "Steuert, ob manuelle Baustellen-Zuordnungen von Sondergeräten täglich automatisch verlängert werden.",
+        href: "/admin/inventory-booking-options",
+      },
     ],
   },
   {

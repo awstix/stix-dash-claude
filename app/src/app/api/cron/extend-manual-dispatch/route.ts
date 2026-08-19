@@ -26,6 +26,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const settings = await prisma.inventoryBookingSettings.findUnique({
+    where: {
+      id: "default",
+    },
+  });
+
+  // Default an (true), solange nichts explizit gespeichert wurde - siehe
+  // Admin > Inventar > Buchungsoptionen.
+  if (settings?.specialVehicleAutoExtend === false) {
+    return NextResponse.json({ ok: true, skipped: "specialVehicleAutoExtend is off" });
+  }
+
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const yesterday = new Date(today);

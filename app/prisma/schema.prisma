@@ -98,6 +98,22 @@ model OverheadRateDefaults {
   updatedAt DateTime @updatedAt
 }
 
+// Steuert, ob die manuelle Baustellen-/Personen-Zuordnung eines
+// Sondergeräts (InventoryItem) täglich automatisch verlängert wird (siehe
+// /api/cron/extend-manual-dispatch) oder ob Buchungen dafür jeden Tag neu
+// erfolgen müssen. Gilt nur für Sondergeräte - normale Gerätedispo-
+// Buchungen (EquipmentDispatchAssignment) sind strukturell immer "offen
+// bis umgebucht" (Start-/Enddatum statt Tages-Einträge), dafür gibt es
+// keinen Schalter.
+model InventoryBookingSettings {
+  id String @id @default("default")
+
+  specialVehicleAutoExtend Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model DispositionCategoryCredit {
   id String @id @default(cuid())
 
