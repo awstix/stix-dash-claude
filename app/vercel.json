@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/extend-manual-dispatch",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

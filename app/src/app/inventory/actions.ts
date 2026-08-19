@@ -534,6 +534,102 @@ async function syncManualEquipmentDispatchAssignment(
   });
 }
 
+const MANUAL_SPECIAL_VEHICLE_DISPATCH_NOTE =
+  "Automatisch aus manueller Baustellen-Zuordnung (Inventarobjekt)";
+
+/** Pendant zu syncManualEquipmentDispatchAssignment für Sondergeräte:
+ * SpecialVehicleDispatchAssignment ist ein Tage-Modell (ein Eintrag pro
+ * Tag, kein Start-/Enddatum wie bei EquipmentDispatchAssignment) - "offen
+ * bis umgebucht" lässt sich hier nicht in einem einzelnen Schreibvorgang
+ * abbilden. Legt nur den heutigen Tag an; der tägliche Cron-Job unter
+ * src/app/api/cron/extend-manual-dispatch/route.ts verlängert die Kette
+ * danach jeden Tag automatisch weiter, solange
+ * InventoryItem.currentProjectId noch zum zuletzt automatisch angelegten
+ * Tag passt - die Kette endet also von selbst, sobald hier umgebucht
+ * oder die Zuordnung entfernt wird. */
+async function syncManualSpecialVehicleDispatchAssignment(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  vehicleId: string | null,
+  currentProjectId: string | null,
+) {
+  if (!vehicleId) return;
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const existingToday = await tx.specialVehicleDispatchAssignment.findFirst({
+    where: {
+      notes: MANUAL_SPECIAL_VEHICLE_DISPATCH_NOTE,
+      vehicleInventoryItemId: itemId,
+      workDate: today,
+    },
+  });
+
+  if (!currentProjectId) {
+    // Zuordnung entfernt - heutigen Auto-Eintrag mit entfernen, sonst
+    // würde er noch für heute zählen und der Cron-Job (der von "gestern"
+    // aus weiterkettet) hätte sonst morgen noch einen Ansatzpunkt.
+    if (existingToday) {
+      await tx.specialVehicleDispatchAssignment.delete({
+        where: {
+          id: existingToday.id,
+        },
+      });
+    }
+    return;
+  }
+
+  if (existingToday && existingToday.projectId === currentProjectId) {
+    return;
+  }
+
+  const [item, project] = await Promise.all([
+    tx.inventoryItem.findUnique({
+      select: {
+        name: true,
+      },
+      where: {
+        id: itemId,
+      },
+    }),
+    tx.project.findUnique({
+      select: {
+        name: true,
+        projectNumber: true,
+      },
+      where: {
+        id: currentProjectId,
+      },
+    }),
+  ]);
+
+  if (!project) return;
+
+  const data = {
+    notes: MANUAL_SPECIAL_VEHICLE_DISPATCH_NOTE,
+    projectId: currentProjectId,
+    projectName: project.name,
+    projectNumber: project.projectNumber,
+    taskText: "Manuelle Baustellen-Zuordnung",
+    vehicleId,
+    vehicleInventoryItemId: itemId,
+    vehicleName: item?.name ?? "",
+    workDate: today,
+  };
+
+  if (existingToday) {
+    await tx.specialVehicleDispatchAssignment.update({
+      data,
+      where: {
+        id: existingToday.id,
+      },
+    });
+  } else {
+    await tx.specialVehicleDispatchAssignment.create({ data });
+  }
+}
+
 async function getInventoryCreateData(formData: FormData) {
   const {
     categoryId,
@@ -1471,11 +1567,15 @@ export async function updateInventoryAssignment(formData: FormData) {
         select: {
           name: true,
           useInEmployeeFile: true,
+          useInEquipmentDispatch: true,
+          useInSpecialVehicleDisposition: true,
           useInTeamManagement: true,
           parentCategory: {
             select: {
               name: true,
               useInEmployeeFile: true,
+              useInEquipmentDispatch: true,
+              useInSpecialVehicleDisposition: true,
               useInTeamManagement: true,
             },
           },
@@ -1543,11 +1643,32 @@ export async function updateInventoryAssignment(formData: FormData) {
     });
 
     await syncDriverVehicleAssignmentForInventoryItem(tx, id);
-    await syncManualEquipmentDispatchAssignment(tx, id, item?.vehicleId ?? null, currentProjectId);
+
+    const usesEquipmentDispatch = Boolean(
+      item?.category?.useInEquipmentDispatch ||
+        item?.category?.parentCategory?.useInEquipmentDispatch,
+    );
+    const usesSpecialVehicleDisposition = Boolean(
+      item?.category?.useInSpecialVehicleDisposition ||
+        item?.category?.parentCategory?.useInSpecialVehicleDisposition,
+    );
+
+    if (usesEquipmentDispatch) {
+      await syncManualEquipmentDispatchAssignment(tx, id, item?.vehicleId ?? null, currentProjectId);
+    }
+    if (usesSpecialVehicleDisposition) {
+      await syncManualSpecialVehicleDispatchAssignment(
+        tx,
+        id,
+        item?.vehicleId ?? null,
+        currentProjectId,
+      );
+    }
   });
 
   revalidateInventoryItem(id);
   revalidatePath("/equipment-dispatch");
+  revalidatePath("/special-vehicle-dispatch");
 }
 
 export async function returnInventoryItemToBaseLocation(formData: FormData) {
