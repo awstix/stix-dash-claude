@@ -1034,13 +1034,17 @@ export default async function ControllingPerformancePage({
                 <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                   <MetricCard
                     dark
-                    label="Ergebnis aktuell"
-                    value={formatMoney(forecastCents)}
-                    detail={`DB ${formatPercent(forecastPercent)} · Basis: ${
+                    detail={`Basis: ${
                       invoiceRevenueCents > performanceValueCents
                         ? "abgerechneter Umsatz"
                         : "Leistungsstand"
                     }`}
+                    label="Ergebnis aktuell"
+                    percent={{
+                      tone: forecastCents >= 0 ? "good" : "bad",
+                      value: formatPercent(forecastPercent),
+                    }}
+                    value={formatMoney(forecastCents)}
                   />
                   <MetricCard label="Gesamtauftrag" value={formatMoney(totalContractCents)} />
                   <MetricCard
@@ -2154,11 +2158,13 @@ function MetricCard({
   dark = false,
   detail,
   label,
+  percent,
   value,
 }: {
   dark?: boolean;
   detail?: string;
   label: string;
+  percent?: { tone: "good" | "bad"; value: string };
   value: string;
 }) {
   return (
@@ -2176,7 +2182,20 @@ function MetricCard({
       >
         {label}
       </p>
-      <p className="mt-1 text-xl font-bold">{value}</p>
+      <div className="mt-1 flex flex-wrap items-baseline gap-2">
+        <p className="text-xl font-bold">{value}</p>
+        {percent ? (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+              percent.tone === "good"
+                ? "bg-green-600 text-white"
+                : "bg-red-600 text-white"
+            }`}
+          >
+            DB {percent.value}
+          </span>
+        ) : null}
+      </div>
       {detail ? (
         <p className={`mt-1 text-xs ${dark ? "text-gray-300" : "text-gray-600"}`}>
           {detail}
