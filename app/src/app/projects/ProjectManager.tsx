@@ -650,12 +650,16 @@ export function ProjectManager({
             </h4>
 
             <NumberField
+              decimals={2}
               label="Auftragssumme (netto)"
+              suffix="€"
               value={form.contractValueNet}
               onChange={(value) => updateForm("contractValueNet", value)}
             />
             <NumberField
+              decimals={2}
               label="Nachträge beauftragt (netto)"
+              suffix="€"
               value={form.changeOrdersNet}
               onChange={(value) => updateForm("changeOrdersNet", value)}
             />
@@ -665,7 +669,9 @@ export function ProjectManager({
               onChange={(value) => updateForm("progressPercent", value)}
             />
             <NumberField
+              decimals={2}
               label="Summe aller Abschläge (netto)"
+              suffix="€"
               value={form.paymentsNet}
               onChange={(value) => updateForm("paymentsNet", value)}
             />
@@ -813,7 +819,9 @@ export function ProjectManager({
               onChange={(value) => updateForm("finalInvoiceNumber", value)}
             />
             <NumberField
+              decimals={2}
               label="SR Summe (netto)"
+              suffix="€"
               value={form.finalInvoiceNet}
               onChange={(value) => updateForm("finalInvoiceNet", value)}
             />
@@ -1260,37 +1268,60 @@ function TextField({
  * startEdit() (never reused in-place across a different project), so a
  * fresh mount always starts from the right initial text. */
 function NumberField({
+  decimals,
   label,
   value,
   onChange,
+  suffix,
 }: {
+  decimals?: number;
   label: string;
   value: number;
   onChange: (value: number) => void;
+  suffix?: string;
 }) {
   const [text, setText] = useState(() =>
-    value === 0 ? "" : formatNumberInputValue(value),
+    value === 0 ? "" : formatNumberInputValue(value, decimals),
   );
 
   return (
     <div>
       <label className="text-sm font-medium text-gray-700">{label}</label>
-      <input
-        inputMode="decimal"
-        type="text"
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value);
-          onChange(parseNumberInputValue(event.target.value));
-        }}
-        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-      />
+      <div className="relative mt-2">
+        <input
+          inputMode="decimal"
+          type="text"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            onChange(parseNumberInputValue(event.target.value));
+          }}
+          onBlur={() => {
+            setText((current) =>
+              current.trim()
+                ? formatNumberInputValue(parseNumberInputValue(current), decimals)
+                : "",
+            );
+          }}
+          className={`w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900 ${
+            suffix ? "pr-9" : ""
+          }`}
+        />
+        {suffix ? (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function formatNumberInputValue(value: number) {
+function formatNumberInputValue(value: number, decimals?: number) {
   if (!Number.isFinite(value)) return "";
+  if (decimals !== undefined) {
+    return value.toFixed(decimals).replace(".", ",");
+  }
   return String(value).replace(".", ",");
 }
 

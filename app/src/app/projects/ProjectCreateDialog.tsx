@@ -296,13 +296,17 @@ export function ProjectCreateDialog({
               </h4>
 
               <NumberField
+                decimals={2}
                 label="Auftragssumme (netto)"
                 onChange={(value) => updateForm("contractValueNet", value)}
+                suffix="€"
                 value={form.contractValueNet}
               />
               <NumberField
+                decimals={2}
                 label="Nachträge beauftragt (netto)"
                 onChange={(value) => updateForm("changeOrdersNet", value)}
+                suffix="€"
                 value={form.changeOrdersNet}
               />
               <NumberField
@@ -311,8 +315,10 @@ export function ProjectCreateDialog({
                 value={form.progressPercent}
               />
               <NumberField
+                decimals={2}
                 label="Summe aller Abschläge (netto)"
                 onChange={(value) => updateForm("paymentsNet", value)}
+                suffix="€"
                 value={form.paymentsNet}
               />
             </div>
@@ -459,8 +465,10 @@ export function ProjectCreateDialog({
                 value={form.finalInvoiceNumber}
               />
               <NumberField
+                decimals={2}
                 label="SR Summe (netto)"
                 onChange={(value) => updateForm("finalInvoiceNet", value)}
+                suffix="€"
                 value={form.finalInvoiceNet}
               />
               {form.finalInvoiceCreated ? (
@@ -588,31 +596,51 @@ function TextField({
  * remount this field whenever the underlying record changes, rather
  * than reusing the same mounted instance across different projects. */
 function NumberField({
+  decimals,
   label,
   onChange,
+  suffix,
   value,
 }: {
+  decimals?: number;
   label: string;
   onChange: (value: number) => void;
+  suffix?: string;
   value: number;
 }) {
   const [text, setText] = useState(() =>
-    value === 0 ? "" : formatNumberInputValue(value),
+    value === 0 ? "" : formatNumberInputValue(value, decimals),
   );
 
   return (
     <div>
       <label className="text-sm font-medium text-gray-700">{label}</label>
-      <input
-        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
-        inputMode="decimal"
-        onChange={(event) => {
-          setText(event.target.value);
-          onChange(parseNumberInputValue(event.target.value));
-        }}
-        type="text"
-        value={text}
-      />
+      <div className="relative mt-2">
+        <input
+          className={`w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900 ${
+            suffix ? "pr-9" : ""
+          }`}
+          inputMode="decimal"
+          onBlur={() => {
+            setText((current) =>
+              current.trim()
+                ? formatNumberInputValue(parseNumberInputValue(current), decimals)
+                : "",
+            );
+          }}
+          onChange={(event) => {
+            setText(event.target.value);
+            onChange(parseNumberInputValue(event.target.value));
+          }}
+          type="text"
+          value={text}
+        />
+        {suffix ? (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -645,8 +673,11 @@ function getToneClass(tone: "negative" | "neutral" | "positive" = "neutral") {
   return "text-gray-900";
 }
 
-function formatNumberInputValue(value: number) {
+function formatNumberInputValue(value: number, decimals?: number) {
   if (!Number.isFinite(value)) return "";
+  if (decimals !== undefined) {
+    return value.toFixed(decimals).replace(".", ",");
+  }
   return String(value).replace(".", ",");
 }
 
