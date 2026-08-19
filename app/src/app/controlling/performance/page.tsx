@@ -459,7 +459,12 @@ export default async function ControllingPerformancePage({
   const approvedPersonnelHoursByCrewId = new Map<string, number>();
   const approvedEquipmentHoursByCrewId = new Map<string, number>();
   for (const entry of approvedTimeEntries) {
-    const personnelHours = entry.employees.reduce((sum, employee) => sum + employee.netHours, 0);
+    // Die Buchung bucht nur EINE repräsentative Zeile mit employeeCount: 1
+    // (Kolonnen-Satz, keine Kopfzahl) - hier darf also nicht über alle
+    // Mitarbeiter aufsummiert werden (das ergäbe z.B. bei 7 Leuten à 5,75h
+    // fälschlich 40,25h), sondern der längste Einzel-Wert steht für "wie
+    // lange hat die Kolonne an dem Tag gearbeitet".
+    const personnelHours = Math.max(0, ...entry.employees.map((employee) => employee.netHours));
     approvedPersonnelHoursByCrewId.set(
       entry.crewId,
       (approvedPersonnelHoursByCrewId.get(entry.crewId) ?? 0) + personnelHours,
@@ -1048,8 +1053,14 @@ export default async function ControllingPerformancePage({
                 <form action={importDispositionIntoPerformanceReport} className="mt-5">
                   <input name="reportId" type="hidden" value={report.id} />
                   <input name="projectId" type="hidden" value={report.projectId} />
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                    Nur nötig, wenn du <span className="font-bold">nachträglich</span> neue
+                    Dispo-Daten oder Zeiterfassungen für diesen Zeitraum ergänzt hast - beim
+                    Anlegen der Meldung und beim Umschalten des Modus oben läuft der Import
+                    bereits automatisch.
+                  </div>
                   <button
-                    className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
+                    className={`mt-3 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-semibold ${
                       activeRateSet
                         ? "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100"
                         : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
@@ -1057,7 +1068,7 @@ export default async function ControllingPerformancePage({
                     disabled={!activeRateSet}
                     type="submit"
                   >
-                    Stunden, Material und Geräte aus Planung/Disposition übernehmen
+                    Neue Dispo-/Zeiterfassungsdaten nachziehen
                   </button>
                   <p className="mt-2 text-xs text-gray-500">
                     Nutzt den Modus aus &quot;Leistungsmeldungsdaten&quot; oben (aktuell:{" "}
