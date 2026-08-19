@@ -166,8 +166,12 @@ function computeReportMetrics(
     umsatzVorUmlageCents > 0 ? ergebnisVorUmlageCents / umsatzVorUmlageCents : 0;
 
   return {
+    actualAgkPercent: project.actualAgkPercent,
+    actualBgkPercent: project.actualBgkPercent,
     actualCostCents,
+    actualFreierZuschlagPercent: project.actualFreierZuschlagPercent,
     actualUmlagePercent,
+    actualWugPercent: project.actualWugPercent,
     contractCents,
     costCoverageCents,
     dbVorUmlagePercent,
@@ -181,7 +185,11 @@ function computeReportMetrics(
     invoiceRevenueCents,
     marginPercent,
     nachlassPercent,
+    normalAgkPercent: project.normalAgkPercent,
+    normalBgkPercent: project.normalBgkPercent,
+    normalFreierZuschlagPercent: project.normalFreierZuschlagPercent,
     normalUmlagePercent,
+    normalWugPercent: project.normalWugPercent,
     performanceValueCents,
     skontoNachlassPercent,
     skontoPercent,
@@ -250,6 +258,7 @@ function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>
       Menge: entry.quantity,
       Einheit: entry.unit,
       "Satz €": euros(entry.unitPriceCents),
+      "Anteil %": entry.utilizationPercent,
       "Betrag €": euros(entry.amountCents),
       Status: entry.status,
       Herkunft: entry.source,
@@ -263,6 +272,7 @@ function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>
     { wch: 8 },
     { wch: 8 },
     { wch: 9 },
+    { wch: 8 },
     { wch: 10 },
     { wch: 16 },
     { wch: 18 },
@@ -283,6 +293,7 @@ function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>
       "Std gesamt": entry.totalHours,
       "EK real €/h": euros(entry.realRateCents),
       "Kosten real €": euros(entry.realCostCents),
+      Kostenart: entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
       Status: entry.status,
       Herkunft: entry.source,
       Bemerkung: entry.notes ?? "",
@@ -299,6 +310,7 @@ function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>
     { wch: 10 },
     { wch: 10 },
     { wch: 11 },
+    { wch: 16 },
     { wch: 16 },
     { wch: 18 },
     { wch: 26 },
@@ -457,13 +469,27 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
       tone: metrics.costCoverageCents >= 0 ? "good" : "bad",
       value: formatEuro(metrics.costCoverageCents),
     },
+    { label: "Tatsächliche Umlage", value: formatPercent(metrics.actualUmlagePercent / 100) },
+    { label: "Normale Umlage", value: formatPercent(metrics.normalUmlagePercent / 100) },
+    {
+      label: "Zusätzlicher Gewinn durch Umlage",
+      tone: metrics.umlageGewinnCents >= 0 ? "good" : "bad",
+      value: formatEuro(metrics.umlageGewinnCents),
+    },
+    { label: "Umsatz vor Umlage", value: formatEuro(metrics.umsatzVorUmlageCents) },
+    {
+      label: `Ergebnis vor Umlage · DB ${formatPercent(metrics.dbVorUmlagePercent)}`,
+      tone: metrics.ergebnisVorUmlageCents >= 0 ? "good" : "bad",
+      value: formatEuro(metrics.ergebnisVorUmlageCents),
+    },
   ];
 
   const tileCols = 6;
   const tileGap = 8;
   const tileWidth = (CONTENT_WIDTH - tileGap * (tileCols - 1)) / tileCols;
   const tileHeight = 40;
-  ensureSpace(tileHeight * 2 + tileGap + 10);
+  const tileRows = Math.ceil(tileMetrics.length / tileCols);
+  ensureSpace(tileRows * tileHeight + (tileRows - 1) * tileGap + 10);
   tileMetrics.forEach((tile, index) => {
     const col = index % tileCols;
     const row = Math.floor(index / tileCols);
@@ -495,24 +521,24 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
   });
   y -= Math.ceil(tileMetrics.length / tileCols) * (tileHeight + tileGap) + 6;
 
-  // Umlage-Vergleich - nur wenn tatsächliche und normale Umlage voneinander abweichen
-  if (Math.abs(metrics.actualUmlagePercent - metrics.normalUmlagePercent) > 0.001) {
-    ensureSpace(34);
-    page!.drawText(
-      `Umlage-Vergleich: tatsächlich ${metrics.actualUmlagePercent.toLocaleString("de-DE")} % · normal ${metrics.normalUmlagePercent.toLocaleString(
-        "de-DE",
-      )} % · zusätzlicher Gewinn durch Umlage ${formatEuro(metrics.umlageGewinnCents)}`,
-      { color: textColor, font: bold, size: 8.5, x: MARGIN, y },
-    );
-    y -= 16;
-  }
-
-  // Ergebnis vor Umlage - Umsatz um die tatsächliche Umlage bereinigt
-  ensureSpace(20);
+  // Umlage-Aufschlüsselung (AGK/WuG/BGK/freier Zuschlag) - dieselben Werte,
+  // die die Kacheln oben als Summe zeigen.
+  ensureSpace(28);
   page!.drawText(
-    `Ergebnis vor Umlage: ${formatEuro(metrics.ergebnisVorUmlageCents)} (DB ${formatPercent(
-      metrics.dbVorUmlagePercent,
-    )}) · Umsatz vor Umlage ${formatEuro(metrics.umsatzVorUmlageCents)}`,
+    `Tatsächliche Umlage: AGK ${formatPercent(metrics.actualAgkPercent / 100)} · WuG ${formatPercent(
+      metrics.actualWugPercent / 100,
+    )} · BGK ${formatPercent(metrics.actualBgkPercent / 100)} · freier Zuschlag ${formatPercent(
+      metrics.actualFreierZuschlagPercent / 100,
+    )}`,
+    { color: mutedColor, font: regular, size: 8, x: MARGIN, y },
+  );
+  y -= 12;
+  page!.drawText(
+    `Normale Umlage: AGK ${formatPercent(metrics.normalAgkPercent / 100)} · WuG ${formatPercent(
+      metrics.normalWugPercent / 100,
+    )} · BGK ${formatPercent(metrics.normalBgkPercent / 100)} · freier Zuschlag ${formatPercent(
+      metrics.normalFreierZuschlagPercent / 100,
+    )}`,
     { color: mutedColor, font: regular, size: 8, x: MARGIN, y },
   );
   y -= 16;
@@ -585,31 +611,33 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
   // hinausläuft. Landscape gibt hier genug Breite für die 10-13 Spalten
   // von Detail/Stunden her.
   const detailColumns: TableColumn[] = [
-    { header: "Datum", width: 55 },
-    { header: "Art", width: 65 },
-    { header: "Beschreibung", width: 145 },
-    { header: "Menge", width: 45, align: "right" },
-    { header: "Einheit", width: 42 },
-    { header: "Satz €", width: 55, align: "right" },
-    { header: "Betrag €", width: 60, align: "right" },
-    { header: "Status", width: 78 },
-    { header: "Herkunft", width: 100 },
-    { header: "Bemerkung", width: 117 },
+    { header: "Datum", width: 50 },
+    { header: "Art", width: 60 },
+    { header: "Beschreibung", width: 130 },
+    { header: "Menge", width: 42, align: "right" },
+    { header: "Einheit", width: 38 },
+    { header: "Satz €", width: 50, align: "right" },
+    { header: "Anteil %", width: 38, align: "right" },
+    { header: "Betrag €", width: 55, align: "right" },
+    { header: "Status", width: 72 },
+    { header: "Herkunft", width: 92 },
+    { header: "Bemerkung", width: 135 },
   ];
   const hourColumns: TableColumn[] = [
-    { header: "Datum", width: 48 },
-    { header: "Bezeichnung", width: 85 },
-    { header: "Beginn", width: 38 },
-    { header: "Ende", width: 38 },
-    { header: "Pause h", width: 40, align: "right" },
-    { header: "Anzahl MA", width: 42, align: "right" },
-    { header: "Std je MA", width: 42, align: "right" },
-    { header: "Std gesamt", width: 45, align: "right" },
-    { header: "EK real €/h", width: 50, align: "right" },
-    { header: "Kosten real €", width: 55, align: "right" },
-    { header: "Status", width: 68 },
-    { header: "Herkunft", width: 78 },
-    { header: "Bemerkung", width: 133 },
+    { header: "Datum", width: 45 },
+    { header: "Bezeichnung", width: 78 },
+    { header: "Beginn", width: 35 },
+    { header: "Ende", width: 35 },
+    { header: "Pause h", width: 35, align: "right" },
+    { header: "Anzahl MA", width: 38, align: "right" },
+    { header: "Std je MA", width: 38, align: "right" },
+    { header: "Std gesamt", width: 40, align: "right" },
+    { header: "EK real €/h", width: 46, align: "right" },
+    { header: "Kosten real €", width: 50, align: "right" },
+    { header: "Kostenart", width: 50 },
+    { header: "Status", width: 62 },
+    { header: "Herkunft", width: 70 },
+    { header: "Bemerkung", width: 140 },
   ];
   const invoiceColumns: TableColumn[] = [
     { header: "OZ", width: 50 },
@@ -690,6 +718,7 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
       formatDecimal(entry.quantity),
       entry.unit,
       formatEuro(entry.unitPriceCents),
+      `${entry.utilizationPercent}%`,
       formatEuro(entry.amountCents),
       entry.status,
       entry.source,
@@ -711,6 +740,7 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
       formatDecimal(entry.totalHours),
       formatEuro(entry.realRateCents),
       formatEuro(entry.realCostCents),
+      entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
       entry.status,
       entry.source,
       entry.notes ?? "",
