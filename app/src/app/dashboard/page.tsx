@@ -136,8 +136,18 @@ export default async function DashboardPage({
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const weekEnd = new Date(today);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  // Montag-Sonntag der laufenden Kalenderwoche, exakt wie startOfWeek() auf
+  // der Asphaltdispo-Seite (src/app/asphalt-dispatch/page.tsx) - nicht
+  // "heute + 7 Tage nach vorne", sonst fehlen hier bereits erfasste Tage
+  // der laufenden Woche, die vor heute liegen (z.B. Montag-Eintrag, wenn
+  // heute schon Mittwoch ist).
+  const weekStart = new Date(
+    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
+  );
+  const weekStartDay = weekStart.getUTCDay();
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStartDay + 6) % 7));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
   const assignedProjectRows = currentUser?.employeeId
     ? await prisma.crewPlanningAssignment.findMany({
         select: { row: { select: { projectId: true } } },
@@ -222,7 +232,7 @@ export default async function DashboardPage({
         orderBy: [{ workDate: "asc" }, { crew: "asc" }],
         where: {
           ...scopedProjectWhere,
-          workDate: { gte: today, lt: weekEnd },
+          workDate: { gte: weekStart, lt: weekEnd },
         },
       }),
       prisma.leaveRequest.findMany({
