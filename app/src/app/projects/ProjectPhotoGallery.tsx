@@ -22,6 +22,62 @@ import {
   type WatermarkFields,
 } from "./photoWatermark";
 
+type ResolvedWatermarkOptions = {
+  compassPosition: WatermarkCorner;
+  fields: WatermarkFields;
+  mapPosition: WatermarkCorner;
+  opacity: number;
+  textPosition: WatermarkCorner;
+};
+
+/** Parses the JSON blob from getPhotoWatermarkSettings() into concrete
+ * values, filling in the defaults for anything never saved yet - shared
+ * between the bulk "mit Infos" download and the live info overlay in the
+ * detail viewer, so both always agree on the user's current settings. */
+function parseWatermarkOptions(settingsJson: string | null): ResolvedWatermarkOptions {
+  const parsed = settingsJson
+    ? (JSON.parse(settingsJson) as {
+        compassPosition?: WatermarkCorner;
+        fields?: Partial<WatermarkFields>;
+        mapPosition?: WatermarkCorner;
+        opacity?: number;
+        textPosition?: WatermarkCorner;
+      })
+    : null;
+
+  return {
+    compassPosition: parsed?.compassPosition ?? "auto",
+    fields: { ...DEFAULT_WATERMARK_FIELDS, ...parsed?.fields },
+    mapPosition: parsed?.mapPosition ?? "auto",
+    opacity: typeof parsed?.opacity === "number" ? parsed.opacity : 1,
+    textPosition: parsed?.textPosition ?? "auto",
+  };
+}
+
+function hasWatermarkContent(
+  fields: WatermarkFields,
+  photo: Pick<ProjectPhotoGalleryItem, "gpsHeading" | "gpsLatitude" | "gpsLongitude">,
+) {
+  const hasCompassData = typeof photo.gpsHeading === "number";
+  const hasLocationData =
+    typeof photo.gpsLatitude === "number" && typeof photo.gpsLongitude === "number";
+
+  return (
+    fields.date ||
+    fields.time ||
+    (fields.address && hasLocationData) ||
+    (fields.postalCity && hasLocationData) ||
+    (fields.coordinates && hasLocationData) ||
+    (fields.heading && hasCompassData) ||
+    (fields.compass && hasCompassData) ||
+    fields.altitude ||
+    fields.camera ||
+    fields.cameraSettings ||
+    fields.uploaderName ||
+    (fields.map && hasLocationData)
+  );
+}
+
 export type ProjectPhotoGalleryItem = {
   availableForDailyReports: boolean;
   cameraMake: string | null;
@@ -105,6 +161,27 @@ export function ProjectPhotoGallery({
     done: number;
     total: number;
   } | null>(null);
+  // Einmal pro Galerie geladen, nicht pro Foto (ändert sich nicht beim
+  // Weiterklicken) - damit die Info-Einblendung im Viewer sofort mit den
+  // gespeicherten Einstellungen des Kontos startet, ohne bei jedem
+  // Foto-Wechsel neu vom Server zu laden.
+  const [watermarkOptions, setWatermarkOptions] = useState<ResolvedWatermarkOptions | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    getPhotoWatermarkSettings()
+      .then((json) => {
+        if (!cancelled) setWatermarkOptions(parseWatermarkOptions(json));
+      })
+      .catch(() => {
+        if (!cancelled) setWatermarkOptions(parseWatermarkOptions(null));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const selectedPhoto =
     selectedIndex === null ? null : (photos[selectedIndex] ?? null);
   const hasMultiplePhotos = photos.length > 1;
@@ -308,20 +385,8 @@ export function ProjectPhotoGallery({
 
     try {
       const settingsJson = await getPhotoWatermarkSettings();
-      const parsed = settingsJson
-        ? (JSON.parse(settingsJson) as {
-            fields?: Partial<WatermarkFields>;
-            textPosition?: WatermarkCorner;
-            compassPosition?: WatermarkCorner;
-            mapPosition?: WatermarkCorner;
-            opacity?: number;
-          })
-        : null;
-      const fields: WatermarkFields = { ...DEFAULT_WATERMARK_FIELDS, ...parsed?.fields };
-      const textPosition = parsed?.textPosition ?? "auto";
-      const compassPosition = parsed?.compassPosition ?? "auto";
-      const mapPosition = parsed?.mapPosition ?? "auto";
-      const opacity = typeof parsed?.opacity === "number" ? parsed.opacity : 1;
+      const { compassPosition, fields, mapPosition, opacity, textPosition } =
+        parseWatermarkOptions(settingsJson);
 
       const usedFileNames = new Set<string>();
       const failedPhotoLabels: string[] = [];
@@ -576,6 +641,7 @@ export function ProjectPhotoGallery({
           onSaveNote={(notes) => savePhotoNote(selectedPhoto, notes)}
           photo={selectedPhoto}
           totalCount={photos.length}
+          watermarkOptions={watermarkOptions}
         />
       ) : null}
     </>
@@ -786,6 +852,7 @@ export function PhotoDetailModal({
   onSaveNote,
   photo,
   totalCount,
+  watermarkOptions = null,
 }: {
   currentIndex: number;
   hasMultiplePhotos: boolean;
@@ -798,12 +865,94 @@ export function PhotoDetailModal({
   onSaveNote: (notes: string) => void;
   photo: ProjectPhotoGalleryItem;
   totalCount: number;
+  watermarkOptions?: ResolvedWatermarkOptions | null;
 }) {
   const [notes, setNotes] = useState(photo.notes ?? "");
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isWatermarkDialogOpen, setIsWatermarkDialogOpen] = useState(false);
   const [zoom, setZoom] = useState(minimumPhotoZoom);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  // Info-Overlay ist standardmäßig an (dauerhaft eingeblendet), lässt
+  // sich pro Foto aber kurz ausblenden, um es sauber ohne Infos zu sehen -
+  // beim nächsten Foto (neues Mount, siehe key={photo.id} im Aufrufer)
+  // startet es wieder mit an.
+  const [showInfoOverlay, setShowInfoOverlay] = useState(true);
+  const [mapThumbnail, setMapThumbnail] = useState<string | null>(null);
+  const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
+  const [isRenderingOverlay, setIsRenderingOverlay] = useState(false);
+  const hasOverlayContent = Boolean(
+    watermarkOptions && hasWatermarkContent(watermarkOptions.fields, photo),
+  );
+
+  useEffect(() => {
+    if (
+      !watermarkOptions?.fields.map ||
+      typeof photo.gpsLatitude !== "number" ||
+      typeof photo.gpsLongitude !== "number"
+    ) {
+      return;
+    }
+    let cancelled = false;
+    getPhotoMapThumbnail({ latitude: photo.gpsLatitude, longitude: photo.gpsLongitude })
+      .then((thumbnail) => {
+        if (!cancelled) setMapThumbnail(thumbnail);
+      })
+      .catch(() => {
+        if (!cancelled) setMapThumbnail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [photo.gpsLatitude, photo.gpsLongitude, watermarkOptions?.fields.map]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.resolve().then(async () => {
+      if (cancelled) return;
+
+      if (!showInfoOverlay || !watermarkOptions || !hasOverlayContent) {
+        setOverlayUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return null;
+        });
+        return;
+      }
+
+      setIsRenderingOverlay(true);
+      try {
+        const blob = await renderPhotoWithWatermark({
+          compassPosition: watermarkOptions.compassPosition,
+          fields: watermarkOptions.fields,
+          mapPosition: watermarkOptions.mapPosition,
+          mapThumbnailDataUrl: mapThumbnail,
+          opacity: watermarkOptions.opacity,
+          photo: toWatermarkInput(photo),
+          textPosition: watermarkOptions.textPosition,
+        });
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        setOverlayUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return url;
+        });
+      } catch {
+        if (!cancelled) setOverlayUrl(null);
+      } finally {
+        if (!cancelled) setIsRenderingOverlay(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showInfoOverlay, watermarkOptions, hasOverlayContent, mapThumbnail, photo]);
+
+  useEffect(() => {
+    return () => {
+      if (overlayUrl) URL.revokeObjectURL(overlayUrl);
+    };
+  }, [overlayUrl]);
   const photoViewportRef = useRef<HTMLDivElement | null>(null);
   const photoDragRef = useRef({
     pointerId: -1,
@@ -933,7 +1082,7 @@ export function PhotoDetailModal({
               className="object-contain"
               fill
               sizes="(min-width: 1024px) 65vw, 100vw"
-              src={photo.publicUrl}
+              src={overlayUrl ?? photo.publicUrl}
               unoptimized
               draggable={false}
             />
@@ -1022,6 +1171,32 @@ export function PhotoDetailModal({
               >
                 <DownloadIcon />
               </button>
+              {hasOverlayContent ? (
+                <button
+                  aria-label={
+                    showInfoOverlay ? "Infos im Bild ausblenden" : "Infos im Bild einblenden"
+                  }
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-60 ${
+                    isRenderingOverlay ? "animate-pulse" : ""
+                  } ${
+                    showInfoOverlay
+                      ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-700"
+                      : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                  }`}
+                  disabled={isDeleting}
+                  onClick={() => setShowInfoOverlay((current) => !current)}
+                  title={
+                    isRenderingOverlay
+                      ? "Rendert Infos-Vorschau..."
+                      : showInfoOverlay
+                        ? "Infos im Bild ausblenden (dauerhaft eingeblendete Vorschau, wie beim Download mit Infos)"
+                        : "Infos im Bild einblenden"
+                  }
+                  type="button"
+                >
+                  {showInfoOverlay ? <EyeIcon /> : <EyeOffIcon />}
+                </button>
+              ) : null}
               <button
                 aria-label="Foto mit Infos (Wasserzeichen)"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-60"
@@ -1247,6 +1422,44 @@ function WatermarkIcon() {
       <rect height="16" rx="2" width="18" x="3" y="4" />
       <path d="M7 15h5" />
       <path d="M7 11h9" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M9.9 4.24A10.4 10.4 0 0 1 12 4c6.5 0 10 8 10 8a17.5 17.5 0 0 1-3.24 4.32" />
+      <path d="M6.1 6.1C3.4 7.9 2 12 2 12s3.5 8 10 8a9.9 9.9 0 0 0 4.24-.94" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M2 2l20 20" />
     </svg>
   );
 }
