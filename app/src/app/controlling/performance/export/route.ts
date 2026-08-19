@@ -11,8 +11,11 @@ import {
 
 export const runtime = "nodejs";
 
-const PAGE_WIDTH = 595.28;
-const PAGE_HEIGHT = 841.89;
+// A4 quer (Landschaft) - portrait reicht bei den vielen Tabellenspalten
+// (Detail/Stunden haben 10-13 Spalten) nicht aus, um alle auf Seitenbreite
+// unterzubringen.
+const PAGE_WIDTH = 841.89;
+const PAGE_HEIGHT = 595.28;
 const MARGIN = 40;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const HEADER_HEIGHT = 78;
@@ -187,106 +190,160 @@ function computeReportMetrics(
   };
 }
 
+/** Schmale Ränder + Kennzahlen-Sheet als Kennzahl/Wert-Spalten statt einer
+ * einzigen, breiten Zeile - damit die Mappe beim Drucken auf möglichst
+ * wenige A4-Seiten passt. Echtes "auf 1 Seite skalieren" kann die freie
+ * xlsx-Bibliothek (SheetJS Community Edition) nicht in die Datei
+ * schreiben (kein pageSetup/fitToPage) - dafür in Excel beim Drucken
+ * einmalig "Blatt auf eine Seite verkleinern" anhaken. */
+const NARROW_MARGINS = {
+  bottom: 0.4,
+  footer: 0.2,
+  header: 0.2,
+  left: 0.4,
+  right: 0.4,
+  top: 0.4,
+};
+
 function buildWorkbook(report: NonNullable<Awaited<ReturnType<typeof getReport>>>) {
   const workbook = XLSX.utils.book_new();
   const metrics = computeReportMetrics(report);
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.json_to_sheet([
-      {
-        Projekt: `${report.project.projectNumber} · ${report.project.name}`,
-        Leistungsmeldung: report.title ?? "Leistungsmeldung",
-        "Zeitraum von": formatDate(report.periodStart ?? report.reportDate),
-        "Zeitraum bis": formatDate(report.periodEnd ?? report.reportDate),
-        Status: report.status,
-        "Gesamtauftrag €": euros(metrics.contractCents),
-        "Leistungsstand %": report.progressPercent,
-        "Bisher abgerechnet €": euros(metrics.invoiceRevenueCents),
-        "Istkosten Detail €": euros(metrics.detailCostCents),
-        "Istkosten Stunden €": euros(metrics.hourCostCents),
-        "iTWO Kosten €": euros(metrics.invoiceCostCents),
-        "Ergebnis aktuell €": euros(metrics.forecastCents),
-        "DB aktuell %": metrics.forecastPercent * 100,
-        "Ergebnis nach Istkosten €": euros(metrics.costCoverageCents),
-        "DB nach Istkosten %": metrics.marginPercent * 100,
-        "Tatsächliche Umlage %": metrics.actualUmlagePercent,
-        "Normale Umlage %": metrics.normalUmlagePercent,
-        "Zusätzlicher Gewinn durch Umlage €": euros(metrics.umlageGewinnCents),
-        "Umsatz vor Umlage €": euros(metrics.umsatzVorUmlageCents),
-        "Ergebnis vor Umlage €": euros(metrics.ergebnisVorUmlageCents),
-        "DB vor Umlage %": metrics.dbVorUmlagePercent * 100,
-        "Skonto %": metrics.skontoPercent,
-        "Nachlass %": metrics.nachlassPercent,
-      },
-    ]),
-    "Schnellcheck",
-  );
+  const schnellcheckRows = [
+    ["Projekt", `${report.project.projectNumber} · ${report.project.name}`],
+    ["Leistungsmeldung", report.title ?? "Leistungsmeldung"],
+    ["Zeitraum von", formatDate(report.periodStart ?? report.reportDate)],
+    ["Zeitraum bis", formatDate(report.periodEnd ?? report.reportDate)],
+    ["Status", report.status],
+    ["Gesamtauftrag €", euros(metrics.contractCents)],
+    ["Leistungsstand %", report.progressPercent],
+    ["Bisher abgerechnet €", euros(metrics.invoiceRevenueCents)],
+    ["Istkosten Detail €", euros(metrics.detailCostCents)],
+    ["Istkosten Stunden €", euros(metrics.hourCostCents)],
+    ["iTWO Kosten €", euros(metrics.invoiceCostCents)],
+    ["Ergebnis aktuell €", euros(metrics.forecastCents)],
+    ["DB aktuell %", metrics.forecastPercent * 100],
+    ["Ergebnis nach Istkosten €", euros(metrics.costCoverageCents)],
+    ["DB nach Istkosten %", metrics.marginPercent * 100],
+    ["Tatsächliche Umlage %", metrics.actualUmlagePercent],
+    ["Normale Umlage %", metrics.normalUmlagePercent],
+    ["Zusätzlicher Gewinn durch Umlage €", euros(metrics.umlageGewinnCents)],
+    ["Umsatz vor Umlage €", euros(metrics.umsatzVorUmlageCents)],
+    ["Ergebnis vor Umlage €", euros(metrics.ergebnisVorUmlageCents)],
+    ["DB vor Umlage %", metrics.dbVorUmlagePercent * 100],
+    ["Skonto %", metrics.skontoPercent],
+    ["Nachlass %", metrics.nachlassPercent],
+  ];
+  const schnellcheckSheet = XLSX.utils.aoa_to_sheet([
+    ["Kennzahl", "Wert"],
+    ...schnellcheckRows,
+  ]);
+  schnellcheckSheet["!cols"] = [{ wch: 34 }, { wch: 40 }];
+  schnellcheckSheet["!margins"] = NARROW_MARGINS;
+  XLSX.utils.book_append_sheet(workbook, schnellcheckSheet, "Schnellcheck");
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.json_to_sheet(
-      report.detailEntries.map((entry) => ({
-        Datum: formatDate(entry.entryDate),
-        Art: entry.costType,
-        Beschreibung: entry.description,
-        Menge: entry.quantity,
-        Einheit: entry.unit,
-        "Satz €": euros(entry.unitPriceCents),
-        "Betrag €": euros(entry.amountCents),
-        Status: entry.status,
-        Herkunft: entry.source,
-        Bemerkung: entry.notes ?? "",
-      })),
-    ),
-    "Detail",
+  const detailSheet = XLSX.utils.json_to_sheet(
+    report.detailEntries.map((entry) => ({
+      Datum: formatDate(entry.entryDate),
+      Art: entry.costType,
+      Beschreibung: entry.description,
+      Menge: entry.quantity,
+      Einheit: entry.unit,
+      "Satz €": euros(entry.unitPriceCents),
+      "Betrag €": euros(entry.amountCents),
+      Status: entry.status,
+      Herkunft: entry.source,
+      Bemerkung: entry.notes ?? "",
+    })),
   );
+  detailSheet["!cols"] = [
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 26 },
+    { wch: 8 },
+    { wch: 8 },
+    { wch: 9 },
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 30 },
+  ];
+  detailSheet["!margins"] = NARROW_MARGINS;
+  XLSX.utils.book_append_sheet(workbook, detailSheet, "Detail");
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.json_to_sheet(
-      report.hourEntries.map((entry) => ({
-        Datum: formatDate(entry.entryDate),
-        Bezeichnung: entry.label,
-        "Beginn": entry.startsAt ?? "",
-        "Ende": entry.endsAt ?? "",
-        "Pause h": entry.breakHours,
-        "Anzahl MA": entry.employeeCount,
-        "Std je MA": entry.hoursPerEmployee,
-        "Std gesamt": entry.totalHours,
-        "EK real €/h": euros(entry.realRateCents),
-        "Kosten real €": euros(entry.realCostCents),
-        Status: entry.status,
-        Herkunft: entry.source,
-        Bemerkung: entry.notes ?? "",
-      })),
-    ),
-    "Stunden",
+  const stundenSheet = XLSX.utils.json_to_sheet(
+    report.hourEntries.map((entry) => ({
+      Datum: formatDate(entry.entryDate),
+      Bezeichnung: entry.label,
+      "Beginn": entry.startsAt ?? "",
+      "Ende": entry.endsAt ?? "",
+      "Pause h": entry.breakHours,
+      "Anzahl MA": entry.employeeCount,
+      "Std je MA": entry.hoursPerEmployee,
+      "Std gesamt": entry.totalHours,
+      "EK real €/h": euros(entry.realRateCents),
+      "Kosten real €": euros(entry.realCostCents),
+      Status: entry.status,
+      Herkunft: entry.source,
+      Bemerkung: entry.notes ?? "",
+    })),
   );
+  stundenSheet["!cols"] = [
+    { wch: 10 },
+    { wch: 20 },
+    { wch: 8 },
+    { wch: 8 },
+    { wch: 8 },
+    { wch: 9 },
+    { wch: 9 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 11 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 26 },
+  ];
+  stundenSheet["!margins"] = NARROW_MARGINS;
+  XLSX.utils.book_append_sheet(workbook, stundenSheet, "Stunden");
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.json_to_sheet(
-      report.invoiceItems.map((entry) => ({
-        OZ: entry.positionCode ?? "",
-        Kurztext: entry.shortText,
-        Menge: entry.billedQuantity,
-        ME: entry.unit ?? "",
-        "EP €": euros(entry.unitPriceCents),
-        "Kosten/ME €": euros(entry.costPerUnitCents),
-        "Lohn €": euros(entry.laborCostCents),
-        "Geräte €": euros(entry.equipmentCostCents),
-        "Material €": euros(entry.materialCostCents),
-        "NU €": euros(entry.subcontractorCostCents),
-        "Sonstiges €": euros(entry.otherCostCents),
-        "Kosten €": euros(entry.costCents),
-        "Umsatz €": euros(entry.revenueCents),
-        Herkunft: entry.source,
-        Bemerkung: entry.notes ?? "",
-      })),
-    ),
-    "iTWO",
+  const itwoSheet = XLSX.utils.json_to_sheet(
+    report.invoiceItems.map((entry) => ({
+      OZ: entry.positionCode ?? "",
+      Kurztext: entry.shortText,
+      Menge: entry.billedQuantity,
+      ME: entry.unit ?? "",
+      "EP €": euros(entry.unitPriceCents),
+      "Kosten/ME €": euros(entry.costPerUnitCents),
+      "Lohn €": euros(entry.laborCostCents),
+      "Geräte €": euros(entry.equipmentCostCents),
+      "Material €": euros(entry.materialCostCents),
+      "NU €": euros(entry.subcontractorCostCents),
+      "Sonstiges €": euros(entry.otherCostCents),
+      "Kosten €": euros(entry.costCents),
+      "Umsatz €": euros(entry.revenueCents),
+      Herkunft: entry.source,
+      Bemerkung: entry.notes ?? "",
+    })),
   );
+  itwoSheet["!cols"] = [
+    { wch: 10 },
+    { wch: 28 },
+    { wch: 8 },
+    { wch: 6 },
+    { wch: 9 },
+    { wch: 10 },
+    { wch: 9 },
+    { wch: 9 },
+    { wch: 9 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 18 },
+    { wch: 26 },
+  ];
+  itwoSheet["!margins"] = NARROW_MARGINS;
+  XLSX.utils.book_append_sheet(workbook, itwoSheet, "iTWO");
 
   return workbook;
 }
@@ -329,6 +386,10 @@ function formatEuro(cents: number) {
 
 function formatPercent(ratio: number) {
   return `${(ratio * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+}
+
+function formatDecimal(value: number) {
+  return value.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 }
 
 type TableColumn = { align?: "left" | "right"; header: string; width: number };
@@ -398,7 +459,7 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
     },
   ];
 
-  const tileCols = 3;
+  const tileCols = 6;
   const tileGap = 8;
   const tileWidth = (CONTENT_WIDTH - tileGap * (tileCols - 1)) / tileCols;
   const tileHeight = 40;
@@ -519,16 +580,46 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
     y -= 8;
   }
 
-  // Vollständige iTWO/Rechnungsmengen-Tabelle, paginiert (nicht mehr auf 18 Zeilen gekappt)
+  // Alle drei Tabellen (Detail/Stunden/iTWO) - Spaltenbreiten summieren
+  // jeweils exakt auf CONTENT_WIDTH, damit nichts über den Seitenrand
+  // hinausläuft. Landscape gibt hier genug Breite für die 10-13 Spalten
+  // von Detail/Stunden her.
+  const detailColumns: TableColumn[] = [
+    { header: "Datum", width: 55 },
+    { header: "Art", width: 65 },
+    { header: "Beschreibung", width: 145 },
+    { header: "Menge", width: 45, align: "right" },
+    { header: "Einheit", width: 42 },
+    { header: "Satz €", width: 55, align: "right" },
+    { header: "Betrag €", width: 60, align: "right" },
+    { header: "Status", width: 78 },
+    { header: "Herkunft", width: 100 },
+    { header: "Bemerkung", width: 117 },
+  ];
+  const hourColumns: TableColumn[] = [
+    { header: "Datum", width: 48 },
+    { header: "Bezeichnung", width: 85 },
+    { header: "Beginn", width: 38 },
+    { header: "Ende", width: 38 },
+    { header: "Pause h", width: 40, align: "right" },
+    { header: "Anzahl MA", width: 42, align: "right" },
+    { header: "Std je MA", width: 42, align: "right" },
+    { header: "Std gesamt", width: 45, align: "right" },
+    { header: "EK real €/h", width: 50, align: "right" },
+    { header: "Kosten real €", width: 55, align: "right" },
+    { header: "Status", width: 68 },
+    { header: "Herkunft", width: 78 },
+    { header: "Bemerkung", width: 133 },
+  ];
   const invoiceColumns: TableColumn[] = [
-    { header: "OZ", width: 42 },
-    { header: "Kurztext", width: 155 },
+    { header: "OZ", width: 50 },
+    { header: "Kurztext", width: 250 },
     { header: "Menge", width: 55, align: "right" },
-    { header: "ME", width: 32 },
-    { header: "EP €", width: 55, align: "right" },
-    { header: "Kosten €", width: 60, align: "right" },
-    { header: "Umsatz €", width: 60, align: "right" },
-    { header: "Herkunft", width: 56 },
+    { header: "ME", width: 38 },
+    { header: "EP €", width: 68, align: "right" },
+    { header: "Kosten €", width: 78, align: "right" },
+    { header: "Umsatz €", width: 78, align: "right" },
+    { header: "Herkunft", width: 145 },
   ];
 
   function drawTableHeader(columns: TableColumn[]) {
@@ -548,16 +639,18 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
     y -= 16;
   }
 
-  if (report.invoiceItems.length > 0) {
-    ensureSpace(40);
-    page!.drawText("iTWO / Rechnungsmengen", { color: textColor, font: bold, size: 11, x: MARGIN, y });
-    y -= 14;
-    drawTableHeader(invoiceColumns);
+  function drawTable(title: string, columns: TableColumn[], rows: string[][]) {
+    if (rows.length === 0) return;
 
-    report.invoiceItems.forEach((entry, index) => {
+    ensureSpace(40);
+    page!.drawText(title, { color: textColor, font: bold, size: 11, x: MARGIN, y });
+    y -= 14;
+    drawTableHeader(columns);
+
+    rows.forEach((cells, index) => {
       ensureSpace(14);
       if (y === PAGE_HEIGHT - MARGIN - HEADER_HEIGHT) {
-        drawTableHeader(invoiceColumns);
+        drawTableHeader(columns);
       }
       if (index % 2 === 1) {
         page!.drawRectangle({
@@ -568,19 +661,9 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
           y: y - 10,
         });
       }
-      const cells = [
-        entry.positionCode ?? "—",
-        entry.shortText,
-        String(entry.billedQuantity),
-        entry.unit ?? "",
-        formatEuro(entry.unitPriceCents),
-        formatEuro(entry.costCents),
-        formatEuro(entry.revenueCents),
-        entry.source,
-      ];
       let x = MARGIN;
       cells.forEach((cellValue, columnIndex) => {
-        const column = invoiceColumns[columnIndex];
+        const column = columns[columnIndex];
         const text = truncateToWidth(cellValue, regular, 7, column.width - 6);
         const textWidth = regular.widthOfTextAtSize(text, 7);
         page!.drawText(text, {
@@ -594,7 +677,60 @@ async function buildPdf(report: NonNullable<Awaited<ReturnType<typeof getReport>
       });
       y -= 13;
     });
+    y -= 8;
   }
+
+  drawTable(
+    "Detailpositionen",
+    detailColumns,
+    report.detailEntries.map((entry) => [
+      formatDate(entry.entryDate),
+      entry.costType,
+      entry.description,
+      formatDecimal(entry.quantity),
+      entry.unit,
+      formatEuro(entry.unitPriceCents),
+      formatEuro(entry.amountCents),
+      entry.status,
+      entry.source,
+      entry.notes ?? "",
+    ]),
+  );
+
+  drawTable(
+    "Stunden",
+    hourColumns,
+    report.hourEntries.map((entry) => [
+      formatDate(entry.entryDate),
+      entry.label,
+      entry.startsAt ?? "",
+      entry.endsAt ?? "",
+      formatDecimal(entry.breakHours),
+      formatDecimal(entry.employeeCount),
+      formatDecimal(entry.hoursPerEmployee),
+      formatDecimal(entry.totalHours),
+      formatEuro(entry.realRateCents),
+      formatEuro(entry.realCostCents),
+      entry.status,
+      entry.source,
+      entry.notes ?? "",
+    ]),
+  );
+
+  drawTable(
+    "iTWO / Rechnungsmengen",
+    invoiceColumns,
+    report.invoiceItems.map((entry) => [
+      entry.positionCode ?? "—",
+      entry.shortText,
+      formatDecimal(entry.billedQuantity),
+      entry.unit ?? "",
+      formatEuro(entry.unitPriceCents),
+      formatEuro(entry.costCents),
+      formatEuro(entry.revenueCents),
+      entry.source,
+    ]),
+  );
 
   // Footer auf jeder Seite
   const generatedAt = new Intl.DateTimeFormat("de-DE", {

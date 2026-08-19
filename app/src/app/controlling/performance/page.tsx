@@ -1093,6 +1093,7 @@ export default async function ControllingPerformancePage({
                           : "abgerechneter Umsatz"
                         : "Leistungsstand"
                     }`}
+                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(actualCostCents)} = ${formatMoney(forecastCents)}`}
                     label="Ergebnis aktuell"
                     percent={{
                       tone: forecastCents >= 0 ? "good" : "bad",
@@ -1444,15 +1445,18 @@ export default async function ControllingPerformancePage({
               <UmlageComparisonSection
                 actualAgkPercent={currentProjectForValues?.actualAgkPercent ?? 10}
                 actualBgkPercent={currentProjectForValues?.actualBgkPercent ?? 6}
+                actualCostCents={actualCostCents}
                 actualFreierZuschlagPercent={
                   currentProjectForValues?.actualFreierZuschlagPercent ?? 0
                 }
                 actualUmlagePercent={actualUmlagePercent}
                 actualWugPercent={currentProjectForValues?.actualWugPercent ?? 6}
                 dbVorUmlagePercent={dbVorUmlagePercent}
+                effectiveInvoiceRevenueCents={effectiveInvoiceRevenueCents}
                 ergebnisVorUmlageCents={ergebnisVorUmlageCents}
                 normalAgkPercent={currentProjectForValues?.normalAgkPercent ?? 10}
                 normalBgkPercent={currentProjectForValues?.normalBgkPercent ?? 6}
+                normalContractCents={normalContractCents}
                 normalFreierZuschlagPercent={
                   currentProjectForValues?.normalFreierZuschlagPercent ?? 0
                 }
@@ -2020,6 +2024,7 @@ function PerformanceAnalysisSection({
         />
         <AnalysisCard
           detail={`DB ${formatPercent(marginPercent)}`}
+          formula={`${formatMoney(effectiveInvoiceRevenueCents)} − ${formatMoney(actualCostCents)} = ${formatMoney(costCoverageCents)}`}
           label="Ergebnis nach Istkosten"
           tone={costCoverageCents >= 0 ? "good" : "bad"}
           value={formatMoney(costCoverageCents)}
@@ -2155,13 +2160,16 @@ function PerformanceAnalysisSection({
 function UmlageComparisonSection({
   actualAgkPercent,
   actualBgkPercent,
+  actualCostCents,
   actualFreierZuschlagPercent,
   actualUmlagePercent,
   actualWugPercent,
   dbVorUmlagePercent,
+  effectiveInvoiceRevenueCents,
   ergebnisVorUmlageCents,
   normalAgkPercent,
   normalBgkPercent,
+  normalContractCents,
   normalFreierZuschlagPercent,
   normalUmlagePercent,
   normalWugPercent,
@@ -2171,13 +2179,16 @@ function UmlageComparisonSection({
 }: {
   actualAgkPercent: number;
   actualBgkPercent: number;
+  actualCostCents: number;
   actualFreierZuschlagPercent: number;
   actualUmlagePercent: number;
   actualWugPercent: number;
   dbVorUmlagePercent: number;
+  effectiveInvoiceRevenueCents: number;
   ergebnisVorUmlageCents: number;
   normalAgkPercent: number;
   normalBgkPercent: number;
+  normalContractCents: number;
   normalFreierZuschlagPercent: number;
   normalUmlagePercent: number;
   normalWugPercent: number;
@@ -2221,18 +2232,21 @@ function UmlageComparisonSection({
         />
         <AnalysisCard
           detail="ggü. Auftragssumme mit normaler Umlage"
+          formula={`${formatMoney(totalContractCents)} − ${formatMoney(normalContractCents)} = ${formatMoney(umlageGewinnCents)}`}
           label="Zusätzlicher Gewinn durch Umlage"
           tone={umlageGewinnCents >= 0 ? "good" : "bad"}
           value={formatMoney(umlageGewinnCents)}
         />
         <AnalysisCard
           detail="abgerechneter Umsatz ohne Umlage-Anteil"
+          formula={`${formatMoney(effectiveInvoiceRevenueCents)} ÷ (1 + ${formatPercent(actualUmlagePercent / 100)}) = ${formatMoney(umsatzVorUmlageCents)}`}
           label="Umsatz vor Umlage"
           tone="neutral"
           value={formatMoney(umsatzVorUmlageCents)}
         />
         <AnalysisCard
           detail={`DB vor Umlage ${formatPercent(dbVorUmlagePercent)}`}
+          formula={`${formatMoney(umsatzVorUmlageCents)} − ${formatMoney(actualCostCents)} = ${formatMoney(ergebnisVorUmlageCents)}`}
           label="Ergebnis vor Umlage"
           tone={ergebnisVorUmlageCents >= 0 ? "good" : "bad"}
           value={formatMoney(ergebnisVorUmlageCents)}
@@ -2263,11 +2277,13 @@ function UmlageComparisonSection({
 
 function AnalysisCard({
   detail,
+  formula,
   label,
   tone,
   value,
 }: {
   detail: string;
+  formula?: string;
   label: string;
   tone: AnalysisTone;
   value: string;
@@ -2281,6 +2297,11 @@ function AnalysisCard({
       </div>
       <div className="mt-2 text-2xl font-black">{value}</div>
       <div className="mt-1 text-xs font-semibold opacity-80">{detail}</div>
+      {formula ? (
+        <div className="mt-1.5 rounded-lg bg-black/5 px-2 py-1 font-mono text-[11px] leading-4 opacity-90">
+          {formula}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2376,12 +2397,14 @@ function DataTable({
 function MetricCard({
   dark = false,
   detail,
+  formula,
   label,
   percent,
   value,
 }: {
   dark?: boolean;
   detail?: string;
+  formula?: string;
   label: string;
   percent?: { tone: "good" | "bad"; value: string };
   value: string;
@@ -2419,6 +2442,15 @@ function MetricCard({
         <p className={`mt-1 text-xs ${dark ? "text-gray-300" : "text-gray-600"}`}>
           {detail}
         </p>
+      ) : null}
+      {formula ? (
+        <div
+          className={`mt-1.5 rounded-lg px-2 py-1 font-mono text-[11px] leading-4 ${
+            dark ? "bg-white/10 text-gray-200" : "bg-black/5 text-gray-700"
+          }`}
+        >
+          {formula}
+        </div>
       ) : null}
     </div>
   );
