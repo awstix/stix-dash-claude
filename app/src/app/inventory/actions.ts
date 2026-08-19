@@ -435,6 +435,105 @@ function relationUpdate(id: string | null) {
       };
 }
 
+const MANUAL_EQUIPMENT_DISPATCH_NOTE =
+  "Automatisch aus manueller Baustellen-Zuordnung (Inventarobjekt)";
+// "Offen bis umgebucht" gibt es im Datenmodell nicht (Start-/Enddatum sind
+// Pflichtfelder) - ein weit in der Zukunft liegendes Enddatum bildet das
+// nach, bis die Zuordnung geändert wird.
+const OPEN_ENDED_DISPATCH_END_DATE = new Date("2099-12-31T00:00:00.000Z");
+
+/** Hält den Gerätedispo-Eintrag synchron mit der manuellen Baustellen-
+ * Zuordnung eines Inventarobjekts (updateInventoryAssignment) - sonst
+ * steht das Objekt zwar am Objekt selbst auf der Baustelle, zählt aber
+ * nicht für Gerätetage/-kosten in der Leistungsmeldung, die ausschließlich
+ * aus EquipmentDispatchAssignment liest. Legt bei einer neuen Zuordnung
+ * einen offenen Dispo-Eintrag an und schließt den zuvor automatisch
+ * angelegten, sobald auf eine andere Baustelle umgezogen oder die
+ * Zuordnung entfernt wird. Nur für Objekte mit Fahrzeug-Brücke
+ * (vehicleId) möglich, das Modell verlangt zwingend ein Vehicle. Bricht
+ * bei einer echten Terminüberschneidung (z.B. schon anderswo über die
+ * Gerätedispo eingeplant) einfach ab, ohne zu verdoppeln - die
+ * Baustellen-Anzeige am Objekt bleibt davon unberührt. */
+async function syncManualEquipmentDispatchAssignment(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  vehicleId: string | null,
+  currentProjectId: string | null,
+) {
+  if (!vehicleId) return;
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const existingAuto = await tx.equipmentDispatchAssignment.findFirst({
+    where: {
+      endDate: {
+        gte: today,
+      },
+      inventoryItemId: itemId,
+      notes: MANUAL_EQUIPMENT_DISPATCH_NOTE,
+    },
+  });
+
+  if (existingAuto && existingAuto.projectId !== currentProjectId) {
+    await tx.equipmentDispatchAssignment.update({
+      data: {
+        endDate: today,
+      },
+      where: {
+        id: existingAuto.id,
+      },
+    });
+  }
+
+  const alreadyOpenForSameProject =
+    existingAuto && existingAuto.projectId === currentProjectId;
+
+  if (!currentProjectId || alreadyOpenForSameProject) {
+    return;
+  }
+
+  const conflict = await tx.equipmentDispatchAssignment.findFirst({
+    where: {
+      OR: [{ vehicleId }, { inventoryItemId: itemId }],
+      endDate: {
+        gte: today,
+      },
+      notes: {
+        not: MANUAL_EQUIPMENT_DISPATCH_NOTE,
+      },
+      startDate: {
+        lte: OPEN_ENDED_DISPATCH_END_DATE,
+      },
+    },
+  });
+
+  if (conflict) return;
+
+  await tx.equipmentDispatchAssignment.create({
+    data: {
+      endDate: OPEN_ENDED_DISPATCH_END_DATE,
+      inventoryItem: {
+        connect: {
+          id: itemId,
+        },
+      },
+      notes: MANUAL_EQUIPMENT_DISPATCH_NOTE,
+      project: {
+        connect: {
+          id: currentProjectId,
+        },
+      },
+      startDate: today,
+      vehicle: {
+        connect: {
+          id: vehicleId,
+        },
+      },
+    },
+  });
+}
+
 async function getInventoryCreateData(formData: FormData) {
   const {
     categoryId,
@@ -1367,6 +1466,7 @@ export async function updateInventoryAssignment(formData: FormData) {
       id,
     },
     select: {
+      vehicleId: true,
       category: {
         select: {
           name: true,
@@ -1443,9 +1543,11 @@ export async function updateInventoryAssignment(formData: FormData) {
     });
 
     await syncDriverVehicleAssignmentForInventoryItem(tx, id);
+    await syncManualEquipmentDispatchAssignment(tx, id, item?.vehicleId ?? null, currentProjectId);
   });
 
   revalidateInventoryItem(id);
+  revalidatePath("/equipment-dispatch");
 }
 
 export async function returnInventoryItemToBaseLocation(formData: FormData) {

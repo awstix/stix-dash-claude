@@ -1212,8 +1212,12 @@ export default async function InventoryDetailPage({
           Hier wird gepflegt, ob das Objekt grundsätzlich zu einer Kolonne oder
           zu einem Mitarbeiter gehört, und kann auch direkt einer Baustelle
           zugeordnet werden - ohne Planung, das Objekt steht dann ab sofort
-          dort. Über Planung, Kolonnenzuordnung, Gerätedisposition oder
-          LKW-Disposition wird die Baustelle danach automatisch aktualisiert.
+          dort. Bei Objekten mit Fahrzeug-Verknüpfung wird dafür automatisch
+          ein offener Gerätedispo-Eintrag angelegt, der auch für Gerätetage/
+          -kosten in der Leistungsmeldung zählt (endet automatisch, sobald
+          hier auf eine andere Baustelle umgezogen wird). Über Planung,
+          Kolonnenzuordnung, Gerätedisposition oder LKW-Disposition wird die
+          Baustelle danach automatisch aktualisiert.
         </p>
 
         <form
