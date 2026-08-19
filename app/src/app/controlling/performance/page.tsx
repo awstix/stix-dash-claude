@@ -959,7 +959,7 @@ export default async function ControllingPerformancePage({
                     )}
                   </div>
 
-                  <HoursSourceToggle defaultValue={report.hoursSource} />
+                  <HoursSourceToggle defaultValue={report.hoursSource} reportId={report.id} />
 
                   <Field label="Hauptauftrag netto">
                     <input

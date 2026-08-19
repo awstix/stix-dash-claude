@@ -1,13 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { updateReportHoursSource } from "./actions";
 
 /** Zwei sich gegenseitig ausschließende Checkboxen statt Dropdown/Radio -
  * explizit vom Nutzer so gewünscht: beide Modi sollen als eigene,
  * gleichwertig sichtbare Checkbox nebeneinander stehen, nicht als eine
- * einzelne Checkbox mit implizitem An/Aus-Zustand. */
-export function HoursSourceToggle({ defaultValue }: { defaultValue: string }) {
+ * einzelne Checkbox mit implizitem An/Aus-Zustand.
+ *
+ * Speichert sich beim Umschalten selbst über eine schlanke Aktion und ruft
+ * danach router.refresh() statt einer Formular-Navigation auf - die
+ * Kolonnen-Vorschläge (abhängig von report.hoursSource) werden dadurch
+ * sofort mit den neuen Werten neu berechnet, ohne dass die Seite über eine
+ * echte Navigation neu lädt und dabei nach oben springt. Das versteckte
+ * Feld hält den Wert zusätzlich für das umgebende
+ * "Leistungsmeldungsdaten speichern"-Formular aktuell (unschädlich
+ * redundant, falls beides gleichzeitig gespeichert wird). */
+export function HoursSourceToggle({
+  defaultValue,
+  reportId,
+}: {
+  defaultValue: string;
+  reportId: string;
+}) {
+  const router = useRouter();
   const [value, setValue] = useState(defaultValue === "APPROVED_TIME" ? "APPROVED_TIME" : "PLANNED");
+  const [pending, startTransition] = useTransition();
+
+  function select(next: string) {
+    if (next === value || pending) return;
+
+    setValue(next);
+    startTransition(async () => {
+      await updateReportHoursSource({ hoursSource: next, reportId });
+      router.refresh();
+    });
+  }
 
   return (
     <div className="lg:col-span-6 grid gap-3 sm:grid-cols-2">
@@ -22,7 +51,8 @@ export function HoursSourceToggle({ defaultValue }: { defaultValue: string }) {
         <input
           checked={value === "PLANNED"}
           className="mt-1 h-4 w-4"
-          onChange={() => setValue("PLANNED")}
+          disabled={pending}
+          onChange={() => select("PLANNED")}
           type="checkbox"
         />
         <span className="text-sm">
@@ -45,7 +75,8 @@ export function HoursSourceToggle({ defaultValue }: { defaultValue: string }) {
         <input
           checked={value === "APPROVED_TIME"}
           className="mt-1 h-4 w-4"
-          onChange={() => setValue("APPROVED_TIME")}
+          disabled={pending}
+          onChange={() => select("APPROVED_TIME")}
           type="checkbox"
         />
         <span className="text-sm">
@@ -58,6 +89,11 @@ export function HoursSourceToggle({ defaultValue }: { defaultValue: string }) {
           </span>
         </span>
       </label>
+      {pending ? (
+        <p className="sm:col-span-2 text-xs font-semibold text-gray-500">
+          Speichert und berechnet Kolonnen-Vorschläge neu …
+        </p>
+      ) : null}
     </div>
   );
 }

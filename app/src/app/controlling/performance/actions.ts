@@ -348,6 +348,30 @@ export async function updatePerformanceReport(formData: FormData) {
   redirect(pathFor(reportId, projectId));
 }
 
+/** Eigene, schlanke Aktion nur für den Leistungsmeldung-nach-Disposition/
+ * -Leistung-Umschalter (HoursSourceToggle) - kein redirect(), damit das
+ * Umschalten die Kolonnen-Vorschläge (die von report.hoursSource abhängen)
+ * per router.refresh() live neu berechnet, ohne die Seite über eine
+ * echte Navigation neu zu laden und dabei nach oben zu springen. */
+export async function updateReportHoursSource(input: {
+  hoursSource: string;
+  reportId: string;
+}) {
+  await requireSession();
+  const hoursSource = input.hoursSource === "APPROVED_TIME" ? "APPROVED_TIME" : "PLANNED";
+
+  await prisma.controllingPerformanceReport.update({
+    data: {
+      hoursSource,
+    },
+    where: {
+      id: input.reportId,
+    },
+  });
+
+  revalidateControlling();
+}
+
 export async function deletePerformanceReport(formData: FormData) {
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
