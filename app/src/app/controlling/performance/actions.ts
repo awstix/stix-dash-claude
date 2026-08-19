@@ -1562,37 +1562,80 @@ async function runDispositionImport(
     }
   }
 
-  for (const allocation of asphaltLoads) {
-    if (allocation.vehicleInventoryItemId) {
-      const vehicleHours = timeRangeHours(allocation.startTime, allocation.endTime);
+  // Ein Fahrzeug/Material kann an einem Tag über mehrere Zuteilungs-Zeilen
+  // (mehrere Touren) auftreten - pushDetailEntry dedupliziert nach
+  // inventoryItemId+Datum+Kostenart, ohne Aggregation würde daher wie bei
+  // den Fahrerstunden vorhin nur die erste Tour des Tages gezählt und
+  // weitere Touren stillschweigend verworfen. Items ohne id (kein
+  // verknüpftes Inventarobjekt) bekommen einen eindeutigen Schlüssel und
+  // bleiben dadurch einzeln, unaggregiert - wie bisher.
+  let ungroupedKeyIndex = 0;
+  function aggregateByKeyAndDay<T>(
+    items: T[],
+    keyOf: (item: T) => string | null | undefined,
+    workDateOf: (item: T) => Date,
+  ) {
+    const groups = new Map<string, { items: T[]; workDate: Date }>();
 
-      pushDetailEntry({
-        amountCents: 0,
-        costType: "Geräte",
-        description:
-          allocation.vehicleNumber ||
-          allocation.licensePlate ||
-          allocation.vehicleType ||
-          "LKW",
-        entryDate: allocation.workDate,
-        inventoryItemId: allocation.vehicleInventoryItemId,
-        notes: `LKW aus Asphalt-Zuteilung übernommen${allocation.driverName ? ` · ${allocation.driverName}` : ""}`,
-        quantity: vehicleHours,
-        source: "DISPOSITION_IMPORT",
-        status: "geschätzt",
-        unit: "h",
-        unitPriceCents: 0,
-      });
+    for (const item of items) {
+      const key = keyOf(item) ?? `__ungrouped_${ungroupedKeyIndex++}`;
+      const groupKey = `${key}|${workDateOf(item).toISOString()}`;
+      const existing = groups.get(groupKey);
+
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groups.set(groupKey, { items: [item], workDate: workDateOf(item) });
+      }
     }
+
+    return [...groups.values()];
+  }
+
+  for (const group of aggregateByKeyAndDay(
+    asphaltLoads.filter((allocation) => allocation.vehicleInventoryItemId),
+    (allocation) => allocation.vehicleInventoryItemId,
+    (allocation) => allocation.workDate,
+  )) {
+    const first = group.items[0];
+    const totalHours = group.items.reduce(
+      (sum, allocation) => sum + timeRangeHours(allocation.startTime, allocation.endTime),
+      0,
+    );
+    const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
+
+    pushDetailEntry({
+      amountCents: 0,
+      costType: "Geräte",
+      description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
+      entryDate: group.workDate,
+      inventoryItemId: first.vehicleInventoryItemId,
+      notes: `LKW aus Asphalt-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      quantity: Math.round(totalHours * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: "h",
+      unitPriceCents: 0,
+    });
+  }
+
+  for (const group of aggregateByKeyAndDay(
+    asphaltLoads,
+    (allocation) => allocation.asphaltInventoryItemId,
+    (allocation) => allocation.workDate,
+  )) {
+    const first = group.items[0];
+    const totalTons = group.items.reduce((sum, allocation) => sum + allocation.totalTons, 0);
+    const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
 
     pushDetailEntry({
       amountCents: 0,
       costType: "Material",
-      description: allocation.asphaltMixName || allocation.asphaltMixNumber || "Asphalt",
-      entryDate: allocation.workDate,
-      inventoryItemId: allocation.asphaltInventoryItemId,
-      notes: `aus LKW-/Asphaltdisposition übernommen${allocation.driverName ? ` · ${allocation.driverName}` : ""}`,
-      quantity: allocation.totalTons,
+      description: first.asphaltMixName || first.asphaltMixNumber || "Asphalt",
+      entryDate: group.workDate,
+      inventoryItemId: first.asphaltInventoryItemId,
+      notes: `aus LKW-/Asphaltdisposition übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      quantity: Math.round(totalTons * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
       unit: "t",
@@ -1600,40 +1643,53 @@ async function runDispositionImport(
     });
   }
 
-  for (const allocation of tackCoatLoads) {
-    if (allocation.vehicleInventoryItemId) {
-      const vehicleHours = timeRangeHours(allocation.startTime, allocation.endTime);
+  for (const group of aggregateByKeyAndDay(
+    tackCoatLoads.filter((allocation) => allocation.vehicleInventoryItemId),
+    (allocation) => allocation.vehicleInventoryItemId,
+    (allocation) => allocation.workDate,
+  )) {
+    const first = group.items[0];
+    const totalHours = group.items.reduce(
+      (sum, allocation) => sum + timeRangeHours(allocation.startTime, allocation.endTime),
+      0,
+    );
+    const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
 
-      pushDetailEntry({
-        amountCents: 0,
-        costType: "Geräte",
-        description:
-          allocation.vehicleNumber ||
-          allocation.licensePlate ||
-          allocation.vehicleType ||
-          "LKW",
-        entryDate: allocation.workDate,
-        inventoryItemId: allocation.vehicleInventoryItemId,
-        notes: `LKW aus Anspritzmittel-Zuteilung übernommen${allocation.driverName ? ` · ${allocation.driverName}` : ""}`,
-        quantity: vehicleHours,
-        source: "DISPOSITION_IMPORT",
-        status: "geschätzt",
-        unit: "h",
-        unitPriceCents: 0,
-      });
-    }
+    pushDetailEntry({
+      amountCents: 0,
+      costType: "Geräte",
+      description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
+      entryDate: group.workDate,
+      inventoryItemId: first.vehicleInventoryItemId,
+      notes: `LKW aus Anspritzmittel-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      quantity: Math.round(totalHours * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: "h",
+      unitPriceCents: 0,
+    });
+  }
+
+  for (const group of aggregateByKeyAndDay(
+    tackCoatLoads,
+    (allocation) => allocation.tackCoatInventoryItemId,
+    (allocation) => allocation.workDate,
+  )) {
+    const first = group.items[0];
+    const totalLiters = group.items.reduce((sum, allocation) => sum + allocation.totalLiters, 0);
+    const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
 
     pushDetailEntry({
       amountCents: 0,
       costType: "Material",
-      description: allocation.materialName || "Anspritzmittel",
-      entryDate: allocation.workDate,
-      inventoryItemId: allocation.tackCoatInventoryItemId,
-      notes: `aus LKW-/Sonderfahrzeugdisposition übernommen${allocation.driverName ? ` · ${allocation.driverName}` : ""}`,
-      quantity: allocation.totalLiters,
+      description: first.materialName || "Anspritzmittel",
+      entryDate: group.workDate,
+      inventoryItemId: first.tackCoatInventoryItemId,
+      notes: `aus LKW-/Sonderfahrzeugdisposition übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`,
+      quantity: Math.round(totalLiters * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
-      unit: allocation.quantityUnit || "l",
+      unit: first.quantityUnit || "l",
       unitPriceCents: 0,
     });
   }
