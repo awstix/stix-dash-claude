@@ -726,6 +726,93 @@ export async function addControllingHourEntry(formData: FormData) {
   redirect(pathFor(reportId, projectId));
 }
 
+type CrewSuggestionPayloadItem =
+  | {
+      costCategory: string;
+      crewName: string;
+      internalRate: string;
+      personnelHours: number;
+      realRate: string;
+      type: "PERSONNEL";
+    }
+  | {
+      crewName: string;
+      equipmentHours: number;
+      itemId: string;
+      label: string;
+      type: "EQUIPMENT";
+      unitPrice: string;
+    };
+
+/** Bucht alle aktuell angezeigten "Vorschläge aus Kolonnen-Zuteilung" auf
+ * einmal, statt jede Zeile einzeln anklicken zu müssen - dieselben
+ * Werte, die auch die Einzel-Buchen-Buttons verwenden, kommen als JSON
+ * vom Client mit (die Berechnung selbst lebt weiter in page.tsx, hier
+ * nur das gesammelte Anlegen in einer Transaktion). */
+export async function confirmAllCrewSuggestions(formData: FormData) {
+  await requireSession();
+  const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
+  const projectId = requiredText(formData.get("projectId"), "Projekt");
+  const entryDate = requiredDate(formData.get("entryDate"), "Datum");
+  const items = JSON.parse(
+    text(formData.get("suggestions")) || "[]",
+  ) as CrewSuggestionPayloadItem[];
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    for (const item of items) {
+      if (item.type === "PERSONNEL") {
+        const realRateCents = moneyCents(item.realRate, "EK real");
+        const internalRateCents = moneyCents(item.internalRate, "Interner Satz");
+        const totalHours = item.personnelHours;
+
+        await tx.controllingHourEntry.create({
+          data: {
+            breakHours: 0,
+            costCategory: item.costCategory === "GEHALT_SONSTIGES" ? "GEHALT_SONSTIGES" : "LOHN",
+            employeeCount: 1,
+            entryDate,
+            hoursPerEmployee: totalHours,
+            internalCostCents: Math.round(totalHours * internalRateCents),
+            internalRateCents,
+            label: item.crewName,
+            notes: `Vorschlag Kolonne ${item.crewName} (Alle Vorschläge übernehmen)`,
+            projectId,
+            realCostCents: Math.round(totalHours * realRateCents),
+            realRateCents,
+            reportId,
+            source: "MANUAL",
+            totalHours,
+          },
+        });
+      } else {
+        const unitPriceCents = moneyCents(item.unitPrice, "EP netto");
+        const quantity = item.equipmentHours;
+
+        await tx.controllingDetailEntry.create({
+          data: {
+            amountCents: Math.round(quantity * unitPriceCents),
+            costType: "Geräte",
+            description: item.label,
+            entryDate,
+            notes: `Vorschlag Kolonne ${item.crewName} (Alle Vorschläge übernehmen)`,
+            projectId,
+            quantity,
+            reportId,
+            source: "MANUAL",
+            status: "geschätzt",
+            unit: "h",
+            unitPriceCents,
+            utilizationPercent: 100,
+          },
+        });
+      }
+    }
+  });
+
+  revalidateControlling();
+  redirect(pathFor(reportId, projectId));
+}
+
 export async function addControllingInvoiceItem(formData: FormData) {
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");

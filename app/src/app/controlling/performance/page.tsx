@@ -7,6 +7,7 @@ import {
   addControllingDetailEntry,
   addControllingHourEntry,
   addControllingInvoiceItem,
+  confirmAllCrewSuggestions,
   createPerformanceReport,
   deleteControllingDetailEntry,
   deleteControllingHourEntry,
@@ -23,6 +24,7 @@ import {
   importItwoInvoiceItems,
   updatePerformanceReport,
 } from "./actions";
+import { ConfirmAllSuggestionsButton } from "./ConfirmAllSuggestionsButton";
 import { ControllingHourForm } from "./ControllingHourForm";
 import { DeleteEntryButton } from "./DeleteEntryButton";
 import { DeletePerformanceReportButton } from "./DeletePerformanceReportButton";
@@ -1092,6 +1094,7 @@ export default async function ControllingPerformancePage({
 
               {crewSuggestions.length > 0 ? (
                 <CrewSuggestionsSection
+                  confirmAllAction={confirmAllCrewSuggestions}
                   crewSuggestions={crewSuggestions}
                   entryDate={formatInputDate(
                     report.periodEnd ?? report.reportDate ?? new Date(),
@@ -1392,6 +1395,7 @@ type CrewSuggestion = {
 };
 
 function CrewSuggestionsSection({
+  confirmAllAction,
   crewSuggestions,
   detailAction,
   entryDate,
@@ -1400,6 +1404,7 @@ function CrewSuggestionsSection({
   projectId,
   reportId,
 }: {
+  confirmAllAction: (formData: FormData) => Promise<void>;
   crewSuggestions: CrewSuggestion[];
   detailAction: (formData: FormData) => Promise<void>;
   entryDate: string;
@@ -1413,11 +1418,45 @@ function CrewSuggestionsSection({
       ? "freigegebener Zeiterfassung (Leistungsmeldung nach Leistung)"
       : "geplanter Personaleinsatzplanung (Leistungsmeldung nach Disposition)";
 
+  const allSuggestionItems = crewSuggestions.flatMap((suggestion) => [
+    ...(suggestion.personnelHours > 0
+      ? [
+          {
+            costCategory: suggestion.personnelCostCategory,
+            crewName: suggestion.crewName,
+            internalRate: suggestion.internalRate,
+            personnelHours: suggestion.personnelHours,
+            realRate: suggestion.realRate,
+            type: "PERSONNEL" as const,
+          },
+        ]
+      : []),
+    ...(suggestion.equipmentHours > 0
+      ? suggestion.equipmentItems.map((item) => ({
+          crewName: suggestion.crewName,
+          equipmentHours: suggestion.equipmentHours,
+          itemId: item.itemId,
+          label: item.label,
+          type: "EQUIPMENT" as const,
+          unitPrice: item.unitPrice,
+        }))
+      : []),
+  ]);
+
   return (
     <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-      <h2 className="text-lg font-semibold text-blue-950">
-        Vorschläge aus Kolonnen-Zuteilung
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-blue-950">
+          Vorschläge aus Kolonnen-Zuteilung
+        </h2>
+        <ConfirmAllSuggestionsButton
+          action={confirmAllAction}
+          entryDate={entryDate}
+          items={allSuggestionItems}
+          projectId={projectId}
+          reportId={reportId}
+        />
+      </div>
       <p className="mt-1 text-sm text-blue-900">
         Aus {sourceLabel} für die diesem Projekt zugeteilten Kolonnen. Ein
         Klick bucht die Position direkt (mit Datum {entryDate}) - danach
