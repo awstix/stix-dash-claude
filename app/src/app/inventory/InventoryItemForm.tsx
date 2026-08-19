@@ -1,6 +1,7 @@
 import { InventoryContactFields } from "./InventoryContactFields";
 import { InventoryAdditionalEmployeesField } from "./InventoryAdditionalEmployeesField";
 import { InventoryDocumentUploadFields } from "./InventoryDocumentUploadFields";
+import { InventoryMoneyField } from "./InventoryMoneyField";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 import { SearchableInventorySelect } from "./SearchableInventorySelect";
 import {
@@ -492,27 +493,19 @@ export function InventoryItemForm({
               />
             ) : null}
             <div className={innerGridClass}>
-              <Input
-                defaultValue={
-                  item?.billingRateCents
-                    ? String(item.billingRateCents / 100)
-                    : ""
+              <InventoryMoneyField
+                defaultValueEuro={
+                  item?.billingRateCents ? item.billingRateCents / 100 : null
                 }
                 label="Verrechnungssatz €/Einheit"
                 name="billingRate"
-                step="0.01"
-                type="number"
               />
-              <Input
-                defaultValue={
-                  item?.idleBillingRateCents
-                    ? String(item.idleBillingRateCents / 100)
-                    : ""
+              <InventoryMoneyField
+                defaultValueEuro={
+                  item?.idleBillingRateCents ? item.idleBillingRateCents / 100 : null
                 }
                 label="Verrechnungssatz stillgelegt €/Einheit"
                 name="idleBillingRate"
-                step="0.01"
-                type="number"
               />
             </div>
           </div>
