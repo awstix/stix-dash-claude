@@ -7,6 +7,7 @@ import { getVisibleFeatureKeysForUser } from "@/lib/portal-permissions";
 
 const publicPrefixes = [
   "/api/auth",
+  "/api/cron",
   "/login",
   "/register",
   "/forgot-password",
