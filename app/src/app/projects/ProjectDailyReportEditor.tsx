@@ -153,7 +153,7 @@ export function ProjectDailyReportEditor({
   }
 
   /** Für Arbeitszeit von/bis + Pause 1/2: aktualisiert zusätzlich die
-   * Stunden je Arbeitskräfte-Zeile (Anzahl × Nettozeit des neuen
+   * Stunden je Arbeitskräfte- und Geräte-Zeile (Anzahl × Nettozeit des neuen
    * Zeitfensters) – wirkt sich bewusst nur auf diesen Bautagesbericht aus,
    * nie auf die Kolonnen-Zeiterfassung oder Lohnbuchhaltung. */
   function updateWorkWindow(
@@ -178,13 +178,17 @@ export function ProjectDailyReportEditor({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
+        machineRows: next.machineRows.map((row) => ({
+          ...row,
+          hours: Math.round(row.count * netHours * 100) / 100,
+        })),
       };
     });
   }
 
   /** Übernimmt Arbeitszeit + Pausen komplett aus der geplanten Vorlage
    * (Jahreskalender) oder aus der bereits freigegebenen Kolonnen-
-   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte-Stunden. */
+   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte- und Geräte-Stunden. */
   function applyWorkWindowSource(source: "plan" | "approved") {
     const { suggestions } = context;
     const start = source === "plan" ? suggestions.planWorkStart : suggestions.approvedWorkStart;
@@ -217,6 +221,10 @@ export function ProjectDailyReportEditor({
       return {
         ...next,
         laborRows: next.laborRows.map((row) => ({
+          ...row,
+          hours: Math.round(row.count * netHours * 100) / 100,
+        })),
+        machineRows: next.machineRows.map((row) => ({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
@@ -684,8 +692,9 @@ export function ProjectDailyReportEditor({
         {showWorkWindowHint ? (
           <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             <p>
-              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; unten an – wirkt sich nur
-              auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die Lohnbuchhaltung.
+              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; und „Geräte&quot; unten an –
+              wirkt sich nur auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die
+              Lohnbuchhaltung.
             </p>
             <button
               className="shrink-0 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100"

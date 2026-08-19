@@ -667,6 +667,14 @@ export function buildDailyReportContext(
         .map((employee) => employee.employeeId),
     ),
   );
+  // Alle Dispo-Quellen (Kolonnenplanung, Asphalt-Dispo, Sonderfahrzeug-/LKW-
+  // Fahrer) prüfen unten gegen crewLaborEmployeeIds, ob eine Person schon
+  // gezählt wurde - vorbelegt mit den Zeiterfassungs-Personen, damit niemand
+  // doppelt (einmal mit echten Zeiterfassungs-Stunden, einmal zusätzlich mit
+  // Dispo-Sollstunden) gezählt wird.
+  for (const employeeId of capturedEmployeeIds) {
+    crewLaborEmployeeIds.add(employeeId);
+  }
   const hasApprovedCrewTimes = project.crewTimeEntries.some(
     (entry) => entry.status === "APPROVED",
   );
