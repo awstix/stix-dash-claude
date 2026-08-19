@@ -8,6 +8,66 @@ import { prisma } from "@/lib/prisma";
 import { leaveRequestIdsInProjectScope } from "@/lib/leave-request-access";
 import { DashboardGrid } from "./DashboardGrid";
 
+type AsphaltDispatchEntryForSummary = {
+  asphaltMixName: string | null;
+  quantityTons: number;
+  tackCoatMaterialName: string | null;
+  tackCoatQuantity: number;
+  tackCoatUnit: string | null;
+};
+
+function formatTons(value: number) {
+  return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} t`;
+}
+
+/** Gruppiert Asphalt-Dispo-Einträge nach Mischgut (Summe je Sorte, danach
+ * Gesamtsumme) und listet Anspritzmittel separat (eigene Mengeneinheit,
+ * kann nicht mit Asphalt-Tonnen zusammengezählt werden) - gemeinsam von
+ * der Wochen- und der Tageszusammenfassung Asphalt genutzt, damit beide
+ * exakt gleich rechnen. */
+function buildAsphaltSummary(entries: AsphaltDispatchEntryForSummary[]) {
+  const mixTotals = new Map<string, number>();
+  const tackCoatTotals = new Map<string, { quantity: number; unit: string }>();
+  let totalAsphaltTons = 0;
+
+  for (const entry of entries) {
+    if (entry.asphaltMixName && entry.quantityTons > 0) {
+      mixTotals.set(
+        entry.asphaltMixName,
+        (mixTotals.get(entry.asphaltMixName) ?? 0) + entry.quantityTons,
+      );
+      totalAsphaltTons += entry.quantityTons;
+    }
+    if (entry.tackCoatMaterialName && entry.tackCoatQuantity > 0) {
+      const unit = entry.tackCoatUnit || "l";
+      const current = tackCoatTotals.get(entry.tackCoatMaterialName) ?? {
+        quantity: 0,
+        unit,
+      };
+      current.quantity += entry.tackCoatQuantity;
+      tackCoatTotals.set(entry.tackCoatMaterialName, current);
+    }
+  }
+
+  const items: string[] = [];
+  for (const [mixName, tons] of mixTotals.entries()) {
+    items.push(`${mixName}: ${formatTons(tons)}`);
+  }
+  if (mixTotals.size > 0) {
+    items.push(`Summe Asphalt: ${formatTons(totalAsphaltTons)}`);
+  }
+  for (const [materialName, { quantity, unit }] of tackCoatTotals.entries()) {
+    items.push(
+      `${materialName}: ${quantity.toLocaleString("de-DE", { maximumFractionDigits: 1 })} ${unit}`,
+    );
+  }
+  if (items.length === 0) {
+    items.push("Keine Einträge in diesem Zeitraum.");
+  }
+
+  return { items, valueText: formatTons(totalAsphaltTons) };
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -444,10 +504,16 @@ export default async function DashboardPage({
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const asphaltDayEntries = asphaltWeekEntries.filter(
+    (entry) => entry.workDate >= today && entry.workDate < tomorrow,
+  );
+  const asphaltWeekSummary = buildAsphaltSummary(asphaltWeekEntries);
+  const asphaltDaySummary = buildAsphaltSummary(asphaltDayEntries);
   const dashboardValues: Record<string, string> = {
     projects: `${activeProjectCount}`,
     inventory: `${inventoryLocationAlertCount} Meldungen`,
-    "asphalt-week": `${asphaltWeekEntries.reduce((sum, entry) => sum + entry.quantityTons, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} t`,
+    "asphalt-week": asphaltWeekSummary.valueText,
+    "asphalt-day": asphaltDaySummary.valueText,
     "leave-pending": `${pendingLeaveRequests.length}`,
     "absent-today": `${todayAbsences.length}`,
     "vacation-today": `${todayAbsences.filter((entry) => entry.typeValue === "urlaub").length}`,
@@ -530,10 +596,8 @@ export default async function DashboardPage({
             : []),
         ]),
     ].slice(0, 12),
-    "asphalt-week": asphaltWeekEntries.slice(0, 6).map(
-      (entry) =>
-        `${entry.crew} · ${entry.quantityTons.toLocaleString("de-DE")} t · ${entry.projectName || "ohne Projekt"}`,
-    ),
+    "asphalt-week": asphaltWeekSummary.items,
+    "asphalt-day": asphaltDaySummary.items,
     "leave-pending": pendingLeaveRequests.map(
       (request) =>
         `${request.employee.lastName}, ${request.employee.firstName} · ${request.absenceType === "TIME_ACCOUNT" ? "Zeitkonto" : "Urlaub"}`,
