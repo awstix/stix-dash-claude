@@ -154,11 +154,12 @@ export function ProjectDailyReportEditor({
 
   /** Für Arbeitszeit von/bis + Pause 1/2: aktualisiert zusätzlich die
    * Stunden je Arbeitskräfte-Zeile (Anzahl × Nettozeit des neuen
-   * Zeitfensters) – wirkt sich bewusst nur auf diesen Bautagesbericht aus,
-   * nie auf die Kolonnen-Zeiterfassung oder Lohnbuchhaltung. Geräte-Zeilen
-   * bleiben unangetastet: deren Stunden stammen aus eigenen, unabhängig
-   * dokumentierten Dispo-Zeiten (z. B. LKW-Verteilung), die nicht zwingend
-   * der Anwesenheitsdauer der Kolonne entsprechen. */
+   * Zeitfensters) sowie die Geräte-/Sonstiges-Zeilen, aber nur für den Anteil,
+   * der von Kolonnen-Standardfahrzeugen (Kolonnenplanung/Asphalt-Dispo)
+   * stammt – Fahrzeuge mit eigener, unabhängig dokumentierter Dispo-Zeit
+   * (z. B. LKW-Verteilung, Sonderfahrzeugdispo) behalten ihre echten Stunden.
+   * Wirkt sich bewusst nur auf diesen Bautagesbericht aus, nie auf die
+   * Kolonnen-Zeiterfassung oder Lohnbuchhaltung. */
   function updateWorkWindow(
     key: "workStart" | "workEnd" | "break1From" | "break1To" | "break2From" | "break2To",
     value: string,
@@ -181,13 +182,25 @@ export function ProjectDailyReportEditor({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
+        machineRows: recomputeMachineRowsForWorkWindow(
+          next.machineRows,
+          netHours,
+          context.composition.machines,
+        ),
+        otherRows: recomputeOtherRowsForWorkWindow(
+          next.otherRows,
+          netHours,
+          context.composition.other,
+        ),
       };
     });
   }
 
   /** Übernimmt Arbeitszeit + Pausen komplett aus der geplanten Vorlage
    * (Jahreskalender) oder aus der bereits freigegebenen Kolonnen-
-   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte-Stunden. */
+   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte-Stunden sowie des
+   * kolonneneigenen Anteils der Geräte-/Sonstiges-Stunden (siehe
+   * updateWorkWindow). */
   function applyWorkWindowSource(source: "plan" | "approved") {
     const { suggestions } = context;
     const start = source === "plan" ? suggestions.planWorkStart : suggestions.approvedWorkStart;
@@ -223,6 +236,16 @@ export function ProjectDailyReportEditor({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
+        machineRows: recomputeMachineRowsForWorkWindow(
+          next.machineRows,
+          netHours,
+          context.composition.machines,
+        ),
+        otherRows: recomputeOtherRowsForWorkWindow(
+          next.otherRows,
+          netHours,
+          context.composition.other,
+        ),
       };
     });
   }
@@ -687,8 +710,10 @@ export function ProjectDailyReportEditor({
         {showWorkWindowHint ? (
           <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             <p>
-              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; unten an – wirkt sich nur
-              auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die Lohnbuchhaltung.
+              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; sowie den kolonneneigenen
+              Anteil bei „Geräte&quot;/„Sonstiges&quot; an (eigene Fahrzeuge der Kolonne) – Geräte mit eigener
+              Dispo-Zeit (z. B. LKW-Verteilung) bleiben unverändert. Wirkt sich nur auf diesen Bautagesbericht aus,
+              nicht auf die Kolonnen-Zeiterfassung oder die Lohnbuchhaltung.
             </p>
             <button
               className="shrink-0 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100"
@@ -1316,6 +1341,85 @@ function getSourceHintsForLabel(label: string, lines: DailyReportCompositionLine
   }
 
   return Array.from(sources).slice(0, 8);
+}
+
+/** Quellen, deren Geräte-Stunden an die Arbeitszeit der Kolonne gekoppelt
+ * sind (eigene Standardfahrzeuge, die so lange da sind wie die Kolonne) -
+ * im Gegensatz zu unabhängig dispo­nierten Fahrzeugen (LKW-Verteilung,
+ * Sonderfahrzeugdispo, LKW-Kurz-/Fernstrecke, Anspritzmittel-Verteilung),
+ * deren Stunden eigenständig dokumentiert sind und bei einer Änderung der
+ * Arbeitszeit unverändert bleiben müssen. */
+const CREW_SHIFT_MACHINE_SOURCE_PREFIXES = ["Kolonnenplanung", "Asphalt-Dispo"];
+
+function isCrewShiftMachineSource(source: string) {
+  return CREW_SHIFT_MACHINE_SOURCE_PREFIXES.some((prefix) => source.startsWith(prefix));
+}
+
+/** Summiert für eine Geräte-/Sonstiges-Zeile die Stunden aus unabhängig
+ * dispo­nierten Quellen (bleiben fix) getrennt von der Anzahl der
+ * kolonneneigenen Fahrzeuge (werden auf die neue Nettozeit umgerechnet). */
+function splitMachineHoursByCoupling(
+  label: string,
+  compositionLines: DailyReportCompositionLine[],
+) {
+  const normalizedLabel = normalizeDailyReportLabel(label);
+  let independentHours = 0;
+  let crewShiftCount = 0;
+
+  for (const line of compositionLines) {
+    if (normalizeDailyReportLabel(line.groupLabel ?? "") !== normalizedLabel) continue;
+    if (typeof line.hours !== "number") continue;
+
+    if (isCrewShiftMachineSource(line.source)) {
+      crewShiftCount += 1;
+    } else {
+      independentHours += line.hours;
+    }
+  }
+
+  return { crewShiftCount, independentHours };
+}
+
+function recomputeMachineRowsForWorkWindow(
+  rows: DailyReportCountRow[],
+  netHours: number,
+  compositionLines: DailyReportCompositionLine[],
+) {
+  return rows.map((row) => {
+    const { crewShiftCount, independentHours } = splitMachineHoursByCoupling(
+      row.label,
+      compositionLines,
+    );
+
+    if (crewShiftCount === 0) return row;
+
+    return {
+      ...row,
+      hours: Math.round((independentHours + crewShiftCount * netHours) * 100) / 100,
+    };
+  });
+}
+
+function recomputeOtherRowsForWorkWindow(
+  rows: DailyReportMaterialRow[],
+  netHours: number,
+  compositionLines: DailyReportCompositionLine[],
+) {
+  return rows.map((row) => {
+    if (row.unit !== "Std.") return row;
+
+    const { crewShiftCount, independentHours } = splitMachineHoursByCoupling(
+      row.label,
+      compositionLines,
+    );
+
+    if (crewShiftCount === 0) return row;
+
+    return {
+      ...row,
+      quantity: Math.round((independentHours + crewShiftCount * netHours) * 100) / 100,
+    };
+  });
 }
 
 function normalizeDailyReportLabel(value: string) {

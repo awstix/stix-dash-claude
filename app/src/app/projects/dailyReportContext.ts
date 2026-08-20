@@ -27,6 +27,10 @@ export type DailyReportCompositionLine = {
    * Herkunfts-Anzeige eine exakte Zuordnung statt einer Text-Suche über den
    * (meist abweichenden) echten Fahrzeugnamen in `label`. */
   groupLabel?: string;
+  /** Rohe Stundenzahl dieser Zeile (nur bei Geräte-/Sonstiges-Zeilen gesetzt)
+   * - erlaubt eine exakte Neuberechnung bei Arbeitszeit-Änderungen, ohne die
+   * formatierte `quantity`-Anzeige zurückparsen zu müssen. */
+  hours?: number;
   label: string;
   quantity: string;
   source: string;
@@ -884,6 +888,7 @@ export function buildDailyReportContext(
       addCompositionLine(composition.machines, {
         detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
         groupLabel: resolveMachineGroupLabel(assignment.vehicleName, true),
+        hours,
         label: assignment.vehicleName,
         quantity: `${formatDecimal(hours)} Std.`,
         source: "Sonderfahrzeugdispo",
@@ -906,6 +911,7 @@ export function buildDailyReportContext(
       addCompositionLine(composition.machines, {
         detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
         groupLabel: resolveMachineGroupLabel(assignment.transportVehicleName, true),
+        hours,
         label: assignment.transportVehicleName,
         quantity: `${formatDecimal(hours)} Std.`,
         source: "Sonderfahrzeugdispo · Transportfahrzeug",
@@ -980,6 +986,7 @@ export function buildDailyReportContext(
           }),
           true,
         ),
+        hours,
         label: vehicleLabel({
           category: assignment.vehicleCategory,
           number: assignment.vehicleNumber,
@@ -1147,6 +1154,7 @@ export function buildDailyReportContext(
             }),
             true,
           ),
+          hours: truckHours,
           label: vehicleLabel({
             category: truck.vehicleCategory,
             number: truck.vehicleNumber,
@@ -1223,6 +1231,7 @@ export function buildDailyReportContext(
           }),
           true,
         ),
+        hours: allocationHours,
         label: vehicleLabel({
           category: allocation.vehicleCategory,
           number: allocation.vehicleNumber,
@@ -1329,6 +1338,7 @@ export function buildDailyReportContext(
           }),
           true,
         ),
+        hours: allocationHours,
         label: vehicleLabel({
           category: allocation.vehicleCategory,
           number: allocation.vehicleNumber,
@@ -2358,6 +2368,7 @@ function addVehicleCompositionLine(
   addCompositionLine(target, {
     detail: compactLine([vehicle.category, vehicle.vehicleType, vehicle.licensePlate]),
     groupLabel: resolveMachineGroupLabel(machine.label, machine.classify),
+    hours,
     label: getVehicleRealMachineLabel(vehicle),
     quantity: `${formatDecimal(hours)} Std.`,
     source,
@@ -2387,6 +2398,7 @@ function addInventoryMachineCompositionLine(
       item.model,
     ]),
     groupLabel: resolveMachineGroupLabel(groupedLabel, !configuredLabel),
+    hours,
     label: getInventoryItemRealMachineLabel(item),
     quantity: `${formatDecimal(hours)} Std.`,
     source,
