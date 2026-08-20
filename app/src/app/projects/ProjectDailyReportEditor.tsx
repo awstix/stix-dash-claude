@@ -153,9 +153,12 @@ export function ProjectDailyReportEditor({
   }
 
   /** Für Arbeitszeit von/bis + Pause 1/2: aktualisiert zusätzlich die
-   * Stunden je Arbeitskräfte- und Geräte-Zeile (Anzahl × Nettozeit des neuen
+   * Stunden je Arbeitskräfte-Zeile (Anzahl × Nettozeit des neuen
    * Zeitfensters) – wirkt sich bewusst nur auf diesen Bautagesbericht aus,
-   * nie auf die Kolonnen-Zeiterfassung oder Lohnbuchhaltung. */
+   * nie auf die Kolonnen-Zeiterfassung oder Lohnbuchhaltung. Geräte-Zeilen
+   * bleiben unangetastet: deren Stunden stammen aus eigenen, unabhängig
+   * dokumentierten Dispo-Zeiten (z. B. LKW-Verteilung), die nicht zwingend
+   * der Anwesenheitsdauer der Kolonne entsprechen. */
   function updateWorkWindow(
     key: "workStart" | "workEnd" | "break1From" | "break1To" | "break2From" | "break2To",
     value: string,
@@ -178,17 +181,13 @@ export function ProjectDailyReportEditor({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
-        machineRows: next.machineRows.map((row) => ({
-          ...row,
-          hours: Math.round(row.count * netHours * 100) / 100,
-        })),
       };
     });
   }
 
   /** Übernimmt Arbeitszeit + Pausen komplett aus der geplanten Vorlage
    * (Jahreskalender) oder aus der bereits freigegebenen Kolonnen-
-   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte- und Geräte-Stunden. */
+   * Zeiterfassung – inkl. Neuberechnung der Arbeitskräfte-Stunden. */
   function applyWorkWindowSource(source: "plan" | "approved") {
     const { suggestions } = context;
     const start = source === "plan" ? suggestions.planWorkStart : suggestions.approvedWorkStart;
@@ -221,10 +220,6 @@ export function ProjectDailyReportEditor({
       return {
         ...next,
         laborRows: next.laborRows.map((row) => ({
-          ...row,
-          hours: Math.round(row.count * netHours * 100) / 100,
-        })),
-        machineRows: next.machineRows.map((row) => ({
           ...row,
           hours: Math.round(row.count * netHours * 100) / 100,
         })),
@@ -692,9 +687,8 @@ export function ProjectDailyReportEditor({
         {showWorkWindowHint ? (
           <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             <p>
-              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; und „Geräte&quot; unten an –
-              wirkt sich nur auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die
-              Lohnbuchhaltung.
+              Änderungen an Arbeitszeit/Pausen passen die Stunden bei „Arbeitskräfte&quot; unten an – wirkt sich nur
+              auf diesen Bautagesbericht aus, nicht auf die Kolonnen-Zeiterfassung oder die Lohnbuchhaltung.
             </p>
             <button
               className="shrink-0 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100"
@@ -1293,14 +1287,25 @@ function getSourceHintsForLabel(label: string, lines: DailyReportCompositionLine
   const sources = new Set<string>();
 
   for (const line of lines) {
-    const lineLabels = [
-      line.label,
-      line.detail,
-      `${line.label} ${line.detail}`,
-    ].map(normalizeDailyReportLabel);
+    // Geräte-Zeilen tragen ein groupLabel (dieselbe gruppierte Bezeichnung
+    // wie die aggregierte Zeile, z. B. "LKW 2-Achser") - das erlaubt einen
+    // exakten Abgleich statt einer Text-Suche über den echten Fahrzeugnamen
+    // in `label`, der die gruppierte Bezeichnung oft gar nicht enthält (z. B.
+    // "MB Actros" vs. "LKW 2-Achser") und die Zeile sonst stillschweigend aus
+    // der Herkunfts-Anzeige fallen lässt, obwohl ihre Stunden in der Summe
+    // stecken.
+    if (line.groupLabel) {
+      if (normalizeDailyReportLabel(line.groupLabel) !== normalizedLabel) continue;
+    } else {
+      const lineLabels = [
+        line.label,
+        line.detail,
+        `${line.label} ${line.detail}`,
+      ].map(normalizeDailyReportLabel);
 
-    if (!lineLabels.some((lineLabel) => lineLabel.includes(normalizedLabel))) {
-      continue;
+      if (!lineLabels.some((lineLabel) => lineLabel.includes(normalizedLabel))) {
+        continue;
+      }
     }
 
     const source = [line.source, line.quantity].filter(Boolean).join(" · ");
@@ -1310,7 +1315,7 @@ function getSourceHintsForLabel(label: string, lines: DailyReportCompositionLine
     }
   }
 
-  return Array.from(sources).slice(0, 3);
+  return Array.from(sources).slice(0, 8);
 }
 
 function normalizeDailyReportLabel(value: string) {

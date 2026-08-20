@@ -22,6 +22,11 @@ export type DailyReportMaterialRow = {
 
 export type DailyReportCompositionLine = {
   detail: string;
+  /** Gruppierte Maschinen-Bezeichnung (z. B. "LKW 2-Achser"), wie sie auch
+   * für die aggregierte Geräte-Zeile verwendet wird - erlaubt der
+   * Herkunfts-Anzeige eine exakte Zuordnung statt einer Text-Suche über den
+   * (meist abweichenden) echten Fahrzeugnamen in `label`. */
+  groupLabel?: string;
   label: string;
   quantity: string;
   source: string;
@@ -846,6 +851,7 @@ export function buildDailyReportContext(
       addFallbackMachine(machines, realMachines, assignment.vehicleName, hours);
       addCompositionLine(composition.machines, {
         detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
+        groupLabel: resolveMachineGroupLabel(assignment.vehicleName, true),
         label: assignment.vehicleName,
         quantity: `${formatDecimal(hours)} Std.`,
         source: "Sonderfahrzeugdispo",
@@ -867,6 +873,7 @@ export function buildDailyReportContext(
       );
       addCompositionLine(composition.machines, {
         detail: `${assignment.startTime}–${assignment.endTime} Uhr`,
+        groupLabel: resolveMachineGroupLabel(assignment.transportVehicleName, true),
         label: assignment.transportVehicleName,
         quantity: `${formatDecimal(hours)} Std.`,
         source: "Sonderfahrzeugdispo · Transportfahrzeug",
@@ -933,6 +940,14 @@ export function buildDailyReportContext(
       );
       addCompositionLine(composition.machines, {
         detail: compactLine([assignment.vehicleCategory, assignment.vehicleType]),
+        groupLabel: resolveMachineGroupLabel(
+          vehicleLabel({
+            category: assignment.vehicleCategory,
+            number: assignment.vehicleNumber,
+            type: assignment.vehicleType,
+          }),
+          true,
+        ),
         label: vehicleLabel({
           category: assignment.vehicleCategory,
           number: assignment.vehicleNumber,
@@ -1092,6 +1107,14 @@ export function buildDailyReportContext(
         );
         addCompositionLine(composition.machines, {
           detail: `${truck.plannedStartTime}–${truck.plannedEndTime} Uhr`,
+          groupLabel: resolveMachineGroupLabel(
+            vehicleLabel({
+              category: truck.vehicleCategory,
+              number: truck.vehicleNumber,
+              type: truck.vehicleType,
+            }),
+            true,
+          ),
           label: vehicleLabel({
             category: truck.vehicleCategory,
             number: truck.vehicleNumber,
@@ -1160,6 +1183,14 @@ export function buildDailyReportContext(
       );
       addCompositionLine(composition.machines, {
         detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        groupLabel: resolveMachineGroupLabel(
+          vehicleLabel({
+            category: allocation.vehicleCategory,
+            number: allocation.vehicleNumber,
+            type: allocation.vehicleType,
+          }),
+          true,
+        ),
         label: vehicleLabel({
           category: allocation.vehicleCategory,
           number: allocation.vehicleNumber,
@@ -1258,6 +1289,14 @@ export function buildDailyReportContext(
       );
       addCompositionLine(composition.machines, {
         detail: `${allocation.startTime}–${allocation.endTime} Uhr`,
+        groupLabel: resolveMachineGroupLabel(
+          vehicleLabel({
+            category: allocation.vehicleCategory,
+            number: allocation.vehicleNumber,
+            type: allocation.vehicleType,
+          }),
+          true,
+        ),
         label: vehicleLabel({
           category: allocation.vehicleCategory,
           number: allocation.vehicleNumber,
@@ -2281,12 +2320,12 @@ function addVehicleCompositionLine(
 ) {
   if (!vehicle || hours <= 0) return;
 
+  const machine = getVehicleDailyReportMachineInput(vehicle);
   const target =
-    getVehicleDailyReportSection(vehicle) === "OTHER"
-      ? composition.other
-      : composition.machines;
+    machine.section === "OTHER" ? composition.other : composition.machines;
   addCompositionLine(target, {
     detail: compactLine([vehicle.category, vehicle.vehicleType, vehicle.licensePlate]),
+    groupLabel: resolveMachineGroupLabel(machine.label, machine.classify),
     label: getVehicleRealMachineLabel(vehicle),
     quantity: `${formatDecimal(hours)} Std.`,
     source,
@@ -2303,6 +2342,11 @@ function addInventoryMachineCompositionLine(
     getInventoryItemDailyReportSection(item) === "OTHER"
       ? composition.other
       : composition.machines;
+  const configuredLabel = getInventoryItemDailyReportMachineLabel(item);
+  const groupedLabel =
+    configuredLabel ||
+    getInventoryItemCategoryLabel(item) ||
+    getInventoryItemRealMachineLabel(item);
 
   addCompositionLine(target, {
     detail: compactLine([
@@ -2310,10 +2354,18 @@ function addInventoryMachineCompositionLine(
       item.manufacturer,
       item.model,
     ]),
+    groupLabel: resolveMachineGroupLabel(groupedLabel, !configuredLabel),
     label: getInventoryItemRealMachineLabel(item),
     quantity: `${formatDecimal(hours)} Std.`,
     source,
   });
+}
+
+/** Gruppierte Bezeichnung, unter der eine Maschine in der aggregierten
+ * Geräte-Zeile landet - dieselbe Berechnung wird auch für `groupLabel` an
+ * den Herkunfts-Zeilen verwendet, damit beide exakt zueinander passen. */
+function resolveMachineGroupLabel(rawLabel: string, classify: boolean) {
+  return classify ? classifyMachine(rawLabel) : rawLabel || "Sonstige Maschine";
 }
 
 function addMachineLabel(
@@ -2323,9 +2375,7 @@ function addMachineLabel(
   classify = true,
   section: "MACHINES" | "OTHER" = "MACHINES",
 ) {
-  const label = classify
-    ? classifyMachine(rawLabel)
-    : rawLabel || "Sonstige Maschine";
+  const label = resolveMachineGroupLabel(rawLabel, classify);
   const current = map.get(label) ?? { count: 0, hours: 0, label, section };
   map.set(label, {
     count: current.count + 1,
