@@ -40,7 +40,9 @@ const FIELD_LABELS: Record<string, string> = {
   currentProjectId: "Aktuelles Projekt",
   parentItemId: "Übergeordnetes Objekt",
   billingRateCents: "Verrechnungssatz",
+  billingRateUnit: "Verrechnungssatz Einheit",
   idleBillingRateCents: "Verrechnungssatz stillgelegt",
+  idleBillingRateUnit: "Verrechnungssatz stillgelegt Einheit",
   insuranceProviderLabel: "Versichert bei",
   insuranceAnnualPremiumCents: "Versicherung p.a.",
   notes: "Bemerkung",
@@ -71,6 +73,7 @@ const centsFields = new Set([
   "insuranceAnnualPremiumCents",
 ]);
 const booleanFields = new Set(["isContainer", "isStockManaged"]);
+const unitFields = new Set(["billingRateUnit", "idleBillingRateUnit"]);
 
 const relationLookups: Record<string, (id: string) => Promise<string | null>> = {
   categoryId: async (id) =>
@@ -108,6 +111,7 @@ function formatPlainValue(key: string, value: unknown): string {
   if (value instanceof Date) return new Intl.DateTimeFormat("de-DE").format(value);
   if (centsFields.has(key)) return `${(Number(value) / 100).toFixed(2)} €`;
   if (booleanFields.has(key)) return value ? "Ja" : "Nein";
+  if (unitFields.has(key)) return value === "DAY" ? "je Tag" : "je Stunde";
   return String(value);
 }
 

@@ -61,6 +61,10 @@ function moneyCents(value: FormDataEntryValue | null, label: string) {
   return Math.round(numberValue(value, label) * 100);
 }
 
+function rateUnit(value: FormDataEntryValue | null | undefined) {
+  return String(value ?? "") === "DAY" ? "DAY" : "HOUR";
+}
+
 function optionalYear(value: FormDataEntryValue | null) {
   const year = Math.round(numberValue(value, "Jahr"));
 
@@ -379,6 +383,8 @@ export async function saveAllInventoryCategoryRates(formData: FormData) {
   const categoryIds = formData.getAll("categoryId").map((value) => String(value ?? ""));
   const realRates = formData.getAll("realRate");
   const idleRates = formData.getAll("idleRate");
+  const realRateUnits = formData.getAll("realRateUnit");
+  const idleRateUnits = formData.getAll("idleRateUnit");
 
   const [categories, existingRates] = await Promise.all([
     prisma.inventoryCategory.findMany({
@@ -421,19 +427,33 @@ export async function saveAllInventoryCategoryRates(formData: FormData) {
     const previousIdle = existingRate?.idleBillingRateCents ?? null;
     const newReal = realRateCents || null;
     const newIdle = idleRateCents || null;
+    const previousRealUnit = existingRate?.billingRateUnit ?? "HOUR";
+    const previousIdleUnit = existingRate?.idleBillingRateUnit ?? "HOUR";
+    const newRealUnit = rateUnit(realRateUnits[index]);
+    const newIdleUnit = rateUnit(idleRateUnits[index]);
 
-    if (newReal === previousReal && newIdle === previousIdle) continue;
+    if (
+      newReal === previousReal &&
+      newIdle === previousIdle &&
+      newRealUnit === previousRealUnit &&
+      newIdleUnit === previousIdleUnit
+    )
+      continue;
 
     const rate = await prisma.controllingInventoryCategoryRate.upsert({
       create: {
         billingRateCents: newReal,
+        billingRateUnit: newRealUnit,
         categoryId,
         idleBillingRateCents: newIdle,
+        idleBillingRateUnit: newIdleUnit,
         rateSetId,
       },
       update: {
         billingRateCents: newReal,
+        billingRateUnit: newRealUnit,
         idleBillingRateCents: newIdle,
+        idleBillingRateUnit: newIdleUnit,
       },
       where: {
         rateSetId_categoryId: {
@@ -491,6 +511,8 @@ export async function saveAllInventoryItemRates(formData: FormData) {
   const itemIds = formData.getAll("itemId").map((value) => String(value ?? ""));
   const realRates = formData.getAll("realRate");
   const idleRates = formData.getAll("idleRate");
+  const realRateUnits = formData.getAll("realRateUnit");
+  const idleRateUnits = formData.getAll("idleRateUnit");
 
   const [items, existingRates] = await Promise.all([
     prisma.inventoryItem.findMany({
@@ -529,19 +551,33 @@ export async function saveAllInventoryItemRates(formData: FormData) {
     const previousIdle = existingRate?.idleBillingRateCents ?? null;
     const newReal = realRateCents || null;
     const newIdle = idleRateCents || null;
+    const previousRealUnit = existingRate?.billingRateUnit ?? item.billingRateUnit;
+    const previousIdleUnit = existingRate?.idleBillingRateUnit ?? item.idleBillingRateUnit;
+    const newRealUnit = rateUnit(realRateUnits[index]);
+    const newIdleUnit = rateUnit(idleRateUnits[index]);
 
-    if (newReal === previousReal && newIdle === previousIdle) continue;
+    if (
+      newReal === previousReal &&
+      newIdle === previousIdle &&
+      newRealUnit === previousRealUnit &&
+      newIdleUnit === previousIdleUnit
+    )
+      continue;
 
     const rate = await prisma.controllingInventoryItemRate.upsert({
       create: {
         billingRateCents: newReal,
+        billingRateUnit: newRealUnit,
         idleBillingRateCents: newIdle,
+        idleBillingRateUnit: newIdleUnit,
         itemId,
         rateSetId,
       },
       update: {
         billingRateCents: newReal,
+        billingRateUnit: newRealUnit,
         idleBillingRateCents: newIdle,
+        idleBillingRateUnit: newIdleUnit,
       },
       where: {
         rateSetId_itemId: {
@@ -994,7 +1030,9 @@ export async function raiseRates(formData: FormData) {
       }) ?? await prisma.controllingInventoryItemRate.create({
         data: {
           billingRateCents: item.billingRateCents,
+          billingRateUnit: item.billingRateUnit,
           idleBillingRateCents: item.idleBillingRateCents,
+          idleBillingRateUnit: item.idleBillingRateUnit,
           itemId: item.id,
           rateSetId: effectiveRateSetId,
         },
@@ -1069,7 +1107,9 @@ export async function raiseRates(formData: FormData) {
       }) ?? await prisma.controllingInventoryItemRate.create({
         data: {
           billingRateCents: item.billingRateCents,
+          billingRateUnit: item.billingRateUnit,
           idleBillingRateCents: item.idleBillingRateCents,
+          idleBillingRateUnit: item.idleBillingRateUnit,
           itemId: item.id,
           rateSetId: effectiveRateSetId,
         },
@@ -1397,8 +1437,10 @@ export async function createRateSetFromPreviousYear(formData: FormData) {
         await tx.controllingInventoryCategoryRate.createMany({
           data: source.categoryRates.map((rate) => ({
             billingRateCents: rate.billingRateCents,
+            billingRateUnit: rate.billingRateUnit,
             categoryId: rate.categoryId,
             idleBillingRateCents: rate.idleBillingRateCents,
+            idleBillingRateUnit: rate.idleBillingRateUnit,
             rateSetId: target.id,
           })),
         });
@@ -1408,7 +1450,9 @@ export async function createRateSetFromPreviousYear(formData: FormData) {
         await tx.controllingInventoryItemRate.createMany({
           data: source.itemRates.map((rate) => ({
             billingRateCents: rate.billingRateCents,
+            billingRateUnit: rate.billingRateUnit,
             idleBillingRateCents: rate.idleBillingRateCents,
+            idleBillingRateUnit: rate.idleBillingRateUnit,
             itemId: rate.itemId,
             rateSetId: target.id,
           })),

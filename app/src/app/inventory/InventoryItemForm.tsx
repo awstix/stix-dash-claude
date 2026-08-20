@@ -12,7 +12,9 @@ import {
 export type InventoryItemFormData = {
   attachmentType: string | null;
   billingRateCents: number | null;
+  billingRateUnit: string;
   idleBillingRateCents: number | null;
+  idleBillingRateUnit: string;
   insuranceProviderValue: string | null;
   insuranceProviderLabel: string | null;
   insuranceAnnualPremiumCents: number | null;
@@ -497,16 +499,32 @@ export function InventoryItemForm({
                 defaultValueEuro={
                   item?.billingRateCents ? item.billingRateCents / 100 : null
                 }
-                label="Verrechnungssatz €/Einheit"
+                label="Verrechnungssatz €"
                 name="billingRate"
               />
+              <Select
+                defaultValue={item?.billingRateUnit ?? "HOUR"}
+                label="Verrechnungssatz Einheit"
+                name="billingRateUnit"
+              >
+                <option value="HOUR">je Stunde</option>
+                <option value="DAY">je Tag</option>
+              </Select>
               <InventoryMoneyField
                 defaultValueEuro={
                   item?.idleBillingRateCents ? item.idleBillingRateCents / 100 : null
                 }
-                label="Verrechnungssatz stillgelegt €/Einheit"
+                label="Verrechnungssatz stillgelegt €"
                 name="idleBillingRate"
               />
+              <Select
+                defaultValue={item?.idleBillingRateUnit ?? "HOUR"}
+                label="Verrechnungssatz stillgelegt Einheit"
+                name="idleBillingRateUnit"
+              >
+                <option value="HOUR">je Stunde</option>
+                <option value="DAY">je Tag</option>
+              </Select>
             </div>
           </div>
 

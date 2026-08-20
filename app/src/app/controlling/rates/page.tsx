@@ -127,7 +127,9 @@ export default async function ControllingRatesPage({
     return {
       ...category,
       billingRateCents: rate?.billingRateCents ?? category.billingRateCents,
+      billingRateUnit: rate?.billingRateUnit ?? "HOUR",
       idleBillingRateCents: rate?.idleBillingRateCents ?? category.idleBillingRateCents,
+      idleBillingRateUnit: rate?.idleBillingRateUnit ?? "HOUR",
     };
   });
   const itemsWithRates = items.map((item) => {
@@ -136,7 +138,9 @@ export default async function ControllingRatesPage({
     return {
       ...item,
       billingRateCents: rate?.billingRateCents ?? item.billingRateCents,
+      billingRateUnit: rate?.billingRateUnit ?? item.billingRateUnit,
       idleBillingRateCents: rate?.idleBillingRateCents ?? item.idleBillingRateCents,
+      idleBillingRateUnit: rate?.idleBillingRateUnit ?? item.idleBillingRateUnit,
     };
   });
 
@@ -478,13 +482,15 @@ export default async function ControllingRatesPage({
             <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
             <input name="pageYear" type="hidden" value={selectedYear} />
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-              <table className="w-full min-w-[900px] text-left text-sm text-gray-900">
+              <table className="w-full min-w-[1050px] text-left text-sm text-gray-900">
                 <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
                   <tr>
                     <th className="px-3 py-2">Kategorie</th>
                     <th className="px-3 py-2">Übergeordnet</th>
-                    <th className="px-3 py-2">Normal €/Einheit</th>
-                    <th className="px-3 py-2">Stillstand €/Einheit</th>
+                    <th className="px-3 py-2">Normal €</th>
+                    <th className="px-3 py-2">Einheit</th>
+                    <th className="px-3 py-2">Stillstand €</th>
+                    <th className="px-3 py-2">Einheit</th>
                     <th className="px-3 py-2">Zuletzt geändert</th>
                   </tr>
                 </thead>
@@ -510,11 +516,31 @@ export default async function ControllingRatesPage({
                           />
                         </td>
                         <td className="px-3 py-2">
+                          <select
+                            className={inputClassName}
+                            defaultValue={category.billingRateUnit}
+                            name="realRateUnit"
+                          >
+                            <option value="HOUR">Std.</option>
+                            <option value="DAY">Tag</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
                           <input
                             className={inputClassName}
                             defaultValue={formatMoneyInput(category.idleBillingRateCents)}
                             name="idleRate"
                           />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            className={inputClassName}
+                            defaultValue={category.idleBillingRateUnit}
+                            name="idleRateUnit"
+                          >
+                            <option value="HOUR">Std.</option>
+                            <option value="DAY">Tag</option>
+                          </select>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-500">
                           {formatLastChange(lastChange)}
@@ -544,13 +570,15 @@ export default async function ControllingRatesPage({
             <input name="rateSetId" type="hidden" value={selectedRateSet?.id ?? ""} />
             <input name="pageYear" type="hidden" value={selectedYear} />
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-              <table className="w-full min-w-[1050px] text-left text-sm text-gray-900">
+              <table className="w-full min-w-[1200px] text-left text-sm text-gray-900">
                 <thead className="bg-gray-100 text-xs uppercase tracking-wide text-gray-950">
                   <tr>
                     <th className="px-3 py-2">Objekt</th>
                     <th className="px-3 py-2">Kategorie</th>
-                    <th className="px-3 py-2">Normal €/Einheit</th>
-                    <th className="px-3 py-2">Stillstand €/Einheit</th>
+                    <th className="px-3 py-2">Normal €</th>
+                    <th className="px-3 py-2">Einheit</th>
+                    <th className="px-3 py-2">Stillstand €</th>
+                    <th className="px-3 py-2">Einheit</th>
                     <th className="px-3 py-2">Zuletzt geändert</th>
                   </tr>
                 </thead>
@@ -577,11 +605,31 @@ export default async function ControllingRatesPage({
                           />
                         </td>
                         <td className="px-3 py-2">
+                          <select
+                            className={inputClassName}
+                            defaultValue={item.billingRateUnit}
+                            name="realRateUnit"
+                          >
+                            <option value="HOUR">Std.</option>
+                            <option value="DAY">Tag</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
                           <input
                             className={inputClassName}
                             defaultValue={formatMoneyInput(item.idleBillingRateCents)}
                             name="idleRate"
                           />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            className={inputClassName}
+                            defaultValue={item.idleBillingRateUnit}
+                            name="idleRateUnit"
+                          >
+                            <option value="HOUR">Std.</option>
+                            <option value="DAY">Tag</option>
+                          </select>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-500">
                           {formatLastChange(lastChange)}

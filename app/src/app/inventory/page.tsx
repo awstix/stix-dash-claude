@@ -24,6 +24,10 @@ function formatMoney(cents: number | null) {
   }).format(cents / 100);
 }
 
+function formatRateUnit(unit: string) {
+  return unit === "DAY" ? "/ Tag" : "/ Std.";
+}
+
 function formatNumber(value: number | null) {
   if (value === null) return "";
 
@@ -735,9 +739,15 @@ export default async function InventoryPage({
                     </td>
                     <td className="p-3 text-gray-700">
                       {formatMoney(item.billingRateCents)}
+                      {item.billingRateCents !== null
+                        ? ` ${formatRateUnit(item.billingRateUnit)}`
+                        : ""}
                     </td>
                     <td className="p-3 text-gray-700">
                       {formatMoney(item.idleBillingRateCents)}
+                      {item.idleBillingRateCents !== null
+                        ? ` ${formatRateUnit(item.idleBillingRateUnit)}`
+                        : ""}
                     </td>
                   </tr>
                 ))

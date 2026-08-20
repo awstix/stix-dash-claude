@@ -238,6 +238,10 @@ function inventoryDriveType(value: FormDataEntryValue | null) {
     : null;
 }
 
+function inventoryRateUnit(value: FormDataEntryValue | null) {
+  return optionalString(value) === "DAY" ? "DAY" : "HOUR";
+}
+
 function getResponsibleFields(formData: FormData) {
   const requestedResponsibleType = optionalString(formData.get("responsibleType"));
   const responsibleEmployeeId = optionalId(formData.get("responsibleEmployeeId"));
@@ -309,7 +313,9 @@ async function getInventoryPayload(formData: FormData) {
   return {
     attachmentType: optionalString(formData.get("attachmentType")),
     billingRateCents: optionalMoneyCents(formData.get("billingRate")),
+    billingRateUnit: inventoryRateUnit(formData.get("billingRateUnit")),
     idleBillingRateCents: optionalMoneyCents(formData.get("idleBillingRate")),
+    idleBillingRateUnit: inventoryRateUnit(formData.get("idleBillingRateUnit")),
     insuranceProviderValue,
     insuranceProviderLabel,
     insuranceAnnualPremiumCents: optionalMoneyCents(

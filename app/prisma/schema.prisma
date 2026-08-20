@@ -2360,7 +2360,12 @@ model InventoryItem {
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   billingRateCents            Int?
+  // Einheit des Verrechnungssatzes ("HOUR" oder "DAY") - bisher implizit
+  // immer Stunde, ohne dass das irgendwo festgehalten wurde. Default HOUR,
+  // weil alle bisher gepflegten Sätze tatsächlich Stundensätze sind.
+  billingRateUnit             String  @default("HOUR")
   idleBillingRateCents        Int?
+  idleBillingRateUnit         String  @default("HOUR")
   insuranceProviderValue      String?
   insuranceProviderLabel      String?
   insuranceAnnualPremiumCents Int?
@@ -2995,7 +3000,9 @@ model ControllingInventoryCategoryRate {
   category   InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   billingRateCents     Int?
+  billingRateUnit      String  @default("HOUR")
   idleBillingRateCents Int?
+  idleBillingRateUnit  String  @default("HOUR")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3014,7 +3021,9 @@ model ControllingInventoryItemRate {
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   billingRateCents     Int?
+  billingRateUnit      String  @default("HOUR")
   idleBillingRateCents Int?
+  idleBillingRateUnit  String  @default("HOUR")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

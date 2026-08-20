@@ -59,6 +59,10 @@ function formatMoney(cents: number | null) {
   }).format(cents / 100);
 }
 
+function formatRateUnit(unit: string) {
+  return unit === "DAY" ? "/ Tag" : "/ Std.";
+}
+
 function formatFileSize(sizeBytes: number | null) {
   if (!sizeBytes) return "";
   if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
@@ -903,12 +907,20 @@ export default async function InventoryDetailPage({
             />
             <Info label="Einheit" value={item.stockUnit || "—"} />
             <Info
-              label="Verrechnungssatz €/Einheit"
-              value={formatMoney(item.billingRateCents)}
+              label="Verrechnungssatz"
+              value={
+                item.billingRateCents === null
+                  ? "—"
+                  : `${formatMoney(item.billingRateCents)} ${formatRateUnit(item.billingRateUnit)}`
+              }
             />
             <Info
-              label="Verrechnungssatz stillgelegt €/Einheit"
-              value={formatMoney(item.idleBillingRateCents)}
+              label="Verrechnungssatz stillgelegt"
+              value={
+                item.idleBillingRateCents === null
+                  ? "—"
+                  : `${formatMoney(item.idleBillingRateCents)} ${formatRateUnit(item.idleBillingRateUnit)}`
+              }
             />
             <Info
               label="Versichert bei"
@@ -1187,7 +1199,10 @@ export default async function InventoryDetailPage({
                       {period.notes ?? "—"}
                     </td>
                     <td className="p-3 font-semibold text-gray-900">
-                      {formatMoney(item.idleBillingRateCents)}
+                      {formatMoney(item.idleBillingRateCents)}{" "}
+                      {item.idleBillingRateCents !== null
+                        ? formatRateUnit(item.idleBillingRateUnit)
+                        : ""}
                     </td>
                   </tr>
                 ))}
