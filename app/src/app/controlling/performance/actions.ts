@@ -1330,6 +1330,51 @@ async function runDispositionImport(
     }),
   ]);
 
+  // Verrechnungssatz-Einheit (Stunde/Tag) der kolonneneigenen Standard-/
+  // Zusatzgeräte - muss VOR dem Aufbau der Geräte-Zeilen bekannt sein
+  // (nicht erst bei der späteren Bepreisung), weil die Menge davon abhängt:
+  // "1 Tag" nur bei einem echten Tagessatz, sonst die Kolonnenstunden.
+  // Selber Kaskaden-Vorrang wie die spätere Bepreisung: Satzstand-Override
+  // des Objekts vor dem Basiswert des Objekts.
+  const crewVehicleInventoryItemIds = [
+    ...new Set(
+      [
+        ...crewAssignments.flatMap((assignment) => [
+          ...(assignment.crew?.defaultVehicles ?? []).map((vehicle) => vehicle.inventoryItemId),
+          ...assignment.extraVehicles.map((vehicle) => vehicle.inventoryItemId),
+        ]),
+        ...asphaltCrews.flatMap((crew) =>
+          crew.defaultVehicles.map((vehicle) => vehicle.inventoryItemId),
+        ),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const [crewVehicleItems, crewVehicleItemYearRates] = crewVehicleInventoryItemIds.length
+    ? await Promise.all([
+        prisma.inventoryItem.findMany({
+          select: { billingRateUnit: true, id: true },
+          where: { id: { in: crewVehicleInventoryItemIds } },
+        }),
+        prisma.controllingInventoryItemRate.findMany({
+          select: { billingRateUnit: true, itemId: true },
+          where: { itemId: { in: crewVehicleInventoryItemIds }, rateSetId: rateSet.id },
+        }),
+      ])
+    : [[], []];
+  const crewVehicleItemById = new Map(crewVehicleItems.map((item) => [item.id, item]));
+  const crewVehicleYearRateByItemId = new Map(
+    crewVehicleItemYearRates.map((rate) => [rate.itemId, rate]),
+  );
+
+  function resolveCrewVehicleRateUnit(inventoryItemId: string | null | undefined) {
+    if (!inventoryItemId) return "HOUR";
+    return (
+      crewVehicleYearRateByItemId.get(inventoryItemId)?.billingRateUnit ??
+      crewVehicleItemById.get(inventoryItemId)?.billingRateUnit ??
+      "HOUR"
+    );
+  }
+
   type ImportedHourEntry = {
     employeeCount: number;
     employeeId?: string | null;
@@ -1503,6 +1548,42 @@ async function runDispositionImport(
     }
   }
 
+  function crewNetWorkWindowHours(
+    startTime: string | null | undefined,
+    endTime: string | null | undefined,
+    break1From: string | null | undefined,
+    break1To: string | null | undefined,
+    break2From: string | null | undefined,
+    break2To: string | null | undefined,
+  ) {
+    const total = timeRangeHours(startTime, endTime);
+    const break1 = timeRangeHours(break1From, break1To);
+    const break2 = timeRangeHours(break2From, break2To);
+    return Math.max(0, total - break1 - break2);
+  }
+
+  // Für kolonneneigene Geräte (Standard-/Zusatzfahrzeuge), deren
+  // Verrechnungssatz auf Stunde statt Tag steht: die Kolonne als Ganzes hat
+  // kein "netHours" wie ein einzelner Mitarbeiter, aber die Zeiterfassung
+  // trägt Beginn/Ende/Pausen bereits auf Kolonnen-Ebene (defaultStartTime
+  // etc.) - daraus die tatsächliche Nettozeit der Kolonne für "nach
+  // Leistung" ableiten, analog zu netHoursByNameAndDay für Personen.
+  const crewNetHoursByNameAndDay = new Map<string, number>();
+  for (const entry of crewTimeEntries) {
+    const key = `${normalizePersonName(entry.crewName)}|${entry.workDate.toISOString()}`;
+    crewNetHoursByNameAndDay.set(
+      key,
+      crewNetWorkWindowHours(
+        entry.defaultStartTime,
+        entry.defaultEndTime,
+        entry.defaultBreak1From,
+        entry.defaultBreak1To,
+        entry.defaultBreak2From,
+        entry.defaultBreak2To,
+      ),
+    );
+  }
+
   function resolveAssignmentEmployeeIds(assignment: (typeof crewAssignments)[number]) {
     const excluded = new Set(
       assignment.extraEmployees.filter((item) => item.mode === "EXCLUDE").map((item) => item.employeeId),
@@ -1624,24 +1705,65 @@ async function runDispositionImport(
       // usw.) - bei Kolonnenplanung werden diese über assignment.crew.
       // defaultVehicles erfasst, bei Asphalt-Dispo-Kolonnen sonst gar
       // nicht, da es dort keine Kolonnenplanung-Zuteilung für den Tag gibt.
-      // Tag-basiert wie bei Kolonnenplanung, daher in beiden Szenarien
-      // identisch (pushSharedDetailEntry).
+      // Nur bei einem echten Tagessatz (billingRateUnit "DAY") bleibt es bei
+      // "1 Tag" und damit in beiden Szenarien identisch - steht der Satz auf
+      // Stunde (Regelfall), wird die Kolonnen-Arbeitszeit angesetzt: nach
+      // Dispo die pauschalen 10,5h, nach Leistung die tatsächliche
+      // Nettozeit aus der Zeiterfassung der Kolonne.
       for (const vehicle of crew?.defaultVehicles ?? []) {
-        pushSharedDetailEntry({
+        const description =
+          vehicle.inventoryItem?.name ??
+          vehicle.vehicle.vehicleNumber ??
+          vehicle.vehicle.licensePlate ??
+          "Kolonnengerät";
+        const notes = `aus Asphaltdisposition übernommen · Standardfahrzeug ${asphaltEntry.crew}`;
+
+        if (resolveCrewVehicleRateUnit(vehicle.inventoryItemId) === "DAY") {
+          pushSharedDetailEntry({
+            amountCents: 0,
+            costType: "Geräte",
+            description,
+            entryDate: asphaltEntry.workDate,
+            inventoryItemId: vehicle.inventoryItemId,
+            notes,
+            quantity: 1,
+            source: "DISPOSITION_IMPORT",
+            status: "geschätzt",
+            unit: "Tag",
+            unitPriceCents: 0,
+          });
+          continue;
+        }
+
+        const approvedHours =
+          crewNetHoursByNameAndDay.get(
+            `${normalizePersonName(asphaltEntry.crew)}|${asphaltEntry.workDate.toISOString()}`,
+          ) || hoursPerEmployee;
+
+        plannedDetail.push({
           amountCents: 0,
           costType: "Geräte",
-          description:
-            vehicle.inventoryItem?.name ??
-            vehicle.vehicle.vehicleNumber ??
-            vehicle.vehicle.licensePlate ??
-            "Kolonnengerät",
+          description,
           entryDate: asphaltEntry.workDate,
           inventoryItemId: vehicle.inventoryItemId,
-          notes: `aus Asphaltdisposition übernommen · Standardfahrzeug ${asphaltEntry.crew}`,
-          quantity: 1,
+          notes,
+          quantity: Math.round(hoursPerEmployee * 100) / 100,
           source: "DISPOSITION_IMPORT",
           status: "geschätzt",
-          unit: "Tag",
+          unit: "h",
+          unitPriceCents: 0,
+        });
+        approvedDetail.push({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: asphaltEntry.workDate,
+          inventoryItemId: vehicle.inventoryItemId,
+          notes,
+          quantity: Math.round(approvedHours * 100) / 100,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "h",
           unitPriceCents: 0,
         });
       }
@@ -1834,42 +1956,114 @@ async function runDispositionImport(
   }
 
   for (const assignment of crewAssignments) {
+    const crewLabel = assignment.crewName || assignment.crew?.name || "Kolonne";
+    const plannedHours = timeRangeHours(assignment.startTime, assignment.endTime);
+    const approvedHours =
+      crewNetHoursByNameAndDay.get(`${normalizePersonName(crewLabel)}|${start.toISOString()}`) ||
+      plannedHours;
+
     for (const vehicle of assignment.crew?.defaultVehicles ?? []) {
-      pushSharedDetailEntry({
+      const description =
+        vehicle.inventoryItem?.name ??
+        vehicle.vehicle.vehicleNumber ??
+        vehicle.vehicle.licensePlate ??
+        "Kolonnengerät";
+      const notes = `aus Team-/Kolonnenzuordnung übernommen · ${crewLabel}`;
+
+      if (resolveCrewVehicleRateUnit(vehicle.inventoryItemId) === "DAY") {
+        pushSharedDetailEntry({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: start,
+          inventoryItemId: vehicle.inventoryItemId,
+          notes,
+          quantity: 1,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "Tag",
+          unitPriceCents: 0,
+        });
+        continue;
+      }
+
+      plannedDetail.push({
         amountCents: 0,
         costType: "Geräte",
-        description:
-          vehicle.inventoryItem?.name ??
-          vehicle.vehicle.vehicleNumber ??
-          vehicle.vehicle.licensePlate ??
-          "Kolonnengerät",
+        description,
         entryDate: start,
         inventoryItemId: vehicle.inventoryItemId,
-        notes: `aus Team-/Kolonnenzuordnung übernommen · ${assignment.crewName || assignment.crew?.name || "Kolonne"}`,
-        quantity: 1,
+        notes,
+        quantity: Math.round(plannedHours * 100) / 100,
         source: "DISPOSITION_IMPORT",
         status: "geschätzt",
-        unit: "Tag",
+        unit: "h",
+        unitPriceCents: 0,
+      });
+      approvedDetail.push({
+        amountCents: 0,
+        costType: "Geräte",
+        description,
+        entryDate: start,
+        inventoryItemId: vehicle.inventoryItemId,
+        notes,
+        quantity: Math.round(approvedHours * 100) / 100,
+        source: "DISPOSITION_IMPORT",
+        status: "geschätzt",
+        unit: "h",
         unitPriceCents: 0,
       });
     }
 
     for (const vehicle of assignment.extraVehicles) {
-      pushSharedDetailEntry({
+      const description =
+        vehicle.inventoryItem?.name ??
+        vehicle.vehicle.vehicleNumber ??
+        vehicle.vehicle.licensePlate ??
+        "Zusatzgerät";
+      const notes = `aus Planung extra zugeordnet · ${crewLabel}`;
+
+      if (resolveCrewVehicleRateUnit(vehicle.inventoryItemId) === "DAY") {
+        pushSharedDetailEntry({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: start,
+          inventoryItemId: vehicle.inventoryItemId,
+          notes,
+          quantity: 1,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "Tag",
+          unitPriceCents: 0,
+        });
+        continue;
+      }
+
+      plannedDetail.push({
         amountCents: 0,
         costType: "Geräte",
-        description:
-          vehicle.inventoryItem?.name ??
-          vehicle.vehicle.vehicleNumber ??
-          vehicle.vehicle.licensePlate ??
-          "Zusatzgerät",
+        description,
         entryDate: start,
         inventoryItemId: vehicle.inventoryItemId,
-        notes: `aus Planung extra zugeordnet · ${assignment.crewName || assignment.crew?.name || "Kolonne"}`,
-        quantity: 1,
+        notes,
+        quantity: Math.round(plannedHours * 100) / 100,
         source: "DISPOSITION_IMPORT",
         status: "geschätzt",
-        unit: "Tag",
+        unit: "h",
+        unitPriceCents: 0,
+      });
+      approvedDetail.push({
+        amountCents: 0,
+        costType: "Geräte",
+        description,
+        entryDate: start,
+        inventoryItemId: vehicle.inventoryItemId,
+        notes,
+        quantity: Math.round(approvedHours * 100) / 100,
+        source: "DISPOSITION_IMPORT",
+        status: "geschätzt",
+        unit: "h",
         unitPriceCents: 0,
       });
     }
