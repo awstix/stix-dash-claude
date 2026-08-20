@@ -1235,6 +1235,15 @@ async function runDispositionImport(
         isAsphaltDispatchCrew: true,
       },
       include: {
+        defaultVehicles: {
+          include: {
+            inventoryItem: true,
+            vehicle: true,
+          },
+          where: {
+            isActive: true,
+          },
+        },
         members: {
           include: {
             employee: {
@@ -1337,6 +1346,62 @@ async function runDispositionImport(
     startsAt: string | null;
     totalHours: number;
   };
+
+  type ImportedDetailEntry = {
+    amountCents: number;
+    costType: string;
+    description: string;
+    entryDate: Date;
+    inventoryItemId?: string | null;
+    notes: string;
+    quantity: number;
+    source: string;
+    status: string;
+    unit: string;
+    unitPriceCents: number;
+  };
+
+  // Die meisten Detail-Kategorien (Gerätedisposition, Kolonnen-Standard-
+  // /Zusatzgeräte, LKW-Einteilung, Sonderfahrzeugdisposition, Inventar-
+  // Zuweisung) kennen keine "Dispo vs. Leistung"-Unterscheidung - dieselbe
+  // Zeile gilt für beide Szenarien. Nur Asphalt-/Anspritzmittel-Mengen und
+  // die zugehörigen LKW-Gerätestunden unterscheiden sich: Dispo-Menge
+  // (AsphaltDispatchEntry.quantityTons/tackCoatQuantity, vor der Fahrt
+  // geplant) vs. tatsächlich gefahrene Menge/Zeit (AsphaltLoadAllocation/
+  // TackCoatLoadAllocation, nach Tour bzw. Zeiterfassung). Ein Collector je
+  // Szenario mit eigenem Dedup-Stand, damit beide unabhängig voneinander
+  // exakt dieselbe Dedup-Logik wie bisher bekommen. Bereits hier (vor der
+  // Personalstunden-Berechnung) angelegt, weil die Asphalt-Dispo-Kolonnen
+  // ihre Standardfahrzeuge weiter unten im selben Block wie ihre
+  // Personalstunden hinzufügen.
+  function createDetailEntryCollector() {
+    const entries: ImportedDetailEntry[] = [];
+    const seenKeys = new Set<string>();
+
+    function push(entry: ImportedDetailEntry) {
+      if (entry.inventoryItemId) {
+        const key = `${entry.inventoryItemId}|${entry.entryDate.toISOString()}|${entry.costType}`;
+
+        if (seenKeys.has(key)) {
+          return;
+        }
+
+        seenKeys.add(key);
+      }
+
+      entries.push(entry);
+    }
+
+    return { entries, push };
+  }
+
+  const plannedDetail = createDetailEntryCollector();
+  const approvedDetail = createDetailEntryCollector();
+
+  function pushSharedDetailEntry(entry: ImportedDetailEntry) {
+    plannedDetail.push(entry);
+    approvedDetail.push(entry);
+  }
 
   const employeeGroupRateByName = new Map(
     employeeGroupRates.map((rate) => [rate.name, rate]),
@@ -1555,6 +1620,32 @@ async function runDispositionImport(
       const employeeCount = crew?.members.length ?? 0;
       const hoursPerEmployee = 10.5;
 
+      // Standardfahrzeuge der Kolonne (eigener LKW, Walze, Stampfer, PKW
+      // usw.) - bei Kolonnenplanung werden diese über assignment.crew.
+      // defaultVehicles erfasst, bei Asphalt-Dispo-Kolonnen sonst gar
+      // nicht, da es dort keine Kolonnenplanung-Zuteilung für den Tag gibt.
+      // Tag-basiert wie bei Kolonnenplanung, daher in beiden Szenarien
+      // identisch (pushSharedDetailEntry).
+      for (const vehicle of crew?.defaultVehicles ?? []) {
+        pushSharedDetailEntry({
+          amountCents: 0,
+          costType: "Geräte",
+          description:
+            vehicle.inventoryItem?.name ??
+            vehicle.vehicle.vehicleNumber ??
+            vehicle.vehicle.licensePlate ??
+            "Kolonnengerät",
+          entryDate: asphaltEntry.workDate,
+          inventoryItemId: vehicle.inventoryItemId,
+          notes: `aus Asphaltdisposition übernommen · Standardfahrzeug ${asphaltEntry.crew}`,
+          quantity: 1,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "Tag",
+          unitPriceCents: 0,
+        });
+      }
+
       if (crew?.members.length) {
         for (const member of crew.members) {
           const employee = member.employee;
@@ -1720,59 +1811,6 @@ async function runDispositionImport(
     (sum, entry) => sum + entry.realCostCents,
     0,
   );
-
-  type ImportedDetailEntry = {
-    amountCents: number;
-    costType: string;
-    description: string;
-    entryDate: Date;
-    inventoryItemId?: string | null;
-    notes: string;
-    quantity: number;
-    source: string;
-    status: string;
-    unit: string;
-    unitPriceCents: number;
-  };
-
-  // Die meisten Detail-Kategorien (Gerätedisposition, Kolonnen-Standard-
-  // /Zusatzgeräte, LKW-Einteilung, Sonderfahrzeugdisposition, Inventar-
-  // Zuweisung) kennen keine "Dispo vs. Leistung"-Unterscheidung - dieselbe
-  // Zeile gilt für beide Szenarien. Nur Asphalt-/Anspritzmittel-Mengen und
-  // die zugehörigen LKW-Gerätestunden unterscheiden sich: Dispo-Menge
-  // (AsphaltDispatchEntry.quantityTons/tackCoatQuantity, vor der Fahrt
-  // geplant) vs. tatsächlich gefahrene Menge/Zeit (AsphaltLoadAllocation/
-  // TackCoatLoadAllocation, nach Tour bzw. Zeiterfassung). Ein Collector je
-  // Szenario mit eigenem Dedup-Stand, damit beide unabhängig voneinander
-  // exakt dieselbe Dedup-Logik wie bisher bekommen.
-  function createDetailEntryCollector() {
-    const entries: ImportedDetailEntry[] = [];
-    const seenKeys = new Set<string>();
-
-    function push(entry: ImportedDetailEntry) {
-      if (entry.inventoryItemId) {
-        const key = `${entry.inventoryItemId}|${entry.entryDate.toISOString()}|${entry.costType}`;
-
-        if (seenKeys.has(key)) {
-          return;
-        }
-
-        seenKeys.add(key);
-      }
-
-      entries.push(entry);
-    }
-
-    return { entries, push };
-  }
-
-  const plannedDetail = createDetailEntryCollector();
-  const approvedDetail = createDetailEntryCollector();
-
-  function pushSharedDetailEntry(entry: ImportedDetailEntry) {
-    plannedDetail.push(entry);
-    approvedDetail.push(entry);
-  }
 
   for (const assignment of equipmentAssignments) {
       const description =
