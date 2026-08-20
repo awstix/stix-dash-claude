@@ -2345,11 +2345,51 @@ async function runDispositionImport(
     0,
   );
 
+  // Zeilenweise Aufstellung für die Popup-Erklärung "wie kommt der Wert
+  // zustande" bei den Vergleichs-Kacheln "Ergebnis nach Dispo"/"Ergebnis
+  // nach Leistung" - kombiniert Personal- und Detailzeilen je Szenario.
+  function buildBreakdown(
+    scenarioHourEntries: ImportedHourEntry[],
+    scenarioDetailEntries: ImportedDetailEntry[],
+  ) {
+    return [
+      ...scenarioHourEntries
+        .filter((entry) => entry.totalHours > 0)
+        .map((entry) => ({
+          category: "Personal",
+          costCents: entry.realCostCents,
+          detail: entry.notes,
+          label: entry.label,
+          quantity: entry.totalHours,
+          unit: "h",
+        })),
+      ...scenarioDetailEntries
+        .filter((entry) => entry.quantity > 0)
+        .map((entry) => ({
+          category: entry.costType,
+          costCents: entry.amountCents,
+          detail: entry.notes,
+          label: entry.description,
+          quantity: entry.quantity,
+          unit: entry.unit,
+        })),
+    ];
+  }
+
+  const plannedBreakdownJson = JSON.stringify(
+    buildBreakdown(plannedHourEntries, plannedDetail.entries),
+  );
+  const approvedBreakdownJson = JSON.stringify(
+    buildBreakdown(approvedHourEntries, approvedDetail.entries),
+  );
+
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.controllingPerformanceReport.update({
       data: {
+        approvedBreakdownJson,
         approvedDetailCostCents,
         approvedHourRealCostCents,
+        plannedBreakdownJson,
         plannedDetailCostCents,
         plannedHourRealCostCents,
       },

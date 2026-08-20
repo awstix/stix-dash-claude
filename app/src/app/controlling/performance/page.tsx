@@ -28,6 +28,7 @@ import { ConfirmAllSuggestionsButton } from "./ConfirmAllSuggestionsButton";
 import { ControllingHourForm } from "./ControllingHourForm";
 import { DeleteEntryButton } from "./DeleteEntryButton";
 import { DeletePerformanceReportButton } from "./DeletePerformanceReportButton";
+import { DispoLeistungComparison } from "./DispoLeistungComparison";
 import { DetailEntryForm } from "./DetailEntryForm";
 import { EditDetailEntryButton } from "./EditDetailEntryButton";
 import { EditHourEntryButton } from "./EditHourEntryButton";
@@ -1202,44 +1203,6 @@ export default async function ControllingPerformancePage({
                 </form>
               </section>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
-                  Vergleich
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-gray-950">
-                  Ergebnis nach Dispo vs. nach Leistung
-                </h2>
-                <p className="mt-1 max-w-3xl text-sm text-gray-500">
-                  Zeigt dasselbe Ergebnis einmal komplett mit Dispo-Werten (Stunden nach
-                  Arbeitsplan, Asphalt-/Anspritzmittelmengen nach Disposition statt Lieferschein)
-                  und einmal komplett mit den tatsächlich erfassten Werten (freigegebene
-                  Zeiterfassung, gefahrene Mengen) - unabhängig davon, welcher Modus oben gerade
-                  aktiv ist. Stand vom letzten &quot;Übernehmen&quot;, kein Live-Wert.
-                </p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <MetricCard
-                    detail={`Lohn ${formatMoney(report.plannedHourRealCostCents)} · Details (Dispo-Mengen) ${formatMoney(report.plannedDetailCostCents)}`}
-                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(plannedActualCostCents)} = ${formatMoney(plannedForecastCents)}`}
-                    label="Ergebnis nach Dispo"
-                    percent={{
-                      tone: plannedForecastCents >= 0 ? "good" : "bad",
-                      value: formatPercent(plannedForecastPercent),
-                    }}
-                    value={formatMoney(plannedForecastCents)}
-                  />
-                  <MetricCard
-                    detail={`Lohn ${formatMoney(report.approvedHourRealCostCents)} · Details (gefahrene Mengen) ${formatMoney(report.approvedDetailCostCents)}`}
-                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(approvedActualCostCents)} = ${formatMoney(approvedForecastCents)}`}
-                    label="Ergebnis nach Leistung"
-                    percent={{
-                      tone: approvedForecastCents >= 0 ? "good" : "bad",
-                      value: formatPercent(approvedForecastPercent),
-                    }}
-                    value={formatMoney(approvedForecastCents)}
-                  />
-                </div>
-              </section>
-
               {crewSuggestions.length > 0 ? (
                 <CrewSuggestionsSection
                   confirmAllAction={confirmAllCrewSuggestions}
@@ -1552,6 +1515,25 @@ export default async function ControllingPerformancePage({
                   />
                 </div>
               </section>
+
+              <DispoLeistungComparison
+                approved={{
+                  breakdown: parseBreakdownJson(report.approvedBreakdownJson),
+                  detail: `Lohn ${formatMoney(report.approvedHourRealCostCents)} · Details (gefahrene Mengen) ${formatMoney(report.approvedDetailCostCents)}`,
+                  forecastCents: approvedForecastCents,
+                  forecastPercent: formatPercent(approvedForecastPercent),
+                  formula: `${formatMoney(resultBaseCents)} − ${formatMoney(approvedActualCostCents)} = ${formatMoney(approvedForecastCents)}`,
+                  label: "Ergebnis nach Leistung",
+                }}
+                planned={{
+                  breakdown: parseBreakdownJson(report.plannedBreakdownJson),
+                  detail: `Lohn ${formatMoney(report.plannedHourRealCostCents)} · Details (Dispo-Mengen) ${formatMoney(report.plannedDetailCostCents)}`,
+                  forecastCents: plannedForecastCents,
+                  forecastPercent: formatPercent(plannedForecastPercent),
+                  formula: `${formatMoney(resultBaseCents)} − ${formatMoney(plannedActualCostCents)} = ${formatMoney(plannedForecastCents)}`,
+                  label: "Ergebnis nach Dispo",
+                }}
+              />
             </>
           ) : null}
         </div>
@@ -2611,6 +2593,24 @@ function formatMoney(cents: number) {
     currency: "EUR",
     style: "currency",
   }).format(cents / 100);
+}
+
+function parseBreakdownJson(json: string) {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed)
+      ? (parsed as {
+          category: string;
+          costCents: number;
+          detail: string;
+          label: string;
+          quantity: number;
+          unit: string;
+        }[])
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function formatRawMoney(cents: number) {

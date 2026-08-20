@@ -2780,6 +2780,14 @@ model ControllingPerformanceReport {
   plannedDetailCostCents  Int @default(0)
   approvedDetailCostCents Int @default(0)
 
+  // Zeilenweise Aufstellung (Personal/Material/Geräte, je mit Menge und
+  // Kosten) hinter den beiden Summen oben - JSON-Array von {category,
+  // costCents, detail, label, quantity, unit}, für die Popup-Aufstellung
+  // "wie kommt der Wert zustande" bei den Vergleichs-Kacheln. Wird wie die
+  // Summen bei jedem "Übernehmen" aktualisiert.
+  plannedBreakdownJson  String @default("[]")
+  approvedBreakdownJson String @default("[]")
+
   contractValueNetCents Int   @default(0)
   changeOrdersNetCents  Int   @default(0)
   progressPercent       Float @default(0)
