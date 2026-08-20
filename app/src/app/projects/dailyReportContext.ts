@@ -742,6 +742,10 @@ export function buildDailyReportContext(
       ...project.tackCoatLoadAllocations.map((item) => item.vehicle?.id),
     ].filter((id): id is string => Boolean(id)),
   );
+  // Fahrzeug-Stunden mehrerer Touren desselben Fahrzeugs am selben Tag
+  // (z. B. zwei Fahrten in der Asphalt-LKW-Verteilung) summieren sich, ohne
+  // dass das Fahrzeug dadurch mehrfach gezählt wird - siehe addDispatchedMachine.
+  const countedVehicleIds = new Set<string>();
 
   for (const row of project.crewPlanningRows) {
     for (const assignment of row.assignments) {
@@ -872,7 +876,7 @@ export function buildDailyReportContext(
   }
 
   for (const equipment of project.equipmentDispatchAssignments) {
-    addMachine(machines, realMachines, equipment.vehicle, 8);
+    addDispatchedMachine(machines, realMachines, countedVehicleIds, equipment.vehicle, 8);
     addVehicleCompositionLine(composition, equipment.vehicle, 8, "Gerätedisposition");
   }
 
@@ -926,7 +930,13 @@ export function buildDailyReportContext(
       assignment.transportVehicle &&
       getVehicleInventoryItem(assignment.transportVehicle)
     ) {
-      addMachine(machines, realMachines, assignment.transportVehicle, hours);
+      addDispatchedMachine(
+        machines,
+        realMachines,
+        countedVehicleIds,
+        assignment.transportVehicle,
+        hours,
+      );
       addVehicleCompositionLine(composition, assignment.transportVehicle, hours, "Sonderfahrzeugdispo · Transportfahrzeug");
     } else if (!assignment.transportVehicleId && assignment.transportVehicleName) {
       addFallbackMachine(
@@ -990,7 +1000,7 @@ export function buildDailyReportContext(
     });
 
     if (assignment.vehicle) {
-      addMachine(machines, realMachines, assignment.vehicle, hours);
+      addDispatchedMachine(machines, realMachines, countedVehicleIds, assignment.vehicle, hours);
       addVehicleCompositionLine(composition, assignment.vehicle, hours, "LKW-Kurzstrecke");
     } else {
       addFallbackMachine(
@@ -1158,7 +1168,7 @@ export function buildDailyReportContext(
         sourceLabel: "LKW-Fernverkehr",
       });
       if (truck.vehicle) {
-        addMachine(machines, realMachines, truck.vehicle, truckHours);
+        addDispatchedMachine(machines, realMachines, countedVehicleIds, truck.vehicle, truckHours);
         addVehicleCompositionLine(composition, truck.vehicle, truckHours, "LKW-Fernverkehr");
       } else {
         addFallbackMachine(
@@ -1235,7 +1245,13 @@ export function buildDailyReportContext(
       });
     }
     if (allocation.vehicle) {
-      addMachine(machines, realMachines, allocation.vehicle, allocationHours);
+      addDispatchedMachine(
+        machines,
+        realMachines,
+        countedVehicleIds,
+        allocation.vehicle,
+        allocationHours,
+      );
       addVehicleCompositionLine(composition, allocation.vehicle, allocationHours, "Asphalt-LKW-Verteilung");
     } else {
       addFallbackMachine(
@@ -2178,9 +2194,16 @@ function addCountHours(
   });
 }
 
-function addMachine(
+/** Für Quellen, in denen dasselbe Fahrzeug an einem Tag
+ * mehrfach auftreten kann (z. B. mehrere Touren derselben Asphalt-LKW-
+ * Verteilung) - die Stunden aller Vorkommen werden addiert, aber die
+ * Fahrzeuganzahl (`count`) nur beim ersten Auftreten dieses Fahrzeugs
+ * erhöht, damit ein einzelner LKW mit mehreren Touren nicht als mehrere
+ * Fahrzeuge gezählt wird. */
+function addDispatchedMachine(
   map: Map<string, MachineBucket>,
   realMap: Map<string, MachineBucket>,
+  countedVehicleIds: Set<string>,
   vehicle: {
     category: string;
     dailyReportMachineLabel?: string | null;
@@ -2192,13 +2215,25 @@ function addMachine(
   hours: number,
 ) {
   const machine = getVehicleDailyReportMachineInput(vehicle);
-  addMachineLabel(map, machine.label, hours, machine.classify, machine.section);
+  const key = vehicle.id || machine.label;
+  const incrementCount = !countedVehicleIds.has(key);
+  countedVehicleIds.add(key);
+
+  addMachineLabel(
+    map,
+    machine.label,
+    hours,
+    machine.classify,
+    machine.section,
+    incrementCount,
+  );
   addMachineLabel(
     realMap,
     getVehicleRealMachineLabel(vehicle),
     hours,
     false,
     machine.section,
+    incrementCount,
   );
 }
 
@@ -2447,11 +2482,12 @@ function addMachineLabel(
   hours: number,
   classify = true,
   section: "MACHINES" | "OTHER" = "MACHINES",
+  incrementCount = true,
 ) {
   const label = resolveMachineGroupLabel(rawLabel, classify);
   const current = map.get(label) ?? { count: 0, hours: 0, label, section };
   map.set(label, {
-    count: current.count + 1,
+    count: current.count + (incrementCount ? 1 : 0),
     hours: current.hours + hours,
     label,
     section,
