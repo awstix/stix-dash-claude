@@ -721,6 +721,28 @@ export function buildDailyReportContext(
     }
   }
 
+  // Fahrzeuge, die an diesem Tag bereits über eine eigene, konkret
+  // dokumentierte Disposition (Zeiten/Touren) laufen - Standardfahrzeuge
+  // einer Kolonne (Kolonnenplanung/Asphalt-Dispo) werden weiter unten nur
+  // ergänzt, wenn das jeweilige Objekt hier noch nicht auftaucht, damit
+  // dasselbe Fahrzeug nicht zusätzlich über die pauschale Kolonnenzuordnung
+  // mitgezählt wird.
+  const explicitlyDispatchedVehicleIds = new Set<string>(
+    [
+      ...project.equipmentDispatchAssignments.map((item) => item.vehicle?.id),
+      ...project.specialVehicleDispatchAssignments.flatMap((item) => [
+        item.vehicle?.id,
+        item.transportVehicle?.id,
+      ]),
+      ...project.shortHaulAssignments.map((item) => item.vehicle?.id),
+      ...project.truckLongHaulEntries.flatMap((entry) =>
+        entry.truckAssignments.map((truck) => truck.vehicle?.id),
+      ),
+      ...project.asphaltLoadAllocations.map((item) => item.vehicle?.id),
+      ...project.tackCoatLoadAllocations.map((item) => item.vehicle?.id),
+    ].filter((id): id is string => Boolean(id)),
+  );
+
   for (const row of project.crewPlanningRows) {
     for (const assignment of row.assignments) {
       if (!hasApprovedCrewTimes) {
@@ -770,6 +792,7 @@ export function buildDailyReportContext(
 
       const assignmentVehicleKeys = new Set<string>();
       for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
+        if (explicitlyDispatchedVehicleIds.has(defaultVehicle.vehicle.id)) continue;
         addMachineOnce(
           machines,
           realMachines,
@@ -781,6 +804,7 @@ export function buildDailyReportContext(
       }
 
       for (const extraVehicle of assignment.extraVehicles) {
+        if (explicitlyDispatchedVehicleIds.has(extraVehicle.vehicle.id)) continue;
         addMachineOnce(
           machines,
           realMachines,
@@ -830,6 +854,7 @@ export function buildDailyReportContext(
     // erfasst, bei Asphalt-Dispo-Kolonnen sonst gar nicht, da es dort keine
     // Kolonnenplanung-Zuteilung für den Tag gibt.
     for (const defaultVehicle of crew.defaultVehicles) {
+      if (explicitlyDispatchedVehicleIds.has(defaultVehicle.vehicle.id)) continue;
       addMachineOnce(
         machines,
         realMachines,
