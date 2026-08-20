@@ -2761,6 +2761,16 @@ model ControllingPerformanceReport {
   // freigegebene Zeiterfassung (tatsächlich gebuchte Stunden).
   hoursSource String @default("PLANNED")
 
+  // Vergleichswerte für die Kacheln "Ergebnis nach Dispo" / "Ergebnis nach
+  // Leistung": Summe der realCostCents, die ein "Übernehmen" mit der
+  // jeweils ANDEREN Quelle ergeben hätte - werden bei jedem "Übernehmen"
+  // für BEIDE Quellen mitberechnet, unabhängig von hoursSource, damit der
+  // Vergleich zeigt, wie viel eine sorgfältige Ist-Erfassung gegenüber der
+  // reinen Dispo-Schätzung ausmacht. Kein Live-Wert - Stand vom letzten
+  // "Übernehmen".
+  plannedHourRealCostCents  Int @default(0)
+  approvedHourRealCostCents Int @default(0)
+
   contractValueNetCents Int   @default(0)
   changeOrdersNetCents  Int   @default(0)
   progressPercent       Float @default(0)

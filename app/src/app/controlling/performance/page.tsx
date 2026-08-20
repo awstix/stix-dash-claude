@@ -737,6 +737,19 @@ export default async function ControllingPerformancePage({
   const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
   const forecastCents = resultBaseCents - actualCostCents;
   const forecastPercent = resultBaseCents > 0 ? forecastCents / resultBaseCents : 0;
+  // Vergleich "Ergebnis nach Dispo" vs. "Ergebnis nach Leistung": dieselbe
+  // Ergebnis-Formel wie oben, nur mit den bei "Übernehmen" für BEIDE Quellen
+  // mitberechneten Personalstunden-Summen statt der gerade aktiven -
+  // detailCostCents bleibt bewusst gleich (Geräte-/Materialkosten sind kein
+  // Teil dieses Vergleichs). Kein Live-Wert, Stand vom letzten "Übernehmen".
+  const plannedForecastCents =
+    resultBaseCents - (detailCostCents + (report?.plannedHourRealCostCents ?? 0));
+  const plannedForecastPercent =
+    resultBaseCents > 0 ? plannedForecastCents / resultBaseCents : 0;
+  const approvedForecastCents =
+    resultBaseCents - (detailCostCents + (report?.approvedHourRealCostCents ?? 0));
+  const approvedForecastPercent =
+    resultBaseCents > 0 ? approvedForecastCents / resultBaseCents : 0;
   const openWipCents = Math.max(0, performanceValueCents - invoiceRevenueCents);
   // Umlage-Vergleich: aus der echten Auftragssumme wird die
   // Kalkulations-Kostenbasis mit der tatsächlichen Umlage zurückgerechnet,
@@ -1182,6 +1195,43 @@ export default async function ControllingPerformancePage({
                     Modus weiterhin aus der Disposition.
                   </p>
                 </form>
+              </section>
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
+                  Vergleich
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-gray-950">
+                  Ergebnis nach Dispo vs. nach Leistung
+                </h2>
+                <p className="mt-1 max-w-3xl text-sm text-gray-500">
+                  Zeigt dasselbe Ergebnis einmal mit den reinen Dispo-Stunden und einmal mit den
+                  tatsächlich freigegebenen Zeiterfassungs-Stunden - unabhängig davon, welcher
+                  Modus oben gerade aktiv ist. Stand vom letzten &quot;Übernehmen&quot;, kein
+                  Live-Wert.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <MetricCard
+                    detail={`Lohn nach Dispo ${formatMoney(report.plannedHourRealCostCents)} · Details ${formatMoney(detailCostCents)}`}
+                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(detailCostCents + report.plannedHourRealCostCents)} = ${formatMoney(plannedForecastCents)}`}
+                    label="Ergebnis nach Dispo"
+                    percent={{
+                      tone: plannedForecastCents >= 0 ? "good" : "bad",
+                      value: formatPercent(plannedForecastPercent),
+                    }}
+                    value={formatMoney(plannedForecastCents)}
+                  />
+                  <MetricCard
+                    detail={`Lohn nach Leistung ${formatMoney(report.approvedHourRealCostCents)} · Details ${formatMoney(detailCostCents)}`}
+                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(detailCostCents + report.approvedHourRealCostCents)} = ${formatMoney(approvedForecastCents)}`}
+                    label="Ergebnis nach Leistung"
+                    percent={{
+                      tone: approvedForecastCents >= 0 ? "good" : "bad",
+                      value: formatPercent(approvedForecastPercent),
+                    }}
+                    value={formatMoney(approvedForecastCents)}
+                  />
+                </div>
               </section>
 
               {crewSuggestions.length > 0 ? (

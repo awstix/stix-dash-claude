@@ -1455,96 +1455,99 @@ async function runDispositionImport(
     return [...ids];
   }
 
-  const hourEntries: ImportedHourEntry[] = useActualHours
-    ? crewTimeEntries.flatMap((entry) =>
-        entry.employees
-          .filter((employee) => employee.isPresent && employee.netHours > 0)
-          .map((employee) => {
-            const rates = employeeRateFor(employeeById.get(employee.employeeId));
+  const approvedHourEntries: ImportedHourEntry[] = crewTimeEntries.flatMap((entry) =>
+    entry.employees
+      .filter((employee) => employee.isPresent && employee.netHours > 0)
+      .map((employee) => {
+        const rates = employeeRateFor(employeeById.get(employee.employeeId));
 
-            return costedHourEntry({
-              employeeCount: 1,
-              employeeId: employee.employeeId,
-              endsAt: employee.endTime,
-              entryDate: entry.workDate,
-              hoursPerEmployee: employee.netHours,
-              internalRateCents: rates.internalRateCents,
-              label: employee.employeeName,
-              notes: `aus Zeiterfassung übernommen, freigegeben (${formatIsoDate(entry.workDate)})`,
-              realRateCents: rates.realRateCents,
-              source: "DISPOSITION_IMPORT",
-              startsAt: employee.startTime,
-              totalHours: Math.round(employee.netHours * 100) / 100,
-            });
-          }),
-      )
-    : crewAssignments.flatMap((assignment) => {
-        const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
-        const crewLabel =
-          assignment.crewName || assignment.crew?.name || assignment.row.rowTitle || "Kolonne";
-        const employeeIds = resolveAssignmentEmployeeIds(assignment);
-
-        if (employeeIds.length === 0) {
-          return [
-            costedHourEntry({
-              employeeCount: 1,
-              endsAt: assignment.endTime,
-              entryDate: start,
-              hoursPerEmployee,
-              internalRateCents: 0,
-              label: crewLabel,
-              notes: `aus Planung übernommen, keine Mitarbeiter zugeordnet (${formatIsoDate(start)})`,
-              realRateCents: 0,
-              source: "DISPOSITION_IMPORT",
-              startsAt: assignment.startTime,
-              totalHours: Math.round(hoursPerEmployee * 100) / 100,
-            }),
-          ];
-        }
-
-        return employeeIds.map((employeeId) => {
-          const employee = employeeById.get(employeeId);
-          const rates = employeeRateFor(employee);
-          const label = employee ? `${employee.lastName}, ${employee.firstName}` : crewLabel;
-
-          return costedHourEntry({
-            employeeCount: 1,
-            employeeId,
-            endsAt: assignment.endTime,
-            entryDate: start,
-            hoursPerEmployee,
-            internalRateCents: rates.internalRateCents,
-            label,
-            notes: `aus Planung übernommen, ${crewLabel} (${formatIsoDate(start)})`,
-            realRateCents: rates.realRateCents,
-            source: "DISPOSITION_IMPORT",
-            startsAt: assignment.startTime,
-            totalHours: Math.round(hoursPerEmployee * 100) / 100,
-          });
+        return costedHourEntry({
+          employeeCount: 1,
+          employeeId: employee.employeeId,
+          endsAt: employee.endTime,
+          entryDate: entry.workDate,
+          hoursPerEmployee: employee.netHours,
+          internalRateCents: rates.internalRateCents,
+          label: employee.employeeName,
+          notes: `aus Zeiterfassung übernommen, freigegeben (${formatIsoDate(entry.workDate)})`,
+          realRateCents: rates.realRateCents,
+          source: "DISPOSITION_IMPORT",
+          startsAt: employee.startTime,
+          totalHours: Math.round(employee.netHours * 100) / 100,
         });
-      });
-  const importedHourKeys = new Set(
-    hourEntries.map((entry) => `${entry.entryDate.toISOString()}|${entry.label}`),
+      }),
   );
 
-  function pushHourEntry(entry: (typeof hourEntries)[number]) {
+  const plannedHourEntries: ImportedHourEntry[] = crewAssignments.flatMap((assignment) => {
+    const hoursPerEmployee = timeRangeHours(assignment.startTime, assignment.endTime);
+    const crewLabel =
+      assignment.crewName || assignment.crew?.name || assignment.row.rowTitle || "Kolonne";
+    const employeeIds = resolveAssignmentEmployeeIds(assignment);
+
+    if (employeeIds.length === 0) {
+      return [
+        costedHourEntry({
+          employeeCount: 1,
+          endsAt: assignment.endTime,
+          entryDate: start,
+          hoursPerEmployee,
+          internalRateCents: 0,
+          label: crewLabel,
+          notes: `aus Planung übernommen, keine Mitarbeiter zugeordnet (${formatIsoDate(start)})`,
+          realRateCents: 0,
+          source: "DISPOSITION_IMPORT",
+          startsAt: assignment.startTime,
+          totalHours: Math.round(hoursPerEmployee * 100) / 100,
+        }),
+      ];
+    }
+
+    return employeeIds.map((employeeId) => {
+      const employee = employeeById.get(employeeId);
+      const rates = employeeRateFor(employee);
+      const label = employee ? `${employee.lastName}, ${employee.firstName}` : crewLabel;
+
+      return costedHourEntry({
+        employeeCount: 1,
+        employeeId,
+        endsAt: assignment.endTime,
+        entryDate: start,
+        hoursPerEmployee,
+        internalRateCents: rates.internalRateCents,
+        label,
+        notes: `aus Planung übernommen, ${crewLabel} (${formatIsoDate(start)})`,
+        realRateCents: rates.realRateCents,
+        source: "DISPOSITION_IMPORT",
+        startsAt: assignment.startTime,
+        totalHours: Math.round(hoursPerEmployee * 100) / 100,
+      });
+    });
+  });
+
+  const plannedImportedHourKeys = new Set(
+    plannedHourEntries.map((entry) => `${entry.entryDate.toISOString()}|${entry.label}`),
+  );
+
+  function pushPlannedHourEntry(entry: (typeof plannedHourEntries)[number]) {
     const key = `${entry.entryDate.toISOString()}|${entry.label}`;
 
-    if (importedHourKeys.has(key)) {
+    if (plannedImportedHourKeys.has(key)) {
       return;
     }
 
-    importedHourKeys.add(key);
-    hourEntries.push(entry);
+    plannedImportedHourKeys.add(key);
+    plannedHourEntries.push(entry);
   }
 
   // Kolonnen-/Fahrer-Stunden aus Asphalt-/LKW-/Sonderfahrzeugdisposition sind
-  // Planungs-/Dispo-Annahmen, keine bestätigten Ist-Stunden - bei "Tatsächlich
-  // gebuchte Stunden" (useActualHours) sollen ausschließlich die oben aus
-  // crewTimeEntries (freigegebene Zeiterfassung) übernommenen Stunden zählen.
-  // Ein Fahrer ohne eigenen Zeiterfassungseintrag darf dort also fehlen,
-  // statt aus der Disposition nachgetragen zu werden.
-  if (!useActualHours) {
+  // Planungs-/Dispo-Annahmen, keine bestätigten Ist-Stunden - sie ergänzen
+  // deshalb ausschließlich die Dispo-Seite (plannedHourEntries), nie die aus
+  // crewTimeEntries (freigegebene Zeiterfassung) übernommenen Stunden. Ein
+  // Fahrer ohne eigenen Zeiterfassungseintrag fehlt auf der Leistungs-Seite
+  // also zu Recht, statt aus der Disposition nachgetragen zu werden - läuft
+  // aber immer, unabhängig von useActualHours, damit plannedHourEntries auch
+  // dann vollständig ist, wenn gerade "nach Leistung" aktiv ist.
+  {
     const asphaltCrewByName = new Map(asphaltCrews.map((crew) => [crew.name, crew]));
 
     for (const asphaltEntry of asphaltDispatchEntries) {
@@ -1560,7 +1563,7 @@ async function runDispositionImport(
             .filter(Boolean)
             .join(", ");
 
-          pushHourEntry(costedHourEntry({
+          pushPlannedHourEntry(costedHourEntry({
             employeeCount: 1,
             employeeId: employee.id,
             endsAt: "17:00",
@@ -1579,7 +1582,7 @@ async function runDispositionImport(
         continue;
       }
 
-      pushHourEntry(costedHourEntry({
+      pushPlannedHourEntry(costedHourEntry({
         employeeCount: employeeCount || 1,
         endsAt: "17:00",
         entryDate: asphaltEntry.workDate,
@@ -1595,7 +1598,7 @@ async function runDispositionImport(
     }
 
     // Ein Fahrer kann an einem Tag mehrere Touren fahren (mehrere
-    // Zuteilungs-Zeilen mit demselben Namen/Datum) - pushHourEntry dedupliziert
+    // Zuteilungs-Zeilen mit demselben Namen/Datum) - pushPlannedHourEntry dedupliziert
     // nach Datum+Bezeichnung, ohne Aggregation würde daher nur die erste Tour
     // des Tages gezählt und alle weiteren Touren stillschweigend verworfen.
     // Deshalb hier je Fahrer/Tag erst alle Touren aufsummieren, dann eine
@@ -1642,7 +1645,7 @@ async function runDispositionImport(
       const rates = employeeRateFor(employee);
       const totalHours = Math.round(group.totalHours * 100) / 100;
 
-      pushHourEntry(costedHourEntry({
+      pushPlannedHourEntry(costedHourEntry({
         employeeCount: 1,
         employeeId: employee?.id,
         endsAt: group.latestEnd,
@@ -1664,7 +1667,7 @@ async function runDispositionImport(
       const totalHours = Math.round(group.totalHours * 100) / 100;
       const unit = tackCoatLoads.find((load) => load.driverName === group.driverName)?.quantityUnit ?? "l";
 
-      pushHourEntry(costedHourEntry({
+      pushPlannedHourEntry(costedHourEntry({
         employeeCount: 1,
         employeeId: employee?.id,
         endsAt: group.latestEnd,
@@ -1689,7 +1692,7 @@ async function runDispositionImport(
       const employee = employeeForName(assignment.operatorDriverName);
       const rates = employeeRateFor(employee);
 
-      pushHourEntry(costedHourEntry({
+      pushPlannedHourEntry(costedHourEntry({
         employeeCount: 1,
         employeeId: employee?.id,
         endsAt: assignment.endTime,
@@ -1705,6 +1708,18 @@ async function runDispositionImport(
       }));
     }
   }
+
+  const hourEntries: ImportedHourEntry[] = useActualHours
+    ? approvedHourEntries
+    : plannedHourEntries;
+  const plannedHourRealCostCents = plannedHourEntries.reduce(
+    (sum, entry) => sum + entry.realCostCents,
+    0,
+  );
+  const approvedHourRealCostCents = approvedHourEntries.reduce(
+    (sum, entry) => sum + entry.realCostCents,
+    0,
+  );
 
   const detailEntries: Array<{
     amountCents: number;
@@ -2208,6 +2223,15 @@ async function runDispositionImport(
   }
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.controllingPerformanceReport.update({
+      data: {
+        approvedHourRealCostCents,
+        plannedHourRealCostCents,
+      },
+      where: {
+        id: reportId,
+      },
+    });
     await tx.controllingHourEntry.deleteMany({
       where: {
         reportId,
