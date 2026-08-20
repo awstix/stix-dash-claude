@@ -231,7 +231,7 @@ function drawHeader(
   drawSingleLine(
     page,
     fonts.regular,
-    context.trafficSafetyFirstCheckTime,
+    context.trafficSafetyFirstCheckTime || "//",
     344,
     678 + headerValueOffsetY,
     42,
@@ -240,7 +240,7 @@ function drawHeader(
   drawSingleLine(
     page,
     fonts.regular,
-    context.trafficSafetySecondCheckTime,
+    context.trafficSafetySecondCheckTime || "//",
     422,
     678 + headerValueOffsetY,
     58,
