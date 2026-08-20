@@ -593,6 +593,17 @@ export async function getDailyReportSourceProject(
             isActive: true,
           },
           include: {
+            defaultVehicles: {
+              where: {
+                isActive: true,
+              },
+              include: {
+                vehicle: {
+                  include: vehicleInventoryLinkInclude,
+                },
+              },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            },
             members: {
               where: {
                 isActive: true,
@@ -779,6 +790,7 @@ export function buildDailyReportContext(
 
   const asphaltCrewHours = reportWorkHours;
   const countedAsphaltCrewNames = new Set<string>();
+  const asphaltCrewVehicleKeys = new Set<string>();
 
   for (const entry of project.asphaltDispatchEntries) {
     const crewName = entry.crew.trim();
@@ -805,6 +817,26 @@ export function buildDailyReportContext(
         quantity: `${formatDecimal(asphaltCrewHours)} Std.`,
         source: `Asphalt-Dispo · ${crewName}`,
       });
+    }
+
+    // Standardfahrzeuge der Kolonne (z. B. eigener LKW, Walze, PKW) - bei
+    // Kolonnenplanung werden diese über assignment.crew.defaultVehicles
+    // erfasst, bei Asphalt-Dispo-Kolonnen sonst gar nicht, da es dort keine
+    // Kolonnenplanung-Zuteilung für den Tag gibt.
+    for (const defaultVehicle of crew.defaultVehicles) {
+      addMachineOnce(
+        machines,
+        realMachines,
+        asphaltCrewVehicleKeys,
+        defaultVehicle.vehicle,
+        asphaltCrewHours,
+      );
+      addVehicleCompositionLine(
+        composition,
+        defaultVehicle.vehicle,
+        asphaltCrewHours,
+        `Asphalt-Dispo · ${crewName}`,
+      );
     }
   }
 
