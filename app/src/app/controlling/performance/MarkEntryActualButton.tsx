@@ -18,7 +18,7 @@ export function MarkEntryActualButton({
       <input name="projectId" type="hidden" value={projectId} />
       <button
         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
-        title="Tatsächlich verbaut - so bestätigen"
+        title="Freigeben"
         type="submit"
       >
         ✓

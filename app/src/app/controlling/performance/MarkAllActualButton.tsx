@@ -50,7 +50,7 @@ export function MarkAllActualButton({
               <span className="font-semibold text-gray-900">
                 {count} Position{count === 1 ? "" : "en"}
               </span>{" "}
-              mit Status &quot;geschätzt&quot; auf &quot;tatsächlich verbaut&quot; setzen?
+              mit Status &quot;geschätzt&quot; auf &quot;freigegeben&quot; setzen?
             </p>
             <div className="mt-5 flex justify-end gap-3">
               <button

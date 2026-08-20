@@ -196,6 +196,10 @@ function pathFor(
     message: string;
     type: "error" | "success";
   },
+  // Hält den Abschnitt, in dem gerade gearbeitet wurde, nach dem Speichern
+  // geöffnet und springt per Anker dorthin zurück, statt die Seite nach
+  // jeder einzelnen Positions-Änderung ganz nach oben zu setzen.
+  anchor?: string,
 ) {
   const params = new URLSearchParams();
 
@@ -205,9 +209,13 @@ function pathFor(
     params.set("notice", notice.message);
     params.set("noticeType", notice.type);
   }
+  if (anchor) params.set("open", anchor);
 
-  return `/controlling/performance${params.toString() ? `?${params}` : ""}`;
+  const query = params.toString();
+  return `/controlling/performance${query ? `?${query}` : ""}${anchor ? `#${anchor}` : ""}`;
 }
+
+const POSITIONS_ANCHOR = "erfasste-positionen";
 
 function revalidateControlling() {
   revalidatePath("/controlling/performance");
@@ -409,15 +417,17 @@ export async function deleteControllingDetailEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 /** Schnelle Freigabe ohne das Bearbeiten-Popup zu öffnen - für den Fall,
  * dass die aus der Disposition vorgeschlagene Menge bereits der realen
  * Menge (z.B. laut Lieferschein) entspricht und nur bestätigt werden
- * muss, statt geändert zu werden. Setzt Status auf "tatsächlich verbaut",
- * damit in "Leistungsmeldung nach Leistung" auf einen Blick sichtbar ist,
- * welche Positionen bereits geprüft sind. */
+ * muss, statt geändert zu werden. Setzt Status auf "freigegeben", damit in
+ * "Leistungsmeldung nach Leistung" auf einen Blick sichtbar ist, welche
+ * Positionen bereits geprüft sind - bewusst ein eigener Wert statt
+ * "tatsächlich verbaut" (bleibt als eigenständige, manuell wählbare Option
+ * im Bearbeiten-Popup erhalten, z.B. nach Prüfung des Lieferscheins). */
 export async function markControllingDetailEntryActual(formData: FormData) {
   await requireSession();
   const id = requiredText(formData.get("id"), "Eintrag");
@@ -426,7 +436,7 @@ export async function markControllingDetailEntryActual(formData: FormData) {
 
   await prisma.controllingDetailEntry.update({
     data: {
-      status: "tatsächlich verbaut",
+      status: "freigegeben",
     },
     where: {
       id,
@@ -434,7 +444,7 @@ export async function markControllingDetailEntryActual(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function deleteControllingHourEntry(formData: FormData) {
@@ -450,7 +460,7 @@ export async function deleteControllingHourEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 /** Bearbeitet nur die Zahlen in DIESER Leistungsmeldung
@@ -496,7 +506,7 @@ export async function updateControllingHourEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 /** Schnelle Freigabe ohne das Bearbeiten-Popup zu öffnen, analog zu
@@ -509,7 +519,7 @@ export async function markControllingHourEntryActual(formData: FormData) {
 
   await prisma.controllingHourEntry.update({
     data: {
-      status: "tatsächlich verbaut",
+      status: "freigegeben",
     },
     where: {
       id,
@@ -517,13 +527,13 @@ export async function markControllingHourEntryActual(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 /** Setzt alle noch "geschätzt" markierten Detail-Positionen dieser
- * Leistungsmeldung auf einen Schlag auf "tatsächlich verbaut" - für den
- * Fall, dass die Dispo-Mengen nach Prüfung insgesamt schon gepasst haben
- * und nicht jede Zeile einzeln bestätigt werden soll. */
+ * Leistungsmeldung auf einen Schlag auf "freigegeben" - für den Fall, dass
+ * die Dispo-Mengen nach Prüfung insgesamt schon gepasst haben und nicht
+ * jede Zeile einzeln bestätigt werden soll. */
 export async function markAllDetailEntriesActual(formData: FormData) {
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
@@ -531,7 +541,7 @@ export async function markAllDetailEntriesActual(formData: FormData) {
 
   await prisma.controllingDetailEntry.updateMany({
     data: {
-      status: "tatsächlich verbaut",
+      status: "freigegeben",
     },
     where: {
       reportId,
@@ -540,7 +550,7 @@ export async function markAllDetailEntriesActual(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 /** Wie markAllDetailEntriesActual, nur für die Stunden-Positionen. */
@@ -551,7 +561,7 @@ export async function markAllHourEntriesActual(formData: FormData) {
 
   await prisma.controllingHourEntry.updateMany({
     data: {
-      status: "tatsächlich verbaut",
+      status: "freigegeben",
     },
     where: {
       reportId,
@@ -560,7 +570,7 @@ export async function markAllHourEntriesActual(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function deleteControllingInvoiceItem(formData: FormData) {
@@ -576,7 +586,7 @@ export async function deleteControllingInvoiceItem(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function addControllingDetailEntry(formData: FormData) {
@@ -617,7 +627,7 @@ export async function addControllingDetailEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function updateControllingDetailEntry(formData: FormData) {
@@ -664,7 +674,7 @@ export async function updateControllingDetailEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function addControllingHourEntry(formData: FormData) {
@@ -723,7 +733,7 @@ export async function addControllingHourEntry(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 type CrewSuggestionPayloadItem =
@@ -851,7 +861,7 @@ export async function addControllingInvoiceItem(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function importItwoInvoiceItems(formData: FormData) {
@@ -988,7 +998,7 @@ export async function importItwoInvoiceItems(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 export async function importDetailEntriesFromExcel(formData: FormData) {
@@ -1086,7 +1096,7 @@ export async function importDetailEntriesFromExcel(formData: FormData) {
   });
 
   revalidateControlling();
-  redirect(pathFor(reportId, projectId));
+  redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
 type DispositionImportResult =

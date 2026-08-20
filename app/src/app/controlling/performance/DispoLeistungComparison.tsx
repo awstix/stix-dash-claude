@@ -18,6 +18,11 @@ type Scenario = {
   forecastPercent: string;
   formula: string;
   label: string;
+  vorUmlage: {
+    formula: string;
+    resultCents: number;
+    resultPercent: string;
+  };
 };
 
 export function DispoLeistungComparison({
@@ -45,6 +50,14 @@ export function DispoLeistungComparison({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <ComparisonTile onOpen={() => setOpenScenario(planned)} scenario={planned} />
         <ComparisonTile onOpen={() => setOpenScenario(approved)} scenario={approved} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+        Ergebnis vor Umlage
+      </p>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <VorUmlageTile label={planned.label} vorUmlage={planned.vorUmlage} />
+        <VorUmlageTile label={approved.label} vorUmlage={approved.vorUmlage} />
       </div>
 
       {openScenario ? (
@@ -107,6 +120,31 @@ function ComparisonTile({
       <p className="mt-1 text-xs text-gray-600">{scenario.detail}</p>
       <p className="mt-2 text-xs font-semibold text-blue-700">Aufstellung anzeigen →</p>
     </button>
+  );
+}
+
+function VorUmlageTile({
+  label,
+  vorUmlage,
+}: {
+  label: string;
+  vorUmlage: Scenario["vorUmlage"];
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-gray-950">
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">{label}</p>
+      <div className="mt-1 flex flex-wrap items-baseline gap-2">
+        <p className="text-xl font-bold">{formatMoney(vorUmlage.resultCents)}</p>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+            vorUmlage.resultCents >= 0 ? "bg-green-600 text-white" : "bg-red-600 text-white"
+          }`}
+        >
+          DB {vorUmlage.resultPercent}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-gray-600">{vorUmlage.formula}</p>
+    </div>
   );
 }
 

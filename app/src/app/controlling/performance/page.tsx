@@ -69,11 +69,13 @@ export default async function ControllingPerformancePage({
   searchParams?: Promise<{
     notice?: string;
     noticeType?: string;
+    open?: string;
     projectId?: string;
     reportId?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
+  const openSection = params.open;
   const requestedReport = params.reportId
     ? await prisma.controllingPerformanceReport.findUnique({
         where: {
@@ -791,6 +793,16 @@ export default async function ControllingPerformancePage({
   const ergebnisVorUmlageCents = umsatzVorUmlageCents - actualCostCents;
   const dbVorUmlagePercent =
     umsatzVorUmlageCents > 0 ? ergebnisVorUmlageCents / umsatzVorUmlageCents : 0;
+  // Dieselbe Rückrechnung wie ergebnisVorUmlageCents, nur mit den
+  // Dispo-/Leistungs-Kostenszenarien statt der gerade aktiven Kosten -
+  // umsatzVorUmlageCents bleibt in beiden Szenarien gleich, da es rein
+  // umsatzseitig ist und nicht von hoursSource abhängt.
+  const plannedErgebnisVorUmlageCents = umsatzVorUmlageCents - plannedActualCostCents;
+  const plannedDbVorUmlagePercent =
+    umsatzVorUmlageCents > 0 ? plannedErgebnisVorUmlageCents / umsatzVorUmlageCents : 0;
+  const approvedErgebnisVorUmlageCents = umsatzVorUmlageCents - approvedActualCostCents;
+  const approvedDbVorUmlagePercent =
+    umsatzVorUmlageCents > 0 ? approvedErgebnisVorUmlageCents / umsatzVorUmlageCents : 0;
   // Gehalt/Sonstiges-Stunden fließen bewusst nicht in die Stunden-Bilanz
   // ein - die sind bereits über die Kosten in der Zeile "Sonstiges"
   // verrechnet, würden hier also doppelt gezählt.
@@ -1244,7 +1256,11 @@ export default async function ControllingPerformancePage({
                 reportId={report.id}
               />
 
-              <details className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <details
+                className="group scroll-mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                id="erfasste-positionen"
+                open={openSection === "erfasste-positionen"}
+              >
                 <summary className="cursor-pointer list-none">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -1316,7 +1332,7 @@ export default async function ControllingPerformancePage({
                           updateAction={updateControllingDetailEntry}
                         />
                         {(entry.costType === "Material" || entry.costType === "Geräte") &&
-                        entry.status !== "tatsächlich verbaut" ? (
+                        entry.status !== "tatsächlich verbaut" && entry.status !== "freigegeben" ? (
                           <MarkEntryActualButton
                             action={markControllingDetailEntryActual}
                             id={entry.id}
@@ -1376,7 +1392,7 @@ export default async function ControllingPerformancePage({
                           reportId={report.id}
                           updateAction={updateControllingHourEntry}
                         />
-                        {entry.status !== "tatsächlich verbaut" ? (
+                        {entry.status !== "tatsächlich verbaut" && entry.status !== "freigegeben" ? (
                           <MarkEntryActualButton
                             action={markControllingHourEntryActual}
                             id={entry.id}
@@ -1524,6 +1540,11 @@ export default async function ControllingPerformancePage({
                   forecastPercent: formatPercent(approvedForecastPercent),
                   formula: `${formatMoney(resultBaseCents)} − ${formatMoney(approvedActualCostCents)} = ${formatMoney(approvedForecastCents)}`,
                   label: "Ergebnis nach Leistung",
+                  vorUmlage: {
+                    formula: `${formatMoney(umsatzVorUmlageCents)} − ${formatMoney(approvedActualCostCents)} = ${formatMoney(approvedErgebnisVorUmlageCents)}`,
+                    resultCents: approvedErgebnisVorUmlageCents,
+                    resultPercent: formatPercent(approvedDbVorUmlagePercent),
+                  },
                 }}
                 planned={{
                   breakdown: parseBreakdownJson(report.plannedBreakdownJson),
@@ -1532,6 +1553,11 @@ export default async function ControllingPerformancePage({
                   forecastPercent: formatPercent(plannedForecastPercent),
                   formula: `${formatMoney(resultBaseCents)} − ${formatMoney(plannedActualCostCents)} = ${formatMoney(plannedForecastCents)}`,
                   label: "Ergebnis nach Dispo",
+                  vorUmlage: {
+                    formula: `${formatMoney(umsatzVorUmlageCents)} − ${formatMoney(plannedActualCostCents)} = ${formatMoney(plannedErgebnisVorUmlageCents)}`,
+                    resultCents: plannedErgebnisVorUmlageCents,
+                    resultPercent: formatPercent(plannedDbVorUmlagePercent),
+                  },
                 }}
               />
             </>
@@ -2863,10 +2889,10 @@ function getNextPeriodEnd(periodStart: Date) {
  * die reine Dispo-Schätzung ist - in "nach Disposition" ist die Menge
  * bewusst nur die Dispo-Schätzung, daher dort kein Warnhinweis. */
 function getDetailStatusBadge(status: string, costType: string, hoursSource: string) {
-  if (status === "tatsächlich verbaut") {
+  if (status === "tatsächlich verbaut" || status === "freigegeben") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
-        ✓ tatsächlich verbaut
+        ✓ {status}
       </span>
     );
   }
@@ -2889,10 +2915,10 @@ function getDetailStatusBadge(status: string, costType: string, hoursSource: str
  * ohne costType-Filter, da bei Stunden die Unterscheidung
  * geschätzt/tatsächlich verbaut unabhängig von einer Kostenart gilt. */
 function getHourStatusBadge(status: string, hoursSource: string) {
-  if (status === "tatsächlich verbaut") {
+  if (status === "tatsächlich verbaut" || status === "freigegeben") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
-        ✓ tatsächlich verbaut
+        ✓ {status}
       </span>
     );
   }
