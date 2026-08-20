@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
 import { deleteProjectDailyReport } from "./actions";
 
+type DeleteFeedback = {
+  kind: "success" | "error";
+  message: string;
+  onClose: () => void;
+};
+
 export function ProjectDailyReportDeleteButton({
   dateLabel,
   isCurrentReport,
@@ -18,6 +24,7 @@ export function ProjectDailyReportDeleteButton({
 }) {
   const router = useRouter();
   const [isConfirming, setIsConfirming] = useState(false);
+  const [feedback, setFeedback] = useState<DeleteFeedback | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function deleteReport() {
@@ -28,28 +35,79 @@ export function ProjectDailyReportDeleteButton({
         });
 
         if (!result.deleted) {
-          alert("Der Bautagesbericht wurde bereits gelöscht.");
-          router.refresh();
+          setFeedback({
+            kind: "error",
+            message: "Der Bautagesbericht wurde bereits gelöscht.",
+            onClose: () => router.refresh(),
+          });
           return;
         }
 
-        alert(`Bautagesbericht vom ${dateLabel} wurde gelöscht.`);
-
-        if (isCurrentReport) {
-          router.replace(
-            `/projects/bautagesberichte?projectId=${encodeURIComponent(projectId)}`,
-          );
-        } else {
-          router.refresh();
-        }
+        setFeedback({
+          kind: "success",
+          message: `Bautagesbericht vom ${dateLabel} wurde gelöscht.`,
+          onClose: () => {
+            if (isCurrentReport) {
+              router.replace(
+                `/projects/bautagesberichte?projectId=${encodeURIComponent(projectId)}`,
+              );
+            } else {
+              router.refresh();
+            }
+          },
+        });
       } catch (error) {
-        alert(
-          error instanceof Error
-            ? error.message
-            : "Bautagesbericht konnte nicht gelöscht werden.",
-        );
+        setFeedback({
+          kind: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Bautagesbericht konnte nicht gelöscht werden.",
+          onClose: () => {},
+        });
       }
     });
+  }
+
+  if (feedback) {
+    return (
+      <div
+        className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/60 p-4"
+        onClick={() => {
+          feedback.onClose();
+          setFeedback(null);
+        }}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <h2
+            className={`text-lg font-semibold ${
+              feedback.kind === "error" ? "text-red-800" : "text-gray-950"
+            }`}
+          >
+            {feedback.kind === "error" ? "Fehler" : "Bautagesbericht gelöscht"}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            {feedback.message}
+          </p>
+          <div className="mt-5 flex justify-end">
+            <button
+              autoFocus
+              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              onClick={() => {
+                feedback.onClose();
+                setFeedback(null);
+              }}
+              type="button"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isConfirming) {
