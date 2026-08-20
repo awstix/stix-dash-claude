@@ -64,6 +64,8 @@ export type DailyReportContext = {
   break2From: string;
   break2To: string;
   composition: DailyReportComposition;
+  createdAt: Date | null;
+  createdByName: string;
   dateKey: string;
   dateLabel: string;
   id: string | null;
@@ -1474,6 +1476,8 @@ export function buildDailyReportContext(
     break2From: dailyReport?.break2From || suggestedBreak2From,
     break2To: dailyReport?.break2To || suggestedBreak2To,
     composition,
+    createdAt: dailyReport?.createdAt ?? null,
+    createdByName: dailyReport?.createdByName ?? "",
     dateKey,
     dateLabel: formatDateLabel(dateKey),
     id: dailyReport?.id ?? null,

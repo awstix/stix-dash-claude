@@ -172,7 +172,6 @@ export type ProjectDailyReportWeatherInput = {
 };
 
 export type ProjectDailyReportSaveInput = {
-  approvedByName: string;
   approvedFields: string[];
   break1From: string;
   break1To: string;
@@ -1308,16 +1307,20 @@ export async function saveProjectDailyReport(input: ProjectDailyReportSaveInput)
     },
     select: {
       approvedAt: true,
+      approvedByName: true,
       createdByName: true,
       createdByUserId: true,
     },
   });
   const approvedAt =
     status === "APPROVED" ? existingReport?.approvedAt ?? new Date() : null;
+  // Immer der tatsächlich angemeldete Nutzer, nie ein Client-Freitextfeld -
+  // sonst könnte jede Freigabe unter beliebigem Namen gespeichert werden.
+  // Bleibt an die bereits bestehende Freigabe gekoppelt (wie approvedAt),
+  // damit ein erneutes Speichern einer schon freigegebenen Version nicht
+  // die ursprüngliche Freigabe-Identität überschreibt.
   const approvedByName =
-    status === "APPROVED"
-      ? cleanProjectFormText(input.approvedByName, 120) || null
-      : null;
+    status === "APPROVED" ? existingReport?.approvedByName || actor.name : null;
   const approvedFieldsJson = JSON.stringify(
     cleanDailyReportApprovedFields(input.approvedFields),
   );

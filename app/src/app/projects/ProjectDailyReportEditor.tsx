@@ -16,7 +16,6 @@ import type {
 } from "./dailyReportContext";
 
 type ReportFormState = {
-  approvedByName: string;
   approvedFields: string[];
   break1From: string;
   break1To: string;
@@ -1009,12 +1008,27 @@ export function ProjectDailyReportEditor({
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
-          <LabeledInput
-            label="Freigegeben von"
-            onChange={(value) => updateValue("approvedByName", value)}
-            value={form.approvedByName}
-          />
+        <div className="mb-3 space-y-1 text-sm text-gray-600">
+          <p>
+            Erstellt von{" "}
+            <strong className="text-gray-900">
+              {context.createdByName || "unbekannt"}
+            </strong>
+            {context.createdAt ? ` am ${formatDateTime(context.createdAt)}` : ""}
+          </p>
+          <p>
+            {context.approvedByName ? (
+              <>
+                Freigegeben von{" "}
+                <strong className="text-gray-900">{context.approvedByName}</strong>
+                {context.approvedAt ? ` am ${formatDateTime(context.approvedAt)}` : ""}
+              </>
+            ) : (
+              "Noch nicht freigegeben."
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-3">
           <button
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
             disabled={isPending}
@@ -1055,7 +1069,6 @@ const approvalGroups = [
 
 function createInitialState(context: DailyReportContext): ReportFormState {
   return {
-    approvedByName: context.approvedByName,
     approvedFields: [...context.approvedFields],
     break1From: context.break1From,
     break1To: context.break1To,
@@ -1427,6 +1440,17 @@ function normalizeDailyReportLabel(value: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function SignaturePad({
