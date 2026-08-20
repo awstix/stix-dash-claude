@@ -6,6 +6,7 @@ import type { PointerEvent, ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { saveProjectDailyReport } from "./actions";
+import { DailyReportErrorDialog } from "./DailyReportErrorDialog";
 import type {
   DailyReportCompositionLine,
   DailyReportContext,
@@ -119,6 +120,8 @@ export function ProjectDailyReportEditor({
   const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
   const [showWorkWindowHint, setShowWorkWindowHint] = useState(false);
   const [workWindowHintDismissed, setWorkWindowHintDismissed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [pendingApproval, setPendingApproval] = useState<string[] | null>(null);
   const [form, setForm] = useState<ReportFormState>(() =>
     createInitialState(context),
   );
@@ -371,22 +374,23 @@ export function ProjectDailyReportEditor({
     });
   }
 
-  function save(
-    status: "APPROVED" | "DRAFT",
-    confirmIncompleteApproval = false,
-  ) {
+  function save(status: "APPROVED" | "DRAFT", checkIncompleteApproval = false) {
     if (
-      confirmIncompleteApproval &&
+      checkIncompleteApproval &&
       status === "APPROVED" &&
       form.approvedFields.length < approvalGroups.length
     ) {
-      const confirmed = window.confirm(
-        "Es sind noch nicht alle Bereiche freigegeben. Bautagesbericht trotzdem freigeben?",
-      );
-
-      if (!confirmed) return;
+      const missingLabels = approvalGroups
+        .filter((id) => !form.approvedFields.includes(id))
+        .map((id) => approvalGroupLabels[id] ?? id);
+      setPendingApproval(missingLabels);
+      return;
     }
 
+    performSave(status);
+  }
+
+  function performSave(status: "APPROVED" | "DRAFT") {
     startTransition(async () => {
       try {
         await saveProjectDailyReport({
@@ -403,7 +407,7 @@ export function ProjectDailyReportEditor({
         );
         router.refresh();
       } catch (error) {
-        alert(
+        setErrorMessage(
           error instanceof Error
             ? error.message
             : "Bautagesbericht konnte nicht gespeichert werden.",
@@ -428,7 +432,7 @@ export function ProjectDailyReportEditor({
         }t=${Date.now()}`;
         router.refresh();
       } catch (error) {
-        alert(
+        setErrorMessage(
           error instanceof Error
             ? error.message
             : "Bautagesbericht konnte nicht gespeichert werden.",
@@ -1052,6 +1056,54 @@ export function ProjectDailyReportEditor({
           </p>
         ) : null}
       </section>
+
+      {pendingApproval ? (
+        <div
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-gray-950/60 p-4"
+          onClick={() => setPendingApproval(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-amber-200 bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-gray-950">
+              Noch nicht alle Bereiche freigegeben
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Folgende Bereiche sind noch nicht freigegeben:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-800">
+              {pendingApproval.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                onClick={() => setPendingApproval(null)}
+                type="button"
+              >
+                Abbrechen
+              </button>
+              <button
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                onClick={() => {
+                  setPendingApproval(null);
+                  performSave("APPROVED");
+                }}
+                type="button"
+              >
+                Trotzdem freigeben
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <DailyReportErrorDialog
+        message={errorMessage}
+        onClose={() => setErrorMessage("")}
+      />
     </div>
   );
 }
@@ -1066,6 +1118,17 @@ const approvalGroups = [
   "materials",
   "performance",
 ];
+
+const approvalGroupLabels: Record<string, string> = {
+  labor: "Arbeitskräfte / Nachunternehmer",
+  machines: "Maschinen und Geräte",
+  materials: "Material / Sonstiges",
+  performance: "Sonstige Bauleistung",
+  project: "Projekt / Kopf",
+  trafficSafety: "Verkehrssicherung",
+  weather: "Wetter / Temperatur",
+  workTime: "Arbeitszeit",
+};
 
 function createInitialState(context: DailyReportContext): ReportFormState {
   return {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ActionIcon } from "@/components/ActionIcon";
+import { DailyReportErrorDialog } from "./DailyReportErrorDialog";
 import { ProjectDailyReportDeleteButton } from "./ProjectDailyReportDeleteButton";
 
 type DailyReportListItem = {
@@ -38,6 +39,7 @@ export function ProjectDailyReportBulkList({
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const allSelected =
     allReportIds.length > 0 && selectedIds.size === allReportIds.length;
 
@@ -107,7 +109,7 @@ export function ProjectDailyReportBulkList({
       link.remove();
       URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      alert(
+      setErrorMessage(
         error instanceof Error
           ? error.message
           : "Bautagesberichte konnten nicht heruntergeladen werden.",
@@ -254,6 +256,11 @@ export function ProjectDailyReportBulkList({
           </div>
         ))}
       </div>
+
+      <DailyReportErrorDialog
+        message={errorMessage}
+        onClose={() => setErrorMessage("")}
+      />
     </>
   );
 }
