@@ -117,7 +117,8 @@ function ComparisonTile({
           DB {scenario.forecastPercent}
         </span>
       </div>
-      <p className="mt-1 text-xs text-gray-600">{scenario.detail}</p>
+      <p className="mt-1 text-xs text-gray-600">{scenario.formula}</p>
+      <p className="mt-1 text-xs text-gray-500">{scenario.detail}</p>
       <p className="mt-2 text-xs font-semibold text-blue-700">Aufstellung anzeigen →</p>
     </button>
   );
@@ -159,6 +160,7 @@ function BreakdownTable({ lines }: { lines: BreakdownLine[] }) {
   }
 
   const categories = [...new Set(lines.map((line) => line.category))];
+  const totalSumCents = lines.reduce((sum, line) => sum + line.costCents, 0);
 
   return (
     <div className="mt-4 space-y-4">
@@ -199,6 +201,10 @@ function BreakdownTable({ lines }: { lines: BreakdownLine[] }) {
           </div>
         );
       })}
+      <div className="flex items-center justify-between border-t-2 border-gray-300 pt-2">
+        <span className="text-sm font-bold text-gray-900">Summe</span>
+        <span className="text-sm font-bold text-gray-900">{formatMoney(totalSumCents)}</span>
+      </div>
     </div>
   );
 }
