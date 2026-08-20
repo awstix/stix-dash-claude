@@ -215,12 +215,13 @@ export default async function ProjectDailyReportsPage({
           </div>
           {dailyReportContext.id ? (
             <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
-              Bearbeitung geöffnet: Bautagesbericht{" "}
+              Bautagesbericht{" "}
               {dailyReportContext.reportNumber
                 ? `Nr. ${dailyReportContext.reportNumber}`
                 : `Blatt ${dailyReportContext.sheetNumber}`}{" "}
-              vom {dailyReportContext.dateLabel}. Bitte nach dem Bearbeiten unten auf
-              „Speichern&quot; klicken, sonst gehen Änderungen verloren.
+              vom {dailyReportContext.dateLabel} ist zur Bearbeitung geöffnet.
+              Änderungen werden erst mit einem Klick auf „Speichern&quot; unten
+              im Formular übernommen.
             </div>
           ) : null}
           <ProjectDailyReportEditor
