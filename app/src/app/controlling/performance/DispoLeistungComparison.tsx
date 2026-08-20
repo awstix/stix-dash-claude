@@ -59,6 +59,22 @@ export function DispoLeistungComparison({
         <VorUmlageTile label={planned.label} vorUmlage={planned.vorUmlage} />
         <VorUmlageTile label={approved.label} vorUmlage={approved.vorUmlage} />
       </div>
+      <details className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        <summary className="cursor-pointer font-semibold text-gray-700">
+          Ist Skonto/Nachlass hier korrekt verrechnet?
+        </summary>
+        <p className="mt-2 leading-5">
+          Ja. Der Umsatz, aus dem &quot;Ergebnis vor Umlage&quot; zurückgerechnet wird, ist
+          derselbe (bereits um Skonto/Nachlass geminderte) Netto-Umsatz wie bei &quot;Ergebnis
+          aktuell&quot; oben auf der Seite: erst mindert Nachlass den Netto-Umsatz, danach mindert
+          Skonto den (bereits um Nachlass reduzierten) Betrag - beides nacheinander, nicht
+          addiert. Skonto wird in der Praxis vom Bruttobetrag abgezogen, aber weil die MwSt ein
+          fester Faktor ist, kürzt sie sich beim Zurückrechnen auf netto wieder heraus - derselbe
+          Skonto-Prozentsatz auf den Netto-Betrag angewendet ergibt exakt dasselbe Ergebnis wie
+          &quot;auf brutto abziehen, dann auf netto zurückrechnen&quot;. Es wird also nirgends
+          brutto mit netto vermischt.
+        </p>
+      </details>
 
       {openScenario ? (
         <div
