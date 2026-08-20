@@ -192,7 +192,10 @@ export default async function ProjectDailyReportsPage({
       </section>
 
       {selectedProject && dailyReportContext ? (
-        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section
+          className="mb-6 scroll-mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          id="bautagesbericht-editor"
+        >
           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -210,6 +213,16 @@ export default async function ProjectDailyReportsPage({
               Projektakte öffnen
             </Link>
           </div>
+          {dailyReportContext.id ? (
+            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-950">
+              Bearbeitung geöffnet: Bautagesbericht{" "}
+              {dailyReportContext.reportNumber
+                ? `Nr. ${dailyReportContext.reportNumber}`
+                : `Blatt ${dailyReportContext.sheetNumber}`}{" "}
+              vom {dailyReportContext.dateLabel}. Bitte nach dem Bearbeiten unten auf
+              „Speichern&quot; klicken, sonst gehen Änderungen verloren.
+            </div>
+          ) : null}
           <ProjectDailyReportEditor
             context={dailyReportContext}
             exportHref={exportHref}
@@ -267,7 +280,10 @@ function buildDailyReportEditHref({
     projectId,
   });
 
-  return `/projects/bautagesberichte?${params.toString()}`;
+  // Hash-Anker sorgt dafür, dass die Seite nach dem Klick direkt zum
+  // Editor springt, statt an der aktuellen Scroll-Position (z. B. weit
+  // unten in der Liste) stehen zu bleiben, wo die Änderung unbemerkt bleibt.
+  return `/projects/bautagesberichte?${params.toString()}#bautagesbericht-editor`;
 }
 
 function buildExportHref({
