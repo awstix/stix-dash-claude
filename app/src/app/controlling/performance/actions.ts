@@ -1721,7 +1721,7 @@ async function runDispositionImport(
     0,
   );
 
-  const detailEntries: Array<{
+  type ImportedDetailEntry = {
     amountCents: number;
     costType: string;
     description: string;
@@ -1733,21 +1733,45 @@ async function runDispositionImport(
     status: string;
     unit: string;
     unitPriceCents: number;
-  }> = [];
-  const importedInventoryItemIds = new Set<string>();
+  };
 
-  function pushDetailEntry(entry: (typeof detailEntries)[number]) {
-    if (entry.inventoryItemId) {
-      const inventoryKey = `${entry.inventoryItemId}|${entry.entryDate.toISOString()}|${entry.costType}`;
+  // Die meisten Detail-Kategorien (Gerätedisposition, Kolonnen-Standard-
+  // /Zusatzgeräte, LKW-Einteilung, Sonderfahrzeugdisposition, Inventar-
+  // Zuweisung) kennen keine "Dispo vs. Leistung"-Unterscheidung - dieselbe
+  // Zeile gilt für beide Szenarien. Nur Asphalt-/Anspritzmittel-Mengen und
+  // die zugehörigen LKW-Gerätestunden unterscheiden sich: Dispo-Menge
+  // (AsphaltDispatchEntry.quantityTons/tackCoatQuantity, vor der Fahrt
+  // geplant) vs. tatsächlich gefahrene Menge/Zeit (AsphaltLoadAllocation/
+  // TackCoatLoadAllocation, nach Tour bzw. Zeiterfassung). Ein Collector je
+  // Szenario mit eigenem Dedup-Stand, damit beide unabhängig voneinander
+  // exakt dieselbe Dedup-Logik wie bisher bekommen.
+  function createDetailEntryCollector() {
+    const entries: ImportedDetailEntry[] = [];
+    const seenKeys = new Set<string>();
 
-      if (importedInventoryItemIds.has(inventoryKey)) {
-        return;
+    function push(entry: ImportedDetailEntry) {
+      if (entry.inventoryItemId) {
+        const key = `${entry.inventoryItemId}|${entry.entryDate.toISOString()}|${entry.costType}`;
+
+        if (seenKeys.has(key)) {
+          return;
+        }
+
+        seenKeys.add(key);
       }
 
-      importedInventoryItemIds.add(inventoryKey);
+      entries.push(entry);
     }
 
-    detailEntries.push(entry);
+    return { entries, push };
+  }
+
+  const plannedDetail = createDetailEntryCollector();
+  const approvedDetail = createDetailEntryCollector();
+
+  function pushSharedDetailEntry(entry: ImportedDetailEntry) {
+    plannedDetail.push(entry);
+    approvedDetail.push(entry);
   }
 
   for (const assignment of equipmentAssignments) {
@@ -1756,7 +1780,7 @@ async function runDispositionImport(
         assignment.vehicle.vehicleNumber ??
         assignment.vehicle.licensePlate ??
         "Gerät";
-      pushDetailEntry({
+      pushSharedDetailEntry({
         amountCents: 0,
         costType: "Geräte",
         description,
@@ -1773,7 +1797,7 @@ async function runDispositionImport(
 
   for (const assignment of crewAssignments) {
     for (const vehicle of assignment.crew?.defaultVehicles ?? []) {
-      pushDetailEntry({
+      pushSharedDetailEntry({
         amountCents: 0,
         costType: "Geräte",
         description:
@@ -1793,7 +1817,7 @@ async function runDispositionImport(
     }
 
     for (const vehicle of assignment.extraVehicles) {
-      pushDetailEntry({
+      pushSharedDetailEntry({
         amountCents: 0,
         costType: "Geräte",
         description:
@@ -1843,6 +1867,11 @@ async function runDispositionImport(
     return [...groups.values()];
   }
 
+  // Asphalt-LKW-Gerätestunden: Dispo-Seite nutzt immer die reinen
+  // Tourenzeiten aus der Disposition, Leistungs-Seite versucht immer die
+  // reale, pausenbereinigte Zeiterfassung des Fahrers (unabhängig vom
+  // gerade aktiven Modus, damit beide Vergleichswerte konsistent befüllt
+  // sind) und fällt auf die Dispo-Stunden zurück, falls keine vorliegt.
   for (const group of aggregateByKeyAndDay(
     asphaltLoads.filter((allocation) => allocation.vehicleInventoryItemId),
     (allocation) => allocation.vehicleInventoryItemId,
@@ -1854,32 +1883,69 @@ async function runDispositionImport(
       0,
     );
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
-    // Bei "Leistungsmeldung nach Leistung": die reale, pausenbereinigte
-    // Zeiterfassung des Fahrers verwenden statt der rohen Tourenzeiten aus
-    // der Disposition (die Pausen zwischen Touren nicht kennt) - fällt
-    // auf die Dispo-Stunden zurück, falls der Fahrer für den Tag (noch)
-    // keine Zeiterfassung hat.
     const actualHours =
-      useActualHours && driverNames.length === 1
+      driverNames.length === 1
         ? netHoursByNameAndDay.get(
             `${normalizePersonName(driverNames[0])}|${group.workDate.toISOString()}`,
           )
         : undefined;
-    const totalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
+    const approvedTotalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
+    const description = first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW";
+    const notesBase = `LKW aus Asphalt-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`;
 
-    pushDetailEntry({
+    plannedDetail.push({
       amountCents: 0,
       costType: "Geräte",
-      description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
+      description,
       entryDate: group.workDate,
       inventoryItemId: first.vehicleInventoryItemId,
-      notes: `LKW aus Asphalt-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}${
-        totalHours === actualHours ? " · Std. aus Zeiterfassung" : ""
-      }`,
-      quantity: Math.round(totalHours * 100) / 100,
+      notes: notesBase,
+      quantity: Math.round(dispatchHours * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
       unit: "h",
+      unitPriceCents: 0,
+    });
+    approvedDetail.push({
+      amountCents: 0,
+      costType: "Geräte",
+      description,
+      entryDate: group.workDate,
+      inventoryItemId: first.vehicleInventoryItemId,
+      notes: `${notesBase}${approvedTotalHours === actualHours ? " · Std. aus Zeiterfassung" : ""}`,
+      quantity: Math.round(approvedTotalHours * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: "h",
+      unitPriceCents: 0,
+    });
+  }
+
+  // Asphalt-Material: Dispo-Seite nutzt die vor der Fahrt geplante Menge
+  // (AsphaltDispatchEntry.quantityTons), Leistungs-Seite die tatsächlich
+  // gefahrene Menge je Tour (AsphaltLoadAllocation.totalTons, entspricht
+  // dem Lieferschein) - bisher wurde hier ausschließlich Letzteres
+  // verwendet, auch im Dispo-Modus, was "Leistungsmeldung nach
+  // Disposition" für Asphaltmengen faktisch zur Leistungsmeldung machte.
+  for (const group of aggregateByKeyAndDay(
+    asphaltDispatchEntries,
+    (entry) => entry.asphaltInventoryItemId,
+    (entry) => entry.workDate,
+  )) {
+    const first = group.items[0];
+    const totalTons = group.items.reduce((sum, entry) => sum + entry.quantityTons, 0);
+
+    plannedDetail.push({
+      amountCents: 0,
+      costType: "Material",
+      description: first.asphaltMixName || first.asphaltMixNumber || "Asphalt",
+      entryDate: group.workDate,
+      inventoryItemId: first.asphaltInventoryItemId,
+      notes: "aus Asphaltdisposition übernommen, geplante Menge",
+      quantity: Math.round(totalTons * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: "t",
       unitPriceCents: 0,
     });
   }
@@ -1893,7 +1959,7 @@ async function runDispositionImport(
     const totalTons = group.items.reduce((sum, allocation) => sum + allocation.totalTons, 0);
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
 
-    pushDetailEntry({
+    approvedDetail.push({
       amountCents: 0,
       costType: "Material",
       description: first.asphaltMixName || first.asphaltMixNumber || "Asphalt",
@@ -1908,6 +1974,8 @@ async function runDispositionImport(
     });
   }
 
+  // Anspritzmittel-LKW-Gerätestunden: dieselbe Dispo-/Leistungs-Logik wie
+  // bei den Asphalt-LKW-Gerätestunden oben.
   for (const group of aggregateByKeyAndDay(
     tackCoatLoads.filter((allocation) => allocation.vehicleInventoryItemId),
     (allocation) => allocation.vehicleInventoryItemId,
@@ -1920,26 +1988,64 @@ async function runDispositionImport(
     );
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
     const actualHours =
-      useActualHours && driverNames.length === 1
+      driverNames.length === 1
         ? netHoursByNameAndDay.get(
             `${normalizePersonName(driverNames[0])}|${group.workDate.toISOString()}`,
           )
         : undefined;
-    const totalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
+    const approvedTotalHours = actualHours && actualHours > 0 ? actualHours : dispatchHours;
+    const description = first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW";
+    const notesBase = `LKW aus Anspritzmittel-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}`;
 
-    pushDetailEntry({
+    plannedDetail.push({
       amountCents: 0,
       costType: "Geräte",
-      description: first.vehicleNumber || first.licensePlate || first.vehicleType || "LKW",
+      description,
       entryDate: group.workDate,
       inventoryItemId: first.vehicleInventoryItemId,
-      notes: `LKW aus Anspritzmittel-Zuteilung übernommen${driverNames.length ? ` · ${driverNames.join(", ")}` : ""}${
-        totalHours === actualHours ? " · Std. aus Zeiterfassung" : ""
-      }`,
-      quantity: Math.round(totalHours * 100) / 100,
+      notes: notesBase,
+      quantity: Math.round(dispatchHours * 100) / 100,
       source: "DISPOSITION_IMPORT",
       status: "geschätzt",
       unit: "h",
+      unitPriceCents: 0,
+    });
+    approvedDetail.push({
+      amountCents: 0,
+      costType: "Geräte",
+      description,
+      entryDate: group.workDate,
+      inventoryItemId: first.vehicleInventoryItemId,
+      notes: `${notesBase}${approvedTotalHours === actualHours ? " · Std. aus Zeiterfassung" : ""}`,
+      quantity: Math.round(approvedTotalHours * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: "h",
+      unitPriceCents: 0,
+    });
+  }
+
+  // Anspritzmittel-Material: dieselbe Dispo-/Leistungs-Logik wie bei
+  // Asphalt-Material oben (geplante Menge vs. tatsächlich gefahrene Menge).
+  for (const group of aggregateByKeyAndDay(
+    asphaltDispatchEntries.filter((entry) => entry.tackCoatQuantity > 0),
+    (entry) => entry.tackCoatInventoryItemId,
+    (entry) => entry.workDate,
+  )) {
+    const first = group.items[0];
+    const totalQuantity = group.items.reduce((sum, entry) => sum + entry.tackCoatQuantity, 0);
+
+    plannedDetail.push({
+      amountCents: 0,
+      costType: "Material",
+      description: first.tackCoatMaterialName || "Anspritzmittel",
+      entryDate: group.workDate,
+      inventoryItemId: first.tackCoatInventoryItemId,
+      notes: "aus Asphaltdisposition übernommen, geplante Menge",
+      quantity: Math.round(totalQuantity * 100) / 100,
+      source: "DISPOSITION_IMPORT",
+      status: "geschätzt",
+      unit: first.tackCoatUnit || "l",
       unitPriceCents: 0,
     });
   }
@@ -1953,7 +2059,7 @@ async function runDispositionImport(
     const totalLiters = group.items.reduce((sum, allocation) => sum + allocation.totalLiters, 0);
     const driverNames = [...new Set(group.items.map((a) => a.driverName).filter(Boolean))];
 
-    pushDetailEntry({
+    approvedDetail.push({
       amountCents: 0,
       costType: "Material",
       description: first.materialName || "Anspritzmittel",
@@ -1983,7 +2089,7 @@ async function runDispositionImport(
       continue;
     }
 
-    pushDetailEntry({
+    pushSharedDetailEntry({
       amountCents: 0,
       costType: "Material",
       description: entry.materialName,
@@ -2007,7 +2113,7 @@ async function runDispositionImport(
         assignment.plannedEndTime,
       );
 
-      pushDetailEntry({
+      pushSharedDetailEntry({
         amountCents: 0,
         costType: "Geräte",
         description:
@@ -2103,7 +2209,7 @@ async function runDispositionImport(
 
     const vehicleHours = timeRangeHours(assignment.startTime, assignment.endTime);
 
-    pushDetailEntry({
+    pushSharedDetailEntry({
       amountCents: 0,
       costType: resolvedVehicleItem?.categoryId ? "Geräte" : "Sonstiges",
       description:
@@ -2129,7 +2235,7 @@ async function runDispositionImport(
     if (materialName && materialQuantity > 0) {
       const materialItem = specialMaterialItemsByName.get(materialName);
 
-      pushDetailEntry({
+      pushSharedDetailEntry({
         amountCents: 0,
         costType: "Material",
         description: materialName,
@@ -2146,7 +2252,7 @@ async function runDispositionImport(
   }
 
   for (const item of projectInventoryItems) {
-    pushDetailEntry({
+    pushSharedDetailEntry({
       amountCents: 0,
       costType: item.category?.dailyReportSection === "MATERIAL" ? "Material" : "Geräte",
       description: item.name,
@@ -2163,7 +2269,7 @@ async function runDispositionImport(
 
   const inventoryRateItemIds = [
     ...new Set(
-      detailEntries
+      [...plannedDetail.entries, ...approvedDetail.entries]
         .map((entry) => entry.inventoryItemId)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -2205,27 +2311,46 @@ async function runDispositionImport(
     inventoryRateItems.map((item) => [item.id, item.name]),
   );
 
-  for (const entry of detailEntries) {
-    if (!entry.inventoryItemId) {
-      continue;
+  function applyInventoryRates(entries: ImportedDetailEntry[]) {
+    for (const entry of entries) {
+      if (!entry.inventoryItemId) {
+        continue;
+      }
+
+      entry.description = inventoryNameById.get(entry.inventoryItemId) ?? entry.description;
+
+      const rate = inventoryRateById.get(entry.inventoryItemId) ?? 0;
+
+      if (rate <= 0) {
+        continue;
+      }
+
+      entry.unitPriceCents = rate;
+      entry.amountCents = Math.round(entry.quantity * rate);
     }
-
-    entry.description = inventoryNameById.get(entry.inventoryItemId) ?? entry.description;
-
-    const rate = inventoryRateById.get(entry.inventoryItemId) ?? 0;
-
-    if (rate <= 0) {
-      continue;
-    }
-
-    entry.unitPriceCents = rate;
-    entry.amountCents = Math.round(entry.quantity * rate);
   }
+
+  applyInventoryRates(plannedDetail.entries);
+  applyInventoryRates(approvedDetail.entries);
+
+  const detailEntries: ImportedDetailEntry[] = useActualHours
+    ? approvedDetail.entries
+    : plannedDetail.entries;
+  const plannedDetailCostCents = plannedDetail.entries.reduce(
+    (sum, entry) => sum + entry.amountCents,
+    0,
+  );
+  const approvedDetailCostCents = approvedDetail.entries.reduce(
+    (sum, entry) => sum + entry.amountCents,
+    0,
+  );
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.controllingPerformanceReport.update({
       data: {
+        approvedDetailCostCents,
         approvedHourRealCostCents,
+        plannedDetailCostCents,
         plannedHourRealCostCents,
       },
       where: {

@@ -739,15 +739,20 @@ export default async function ControllingPerformancePage({
   const forecastPercent = resultBaseCents > 0 ? forecastCents / resultBaseCents : 0;
   // Vergleich "Ergebnis nach Dispo" vs. "Ergebnis nach Leistung": dieselbe
   // Ergebnis-Formel wie oben, nur mit den bei "Übernehmen" für BEIDE Quellen
-  // mitberechneten Personalstunden-Summen statt der gerade aktiven -
-  // detailCostCents bleibt bewusst gleich (Geräte-/Materialkosten sind kein
-  // Teil dieses Vergleichs). Kein Live-Wert, Stand vom letzten "Übernehmen".
-  const plannedForecastCents =
-    resultBaseCents - (detailCostCents + (report?.plannedHourRealCostCents ?? 0));
+  // mitberechneten Personal- UND Detailkosten-Summen statt der gerade
+  // aktiven (Asphalt-/Anspritzmittelmengen und die zugehörigen LKW-
+  // Gerätestunden unterscheiden sich zwischen geplanter Dispo-Menge und
+  // tatsächlich gefahrener Menge, alle anderen Detailpositionen sind in
+  // beiden Summen identisch). Kein Live-Wert, Stand vom letzten
+  // "Übernehmen".
+  const plannedActualCostCents =
+    (report?.plannedDetailCostCents ?? 0) + (report?.plannedHourRealCostCents ?? 0);
+  const plannedForecastCents = resultBaseCents - plannedActualCostCents;
   const plannedForecastPercent =
     resultBaseCents > 0 ? plannedForecastCents / resultBaseCents : 0;
-  const approvedForecastCents =
-    resultBaseCents - (detailCostCents + (report?.approvedHourRealCostCents ?? 0));
+  const approvedActualCostCents =
+    (report?.approvedDetailCostCents ?? 0) + (report?.approvedHourRealCostCents ?? 0);
+  const approvedForecastCents = resultBaseCents - approvedActualCostCents;
   const approvedForecastPercent =
     resultBaseCents > 0 ? approvedForecastCents / resultBaseCents : 0;
   const openWipCents = Math.max(0, performanceValueCents - invoiceRevenueCents);
@@ -1205,15 +1210,16 @@ export default async function ControllingPerformancePage({
                   Ergebnis nach Dispo vs. nach Leistung
                 </h2>
                 <p className="mt-1 max-w-3xl text-sm text-gray-500">
-                  Zeigt dasselbe Ergebnis einmal mit den reinen Dispo-Stunden und einmal mit den
-                  tatsächlich freigegebenen Zeiterfassungs-Stunden - unabhängig davon, welcher
-                  Modus oben gerade aktiv ist. Stand vom letzten &quot;Übernehmen&quot;, kein
-                  Live-Wert.
+                  Zeigt dasselbe Ergebnis einmal komplett mit Dispo-Werten (Stunden nach
+                  Arbeitsplan, Asphalt-/Anspritzmittelmengen nach Disposition statt Lieferschein)
+                  und einmal komplett mit den tatsächlich erfassten Werten (freigegebene
+                  Zeiterfassung, gefahrene Mengen) - unabhängig davon, welcher Modus oben gerade
+                  aktiv ist. Stand vom letzten &quot;Übernehmen&quot;, kein Live-Wert.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <MetricCard
-                    detail={`Lohn nach Dispo ${formatMoney(report.plannedHourRealCostCents)} · Details ${formatMoney(detailCostCents)}`}
-                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(detailCostCents + report.plannedHourRealCostCents)} = ${formatMoney(plannedForecastCents)}`}
+                    detail={`Lohn ${formatMoney(report.plannedHourRealCostCents)} · Details (Dispo-Mengen) ${formatMoney(report.plannedDetailCostCents)}`}
+                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(plannedActualCostCents)} = ${formatMoney(plannedForecastCents)}`}
                     label="Ergebnis nach Dispo"
                     percent={{
                       tone: plannedForecastCents >= 0 ? "good" : "bad",
@@ -1222,8 +1228,8 @@ export default async function ControllingPerformancePage({
                     value={formatMoney(plannedForecastCents)}
                   />
                   <MetricCard
-                    detail={`Lohn nach Leistung ${formatMoney(report.approvedHourRealCostCents)} · Details ${formatMoney(detailCostCents)}`}
-                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(detailCostCents + report.approvedHourRealCostCents)} = ${formatMoney(approvedForecastCents)}`}
+                    detail={`Lohn ${formatMoney(report.approvedHourRealCostCents)} · Details (gefahrene Mengen) ${formatMoney(report.approvedDetailCostCents)}`}
+                    formula={`${formatMoney(resultBaseCents)} − ${formatMoney(approvedActualCostCents)} = ${formatMoney(approvedForecastCents)}`}
                     label="Ergebnis nach Leistung"
                     percent={{
                       tone: approvedForecastCents >= 0 ? "good" : "bad",

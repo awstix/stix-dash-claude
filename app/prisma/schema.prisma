@@ -2771,6 +2771,15 @@ model ControllingPerformanceReport {
   plannedHourRealCostCents  Int @default(0)
   approvedHourRealCostCents Int @default(0)
 
+  // Dasselbe für Detailpositionen (Material/Geräte) - betrifft nur
+  // Asphalt-/Anspritzmittelmengen und die zugehörigen LKW-Gerätestunden,
+  // da nur dort eine geplante Dispo-Menge (AsphaltDispatchEntry) einer
+  // tatsächlich gefahrenen Menge (AsphaltLoadAllocation/
+  // TackCoatLoadAllocation) gegenübersteht - alle anderen Detailpositionen
+  // sind in beiden Summen identisch enthalten.
+  plannedDetailCostCents  Int @default(0)
+  approvedDetailCostCents Int @default(0)
+
   contractValueNetCents Int   @default(0)
   changeOrdersNetCents  Int   @default(0)
   progressPercent       Float @default(0)
