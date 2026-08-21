@@ -8,7 +8,10 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
-import { parseConstructionManagersJson } from "@/lib/construction-managers";
+import {
+  parseConstructionManagersJson,
+  parseSiteContactsJson,
+} from "@/lib/construction-managers";
 import { getConstructionManagerOptions } from "@/lib/construction-manager-options";
 import {
   getPercentOperator,
@@ -18,8 +21,17 @@ import {
 } from "@/lib/project-filters";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
+import { ProjectLiveSearch } from "./ProjectLiveSearch";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
+
+const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
+  NOT_STARTED: "noch nicht begonnen",
+  ACTIVE: "aktiv",
+  PAUSED: "ruht",
+  FINISHED: "beendet",
+  CANCELLED: "storniert",
+};
 
 type ProjectSortOption = "newest" | "oldest" | "alphabet";
 
@@ -35,12 +47,10 @@ export default async function ProjectsPage({
     lieferscheine?: string;
     progressOperator?: string;
     progressValue?: string;
-    q?: string;
     sort?: string;
   }>;
 }) {
   const params = (await searchParams) ?? {};
-  const searchQuery = String(params.q ?? "").trim();
   const sortOption = getProjectSortOption(params.sort);
   const constructionManagerFilter = String(params.constructionManager ?? "").trim();
   const dvgwFilter = getTriStateFilter(params.dvgw);
@@ -206,15 +216,139 @@ export default async function ProjectsPage({
       truckCount,
     };
   });
-  const normalizedSearchQuery = normalizeProjectSearchText(searchQuery);
-  const filteredProjectSummaries = projectSummaries
-    .filter((item) => {
-      if (!normalizedSearchQuery) return true;
 
-      return normalizeProjectSearchText(
-        `${item.project.projectNumber} ${item.project.name}`,
-      ).includes(normalizedSearchQuery);
-    })
+  function buildProjectSearchText(item: (typeof projectSummaries)[number]) {
+    const siteContacts = parseSiteContactsJson(item.project.siteContactsJson);
+
+    return normalizeProjectSearchText(
+      [
+        item.project.projectNumber,
+        item.project.name,
+        item.project.client,
+        item.project.constructionManager,
+        item.constructionManagerNames.join(" "),
+        PROJECT_STATUS_LABELS[item.project.status],
+        item.project.siteAddress,
+        item.project.siteDirectionsNote,
+        item.project.notes,
+        item.project.finalInvoiceNumber,
+        siteContacts
+          .map((contact) => `${contact.name} ${contact.phone ?? ""} ${contact.role ?? ""}`)
+          .join(" "),
+        item.people.join(" "),
+        item.equipment.join(" "),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+
+  function ProjectCard({ item }: { item: (typeof projectSummaries)[number] }) {
+    return (
+      <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.65fr)]">
+          <div>
+            <div className="flex flex-wrap items-start gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {item.project.projectNumber} · {item.project.name}
+                </h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  {item.project.constructionManager || "Bauleiter offen"} ·{" "}
+                  {formatDate(item.project.plannedStart)} –{" "}
+                  {formatDate(item.project.plannedEnd)}
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Zuletzt geändert
+                  {item.project.lastModifiedByName
+                    ? ` von ${item.project.lastModifiedByName}`
+                    : ""}
+                  {" · "}
+                  {formatDateTime(item.project.updatedAt)}
+                </p>
+              </div>
+              <StatusBadge status={item.project.status} />
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <MiniMetric
+                label="Auftrag inkl. Nachträge"
+                value={formatEuro(item.totalContract)}
+              />
+              <MiniMetric
+                label="Leistung IST"
+                value={formatEuro(item.performanceValue)}
+              />
+              <MiniMetric
+                label="Über-/Unterdeckung"
+                value={formatEuro(item.difference)}
+                tone={item.difference >= 0 ? "positive" : "negative"}
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href={`/projects/${item.project.id}`}
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              >
+                Projektakte
+              </Link>
+              <Link
+                href="/projects/performance"
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              >
+                Leistung bearbeiten
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(360px,1.15fr)]">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-sm font-semibold text-gray-900">
+                Personal / Geräte
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <MiniMetric label="Personal" value={`${item.people.length}`} />
+                <MiniMetric label="Geräte" value={`${item.equipment.length}`} />
+                <MiniMetric label="LKW-Bezug" value={`${item.truckCount}`} />
+                <MiniMetric
+                  label="Asphaltdispo"
+                  value={`${item.project.asphaltDispatchEntries.length}`}
+                />
+              </div>
+              <p className="mt-3 line-clamp-3 text-xs text-gray-600">
+                {item.people.length
+                  ? item.people.slice(0, 8).join(", ")
+                  : "Noch kein Personal aus der Disposition zugeordnet."}
+              </p>
+              {item.equipment.length ? (
+                <p className="mt-2 line-clamp-2 text-xs text-gray-600">
+                  {item.equipment.slice(0, 6).join(", ")}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-sm font-semibold text-gray-900">
+                Kartenausschnitt
+              </div>
+              <ProjectMap
+                address={item.project.siteAddress}
+                boundaryGeoJson={item.project.siteBoundaryGeoJson}
+                className="mt-3"
+                heightClass="h-48"
+                latitude={item.project.mapLatitude}
+                longitude={item.project.mapLongitude}
+                zoom={item.project.mapZoom}
+              />
+            </div>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  const filteredProjectSummaries = projectSummaries
     .filter((item) => {
       if (!constructionManagerFilter) return true;
       return item.constructionManagerNames.includes(constructionManagerFilter);
@@ -273,7 +407,6 @@ export default async function ProjectsPage({
       });
     });
   const activeProjectFilterCount =
-    Number(Boolean(searchQuery)) +
     Number(sortOption !== "newest") +
     Number(Boolean(constructionManagerFilter)) +
     Number(Boolean(dvgwFilter)) +
@@ -289,27 +422,15 @@ export default async function ProjectsPage({
     >
       <ProjectNavigation active="overview" />
 
-      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Projektübersicht
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Die Projektakte bündelt künftig Karte, Personal, Geräte, Leistung,
-              Fotos, Dokumente, Formulare, Notizen und Bautagesberichte je Baustelle.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div className="text-sm font-semibold text-gray-700">
-            {filteredProjectSummaries.length}/{projectSummaries.length} Projekte
-            sichtbar
-            {searchQuery ? ` · Suche: ${searchQuery}` : ""}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
+      <ProjectLiveSearch
+        items={filteredProjectSummaries.map((item) => ({
+          id: item.project.id,
+          node: <ProjectCard item={item} key={item.project.id} />,
+          searchText: buildProjectSearchText(item),
+        }))}
+        totalCount={projectSummaries.length}
+        toolbar={
+          <>
             <ProjectCreateDialog
               constructionManagerOptions={constructionManagerOptions}
               defaultOverheadRates={
@@ -342,20 +463,11 @@ export default async function ProjectsPage({
                   Projekte filtern
                 </div>
                 <p className="mt-1 text-xs text-gray-600">
-                  Nach Projektnummer oder Name suchen und die Reihenfolge wählen.
+                  Reihenfolge und weitere Kriterien wählen. Die Textsuche läuft live in
+                  der Suchleiste oben.
                 </p>
 
                 <form action="/projects" className="mt-4 grid gap-3">
-                  <label className="grid gap-1 text-xs font-semibold text-gray-800">
-                    Suche
-                    <input
-                      name="q"
-                      defaultValue={searchQuery}
-                      placeholder="Projektnummer oder Name"
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900"
-                    />
-                  </label>
-
                   <label className="grid gap-1 text-xs font-semibold text-gray-800">
                     Sortierung
                     <select
@@ -509,130 +621,9 @@ export default async function ProjectsPage({
                 Zurücksetzen
               </Link>
             ) : null}
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4">
-        {filteredProjectSummaries.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
-            Keine Projekte passend zum Filter gefunden.
-          </div>
-        ) : (
-          filteredProjectSummaries.map((item) => (
-            <article
-              key={item.project.id}
-              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-            >
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.65fr)]">
-                <div>
-                  <div className="flex flex-wrap items-start gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {item.project.projectNumber} · {item.project.name}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-600">
-                        {item.project.constructionManager || "Bauleiter offen"} ·{" "}
-                        {formatDate(item.project.plannedStart)} –{" "}
-                        {formatDate(item.project.plannedEnd)}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Zuletzt geändert
-                        {item.project.lastModifiedByName
-                          ? ` von ${item.project.lastModifiedByName}`
-                          : ""}
-                        {" · "}
-                        {formatDateTime(item.project.updatedAt)}
-                      </p>
-                    </div>
-                    <StatusBadge status={item.project.status} />
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <MiniMetric
-                      label="Auftrag inkl. Nachträge"
-                      value={formatEuro(item.totalContract)}
-                    />
-                    <MiniMetric
-                      label="Leistung IST"
-                      value={formatEuro(item.performanceValue)}
-                    />
-                    <MiniMetric
-                      label="Über-/Unterdeckung"
-                      value={formatEuro(item.difference)}
-                      tone={item.difference >= 0 ? "positive" : "negative"}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Link
-                      href={`/projects/${item.project.id}`}
-                      className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-                    >
-                      Projektakte
-                    </Link>
-                    <Link
-                      href="/projects/performance"
-                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                    >
-                      Leistung bearbeiten
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(360px,1.15fr)]">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-sm font-semibold text-gray-900">
-                      Personal / Geräte
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <MiniMetric
-                        label="Personal"
-                        value={`${item.people.length}`}
-                      />
-                      <MiniMetric
-                        label="Geräte"
-                        value={`${item.equipment.length}`}
-                      />
-                      <MiniMetric label="LKW-Bezug" value={`${item.truckCount}`} />
-                      <MiniMetric
-                        label="Asphaltdispo"
-                        value={`${item.project.asphaltDispatchEntries.length}`}
-                      />
-                    </div>
-                    <p className="mt-3 line-clamp-3 text-xs text-gray-600">
-                      {item.people.length
-                        ? item.people.slice(0, 8).join(", ")
-                        : "Noch kein Personal aus der Disposition zugeordnet."}
-                    </p>
-                    {item.equipment.length ? (
-                      <p className="mt-2 line-clamp-2 text-xs text-gray-600">
-                        {item.equipment.slice(0, 6).join(", ")}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-sm font-semibold text-gray-900">
-                      Kartenausschnitt
-                    </div>
-                    <ProjectMap
-                      address={item.project.siteAddress}
-                      boundaryGeoJson={item.project.siteBoundaryGeoJson}
-                      className="mt-3"
-                      heightClass="h-48"
-                      latitude={item.project.mapLatitude}
-                      longitude={item.project.mapLongitude}
-                      zoom={item.project.mapZoom}
-                    />
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))
-        )}
-      </div>
-
+          </>
+        }
+      />
     </AppShell>
   );
 }
@@ -665,19 +656,11 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
     CANCELLED: "bg-red-100 text-red-800",
   };
 
-  const labelMap: Record<ProjectStatus, string> = {
-    NOT_STARTED: "noch nicht begonnen",
-    ACTIVE: "aktiv",
-    PAUSED: "ruht",
-    FINISHED: "beendet",
-    CANCELLED: "storniert",
-  };
-
   return (
     <span
       className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${colorMap[status]}`}
     >
-      {labelMap[status]}
+      {PROJECT_STATUS_LABELS[status]}
     </span>
   );
 }
