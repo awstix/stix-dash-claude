@@ -1297,7 +1297,7 @@ export default async function ControllingPerformancePage({
                     headerAction={
                       <MarkAllActualButton
                         action={markAllDetailEntriesActual}
-                        count={report.detailEntries.filter((entry) => entry.status === "geschätzt").length}
+                        count={report.detailEntries.filter((entry) => !entry.isReleased).length}
                         projectId={report.projectId}
                         reportId={report.id}
                       />
@@ -1311,7 +1311,7 @@ export default async function ControllingPerformancePage({
                       `${entry.utilizationPercent}%`,
                       formatMoney(entry.amountCents),
                       getSourceLabel(entry.source, entry.notes),
-                      getDetailStatusBadge(entry.status, entry.costType, reportHoursSource),
+                      getDetailStatusBadge(entry.status, entry.isReleased, entry.costType, reportHoursSource),
                       <div className="flex gap-2" key={`actions-${entry.id}`}>
                         <EditDetailEntryButton
                           action={addControllingDetailEntry}
@@ -1320,6 +1320,7 @@ export default async function ControllingPerformancePage({
                             costType: entry.costType,
                             description: entry.description,
                             entryDate: formatInputDate(entry.entryDate),
+                            isReleased: entry.isReleased,
                             notes: entry.notes ?? "",
                             quantity: formatDecimal(entry.quantity),
                             status: entry.status,
@@ -1334,7 +1335,7 @@ export default async function ControllingPerformancePage({
                           updateAction={updateControllingDetailEntry}
                         />
                         {(entry.costType === "Material" || entry.costType === "Geräte") &&
-                        entry.status !== "tatsächlich verbaut" && entry.status !== "freigegeben" ? (
+                        !entry.isReleased ? (
                           <MarkEntryActualButton
                             action={markControllingDetailEntryActual}
                             id={entry.id}
@@ -1358,7 +1359,7 @@ export default async function ControllingPerformancePage({
                     headerAction={
                       <MarkAllActualButton
                         action={markAllHourEntriesActual}
-                        count={report.hourEntries.filter((entry) => entry.status === "geschätzt").length}
+                        count={report.hourEntries.filter((entry) => !entry.isReleased).length}
                         projectId={report.projectId}
                         reportId={report.id}
                       />
@@ -1372,7 +1373,7 @@ export default async function ControllingPerformancePage({
                       formatMoney(entry.realCostCents),
                       entry.costCategory === "GEHALT_SONSTIGES" ? "Gehalt / Sonstiges" : "Lohn",
                       getSourceLabel(entry.source, entry.notes),
-                      getHourStatusBadge(entry.status, reportHoursSource),
+                      getHourStatusBadge(entry.status, entry.isReleased, reportHoursSource),
                       <div className="flex gap-2" key={`actions-${entry.id}`}>
                         <EditHourEntryButton
                           entry={{
@@ -1384,6 +1385,7 @@ export default async function ControllingPerformancePage({
                             entryDate: formatInputDate(entry.entryDate),
                             hoursPerEmployee: formatDecimal(entry.hoursPerEmployee),
                             internalRate: formatRawMoney(entry.internalRateCents),
+                            isReleased: entry.isReleased,
                             label: entry.label,
                             notes: entry.notes ?? "",
                             realRate: formatRawMoney(entry.realRateCents),
@@ -1394,7 +1396,7 @@ export default async function ControllingPerformancePage({
                           reportId={report.id}
                           updateAction={updateControllingHourEntry}
                         />
-                        {entry.status !== "tatsächlich verbaut" && entry.status !== "freigegeben" ? (
+                        {!entry.isReleased ? (
                           <MarkEntryActualButton
                             action={markControllingHourEntryActual}
                             id={entry.id}
@@ -2890,50 +2892,71 @@ function getNextPeriodEnd(periodStart: Date) {
  * ob die Menge schon als tatsächlich verbaut bestätigt wurde oder noch
  * die reine Dispo-Schätzung ist - in "nach Disposition" ist die Menge
  * bewusst nur die Dispo-Schätzung, daher dort kein Warnhinweis. */
-function getDetailStatusBadge(status: string, costType: string, hoursSource: string) {
-  if (status === "tatsächlich verbaut" || status === "freigegeben") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
-        ✓ {status}
-      </span>
-    );
-  }
-
+/** Freigabe (isReleased) ist ein eigenständiges Merkmal, unabhängig vom
+ * Status - "geschätzt" bleibt als Wert stehen, auch wenn die Position
+ * freigegeben wurde, und bekommt dafür zusätzlich einen grünen
+ * "✓ freigegeben"-Haken daneben statt den Status-Text zu ersetzen. */
+function getDetailStatusBadge(
+  status: string,
+  isReleased: boolean,
+  costType: string,
+  hoursSource: string,
+) {
   const needsCheck =
-    (costType === "Material" || costType === "Geräte") && hoursSource === "APPROVED_TIME";
+    !isReleased &&
+    status !== "tatsächlich verbaut" &&
+    (costType === "Material" || costType === "Geräte") &&
+    hoursSource === "APPROVED_TIME";
 
-  if (needsCheck) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
-        ⚠ {status}
-      </span>
-    );
-  }
-
-  return <span className="text-xs text-gray-600">{status}</span>;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {status === "tatsächlich verbaut" ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+          ✓ {status}
+        </span>
+      ) : needsCheck ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
+          ⚠ {status}
+        </span>
+      ) : (
+        <span className="text-xs text-gray-600">{status}</span>
+      )}
+      {isReleased ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+          ✓ freigegeben
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 /** Gleiches Prinzip wie getDetailStatusBadge, für Stunden-Positionen -
  * ohne costType-Filter, da bei Stunden die Unterscheidung
  * geschätzt/tatsächlich verbaut unabhängig von einer Kostenart gilt. */
-function getHourStatusBadge(status: string, hoursSource: string) {
-  if (status === "tatsächlich verbaut" || status === "freigegeben") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
-        ✓ {status}
-      </span>
-    );
-  }
+function getHourStatusBadge(status: string, isReleased: boolean, hoursSource: string) {
+  const needsCheck =
+    !isReleased && status !== "tatsächlich verbaut" && hoursSource === "APPROVED_TIME";
 
-  if (hoursSource === "APPROVED_TIME") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
-        ⚠ {status}
-      </span>
-    );
-  }
-
-  return <span className="text-xs text-gray-600">{status}</span>;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {status === "tatsächlich verbaut" ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+          ✓ {status}
+        </span>
+      ) : needsCheck ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
+          ⚠ {status}
+        </span>
+      ) : (
+        <span className="text-xs text-gray-600">{status}</span>
+      )}
+      {isReleased ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-800">
+          ✓ freigegeben
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function getSourceLabel(source: string, notes?: string | null) {

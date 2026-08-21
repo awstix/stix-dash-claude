@@ -12,6 +12,7 @@ export type HourEntryEditValues = {
   hoursPerEmployee: string;
   id: string;
   internalRate: string;
+  isReleased: boolean;
   label: string;
   notes: string;
   realRate: string;
@@ -23,7 +24,7 @@ const inputClassName =
   "mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-gray-900";
 const primaryButtonClassName =
   "inline-flex items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-gray-700";
-const hourEntryStatuses = ["geschätzt", "geprüft", "freigegeben", "tatsächlich verbaut", "gebucht", "offen", "erledigt"];
+const hourEntryStatuses = ["geschätzt", "geprüft", "tatsächlich verbaut", "gebucht", "offen", "erledigt"];
 
 function timeToMinutes(value: string) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value);
@@ -65,6 +66,7 @@ export function EditHourEntryButton({
   const [internalRate, setInternalRate] = useState(entry.internalRate);
   const [costCategory, setCostCategory] = useState(entry.costCategory);
   const [status, setStatus] = useState(entry.status);
+  const [isReleased, setIsReleased] = useState(entry.isReleased);
   const [notes, setNotes] = useState(entry.notes);
 
   function recomputeHours(nextStartsAt: string, nextEndsAt: string, nextBreakHours: string) {
@@ -245,6 +247,15 @@ export function EditHourEntryButton({
                   ))}
                 </select>
               </Field>
+              <label className="mt-1 flex items-center gap-2 self-end text-sm font-semibold text-gray-800">
+                <input
+                  checked={isReleased}
+                  name="isReleased"
+                  onChange={(event) => setIsReleased(event.target.checked)}
+                  type="checkbox"
+                />
+                Freigegeben
+              </label>
               <Field className="md:col-span-2" label="Bemerkung">
                 <input
                   className={inputClassName}

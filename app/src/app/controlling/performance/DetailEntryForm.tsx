@@ -24,6 +24,7 @@ export type DetailEntryEditValues = {
   costType: string;
   description: string;
   entryDate: string;
+  isReleased: boolean;
   notes: string;
   quantity: string;
   status: string;
@@ -54,7 +55,7 @@ const units = [
   "pauschal",
   "€",
 ];
-const entryStatuses = ["geschätzt", "geprüft", "freigegeben", "tatsächlich verbaut", "gebucht", "offen", "erledigt"];
+const entryStatuses = ["geschätzt", "geprüft", "tatsächlich verbaut", "gebucht", "offen", "erledigt"];
 
 const inputClassName =
   "mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-gray-900";
@@ -91,6 +92,7 @@ export function DetailEntryForm({
     editingEntry?.utilizationPercent ?? "100",
   );
   const [status, setStatus] = useState(editingEntry?.status ?? entryStatuses[0]);
+  const [isReleased, setIsReleased] = useState(editingEntry?.isReleased ?? false);
 
   function handleEquipmentSelect(option: EquipmentOption) {
     setDescription(option.label);
@@ -250,6 +252,15 @@ export function DetailEntryForm({
           ))}
         </select>
       </Field>
+      <label className="mt-1 flex items-center gap-2 self-end text-sm font-semibold text-gray-800">
+        <input
+          checked={isReleased}
+          name="isReleased"
+          onChange={(event) => setIsReleased(event.target.checked)}
+          type="checkbox"
+        />
+        Freigegeben
+      </label>
       <Field className="md:col-span-2" label="Bemerkung">
         <input
           className={inputClassName}

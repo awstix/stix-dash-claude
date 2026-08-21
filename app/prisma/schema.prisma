@@ -2835,6 +2835,11 @@ model ControllingDetailEntry {
   utilizationPercent Int      @default(100)
   amountCents        Int      @default(0)
   status             String   @default("geschätzt")
+  // Eigenständiges Freigabe-Merkmal, unabhängig vom Status - "geschätzt"
+  // bleibt als Wert stehen, auch wenn die Position freigegeben wurde
+  // (z.B. Dispo-Menge nach Prüfung bestätigt). Wird über den
+  // Freigeben-Knopf gesetzt, nicht über die Status-Auswahl.
+  isReleased         Boolean  @default(false)
   source             String   @default("MANUAL")
   sourceRef          String?
   notes              String?
@@ -2878,6 +2883,9 @@ model ControllingHourEntry {
   // automatisch/vorläufig übernommene Stunden, "tatsächlich verbaut" nach
   // Prüfung/Bestätigung durch Bauleitung/Controlling.
   status            String   @default("geschätzt")
+  // Eigenständiges Freigabe-Merkmal, unabhängig vom Status - siehe
+  // ControllingDetailEntry.isReleased.
+  isReleased        Boolean  @default(false)
   realRateCents     Int      @default(0)
   internalRateCents Int      @default(0)
   realCostCents     Int      @default(0)

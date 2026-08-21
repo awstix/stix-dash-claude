@@ -25,7 +25,7 @@ export function MarkAllActualButton({
         onClick={() => setOpen(true)}
         type="button"
       >
-        ✓ Alle geschätzt freigeben ({count})
+        ✓ Alle freigeben ({count})
       </button>
       {open ? (
         <div
@@ -36,7 +36,7 @@ export function MarkAllActualButton({
         >
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg font-bold text-gray-900">Alle geschätzt freigeben</h2>
+              <h2 className="text-lg font-bold text-gray-900">Alle freigeben</h2>
               <button
                 aria-label="Schließen"
                 className="rounded-lg border border-gray-300 bg-white p-2 text-gray-700 hover:bg-gray-50"
@@ -50,7 +50,7 @@ export function MarkAllActualButton({
               <span className="font-semibold text-gray-900">
                 {count} Position{count === 1 ? "" : "en"}
               </span>{" "}
-              mit Status &quot;geschätzt&quot; auf &quot;freigegeben&quot; setzen?
+              als freigegeben markieren? Der Status der Positionen bleibt dabei unverändert.
             </p>
             <div className="mt-5 flex justify-end gap-3">
               <button

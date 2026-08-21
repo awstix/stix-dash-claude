@@ -449,11 +449,10 @@ export async function deleteControllingDetailEntry(formData: FormData) {
 /** Schnelle Freigabe ohne das Bearbeiten-Popup zu öffnen - für den Fall,
  * dass die aus der Disposition vorgeschlagene Menge bereits der realen
  * Menge (z.B. laut Lieferschein) entspricht und nur bestätigt werden
- * muss, statt geändert zu werden. Setzt Status auf "freigegeben", damit in
- * "Leistungsmeldung nach Leistung" auf einen Blick sichtbar ist, welche
- * Positionen bereits geprüft sind - bewusst ein eigener Wert statt
- * "tatsächlich verbaut" (bleibt als eigenständige, manuell wählbare Option
- * im Bearbeiten-Popup erhalten, z.B. nach Prüfung des Lieferscheins). */
+ * muss, statt geändert zu werden. Setzt ein eigenständiges Freigabe-
+ * Merkmal (isReleased), der Status (z.B. "geschätzt") bleibt dabei
+ * unverändert stehen - Freigabe und Status sind zwei getrennte Aussagen
+ * (wurde geprüft/bestätigt vs. wie belastbar der Wert ist). */
 export async function markControllingDetailEntryActual(formData: FormData) {
   await requireSession();
   const id = requiredText(formData.get("id"), "Eintrag");
@@ -462,7 +461,7 @@ export async function markControllingDetailEntryActual(formData: FormData) {
 
   await prisma.controllingDetailEntry.update({
     data: {
-      status: "freigegeben",
+      isReleased: true,
     },
     where: {
       id,
@@ -518,6 +517,7 @@ export async function updateControllingHourEntry(formData: FormData) {
       hoursPerEmployee,
       internalCostCents: Math.round(totalHours * internalRateCents),
       internalRateCents,
+      isReleased: formData.get("isReleased") === "on",
       label,
       notes: text(formData.get("notes")),
       realCostCents: Math.round(totalHours * realRateCents),
@@ -545,7 +545,7 @@ export async function markControllingHourEntryActual(formData: FormData) {
 
   await prisma.controllingHourEntry.update({
     data: {
-      status: "freigegeben",
+      isReleased: true,
     },
     where: {
       id,
@@ -556,10 +556,11 @@ export async function markControllingHourEntryActual(formData: FormData) {
   redirect(pathFor(reportId, projectId, undefined, POSITIONS_ANCHOR));
 }
 
-/** Setzt alle noch "geschätzt" markierten Detail-Positionen dieser
- * Leistungsmeldung auf einen Schlag auf "freigegeben" - für den Fall, dass
+/** Setzt alle noch nicht freigegebenen Detail-Positionen dieser
+ * Leistungsmeldung auf einen Schlag auf freigegeben - für den Fall, dass
  * die Dispo-Mengen nach Prüfung insgesamt schon gepasst haben und nicht
- * jede Zeile einzeln bestätigt werden soll. */
+ * jede Zeile einzeln bestätigt werden soll. Der Status bleibt dabei
+ * unverändert stehen. */
 export async function markAllDetailEntriesActual(formData: FormData) {
   await requireSession();
   const reportId = requiredText(formData.get("reportId"), "Leistungsmeldung");
@@ -567,11 +568,11 @@ export async function markAllDetailEntriesActual(formData: FormData) {
 
   await prisma.controllingDetailEntry.updateMany({
     data: {
-      status: "freigegeben",
+      isReleased: true,
     },
     where: {
       reportId,
-      status: "geschätzt",
+      isReleased: false,
     },
   });
 
@@ -587,11 +588,11 @@ export async function markAllHourEntriesActual(formData: FormData) {
 
   await prisma.controllingHourEntry.updateMany({
     data: {
-      status: "freigegeben",
+      isReleased: true,
     },
     where: {
       reportId,
-      status: "geschätzt",
+      isReleased: false,
     },
   });
 
@@ -694,6 +695,7 @@ export async function updateControllingDetailEntry(formData: FormData) {
       utilizationPercent,
       amountCents,
       status: requiredText(formData.get("status"), "Status"),
+      isReleased: formData.get("isReleased") === "on",
       notes: text(formData.get("notes")),
       source,
     },
