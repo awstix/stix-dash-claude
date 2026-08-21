@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
+import { normalizeProjectSearchText } from "@/lib/project-filters";
 import {
   cancelProject,
   createProject,
@@ -27,6 +28,7 @@ type Project = ProjectFormInput & {
   constructionManagerDisplay: string;
   controllingSummary: ProjectControllingSummary | null;
   id: string;
+  searchText: string;
 };
 
 type ProjectControllingSummary = {
@@ -118,10 +120,12 @@ export function ProjectManager({
   constructionManagerOptions = [],
   defaultOverheadRates,
   projects,
+  totalCount,
 }: {
   constructionManagerOptions?: ConstructionManagerOption[];
   defaultOverheadRates?: OverheadRateDefaultsInput;
   projects: Project[];
+  totalCount?: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,6 +151,7 @@ export function ProjectManager({
   const [deleteCandidate, setDeleteCandidate] = useState<Project | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [search, setSearch] = useState("");
 
   const sortedProjects = useMemo(() => {
     if (sortMode === "projectNumberDesc") {
@@ -157,6 +162,12 @@ export function ProjectManager({
     }
     return projects;
   }, [projects, sortMode]);
+
+  const visibleProjects = useMemo(() => {
+    const query = normalizeProjectSearchText(search);
+    if (!query) return sortedProjects;
+    return sortedProjects.filter((project) => project.searchText.includes(query));
+  }, [search, sortedProjects]);
 
   useEffect(() => {
     const editId = searchParams.get("edit");
@@ -513,37 +524,52 @@ export function ProjectManager({
         </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Projektliste</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Schnellstand pflegen und mit der letzten Leistungsmeldung vergleichen.
-          </p>
-        </div>
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Projektliste</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Schnellstand pflegen und mit der letzten Leistungsmeldung vergleichen.
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs font-semibold text-gray-700">
-            Sortierung
-            <select
-              className="mt-1 block rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              value={sortMode}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-sm font-semibold text-gray-700">
+              {visibleProjects.length}/{totalCount ?? projects.length} Projekte
+              sichtbar
+            </div>
+
+            <label className="text-xs font-semibold text-gray-700">
+              Sortierung
+              <select
+                className="mt-1 block rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                onChange={(event) => setSortMode(event.target.value as SortMode)}
+                value={sortMode}
+              >
+                {sortModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              onClick={showForm ? resetForm : startCreate}
+              className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
             >
-              {sortModeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            onClick={showForm ? resetForm : startCreate}
-            className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-          >
-            {showForm ? "Formular schließen" : "Projekt anlegen"}
-          </button>
+              {showForm ? "Formular schließen" : "Projekt anlegen"}
+            </button>
+          </div>
         </div>
+
+        <input
+          className="mt-4 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm outline-none focus:border-gray-900"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Live-Suche: Projektnummer, Name, Auftraggeber, Bauleiter, Adresse, Notizen ..."
+          type="search"
+          value={search}
+        />
       </div>
 
       {showForm ? (
@@ -928,14 +954,16 @@ export function ProjectManager({
               </tr>
             </thead>
             <tbody>
-              {sortedProjects.length === 0 ? (
+              {visibleProjects.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-500">
-                    Noch keine Projekte vorhanden.
+                    {projects.length === 0
+                      ? "Noch keine Projekte vorhanden."
+                      : "Keine Projekte gefunden."}
                   </td>
                 </tr>
               ) : (
-                sortedProjects.map((project) => {
+                visibleProjects.map((project) => {
                   const totalContract =
                     project.contractValueNet + project.changeOrdersNet;
 
