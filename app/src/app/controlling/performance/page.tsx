@@ -2903,7 +2903,6 @@ function getDetailStatusBadge(
   hoursSource: string,
 ) {
   const needsCheck =
-    !isReleased &&
     status !== "tatsächlich verbaut" &&
     (costType === "Material" || costType === "Geräte") &&
     hoursSource === "APPROVED_TIME";
@@ -2934,8 +2933,7 @@ function getDetailStatusBadge(
  * ohne costType-Filter, da bei Stunden die Unterscheidung
  * geschätzt/tatsächlich verbaut unabhängig von einer Kostenart gilt. */
 function getHourStatusBadge(status: string, isReleased: boolean, hoursSource: string) {
-  const needsCheck =
-    !isReleased && status !== "tatsächlich verbaut" && hoursSource === "APPROVED_TIME";
+  const needsCheck = status !== "tatsächlich verbaut" && hoursSource === "APPROVED_TIME";
 
   return (
     <div className="flex flex-wrap items-center gap-1">
