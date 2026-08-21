@@ -700,6 +700,16 @@ export function buildDailyReportContext(
   const hasApprovedCrewTimes = project.crewTimeEntries.some(
     (entry) => entry.status === "APPROVED",
   );
+  // Für Kolonnen-Standardfahrzeuge (Asphalt-Dispo/Kolonnenplanung) und
+  // Gerätedisposition ohne eigene Kolonne: bevorzugt die echte
+  // Nettozeit der Kolonne aus der freigegebenen Zeiterfassung nutzen statt
+  // pauschal Dispo-Plan-/Verwaltungs-Arbeitszeit - dieselbe Priorität wie
+  // bei den Kolonnen-Mitarbeitern oben (crewTimeEntries vor Dispo-Zeiten).
+  const crewNetHoursByCrewName = new Map<string, number>();
+  for (const entry of project.crewTimeEntries) {
+    if (entry.status !== "APPROVED") continue;
+    crewNetHoursByCrewName.set(normalizeCrewName(entry.crewName), crewNetWorkWindowHours(entry));
+  }
   for (const entry of project.crewTimeEntries) {
     workTimes.push({
       end: entry.defaultEndTime,
@@ -794,6 +804,9 @@ export function buildDailyReportContext(
         });
       }
 
+      const vehicleHours =
+        crewNetHoursByCrewName.get(normalizeCrewName(assignment.crew?.name)) ?? hours;
+
       const assignmentVehicleKeys = new Set<string>();
       for (const defaultVehicle of assignment.crew?.defaultVehicles ?? []) {
         if (explicitlyDispatchedVehicleIds.has(defaultVehicle.vehicle.id)) continue;
@@ -802,9 +815,9 @@ export function buildDailyReportContext(
           realMachines,
           assignmentVehicleKeys,
           defaultVehicle.vehicle,
-          hours,
+          vehicleHours,
         );
-        addVehicleCompositionLine(composition, defaultVehicle.vehicle, hours, "Kolonnenplanung");
+        addVehicleCompositionLine(composition, defaultVehicle.vehicle, vehicleHours, "Kolonnenplanung");
       }
 
       for (const extraVehicle of assignment.extraVehicles) {
@@ -814,9 +827,9 @@ export function buildDailyReportContext(
           realMachines,
           assignmentVehicleKeys,
           extraVehicle.vehicle,
-          hours,
+          vehicleHours,
         );
-        addVehicleCompositionLine(composition, extraVehicle.vehicle, hours, "Kolonnenplanung · Zusatzgerät");
+        addVehicleCompositionLine(composition, extraVehicle.vehicle, vehicleHours, "Kolonnenplanung · Zusatzgerät");
       }
 
     }
@@ -856,7 +869,12 @@ export function buildDailyReportContext(
     // Standardfahrzeuge der Kolonne (z. B. eigener LKW, Walze, PKW) - bei
     // Kolonnenplanung werden diese über assignment.crew.defaultVehicles
     // erfasst, bei Asphalt-Dispo-Kolonnen sonst gar nicht, da es dort keine
-    // Kolonnenplanung-Zuteilung für den Tag gibt.
+    // Kolonnenplanung-Zuteilung für den Tag gibt. Bevorzugt die echte
+    // Nettozeit der Kolonne aus der Zeiterfassung statt der pauschalen
+    // Verwaltungs-Arbeitszeit, wenn für diesen Tag schon freigegeben ist.
+    const asphaltCrewVehicleHours =
+      crewNetHoursByCrewName.get(normalizeCrewName(crewName)) ?? asphaltCrewHours;
+
     for (const defaultVehicle of crew.defaultVehicles) {
       if (explicitlyDispatchedVehicleIds.has(defaultVehicle.vehicle.id)) continue;
       addMachineOnce(
@@ -864,20 +882,53 @@ export function buildDailyReportContext(
         realMachines,
         asphaltCrewVehicleKeys,
         defaultVehicle.vehicle,
-        asphaltCrewHours,
+        asphaltCrewVehicleHours,
       );
       addVehicleCompositionLine(
         composition,
         defaultVehicle.vehicle,
-        asphaltCrewHours,
+        asphaltCrewVehicleHours,
         `Asphalt-Dispo · ${crewName}`,
       );
     }
   }
 
+  // Direkte Gerätedisposition kennt keine eigene Kolonne/Uhrzeit - als
+  // Stundenwert die Arbeitszeit der ersten an diesem Tag auf der Baustelle
+  // disponierten Kolonne übernehmen (Zeiterfassung bevorzugt, sonst deren
+  // Dispo-Plan), sonst die verwaltungsseitige Arbeitszeit-Vorlage. Bisher
+  // stand hier immer fest "8" - unabhängig von Kolonne oder Arbeitszeit.
+  let equipmentDispatchHours: number | null = null;
+
+  for (const entry of project.asphaltDispatchEntries) {
+    const crewName = entry.crew.trim();
+    if (!crewName) continue;
+    equipmentDispatchHours = crewNetHoursByCrewName.get(normalizeCrewName(crewName)) ?? asphaltCrewHours;
+    break;
+  }
+
+  if (equipmentDispatchHours === null) {
+    outer: for (const row of project.crewPlanningRows) {
+      for (const assignment of row.assignments) {
+        const plannedHours = durationHours(assignment.startTime, assignment.endTime);
+        equipmentDispatchHours =
+          crewNetHoursByCrewName.get(normalizeCrewName(assignment.crew?.name)) ?? plannedHours;
+        break outer;
+      }
+    }
+  }
+
+  equipmentDispatchHours ??= reportWorkHours;
+
   for (const equipment of project.equipmentDispatchAssignments) {
-    addDispatchedMachine(machines, realMachines, countedVehicleIds, equipment.vehicle, 8);
-    addVehicleCompositionLine(composition, equipment.vehicle, 8, "Gerätedisposition");
+    addDispatchedMachine(
+      machines,
+      realMachines,
+      countedVehicleIds,
+      equipment.vehicle,
+      equipmentDispatchHours,
+    );
+    addVehicleCompositionLine(composition, equipment.vehicle, equipmentDispatchHours, "Gerätedisposition");
   }
 
   for (const assignment of project.specialVehicleDispatchAssignments) {
@@ -2800,6 +2851,41 @@ function parseTime(value: string | null | undefined) {
   if (!match) return null;
 
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function timeRangeHoursOrZero(start: string | null | undefined, end: string | null | undefined) {
+  const startMinutes = parseTime(start);
+  const endMinutes = parseTime(end);
+
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return 0;
+  }
+
+  return (endMinutes - startMinutes) / 60;
+}
+
+function crewNetWorkWindowHours(entry: {
+  defaultStartTime: string | null;
+  defaultEndTime: string | null;
+  defaultBreak1From: string | null;
+  defaultBreak1To: string | null;
+  defaultBreak2From: string | null;
+  defaultBreak2To: string | null;
+}) {
+  const total = timeRangeHoursOrZero(entry.defaultStartTime, entry.defaultEndTime);
+  const break1 = timeRangeHoursOrZero(entry.defaultBreak1From, entry.defaultBreak1To);
+  const break2 = timeRangeHoursOrZero(entry.defaultBreak2From, entry.defaultBreak2To);
+
+  return Math.max(0, total - break1 - break2);
+}
+
+function normalizeCrewName(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function earliestTime(values: string[]) {
