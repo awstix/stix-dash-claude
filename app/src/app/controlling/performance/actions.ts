@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
+import { getNetWorkHoursForDay, getWorkTimeDayForDate } from "@/lib/work-time";
 
 type ExcelRow = Record<string, unknown>;
 
@@ -183,6 +184,31 @@ function dayBounds(date: Date) {
   end.setHours(23, 59, 59, 999);
 
   return { end, start };
+}
+
+function truncateToUtcDate(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+/** Alle Kalendertage (UTC-Mitternacht) in der Schnittmenge von [rangeStart,
+ * rangeEnd] und [clipStart, clipEnd] - für mehrtägige Dispo-Zuteilungen
+ * (z.B. Gerätedisposition), die pro Tag eine eigene Position brauchen. */
+function eachDayInOverlap(rangeStart: Date, rangeEnd: Date, clipStart: Date, clipEnd: Date) {
+  const first = truncateToUtcDate(rangeStart > clipStart ? rangeStart : clipStart);
+  const last = truncateToUtcDate(rangeEnd < clipEnd ? rangeEnd : clipEnd);
+  const days: Date[] = [];
+
+  for (let cursor = first; cursor.getTime() <= last.getTime(); cursor = addUtcDays(cursor, 1)) {
+    days.push(cursor);
+  }
+
+  return days;
 }
 
 function formatIsoDate(date: Date) {
@@ -1356,6 +1382,7 @@ async function runDispositionImport(
         ...asphaltCrews.flatMap((crew) =>
           crew.defaultVehicles.map((vehicle) => vehicle.inventoryItemId),
         ),
+        ...equipmentAssignments.map((assignment) => assignment.inventoryItemId),
       ].filter((id): id is string => Boolean(id)),
     ),
   ];
@@ -1383,6 +1410,24 @@ async function runDispositionImport(
       crewVehicleItemById.get(inventoryItemId)?.billingRateUnit ??
       "HOUR"
     );
+  }
+
+  // Gerätedisposition (EquipmentDispatchAssignment) kennt keine Uhrzeiten,
+  // nur einen Tagesbereich, und ist praktisch nie an eine Kolonne gebunden -
+  // es gibt also keine "tatsächliche" Stundenquelle dafür. Beide Szenarien
+  // (Dispo/Leistung) nutzen deshalb dieselbe verwaltungsseitig hinterlegte
+  // Arbeitszeit je Kalendertag ("Stunden nach Arbeitsplan").
+  const workTimeHoursByDayCache = new Map<string, number>();
+
+  async function getWorkTimeHoursForDay(day: Date) {
+    const key = formatIsoDate(day);
+    const cached = workTimeHoursByDayCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const workTimeDay = await getWorkTimeDayForDate(day);
+    const hours = getNetWorkHoursForDay(workTimeDay);
+    workTimeHoursByDayCache.set(key, hours);
+    return hours;
   }
 
   type ImportedHourEntry = {
@@ -1945,24 +1990,33 @@ async function runDispositionImport(
   );
 
   for (const assignment of equipmentAssignments) {
-      const description =
-        assignment.inventoryItem?.name ??
-        assignment.vehicle.vehicleNumber ??
-        assignment.vehicle.licensePlate ??
-        "Gerät";
+    const description =
+      assignment.inventoryItem?.name ??
+      assignment.vehicle.vehicleNumber ??
+      assignment.vehicle.licensePlate ??
+      "Gerät";
+    const rateUnit = resolveCrewVehicleRateUnit(assignment.inventoryItemId);
+
+    for (const day of eachDayInOverlap(assignment.startDate, assignment.endDate, start, end)) {
+      const quantity =
+        rateUnit === "DAY" ? 1 : await getWorkTimeHoursForDay(day);
+
+      if (rateUnit !== "DAY" && quantity <= 0) continue;
+
       pushSharedDetailEntry({
         amountCents: 0,
         costType: "Geräte",
         description,
-        entryDate: start,
+        entryDate: day,
         inventoryItemId: assignment.inventoryItemId,
         notes: "aus Gerätedisposition übernommen",
-        quantity: 1,
+        quantity,
         source: "DISPOSITION_IMPORT",
         status: "geschätzt",
-        unit: "Tag",
+        unit: rateUnit === "DAY" ? "Tag" : "h",
         unitPriceCents: 0,
       });
+    }
   }
 
   for (const assignment of crewAssignments) {
