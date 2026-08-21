@@ -1639,6 +1639,44 @@ async function runDispositionImport(
     );
   }
 
+  // Für Gerätedisposition-Geräte ohne eigene Kolonne/Uhrzeit: die
+  // Arbeitszeit der Kolonne(n) übernehmen, die an diesem Tag tatsächlich auf
+  // derselben Baustelle disponiert sind (Asphalt-Dispo oder
+  // Kolonnenplanung) - damit passt die Stundenzahl zu dem, was für denselben
+  // Tag/dieselbe Baustelle sonst im Bautagesbericht/den anderen
+  // Geräte-Zeilen steht, statt eine baustellenfremde Verwaltungs-
+  // Standardarbeitszeit anzusetzen. Erste passende Kolonne pro Tag gewinnt.
+  const projectDayCrewHours = new Map<string, { approvedHours: number; plannedHours: number }>();
+
+  for (const asphaltEntry of asphaltDispatchEntries) {
+    const dayKey = formatIsoDate(asphaltEntry.workDate);
+    if (projectDayCrewHours.has(dayKey)) continue;
+
+    const plannedHours = 10.5;
+    const approvedHours =
+      crewNetHoursByNameAndDay.get(
+        `${normalizePersonName(asphaltEntry.crew)}|${asphaltEntry.workDate.toISOString()}`,
+      ) || plannedHours;
+
+    projectDayCrewHours.set(dayKey, { approvedHours, plannedHours });
+  }
+
+  for (const assignment of crewAssignments) {
+    const crewLabel = assignment.crewName || assignment.crew?.name || "Kolonne";
+    const plannedHours = timeRangeHours(assignment.startTime, assignment.endTime);
+
+    for (const day of eachDayInOverlap(assignment.startDate, assignment.endDate, start, end)) {
+      const dayKey = formatIsoDate(day);
+      if (projectDayCrewHours.has(dayKey)) continue;
+
+      const approvedHours =
+        crewNetHoursByNameAndDay.get(`${normalizePersonName(crewLabel)}|${day.toISOString()}`) ||
+        plannedHours;
+
+      projectDayCrewHours.set(dayKey, { approvedHours, plannedHours });
+    }
+  }
+
   function resolveAssignmentEmployeeIds(assignment: (typeof crewAssignments)[number]) {
     const excluded = new Set(
       assignment.extraEmployees.filter((item) => item.mode === "EXCLUDE").map((item) => item.employeeId),
@@ -1998,24 +2036,62 @@ async function runDispositionImport(
     const rateUnit = resolveCrewVehicleRateUnit(assignment.inventoryItemId);
 
     for (const day of eachDayInOverlap(assignment.startDate, assignment.endDate, start, end)) {
-      const quantity =
-        rateUnit === "DAY" ? 1 : await getWorkTimeHoursForDay(day);
+      if (rateUnit === "DAY") {
+        pushSharedDetailEntry({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: day,
+          inventoryItemId: assignment.inventoryItemId,
+          notes: "aus Gerätedisposition übernommen",
+          quantity: 1,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "Tag",
+          unitPriceCents: 0,
+        });
+        continue;
+      }
 
-      if (rateUnit !== "DAY" && quantity <= 0) continue;
+      const crewHours = projectDayCrewHours.get(formatIsoDate(day));
+      const fallbackHours = crewHours ? null : await getWorkTimeHoursForDay(day);
+      const plannedHours = crewHours?.plannedHours ?? fallbackHours ?? 0;
+      const approvedHours = crewHours?.approvedHours ?? fallbackHours ?? 0;
+      const notes = crewHours
+        ? "aus Gerätedisposition übernommen · Arbeitszeit der Kolonne vor Ort"
+        : "aus Gerätedisposition übernommen";
 
-      pushSharedDetailEntry({
-        amountCents: 0,
-        costType: "Geräte",
-        description,
-        entryDate: day,
-        inventoryItemId: assignment.inventoryItemId,
-        notes: "aus Gerätedisposition übernommen",
-        quantity,
-        source: "DISPOSITION_IMPORT",
-        status: "geschätzt",
-        unit: rateUnit === "DAY" ? "Tag" : "h",
-        unitPriceCents: 0,
-      });
+      if (plannedHours > 0) {
+        plannedDetail.push({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: day,
+          inventoryItemId: assignment.inventoryItemId,
+          notes,
+          quantity: Math.round(plannedHours * 100) / 100,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "h",
+          unitPriceCents: 0,
+        });
+      }
+
+      if (approvedHours > 0) {
+        approvedDetail.push({
+          amountCents: 0,
+          costType: "Geräte",
+          description,
+          entryDate: day,
+          inventoryItemId: assignment.inventoryItemId,
+          notes,
+          quantity: Math.round(approvedHours * 100) / 100,
+          source: "DISPOSITION_IMPORT",
+          status: "geschätzt",
+          unit: "h",
+          unitPriceCents: 0,
+        });
+      }
     }
   }
 
