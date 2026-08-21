@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ProjectStatus } from "@prisma/client";
+import type { ProjectStatus } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import {
   getVehicleInventoryItem,
@@ -8,30 +8,20 @@ import {
 } from "@/lib/inventory-vehicle-links";
 import { prisma } from "@/lib/prisma";
 import { getAccessibleProjectIds } from "@/lib/auth-access";
-import {
-  parseConstructionManagersJson,
-  parseSiteContactsJson,
-} from "@/lib/construction-managers";
+import { parseConstructionManagersJson } from "@/lib/construction-managers";
 import { getConstructionManagerOptions } from "@/lib/construction-manager-options";
 import {
+  buildProjectSearchText,
   getPercentOperator,
   getPercentValue,
   getTriStateFilter,
-  normalizeProjectSearchText,
+  PROJECT_STATUS_LABELS,
 } from "@/lib/project-filters";
 import { DismissibleDetails } from "../crew-dispatch/DismissibleDetails";
 import { ProjectCreateDialog } from "./ProjectCreateDialog";
 import { ProjectLiveSearch } from "./ProjectLiveSearch";
 import { ProjectMap } from "./ProjectMap";
 import { ProjectNavigation } from "./ProjectNavigation";
-
-const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  NOT_STARTED: "noch nicht begonnen",
-  ACTIVE: "aktiv",
-  PAUSED: "ruht",
-  FINISHED: "beendet",
-  CANCELLED: "storniert",
-};
 
 type ProjectSortOption = "newest" | "oldest" | "alphabet";
 
@@ -217,32 +207,6 @@ export default async function ProjectsPage({
     };
   });
 
-  function buildProjectSearchText(item: (typeof projectSummaries)[number]) {
-    const siteContacts = parseSiteContactsJson(item.project.siteContactsJson);
-
-    return normalizeProjectSearchText(
-      [
-        item.project.projectNumber,
-        item.project.name,
-        item.project.client,
-        item.project.constructionManager,
-        item.constructionManagerNames.join(" "),
-        PROJECT_STATUS_LABELS[item.project.status],
-        item.project.siteAddress,
-        item.project.siteDirectionsNote,
-        item.project.notes,
-        item.project.finalInvoiceNumber,
-        siteContacts
-          .map((contact) => `${contact.name} ${contact.phone ?? ""} ${contact.role ?? ""}`)
-          .join(" "),
-        item.people.join(" "),
-        item.equipment.join(" "),
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
-  }
-
   function ProjectCard({ item }: { item: (typeof projectSummaries)[number] }) {
     return (
       <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -426,7 +390,10 @@ export default async function ProjectsPage({
         items={filteredProjectSummaries.map((item) => ({
           id: item.project.id,
           node: <ProjectCard item={item} key={item.project.id} />,
-          searchText: buildProjectSearchText(item),
+          searchText: buildProjectSearchText(item.project, [
+            item.people.join(" "),
+            item.equipment.join(" "),
+          ]),
         }))}
         totalCount={projectSummaries.length}
         toolbar={

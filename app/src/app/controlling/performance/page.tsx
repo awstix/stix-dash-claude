@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
+import { buildProjectSearchText } from "@/lib/project-filters";
 import { getNetWorkHoursForDay, getWorkTimeDayForDate } from "@/lib/work-time";
 import {
   addControllingDetailEntry,
@@ -847,6 +848,7 @@ export default async function ControllingPerformancePage({
               name: project.name,
               performanceReportCount: project.performanceReports.length,
               projectNumber: project.projectNumber,
+              searchText: buildProjectSearchText(project),
             }))}
           />
         </aside>

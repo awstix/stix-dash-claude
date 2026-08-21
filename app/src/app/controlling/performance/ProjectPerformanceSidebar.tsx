@@ -9,6 +9,7 @@ type SidebarProject = {
   name: string;
   performanceReportCount: number;
   projectNumber: string;
+  searchText: string;
 };
 
 const YEAR_GROUP_ORDER = [
@@ -57,11 +58,7 @@ export function ProjectPerformanceSidebar({
   const groups = useMemo(() => {
     const query = normalizeProjectSearchText(search);
     const filtered = query
-      ? projects.filter((project) =>
-          normalizeProjectSearchText(
-            `${project.projectNumber} ${project.name}`,
-          ).includes(query),
-        )
+      ? projects.filter((project) => project.searchText.includes(query))
       : projects;
 
     const byGroup = new Map<string, SidebarProject[]>();
@@ -93,7 +90,7 @@ export function ProjectPerformanceSidebar({
       <input
         className="mt-3 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-950 outline-none focus:border-gray-900"
         onChange={(event) => setSearch(event.currentTarget.value)}
-        placeholder="Projektnummer oder Name suchen …"
+        placeholder="Nummer, Name, Auftraggeber, Bauleiter, Adresse, Notizen …"
         type="search"
         value={search}
       />
