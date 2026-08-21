@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
+import { ShortHaulErrorDialog } from "./ShortHaulErrorDialog";
 
 type ProjectOption = {
   id: string;
@@ -357,6 +358,7 @@ export function ShortHaulForm({
     notes: string;
   }[];
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const timelinePrefillKey = searchParams.toString();
   const timelinePrefill = useMemo(
@@ -369,6 +371,8 @@ export function ShortHaulForm({
   const appliedTimelinePrefillKeyRef = useRef<string | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState(defaultDriverId);
   const [selectedVehicleId, setSelectedVehicleId] = useState(defaultVehicleId);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, startSubmitTransition] = useTransition();
 
   const [tourRows, setTourRows] = useState<TourFormValue[]>(
     defaultTours.length > 0
@@ -731,8 +735,28 @@ export function ShortHaulForm({
     );
   }
 
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    startSubmitTransition(() => {
+      void (async () => {
+        try {
+          await action(formData);
+          router.refresh();
+        } catch (error) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Unbekannter Fehler beim Speichern."
+          );
+        }
+      })();
+    });
+  }
+
   return (
-    <form action={action} className="mt-4 space-y-5">
+    <>
+      <ShortHaulErrorDialog message={errorMessage} onClose={() => setErrorMessage(null)} />
+      <form onSubmit={handleSubmit} className="mt-4 space-y-5">
       {id ? <input type="hidden" name="id" value={id} /> : null}
       {workDate ? (
         <input type="hidden" name="workDate" value={workDate} />
@@ -1224,16 +1248,17 @@ export function ShortHaulForm({
 
       <button
         type="submit"
-        disabled={submitDisabled}
+        disabled={submitDisabled || isSubmitting}
         className={
-          submitDisabled
+          submitDisabled || isSubmitting
             ? "inline-flex items-center justify-center gap-2 rounded-xl bg-gray-300 px-5 py-3 text-sm font-semibold text-gray-500"
             : "inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
         }
       >
         <ActionIcon name="save" className="h-4 w-4" />
-        Speichern
+        {isSubmitting ? "Speichert..." : "Speichern"}
       </button>
-    </form>
+      </form>
+    </>
   );
 }
