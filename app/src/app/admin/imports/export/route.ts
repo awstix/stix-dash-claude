@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
+import { requireAdminForRoute } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 
 const optionHeaders = [
@@ -43,6 +44,9 @@ function createOptionsSheet(
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminForRoute();
+  if (auth.response) return auth.response;
+
   const type = request.nextUrl.searchParams.get("type") ?? "options";
 
   if (type !== "options") {

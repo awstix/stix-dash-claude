@@ -3008,9 +3008,9 @@ model ControllingInventoryCategoryRate {
   category   InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   billingRateCents     Int?
-  billingRateUnit      String  @default("HOUR")
+  billingRateUnit      String @default("HOUR")
   idleBillingRateCents Int?
-  idleBillingRateUnit  String  @default("HOUR")
+  idleBillingRateUnit  String @default("HOUR")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3029,9 +3029,9 @@ model ControllingInventoryItemRate {
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   billingRateCents     Int?
-  billingRateUnit      String  @default("HOUR")
+  billingRateUnit      String @default("HOUR")
   idleBillingRateCents Int?
-  idleBillingRateUnit  String  @default("HOUR")
+  idleBillingRateUnit  String @default("HOUR")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3617,4 +3617,16 @@ model ImportProgress {
   updatedAt DateTime @updatedAt
 
   @@index([createdAt])
+}
+
+/// Postgres-backed rate-limit counter store for better-auth (see
+/// rateLimit.storage: "database" in src/lib/auth.ts) - shared across all
+/// Vercel function instances, unlike the in-memory default, which would
+/// keep a separate (and thus bypassable) counter per instance. Field names
+/// and shape are dictated by better-auth itself, not app convention.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
 }

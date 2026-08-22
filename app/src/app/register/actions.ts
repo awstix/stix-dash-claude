@@ -115,6 +115,15 @@ export async function registerPortalUser(
         where: { id: employee.id },
       });
     }
+    try {
+      await auth.api.sendVerificationEmail({
+        body: { callbackURL: "/login", email },
+      });
+    } catch {
+      // E-Mail-Versand kann fehlen/fehlschlagen (siehe requireEmailVerification-
+      // Kommentar in auth.ts) - das Konto ist trotzdem angelegt, nur die
+      // Bestätigungsmail konnte nicht raus.
+    }
     return {
       success:
         "Konto wurde angelegt und wartet auf die Freigabe durch einen Administrator.",

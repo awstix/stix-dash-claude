@@ -112,6 +112,18 @@ export async function createPortalUser(formData: FormData) {
         redirectTo: `${process.env.BETTER_AUTH_URL}/reset-password`,
       },
     });
+  } else if (realEmail) {
+    // Kein Einladungs-Link nötig (Admin setzt das Startpasswort direkt) -
+    // trotzdem die E-Mail-Adresse bestätigen lassen, falls eine echte
+    // hinterlegt wurde. Der Reset-Link-Klick beim Einladungs-Pfad oben zählt
+    // dagegen bereits selbst als ausreichender Nachweis, keine Doppel-Mail.
+    try {
+      await auth.api.sendVerificationEmail({
+        body: { callbackURL: "/login", email: realEmail },
+      });
+    } catch {
+      // Siehe Kommentar bei requireEmailVerification in auth.ts.
+    }
   }
   revalidatePath("/admin/users");
 }

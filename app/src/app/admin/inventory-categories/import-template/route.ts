@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { inflateRawSync } from "node:zlib";
+import { requireAdminForRoute } from "@/lib/auth-access";
 import { createZipArchive } from "@/lib/zip";
 
 export const runtime = "nodejs";
@@ -95,6 +96,9 @@ function addBtbDropdown(workbookBuffer: Buffer) {
 }
 
 export async function GET() {
+  const auth = await requireAdminForRoute();
+  if (auth.response) return auth.response;
+
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.aoa_to_sheet([
     headers,

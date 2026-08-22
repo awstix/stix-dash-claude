@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
+import { requireAdminForRoute } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
 
 type ImportType =
@@ -276,6 +277,16 @@ function getTemplateConfig(type: ImportType): TemplateConfig {
 export async function GET(request: NextRequest) {
   const type = (request.nextUrl.searchParams.get("type") ??
     "drivers") as ImportType;
+
+  // "employees" wird auch unter /employees/imports/template erreicht (Re-
+  // Export dieser Datei) - diese Seite ist bewusst nicht admin-exklusiv
+  // (Feature-Gruppe "Personal", per Rollenmatrix auch für Nicht-Admins
+  // freischaltbar). Alle anderen Typen gehören zu echten Admin-Stammdaten-
+  // Seiten unter /admin/** und sind daher admin-exklusiv.
+  if (type !== "employees") {
+    const auth = await requireAdminForRoute();
+    if (auth.response) return auth.response;
+  }
 
   const allowedTypes: ImportType[] = [
     "employees",

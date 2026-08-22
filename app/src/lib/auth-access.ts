@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -53,6 +54,27 @@ export async function requireAdmin() {
     .map((role) => role.trim());
   if (!roles.includes("admin")) redirect("/dashboard");
   return session;
+}
+
+/** Same idea as requireAdmin(), but for Route Handlers - returns a JSON
+ * 401/403 Response instead of redirect()-ing (a redirect would turn a file
+ * download into a navigation to /login, which is not what a fetch/download
+ * caller expects). Callers check `.response` and return it directly if set. */
+export async function requireAdminForRoute(): Promise<
+  | { response: Response; session?: undefined }
+  | { response?: undefined; session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>> }
+> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return { response: NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 }) };
+  }
+  const roles = String(session.user.role ?? "")
+    .split(",")
+    .map((role) => role.trim());
+  if (!roles.includes("admin")) {
+    return { response: NextResponse.json({ error: "Kein Zugriff." }, { status: 403 }) };
+  }
+  return { session };
 }
 
 export async function denyRoleUnlessAdmin(role: string) {

@@ -1,10 +1,12 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { admin, username } from "better-auth/plugins";
 
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
+import { isPasswordBreached } from "@/lib/password-breach-check";
 
 export const auth = betterAuth({
   appName: "STIX Portal",
@@ -16,6 +18,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
+    // TODO: auf true stellen, sobald unter Admin > E-Mail-Versand echte
+    // SMTP-Zugangsdaten hinterlegt sind (aktuell 0 Zeilen in EmailSettings -
+    // mit true könnte sich sonst niemand mehr registrieren, weil die
+    // Verifizierungs-Mail nie ankommt).
+    requireEmailVerification: false,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       const account = await prisma.user.findUnique({
@@ -38,6 +45,55 @@ export const auth = betterAuth({
         to: user.email,
       });
     },
+  },
+  emailVerification: {
+    autoSignInAfterVerification: false,
+    expiresIn: 3600,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail({
+        html: `
+          <p>Hallo ${user.name || ""},</p>
+          <p>bitte bestätige deine E-Mail-Adresse für dein STIX-Portal-Konto.</p>
+          <p><a href="${url}">E-Mail-Adresse jetzt bestätigen</a></p>
+          <p>Der Link ist eine Stunde gültig. Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.</p>
+        `,
+        subject: "STIX Portal: E-Mail-Adresse bestätigen",
+        text: `Hallo ${user.name || ""},\n\nbitte bestätige deine E-Mail-Adresse für dein STIX-Portal-Konto.\n\nLink: ${url}\n\nDer Link ist eine Stunde gültig. Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.`,
+        to: user.email,
+      });
+    },
+  },
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    modelName: "RateLimit",
+    customRules: {
+      // Deckt dieselbe Grenze wie /change-password ab - eingebaute
+      // Sonderregeln decken /sign-in*, /change-password, /change-email
+      // (3/10s) und /request-password-reset, /forget-password,
+      // /send-verification-email (3/60s) bereits automatisch ab.
+      "/reset-password": { window: 10, max: 3 },
+    },
+  },
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      const password =
+        ctx.path === "/admin/create-user"
+          ? ctx.body?.password
+          : ["/change-password", "/reset-password"].includes(ctx.path)
+            ? ctx.body?.newPassword
+            : undefined;
+
+      if (password && (await isPasswordBreached(password))) {
+        throw new APIError("BAD_REQUEST", {
+          message:
+            "Dieses Passwort wurde in bekannten Datenlecks gefunden. Bitte ein anderes Passwort wählen.",
+        });
+      }
+    }),
   },
   plugins: [
     username({
