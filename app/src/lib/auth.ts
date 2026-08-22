@@ -8,6 +8,14 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
 import { isPasswordBreached } from "@/lib/password-breach-check";
 
+// TODO: auf true stellen, sobald unter Admin > E-Mail-Versand echte SMTP-
+// Zugangsdaten hinterlegt sind (aktuell 0 Zeilen in EmailSettings - mit
+// true könnte sich sonst niemand mehr registrieren, weil die
+// Verifizierungs-Mail nie ankommt). Einzige Stelle, die geändert werden
+// muss - die Erinnerungs-Popup unter /admin/email-settings liest denselben
+// Wert und verschwindet automatisch, sobald hier true steht.
+export const requireEmailVerificationEnabled = false;
+
 export const auth = betterAuth({
   appName: "STIX Portal",
   baseURL: process.env.BETTER_AUTH_URL,
@@ -18,11 +26,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
-    // TODO: auf true stellen, sobald unter Admin > E-Mail-Versand echte
-    // SMTP-Zugangsdaten hinterlegt sind (aktuell 0 Zeilen in EmailSettings -
-    // mit true könnte sich sonst niemand mehr registrieren, weil die
-    // Verifizierungs-Mail nie ankommt).
-    requireEmailVerification: false,
+    requireEmailVerification: requireEmailVerificationEnabled,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       const account = await prisma.user.findUnique({

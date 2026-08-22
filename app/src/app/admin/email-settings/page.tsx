@@ -1,7 +1,10 @@
 import { AppShell } from "@/components/AppShell";
+import { requireEmailVerificationEnabled } from "@/lib/auth";
+import { isEmailConfigured } from "@/lib/mailer";
 import { prisma } from "@/lib/prisma";
 import { saveEmailSettings, sendTestEmail } from "./actions";
 import { EmailProviderPresetFields } from "./EmailProviderPresetFields";
+import { EmailVerificationReminderDialog } from "./EmailVerificationReminderDialog";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900";
@@ -16,11 +19,17 @@ export default async function EmailSettingsPage({
     searchParams,
   ]);
 
+  const showVerificationReminder =
+    Boolean(params.saved) &&
+    isEmailConfigured(settings) &&
+    !requireEmailVerificationEnabled;
+
   return (
     <AppShell
       title="E-Mail-Versand"
       description="SMTP-Zugangsdaten für Einladungs- und Passwort-E-Mails an neue Portalnutzer."
     >
+      <EmailVerificationReminderDialog show={showVerificationReminder} />
       {params.saved ? (
         <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-900">
           Einstellungen gespeichert.
