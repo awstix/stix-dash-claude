@@ -240,6 +240,7 @@ export type ProjectRequirementItemInput = {
   category: string;
   description: string;
   neededDate: string;
+  neededTime: string;
   projectId: string;
 };
 
@@ -248,6 +249,7 @@ export type ProjectRequirementItemUpdateInput = {
   description: string;
   id: string;
   neededDate: string;
+  neededTime: string;
   projectId: string;
   sortOrder: number;
 };
@@ -389,6 +391,10 @@ let lastReverseGeocodeRequestAt = 0;
 function parseDate(value: string) {
   if (!value) return null;
   return new Date(value);
+}
+
+function parseTime(value: string) {
+  return /^\d{2}:\d{2}$/.test(value) ? value : null;
 }
 
 function cleanNumber(value: number) {
@@ -867,6 +873,7 @@ export async function createProjectRequirementItem(input: ProjectRequirementItem
       createdByUserId: session.user.id,
       description,
       neededDate,
+      neededTime: parseTime(input.neededTime),
       projectId: input.projectId,
       sortOrder: nextSortOrder,
     },
@@ -895,6 +902,7 @@ export async function updateProjectRequirementItem(input: ProjectRequirementItem
       category: input.category,
       description,
       neededDate: parseDate(input.neededDate),
+      neededTime: parseTime(input.neededTime),
       sortOrder: cleanNumber(input.sortOrder),
     },
   });

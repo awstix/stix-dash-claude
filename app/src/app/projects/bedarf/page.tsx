@@ -52,6 +52,9 @@ export default async function ProjectRequirementsPage({
       const aTime = a.neededDate ? a.neededDate.getTime() : Infinity;
       const bTime = b.neededDate ? b.neededDate.getTime() : Infinity;
       if (aTime !== bTime) return aTime - bTime;
+      const aMinutes = timeToMinutes(a.neededTime);
+      const bMinutes = timeToMinutes(b.neededTime);
+      if (aMinutes !== bMinutes) return aMinutes - bMinutes;
       return a.sortOrder - b.sortOrder;
     });
 
@@ -172,10 +175,17 @@ type RequirementListItem = {
   doneByName: string | null;
   id: string;
   neededDate: Date | null;
+  neededTime: string | null;
   project: { name: string; projectNumber: string };
   projectId: string;
   sortOrder: number;
 };
+
+function timeToMinutes(value: string | null) {
+  if (!value) return Infinity;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
 
 function groupItemsByNeededDate(items: RequirementListItem[]) {
   const groups = new Map<string, { items: RequirementListItem[]; label: string; sortKey: number }>();
@@ -232,6 +242,7 @@ function RequirementRow({
           {item.neededDate ? (
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900">
               Benötigt am {formatDate(item.neededDate)}
+              {item.neededTime ? `, ${item.neededTime} Uhr` : ""}
               {position ? ` · Reihenfolge ${position}` : ""}
             </span>
           ) : null}
@@ -280,6 +291,7 @@ async function createProjectRequirementItemAction(formData: FormData) {
     category: text(formData.get("category")),
     description: text(formData.get("description")),
     neededDate: text(formData.get("neededDate")),
+    neededTime: text(formData.get("neededTime")),
     projectId: text(formData.get("projectId")),
   });
 }
@@ -292,6 +304,7 @@ async function updateProjectRequirementItemAction(formData: FormData) {
     description: text(formData.get("description")),
     id: text(formData.get("id")),
     neededDate: text(formData.get("neededDate")),
+    neededTime: text(formData.get("neededTime")),
     projectId: text(formData.get("projectId")),
     sortOrder: Number(text(formData.get("sortOrder"))) || 0,
   });
@@ -388,8 +401,16 @@ function ProjectRequirementForm({
           name="neededDate"
           type="date"
         />
+      </label>
+      <label className="text-xs font-semibold text-gray-700">
+        Uhrzeit
+        <input
+          className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          name="neededTime"
+          type="time"
+        />
         <span className="mt-1 block text-[11px] font-normal text-gray-500">
-          Reihenfolge wird automatisch ans Ende des Tages gesetzt, danach per Drag &amp; Drop änderbar.
+          Bestimmt die Reihenfolge innerhalb des Tages, danach per Drag &amp; Drop änderbar.
         </span>
       </label>
       <div className="lg:col-span-6">
@@ -412,6 +433,7 @@ function EditProjectRequirementItemForm({
     description: string;
     id: string;
     neededDate: Date | null;
+    neededTime: string | null;
     projectId: string;
     sortOrder: number;
   };
@@ -453,6 +475,15 @@ function EditProjectRequirementItemForm({
           defaultValue={item.neededDate ? formatDateInput(item.neededDate) : ""}
           name="neededDate"
           type="date"
+        />
+      </label>
+      <label className="text-xs font-semibold text-gray-700">
+        Uhrzeit
+        <input
+          className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          defaultValue={item.neededTime ?? ""}
+          name="neededTime"
+          type="time"
         />
       </label>
       <label className="text-xs font-semibold text-gray-700">

@@ -264,6 +264,7 @@ model ProjectRequirementItem {
   description String
 
   neededDate DateTime?
+  neededTime String?
   sortOrder  Int       @default(0)
 
   done         Boolean   @default(false)
