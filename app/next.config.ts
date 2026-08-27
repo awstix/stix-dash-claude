@@ -8,12 +8,20 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' blob: data:${supabaseHostname ? ` https://${supabaseHostname}` : ""}`,
+  // https://tile.openstreetmap.org: Kartenkacheln im Baustellen-Kartenausschnitt
+  // (ProjectMap.tsx, dailyReport-Kartenbild).
+  `img-src 'self' blob: data: https://tile.openstreetmap.org${supabaseHostname ? ` https://${supabaseHostname}` : ""}`,
   "font-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // https://www.openstreetmap.org: eingebettete Kartenvorschau (ProjectPhotoGallery,
+  // Inventar-Standort).
+  "frame-src 'self' https://www.openstreetmap.org",
+  // https://nominatim.openstreetmap.org: Adresssuche/Geocoding, clientseitig
+  // aus ProjectMapEditor.tsx aufgerufen.
+  "connect-src 'self' https://nominatim.openstreetmap.org",
   "upgrade-insecure-requests",
 ].join("; ");
 
