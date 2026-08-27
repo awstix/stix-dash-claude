@@ -135,7 +135,7 @@ export function ProjectMapEditor({
       // Baustellenadressen im selben Format stehen statt wie bisher mal so,
       // mal so. Nur wenn OSM keine Straße/Hausnummer kennt (z.B. Suche nach
       // reinem Ortsnamen), bleibt es beim von OSM formatierten display_name.
-      const normalizedAddress = formatNominatimAddress(result) ?? result.display_name;
+      const normalizedAddress = formatNominatimAddress(result, query) ?? result.display_name;
 
       setForm((current) => ({
         ...current,
@@ -479,21 +479,35 @@ type NominatimResult = {
   lon: string;
 };
 
+/** Manche Adressen liefert OSM nur auf Straßen-Ebene zurück (keine
+ * Hausnummer bekannt/bestätigt), obwohl der Nutzer eine eingetippt hat -
+ * die darf dabei nicht verloren gehen. Sucht in der ursprünglichen Eingabe
+ * nach einer eigenständigen 1-4-stelligen Zahl (mit optionalem Buchstaben-
+ * Suffix, z.B. "12a") außerhalb der 5-stelligen PLZ. */
+function extractLikelyHouseNumber(originalQuery: string, postcode: string | undefined) {
+  const candidates = (originalQuery.match(/\b\d{1,4}[a-zA-Z]?\b/g) ?? []).filter(
+    (candidate) => candidate !== postcode,
+  );
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 /** Baut aus den von OpenStreetMap strukturiert gelieferten Adressteilen
  * einheitlich "PLZ Ort, Straße Hausnummer" - damit landen alle
  * Baustellenadressen im selben Format und in der von OSM bestätigten
  * korrekten Schreibweise, egal wie die Adresse ursprünglich eingetippt
  * wurde. Liefert null, wenn OSM keine Straße kennt (z.B. bei einer Suche
  * nach nur Ort/PLZ) - dann bleibt es beim von OSM formatierten display_name. */
-function formatNominatimAddress(result: NominatimResult): string | null {
+function formatNominatimAddress(result: NominatimResult, originalQuery: string): string | null {
   const address = result.address;
   if (!address) return null;
 
   const place = address.city ?? address.town ?? address.village ?? address.municipality ?? address.suburb;
-  const { postcode, road, house_number: houseNumber } = address;
+  const { postcode, road } = address;
 
   if (!postcode || !place || !road) return null;
 
+  const houseNumber =
+    address.house_number ?? extractLikelyHouseNumber(originalQuery, postcode);
   const streetLine = houseNumber ? `${road} ${houseNumber}` : road;
   return `${postcode} ${place}, ${streetLine}`;
 }
