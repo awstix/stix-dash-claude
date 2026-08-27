@@ -4,10 +4,7 @@ import { InventoryDocumentUploadFields } from "./InventoryDocumentUploadFields";
 import { InventoryMoneyField } from "./InventoryMoneyField";
 import { InventoryPhotoUploadFields } from "./InventoryPhotoUploadFields";
 import { SearchableInventorySelect } from "./SearchableInventorySelect";
-import {
-  getInventoryCategoryOptionLabel,
-  sortInventoryCategoriesForSelect,
-} from "@/lib/inventory-categories";
+import { CategorySelect } from "@/components/CategorySelect";
 
 export type InventoryItemFormData = {
   attachmentType: string | null;
@@ -169,7 +166,12 @@ export function InventoryItemForm({
   item?: InventoryItemFormData;
   layout?: "grid" | "stacked";
 }) {
-  const sortedCategories = sortInventoryCategoriesForSelect(categories);
+  const categorySelectItems = categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    parentCategoryId: category.parentCategoryId,
+    suffix: getCategoryUsageSuffix(category),
+  }));
   const sectionClass =
     layout === "stacked"
       ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
@@ -259,19 +261,14 @@ export function InventoryItemForm({
                 name="name"
                 required
               />
-              <Select
-                defaultValue={item?.categoryId ?? "__none"}
-                label="Kategorie"
-                name="categoryId"
-              >
-                <option value="__none">Keine Kategorie</option>
-                {sortedCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {getInventoryCategoryOptionLabel(category)}
-                    {getCategoryUsageSuffix(category)}
-                  </option>
-                ))}
-              </Select>
+              <label className="text-sm font-medium text-gray-800">
+                Kategorie
+                <CategorySelect
+                  categories={categorySelectItems}
+                  defaultValue={item?.categoryId ?? null}
+                  name="categoryId"
+                />
+              </label>
               <Select
                 defaultValue={item?.status ?? "ACTIVE"}
                 label="Status"
