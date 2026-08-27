@@ -482,6 +482,30 @@ export function ProjectMap({
     });
   }
 
+  // Feineinstellung per Klick statt nur per Ziehen - verschiebt den
+  // Kartenausschnitt (und damit den Mittelpunkt-Punkt) um einen festen
+  // Pixel-Schritt in eine Richtung, für präzises Ausrichten ohne
+  // "Verrutschen" beim Ziehen mit der Maus/dem Finger.
+  const NUDGE_STEP_PX = 40;
+
+  function nudgeView(dx: number, dy: number) {
+    if (!onViewChange || lat === null || lng === null) return;
+
+    const center = lngLatToPixel(lng, lat, normalizedZoom);
+    const nextCoordinate = pixelToLngLat(
+      center.x + dx,
+      center.y + dy,
+      normalizedZoom,
+    );
+
+    setSelectedMarkerIndex(null);
+    onViewChange({
+      latitude: nextCoordinate[1],
+      longitude: nextCoordinate[0],
+      zoom: normalizedZoom,
+    });
+  }
+
   function removeLastPoint() {
     if (!onBoundaryChange) return;
 
@@ -753,6 +777,59 @@ export function ProjectMap({
             >
               -
             </button>
+          </div>
+        ) : null}
+
+        {editable && onViewChange ? (
+          <div
+            className="absolute right-3 top-[92px] z-10 grid grid-cols-3 grid-rows-3 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
+            title="Kartenausschnitt in kleinen Schritten ausrichten"
+          >
+            <div />
+            <button
+              className="col-start-2 row-start-1 flex h-9 w-9 items-center justify-center border-b border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                nudgeView(0, -NUDGE_STEP_PX);
+              }}
+              type="button"
+            >
+              ▲
+            </button>
+            <div />
+            <button
+              className="col-start-1 row-start-2 flex h-9 w-9 items-center justify-center border-r border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                nudgeView(-NUDGE_STEP_PX, 0);
+              }}
+              type="button"
+            >
+              ◀
+            </button>
+            <div className="flex h-9 w-9 items-center justify-center border-b border-r border-gray-200" />
+            <button
+              className="col-start-3 row-start-2 flex h-9 w-9 items-center justify-center border-b border-l border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                nudgeView(NUDGE_STEP_PX, 0);
+              }}
+              type="button"
+            >
+              ▶
+            </button>
+            <div />
+            <button
+              className="col-start-2 row-start-3 flex h-9 w-9 items-center justify-center border-t border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                nudgeView(0, NUDGE_STEP_PX);
+              }}
+              type="button"
+            >
+              ▼
+            </button>
+            <div />
           </div>
         ) : null}
 
