@@ -1049,7 +1049,7 @@ export function ProjectManager({
                               : "mt-1 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
                           }
                         >
-                          {formatEuro(difference)} · {coverage.toFixed(1)} %
+                          {formatEuro(difference)} · {coverage.toFixed(2)} %
                         </span>
                       </td>
 
@@ -1085,8 +1085,8 @@ export function ProjectManager({
                                 value={formatEuro(controlling.invoiceRevenueNet)}
                               />
                               <CompactMetric
-                                label="Ergebnis"
-                                title="Ergebnis"
+                                label="Ergebnis nach Skonto & Nachlass"
+                                title="Ergebnis nach Skonto & Nachlass"
                                 tone={
                                   controlling.resultNet >= 0 ? "positive" : "negative"
                                 }
@@ -1405,7 +1405,7 @@ function formatEuro(value: number) {
 }
 
 function formatPercent(value: number) {
-  return `${value.toFixed(1)} %`;
+  return `${value.toFixed(2)} %`;
 }
 
 function formatDate(value: string) {

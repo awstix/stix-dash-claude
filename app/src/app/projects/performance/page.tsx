@@ -96,7 +96,16 @@ export default async function ProjectPerformancePage({
       reportContractCents * ((latestReport?.progressPercent ?? 0) / 100)
     );
     const actualCostsCents = detailCostCents + hourCostCents;
-    const resultBaseCents = Math.max(performanceValueCents, invoiceRevenueCents);
+    // Wie Controlling > Leistungsmeldung ("Ergebnis nach Istkosten"): Nachlass
+    // mindert zuerst den Umsatz, danach Skonto den bereits reduzierten Betrag -
+    // sonst weicht das Ergebnis hier vom belastbaren Controlling-Wert ab.
+    const skontoPercent = project.skontoPercent ?? 0;
+    const nachlassPercent = project.nachlassPercent ?? 0;
+    const revenueAfterNachlassCents = invoiceRevenueCents * (1 - nachlassPercent / 100);
+    const effectiveInvoiceRevenueCents = Math.round(
+      revenueAfterNachlassCents * (1 - skontoPercent / 100)
+    );
+    const resultBaseCents = Math.max(performanceValueCents, effectiveInvoiceRevenueCents);
     const resultCents = resultBaseCents - actualCostsCents;
 
     const totalContract = project.contractValueNet + project.changeOrdersNet;

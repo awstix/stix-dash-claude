@@ -2042,6 +2042,10 @@ function PerformanceAnalysisSection({
   const marginPercent = effectiveInvoiceRevenueCents > 0
     ? costCoverageCents / effectiveInvoiceRevenueCents
     : 0;
+  const costCoverageBeforeDiscountsCents = invoiceRevenueCents - actualCostCents;
+  const marginPercentBeforeDiscounts = invoiceRevenueCents > 0
+    ? costCoverageBeforeDiscountsCents / invoiceRevenueCents
+    : 0;
   const hoursDelta = actualHours - billedHours;
   const overallTone =
     costCoverageCents >= 0
@@ -2091,7 +2095,11 @@ function PerformanceAnalysisSection({
           value={formatMoney(openWipCents)}
         />
         <AnalysisCard
-          detail={`DB ${formatPercent(marginPercent)}`}
+          detail={
+            skontoNachlassPercent > 0
+              ? `Deckungsbeitrag ${formatPercent(marginPercent)} · vor Nachlass/Skonto ${formatPercent(marginPercentBeforeDiscounts)}`
+              : `Deckungsbeitrag ${formatPercent(marginPercent)}`
+          }
           formula={`${formatMoney(effectiveInvoiceRevenueCents)} − ${formatMoney(actualCostCents)} = ${formatMoney(costCoverageCents)}`}
           label="Ergebnis nach Istkosten"
           tone={costCoverageCents >= 0 ? "good" : "bad"}
@@ -2130,9 +2138,14 @@ function PerformanceAnalysisSection({
           <li>
             <span className="font-semibold text-gray-800">Ergebnis nach Istkosten</span> =
             abgerechneter Umsatz (bei Skonto/Nachlass &gt; 0% bereits davon abgezogen) minus
-            erfasste Istkosten. <span className="font-semibold text-gray-800">DB</span>{" "}
-            (Deckungsbeitrag) zeigt dasselbe Ergebnis als Prozentsatz vom abgerechneten Umsatz -
-            also wie viel vom Umsatz nach Abzug aller erfassten Kosten noch übrig bleibt.
+            erfasste Istkosten.{" "}
+            <span className="font-semibold text-gray-800">Deckungsbeitrag</span> zeigt dasselbe
+            Ergebnis als Prozentsatz vom abgerechneten Umsatz - also wie viel vom Umsatz nach
+            Abzug aller erfassten Kosten noch übrig bleibt. Bei Skonto/Nachlass &gt; 0% steht
+            daneben zusätzlich der Wert{" "}
+            <span className="font-semibold text-gray-800">vor Nachlass/Skonto</span> (derselbe
+            Deckungsbeitrag, aber vom vollen, unrabattierten Umsatz gerechnet) - so lässt sich
+            erkennen, wie stark der Nachlass das Ergebnis drückt.
           </li>
           <li>
             <span className="font-semibold text-gray-800">Skonto/Nachlass</span> = Nachlass
@@ -2847,8 +2860,8 @@ function getAnalysisToneClass(tone: AnalysisTone) {
 
 function formatPercent(value: number) {
   return new Intl.NumberFormat("de-DE", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
     style: "percent",
   }).format(value);
 }
