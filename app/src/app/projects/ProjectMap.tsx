@@ -134,6 +134,19 @@ export function ProjectMap({
     dy: number;
     id: string;
   } | null>(null);
+  // Eigenständiges Ziehen des Mittelpunkt-Punkts (Adresspunkt): die Karte
+  // bleibt dabei visuell fest, nur der Punkt bewegt sich per CSS-Transform -
+  // erst beim Loslassen wird der Kartenausschnitt einmalig auf die neue
+  // Punktposition zentriert. Unabhängig von dragRef (Karte verschieben) und
+  // markerDragRef (Baufeld-Marker), da der Punkt kein SVG-Element ist.
+  const centerPinDragRef = useRef<{
+    pointerId: number;
+    rectHeight: number;
+    rectWidth: number;
+    startClientX: number;
+    startClientY: number;
+  } | null>(null);
+  const [centerPinOffset, setCenterPinOffset] = useState<{ dx: number; dy: number } | null>(null);
   const suppressClickRef = useRef(false);
 
   useEffect(() => {
@@ -471,6 +484,61 @@ export function ProjectMap({
     }
   }
 
+  function handleCenterPinPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!editable || !onViewChange || event.button !== 0 || lat === null || lng === null) return;
+
+    const rect = mapContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    centerPinDragRef.current = {
+      pointerId: event.pointerId,
+      rectHeight: rect.height,
+      rectWidth: rect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleCenterPinPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = centerPinDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - drag.startClientX;
+    const deltaY = event.clientY - drag.startClientY;
+
+    if (Math.hypot(deltaX, deltaY) < 4) return;
+
+    setCenterPinOffset({ dx: deltaX, dy: deltaY });
+  }
+
+  function handleCenterPinPointerEnd(event: PointerEvent<HTMLDivElement>) {
+    const drag = centerPinDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    centerPinDragRef.current = null;
+    const offset = centerPinOffset;
+    setCenterPinOffset(null);
+
+    if (!offset || !onViewChange || lat === null || lng === null) return;
+
+    const scaledDeltaX = (offset.dx / drag.rectWidth) * mapSize.width;
+    const scaledDeltaY = (offset.dy / drag.rectHeight) * mapSize.height;
+    const center = lngLatToPixel(lng, lat, normalizedZoom);
+    const nextCoordinate = pixelToLngLat(
+      center.x + scaledDeltaX,
+      center.y + scaledDeltaY,
+      normalizedZoom,
+    );
+
+    setSelectedMarkerIndex(null);
+    onViewChange({
+      latitude: nextCoordinate[1],
+      longitude: nextCoordinate[0],
+      zoom: normalizedZoom,
+    });
+  }
+
   function changeZoom(delta: number) {
     if (!onViewChange || lat === null || lng === null) return;
 
@@ -750,86 +818,99 @@ export function ProjectMap({
         </svg>
 
         {markers.length === 0 ? (
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-gray-900 shadow" />
-        ) : null}
-
-        {editable && onViewChange ? (
-          <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
-            <button
-              className="h-9 w-9 border-b border-gray-200 text-lg font-bold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-              disabled={normalizedZoom >= 19}
-              onClick={(event) => {
-                event.stopPropagation();
-                changeZoom(1);
-              }}
-              type="button"
-            >
-              +
-            </button>
-            <button
-              className="h-9 w-9 text-lg font-bold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-              disabled={normalizedZoom <= 1}
-              onClick={(event) => {
-                event.stopPropagation();
-                changeZoom(-1);
-              }}
-              type="button"
-            >
-              -
-            </button>
-          </div>
+          <div
+            className={`absolute left-1/2 top-1/2 h-4 w-4 rounded-full border-2 border-white bg-gray-900 shadow ${
+              editable && onViewChange
+                ? "cursor-grab touch-none active:cursor-grabbing"
+                : "pointer-events-none"
+            }`}
+            onPointerCancel={handleCenterPinPointerEnd}
+            onPointerDown={handleCenterPinPointerDown}
+            onPointerMove={handleCenterPinPointerMove}
+            onPointerUp={handleCenterPinPointerEnd}
+            style={{
+              transform: `translate(calc(-50% + ${centerPinOffset?.dx ?? 0}px), calc(-50% + ${centerPinOffset?.dy ?? 0}px))`,
+            }}
+            title={editable && onViewChange ? "Adresspunkt frei ziehen" : undefined}
+          />
         ) : null}
 
         {editable && onViewChange ? (
           <div
-            className="absolute right-3 top-[92px] z-10 grid grid-cols-3 grid-rows-3 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
-            title="Kartenausschnitt in kleinen Schritten ausrichten"
+            className="absolute right-3 top-3 z-10 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
+            title="Kartenausschnitt ausrichten und zoomen"
           >
-            <div />
-            <button
-              className="col-start-2 row-start-1 flex h-9 w-9 items-center justify-center border-b border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
-              onClick={(event) => {
-                event.stopPropagation();
-                nudgeView(0, -NUDGE_STEP_PX);
-              }}
-              type="button"
-            >
-              ▲
-            </button>
-            <div />
-            <button
-              className="col-start-1 row-start-2 flex h-9 w-9 items-center justify-center border-r border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
-              onClick={(event) => {
-                event.stopPropagation();
-                nudgeView(-NUDGE_STEP_PX, 0);
-              }}
-              type="button"
-            >
-              ◀
-            </button>
-            <div className="flex h-9 w-9 items-center justify-center border-b border-r border-gray-200" />
-            <button
-              className="col-start-3 row-start-2 flex h-9 w-9 items-center justify-center border-b border-l border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
-              onClick={(event) => {
-                event.stopPropagation();
-                nudgeView(NUDGE_STEP_PX, 0);
-              }}
-              type="button"
-            >
-              ▶
-            </button>
-            <div />
-            <button
-              className="col-start-2 row-start-3 flex h-9 w-9 items-center justify-center border-t border-gray-200 text-sm font-bold text-gray-800 hover:bg-gray-50"
-              onClick={(event) => {
-                event.stopPropagation();
-                nudgeView(0, NUDGE_STEP_PX);
-              }}
-              type="button"
-            >
-              ▼
-            </button>
-            <div />
+            <div className="grid grid-cols-3 grid-rows-3">
+              <div />
+              <button
+                className="col-start-2 row-start-1 flex h-7 w-7 items-center justify-center border-b border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  nudgeView(0, -NUDGE_STEP_PX);
+                }}
+                type="button"
+              >
+                ▲
+              </button>
+              <div />
+              <button
+                className="col-start-1 row-start-2 flex h-7 w-7 items-center justify-center border-r border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  nudgeView(-NUDGE_STEP_PX, 0);
+                }}
+                type="button"
+              >
+                ◀
+              </button>
+              <div className="flex h-7 w-7 items-center justify-center border-b border-r border-gray-200" />
+              <button
+                className="col-start-3 row-start-2 flex h-7 w-7 items-center justify-center border-b border-l border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  nudgeView(NUDGE_STEP_PX, 0);
+                }}
+                type="button"
+              >
+                ▶
+              </button>
+              <div />
+              <button
+                className="col-start-2 row-start-3 flex h-7 w-7 items-center justify-center border-t border-gray-200 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  nudgeView(0, NUDGE_STEP_PX);
+                }}
+                type="button"
+              >
+                ▼
+              </button>
+              <div />
+            </div>
+            <div className="grid grid-cols-2 border-t border-gray-300">
+              <button
+                className="flex h-7 items-center justify-center border-r border-gray-200 text-base font-bold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                disabled={normalizedZoom <= 1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  changeZoom(-1);
+                }}
+                type="button"
+              >
+                −
+              </button>
+              <button
+                className="flex h-7 items-center justify-center text-base font-bold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                disabled={normalizedZoom >= 19}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  changeZoom(1);
+                }}
+                type="button"
+              >
+                +
+              </button>
+            </div>
           </div>
         ) : null}
 
