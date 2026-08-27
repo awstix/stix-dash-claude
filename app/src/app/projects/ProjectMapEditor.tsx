@@ -101,6 +101,7 @@ export function ProjectMapEditor({
       url.searchParams.set("format", "jsonv2");
       url.searchParams.set("limit", "1");
       url.searchParams.set("countrycodes", "de");
+      url.searchParams.set("addressdetails", "1");
       url.searchParams.set("q", query);
 
       const response = await fetch(url.toString(), {
@@ -128,13 +129,22 @@ export function ProjectMapEditor({
         throw new Error("Adresse wurde gefunden, aber ohne gültige Koordinaten.");
       }
 
+      // OpenStreetMap liefert Schreibweise/Reihenfolge einheitlich und korrekt
+      // (Groß-/Kleinschreibung, PLZ/Ort/Straße/Hausnummer) - die übernommene
+      // Adresse ersetzt bewusst die frei eingetippte, damit alle
+      // Baustellenadressen im selben Format stehen statt wie bisher mal so,
+      // mal so. Nur wenn OSM keine Straße/Hausnummer kennt (z.B. Suche nach
+      // reinem Ortsnamen), bleibt es beim von OSM formatierten display_name.
+      const normalizedAddress = formatNominatimAddress(result) ?? result.display_name;
+
       setForm((current) => ({
         ...current,
         mapLatitude: formatCoordinate(latitude),
         mapLongitude: formatCoordinate(longitude),
         mapZoom: current.mapZoom || "17",
+        siteAddress: normalizedAddress,
       }));
-      setAddressSearchResult(result.display_name);
+      setAddressSearchResult(normalizedAddress);
     } catch (error) {
       alert(
         error instanceof Error
@@ -277,6 +287,11 @@ export function ProjectMapEditor({
               <label className="text-sm font-medium text-gray-700">
                 Baustellenadresse
               </label>
+              <p className="mt-1 text-xs text-gray-500">
+                Grob eintippen und auf &quot;Adresse suchen&quot; klicken - die Adresse
+                wird dann automatisch in einheitlicher Schreibweise (PLZ, Ort, Straße,
+                Hausnummer) übernommen.
+              </p>
               <div className="mt-2 flex flex-col gap-2 lg:flex-row">
                 <input
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-900"
@@ -300,8 +315,8 @@ export function ProjectMapEditor({
                 </button>
               </div>
               {addressSearchResult ? (
-                <p className="mt-2 text-xs font-medium text-gray-600">
-                  Gefunden: {addressSearchResult}
+                <p className="mt-2 text-xs font-medium text-green-700">
+                  ✓ Übernommen (einheitliches Format von OpenStreetMap): {addressSearchResult}
                 </p>
               ) : null}
             </div>
@@ -449,10 +464,39 @@ export function ProjectMapEditor({
 }
 
 type NominatimResult = {
+  address?: {
+    city?: string;
+    house_number?: string;
+    municipality?: string;
+    postcode?: string;
+    road?: string;
+    suburb?: string;
+    town?: string;
+    village?: string;
+  };
   display_name: string;
   lat: string;
   lon: string;
 };
+
+/** Baut aus den von OpenStreetMap strukturiert gelieferten Adressteilen
+ * einheitlich "PLZ Ort, Straße Hausnummer" - damit landen alle
+ * Baustellenadressen im selben Format und in der von OSM bestätigten
+ * korrekten Schreibweise, egal wie die Adresse ursprünglich eingetippt
+ * wurde. Liefert null, wenn OSM keine Straße kennt (z.B. bei einer Suche
+ * nach nur Ort/PLZ) - dann bleibt es beim von OSM formatierten display_name. */
+function formatNominatimAddress(result: NominatimResult): string | null {
+  const address = result.address;
+  if (!address) return null;
+
+  const place = address.city ?? address.town ?? address.village ?? address.municipality ?? address.suburb;
+  const { postcode, road, house_number: houseNumber } = address;
+
+  if (!postcode || !place || !road) return null;
+
+  const streetLine = houseNumber ? `${road} ${houseNumber}` : road;
+  return `${postcode} ${place}, ${streetLine}`;
+}
 
 function TextField({
   label,
