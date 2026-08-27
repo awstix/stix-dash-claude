@@ -26,6 +26,7 @@ import {
   primaryConstructionManagerName,
   type ConstructionManagerEntry,
 } from "@/lib/construction-managers";
+import { formatNominatimAddress } from "@/lib/nominatim-address";
 import { buildPhotoFileName } from "@/lib/project-photo-file-name";
 import { renderSiteMapImage } from "@/lib/site-map-image";
 import {
@@ -688,6 +689,57 @@ export async function updateProjectMap(input: ProjectMapInput) {
   });
 
   revalidateProjectViews(input.id);
+}
+
+/** Schlägt die Baustellenadresse anhand der aktuellen Kartenposition (des
+ * schwarzen Mittelpunkt-Markers) vor - für Baustellen, die nur über einen
+ * Orts-/Flurnamen ohne eindeutige Straße auffindbar sind (z.B. "Röllfeld"),
+ * bei denen die Vorwärtssuche nach dem eingetippten Namen keine Straße
+ * liefert, die Position auf der Karte aber trotzdem stimmt. Liefert null,
+ * wenn OSM an dieser Position keine Straße kennt. */
+export async function reverseGeocodeSiteAddress(
+  latitude: number,
+  longitude: number,
+): Promise<string | null> {
+  await requireSession();
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", latitude.toString());
+  url.searchParams.set("lon", longitude.toString());
+  url.searchParams.set("zoom", "18");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("accept-language", "de");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    await waitForReverseGeocoderSlot();
+    const response = await fetch(url.toString(), {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": geocoderUserAgent,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as NominatimReverseResponse;
+    if (data.error) return null;
+
+    return formatNominatimAddress(data.address);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function createProjectNote(input: ProjectNoteInput) {

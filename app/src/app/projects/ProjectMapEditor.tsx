@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SiteContactEntry } from "@/lib/construction-managers";
 import type { SiteContactOption } from "@/lib/construction-manager-options";
-import { updateProjectMap } from "./actions";
+import { formatNominatimAddress, type NominatimAddressParts } from "@/lib/nominatim-address";
+import { reverseGeocodeSiteAddress, updateProjectMap } from "./actions";
 import { DirectionsShareButtons } from "./DirectionsShareButtons";
 import { ProjectMap } from "./ProjectMap";
 import { SiteContactsField } from "./SiteContactsField";
@@ -38,6 +39,7 @@ export function ProjectMapEditor({
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const [addressSearchResult, setAddressSearchResult] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [siteContactsValue, setSiteContactsValue] = useState(siteContacts);
@@ -135,7 +137,7 @@ export function ProjectMapEditor({
       // Baustellenadressen im selben Format stehen statt wie bisher mal so,
       // mal so. Nur wenn OSM keine Straße/Hausnummer kennt (z.B. Suche nach
       // reinem Ortsnamen), bleibt es beim von OSM formatierten display_name.
-      const normalizedAddress = formatNominatimAddress(result, query) ?? result.display_name;
+      const normalizedAddress = formatSearchResultAddress(result, query) ?? result.display_name;
 
       setForm((current) => ({
         ...current,
@@ -153,6 +155,42 @@ export function ProjectMapEditor({
       );
     } finally {
       setIsSearchingAddress(false);
+    }
+  }
+
+  /** Für Baustellen, die nur über einen Orts-/Flurnamen ohne eindeutige
+   * Straße auffindbar sind (z.B. "Röllfeld") - die Vorwärtssuche oben
+   * findet dafür keine Straße, aber wenn der Kartenpunkt bereits richtig
+   * auf der Baustelle sitzt (per Ziehen/Steuerkreuz/Zoom positioniert),
+   * kann die Adresse rückwärts aus genau dieser Position ermittelt werden. */
+  async function reverseGeocodeFromPosition() {
+    const latitude = parseOptionalNumber(form.mapLatitude);
+    const longitude = parseOptionalNumber(form.mapLongitude);
+
+    if (latitude === null || longitude === null) {
+      alert("Bitte zuerst eine Kartenposition setzen (Adresse suchen oder Karte verschieben).");
+      return;
+    }
+
+    setIsReverseGeocoding(true);
+    setAddressSearchResult("");
+
+    try {
+      const result = await reverseGeocodeSiteAddress(latitude, longitude);
+
+      if (!result) {
+        alert("An dieser Kartenposition kennt OpenStreetMap keine Straße.");
+        return;
+      }
+
+      setForm((current) => ({ ...current, siteAddress: result }));
+      setAddressSearchResult(result);
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Fehler beim Ermitteln der Adresse.",
+      );
+    } finally {
+      setIsReverseGeocoding(false);
     }
   }
 
@@ -314,6 +352,19 @@ export function ProjectMapEditor({
                   {isSearchingAddress ? "Sucht..." : "Adresse suchen"}
                 </button>
               </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Ohne Treffer (z.B. bei Orts-/Flurnamen ohne eigene Straße wie
+                &quot;Röllfeld&quot;)? Kartenpunkt unten per Ziehen/Steuerkreuz auf die
+                Baustelle setzen, dann die Adresse von dort übernehmen.
+              </p>
+              <button
+                className="mt-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                disabled={isReverseGeocoding}
+                onClick={reverseGeocodeFromPosition}
+                type="button"
+              >
+                {isReverseGeocoding ? "Ermittelt..." : "Adresse aus Kartenposition übernehmen"}
+              </button>
               {addressSearchResult ? (
                 <p className="mt-2 text-xs font-medium text-green-700">
                   ✓ Übernommen (einheitliches Format von OpenStreetMap): {addressSearchResult}
@@ -464,16 +515,7 @@ export function ProjectMapEditor({
 }
 
 type NominatimResult = {
-  address?: {
-    city?: string;
-    house_number?: string;
-    municipality?: string;
-    postcode?: string;
-    road?: string;
-    suburb?: string;
-    town?: string;
-    village?: string;
-  };
+  address?: NominatimAddressParts;
   display_name: string;
   lat: string;
   lon: string;
@@ -491,25 +533,18 @@ function extractLikelyHouseNumber(originalQuery: string, postcode: string | unde
   return candidates.length === 1 ? candidates[0] : null;
 }
 
-/** Baut aus den von OpenStreetMap strukturiert gelieferten Adressteilen
- * einheitlich "PLZ Ort, Straße Hausnummer" - damit landen alle
- * Baustellenadressen im selben Format und in der von OSM bestätigten
- * korrekten Schreibweise, egal wie die Adresse ursprünglich eingetippt
- * wurde. Liefert null, wenn OSM keine Straße kennt (z.B. bei einer Suche
- * nach nur Ort/PLZ) - dann bleibt es beim von OSM formatierten display_name. */
-function formatNominatimAddress(result: NominatimResult, originalQuery: string): string | null {
+/** Wie formatNominatimAddress, ergänzt aber eine aus der ursprünglichen
+ * Sucheingabe erkannte Hausnummer, falls OSM selbst keine liefert - sonst
+ * würde eine vom Nutzer eingetippte Hausnummer bei der Übernahme verloren
+ * gehen. */
+function formatSearchResultAddress(result: NominatimResult, originalQuery: string): string | null {
   const address = result.address;
-  if (!address) return null;
-
-  const place = address.city ?? address.town ?? address.village ?? address.municipality ?? address.suburb;
-  const { postcode, road } = address;
-
-  if (!postcode || !place || !road) return null;
+  if (!address?.postcode || !address.road) return null;
 
   const houseNumber =
-    address.house_number ?? extractLikelyHouseNumber(originalQuery, postcode);
-  const streetLine = houseNumber ? `${road} ${houseNumber}` : road;
-  return `${postcode} ${place}, ${streetLine}`;
+    address.house_number ?? extractLikelyHouseNumber(originalQuery, address.postcode);
+
+  return formatNominatimAddress({ ...address, house_number: houseNumber ?? undefined });
 }
 
 function TextField({
