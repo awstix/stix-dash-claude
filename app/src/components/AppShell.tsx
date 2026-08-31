@@ -170,7 +170,7 @@ export async function AppShell({
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 2xl:px-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+          <h1 className="break-words text-3xl font-bold text-gray-900">{title}</h1>
           {description ? (
             <p className="mt-2 text-gray-600">{description}</p>
           ) : null}
