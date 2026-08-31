@@ -6,6 +6,7 @@ import { getPortalRoles } from "@/lib/portal-roles";
 import { getEmailSettings, isEmailConfigured } from "@/lib/mailer";
 import {
   approvePortalUser,
+  setPortalUserBanned,
   updateLeaveApprovalPermission,
 } from "./actions";
 import { CreatePortalUserForm } from "./CreatePortalUserForm";
@@ -129,9 +130,23 @@ export default async function PortalUsersPage() {
                       </button>
                     </form>
                   ) : user.banned ? (
-                    <span className="font-bold text-red-800">Gesperrt</span>
+                    <form action={setPortalUserBanned}>
+                      <input name="id" type="hidden" value={user.id} />
+                      <input name="banned" type="hidden" value="false" />
+                      <div className="font-bold text-red-800">Gesperrt</div>
+                      <button className="mt-2 rounded-lg bg-green-700 px-3 py-2 text-xs font-bold text-white">
+                        Entsperren
+                      </button>
+                    </form>
                   ) : (
-                    <span className="font-bold text-green-800">Freigegeben</span>
+                    <form action={setPortalUserBanned}>
+                      <input name="id" type="hidden" value={user.id} />
+                      <input name="banned" type="hidden" value="true" />
+                      <div className="font-bold text-green-800">Freigegeben</div>
+                      <button className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50">
+                        Sperren
+                      </button>
+                    </form>
                   )}
                 </td>
               </tr>

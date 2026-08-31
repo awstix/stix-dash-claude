@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-access";
@@ -176,5 +177,33 @@ export async function approvePortalUser(formData: FormData) {
     },
     where: { id },
   });
+  revalidatePath("/admin/users");
+}
+
+/** Sperrt/entsperrt ein bereits freigegebenes Konto (z.B. um ein Testkonto
+ * abends zu deaktivieren) - über die better-auth-Admin-API, die beim Sperren
+ * auch gleich alle aktiven Sitzungen des Kontos beendet, statt nur neue
+ * Logins zu blockieren. */
+export async function setPortalUserBanned(formData: FormData) {
+  const session = await requireAdmin();
+  const id = text(formData, "id");
+  const banned = formData.get("banned") === "true";
+
+  if (banned && id === session.user.id) {
+    throw new Error("Du kannst dein eigenes Konto nicht sperren.");
+  }
+
+  if (banned) {
+    await auth.api.banUser({
+      body: { banReason: "Von Admin gesperrt", userId: id },
+      headers: await headers(),
+    });
+  } else {
+    await auth.api.unbanUser({
+      body: { userId: id },
+      headers: await headers(),
+    });
+  }
+
   revalidatePath("/admin/users");
 }
