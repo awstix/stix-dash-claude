@@ -25,7 +25,12 @@ async function main() {
     console.log(`  ${model.name}: ${rows.length} Zeilen`);
   }
 
-  writeFileSync(outputPath, JSON.stringify(dump, null, 2), "utf8");
+  const json = JSON.stringify(
+    dump,
+    (_key, value) => (typeof value === "bigint" ? value.toString() : value),
+    2,
+  );
+  writeFileSync(outputPath, json, "utf8");
 
   console.log(`\nBackup gespeichert: ${outputPath}`);
   console.log(`Insgesamt ${totalRows} Zeilen gesichert.`);
