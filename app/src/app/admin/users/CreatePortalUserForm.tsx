@@ -18,20 +18,44 @@ export function CreatePortalUserForm({
   portalRoles: PortalRole[];
 }) {
   const [inviteViaEmail, setInviteViaEmail] = useState(false);
+  const [freeAccount, setFreeAccount] = useState(false);
 
   return (
     <form action={createPortalUser} className="mt-5 grid gap-4 md:grid-cols-2">
-      <label className="text-sm font-bold">
-        Mitarbeiter
-        <select className={inputClass} name="employeeId" required>
-          <option value="">Mitarbeiter auswählen …</option>
-          {employees.map((employee) => (
-            <option key={employee.id} value={employee.id}>
-              {employee.lastName}, {employee.firstName}
-            </option>
-          ))}
-        </select>
+      <label className="flex items-center gap-3 text-sm font-bold md:col-span-2">
+        <input
+          checked={freeAccount}
+          className="h-5 w-5 accent-gray-950"
+          name="freeAccount"
+          onChange={(event) => setFreeAccount(event.target.checked)}
+          type="checkbox"
+        />
+        Freies Konto (kein Mitarbeiter verknüpft, z.B. für externe Prüfer/Tester)
       </label>
+      {freeAccount ? (
+        <>
+          <label className="text-sm font-bold">
+            Vorname
+            <input className={inputClass} name="firstName" required type="text" />
+          </label>
+          <label className="text-sm font-bold">
+            Nachname
+            <input className={inputClass} name="lastName" required type="text" />
+          </label>
+        </>
+      ) : (
+        <label className="text-sm font-bold">
+          Mitarbeiter
+          <select className={inputClass} name="employeeId" required>
+            <option value="">Mitarbeiter auswählen …</option>
+            {employees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.lastName}, {employee.firstName}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="flex items-center gap-3 pt-7 text-sm font-bold">
         <input
           className="h-5 w-5 accent-gray-950"

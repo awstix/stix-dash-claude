@@ -39,7 +39,7 @@ async function usernameFor(firstName: string, lastName: string) {
 
 export async function createPortalUser(formData: FormData) {
   await requireAdmin();
-  const employeeId = text(formData, "employeeId");
+  const freeAccount = formData.get("freeAccount") === "on";
   const inviteViaEmail = formData.get("inviteViaEmail") === "on";
   const password = text(formData, "password");
   const validRoleKeys = await getPortalRoleKeys();
@@ -53,15 +53,38 @@ export async function createPortalUser(formData: FormData) {
   if (!inviteViaEmail && password.length < 10) {
     throw new Error("Das Startpasswort muss mindestens 10 Zeichen lang sein.");
   }
-  const employee = await prisma.employee.findUnique({
-    where: { id: employeeId },
-  });
-  if (!employee) throw new Error("Mitarbeiter wurde nicht gefunden.");
-  if (await prisma.user.findUnique({ where: { employeeId } })) {
-    throw new Error("Für diesen Mitarbeiter besteht bereits ein Portalkonto.");
+
+  // Freies Konto: kein Mitarbeiter-Datensatz dahinter (z.B. für externe
+  // Prüfer/Tester) - Vor-/Nachname kommen dann direkt aus dem Formular statt
+  // vom Employee-Datensatz, employeeId bleibt null (Spalte ist bewusst
+  // optional, siehe User.employeeId im Schema).
+  let employeeId: string | null = null;
+  let firstName: string;
+  let lastName: string;
+  let employeeEmail: string | null = null;
+
+  if (freeAccount) {
+    firstName = text(formData, "firstName");
+    lastName = text(formData, "lastName");
+    if (!firstName || !lastName) {
+      throw new Error("Bitte Vor- und Nachname für das freie Konto eintragen.");
+    }
+  } else {
+    employeeId = text(formData, "employeeId");
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+    });
+    if (!employee) throw new Error("Mitarbeiter wurde nicht gefunden.");
+    if (await prisma.user.findUnique({ where: { employeeId } })) {
+      throw new Error("Für diesen Mitarbeiter besteht bereits ein Portalkonto.");
+    }
+    firstName = employee.firstName;
+    lastName = employee.lastName;
+    employeeEmail = employee.email;
   }
-  const username = await usernameFor(employee.firstName, employee.lastName);
-  const realEmail = text(formData, "email").toLowerCase() || employee.email?.toLowerCase() || "";
+
+  const username = await usernameFor(firstName, lastName);
+  const realEmail = text(formData, "email").toLowerCase() || employeeEmail?.toLowerCase() || "";
 
   if (inviteViaEmail) {
     if (!realEmail) {
@@ -86,7 +109,7 @@ export async function createPortalUser(formData: FormData) {
     body: {
       data: { displayUsername: username, username },
       email,
-      name: `${employee.firstName} ${employee.lastName}`,
+      name: `${firstName} ${lastName}`,
       password: startPassword,
       role: roles.includes("admin") ? "admin" : "user",
     },
@@ -101,9 +124,11 @@ export async function createPortalUser(formData: FormData) {
     },
     where: { id: result.user.id },
   });
-  await prisma.$transaction((tx) =>
-    syncUserProjectAccessForEmployee(tx, employeeId),
-  );
+  if (employeeId) {
+    await prisma.$transaction((tx) =>
+      syncUserProjectAccessForEmployee(tx, employeeId),
+    );
+  }
 
   if (inviteViaEmail) {
     await auth.api.requestPasswordReset({
