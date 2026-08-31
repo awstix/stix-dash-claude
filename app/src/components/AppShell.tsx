@@ -29,7 +29,6 @@ const projectNavigation = [
   { name: "Bautagesberichte", href: "/projects/bautagesberichte" },
   { name: "Bedarf", href: "/projects/bedarf" },
   { name: "Dokumente", href: "/projects/dokumente" },
-  { name: "Formularbuilder", href: "/form-builder?scope=PROJECT" },
   { name: "Formulare", href: "/projects/formulare" },
   { name: "Fotos", href: "/projects/fotos" },
   { name: "Leistung", href: "/projects/performance" },
@@ -44,7 +43,6 @@ const secondaryNavigation = [
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
 const workshopNavigation = [
-  { name: "Formularbuilder", href: "/form-builder?scope=WORKSHOP" },
   { name: "Formularvorlagen", href: "/workshop/forms" },
   { name: "Werkstattübersicht", href: "/workshop" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
@@ -83,7 +81,6 @@ const controllingNavigation = [
 const safetyNavigation = [
   { name: "Beauftragungen", href: "/safety/commissions" },
   { name: "Betriebsunterweisungen", href: "/safety/operating-instructions" },
-  { name: "Formularbuilder", href: "/form-builder?scope=SAFETY" },
   { name: "Formularvorlagen", href: "/safety/forms" },
   { name: "Gefahrstoffe", href: "/safety/hazardous-substances" },
   { name: "Gefährdungsbeurteilungen", href: "/safety/risk-assessments" },

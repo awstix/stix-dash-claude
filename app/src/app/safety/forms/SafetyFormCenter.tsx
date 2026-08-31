@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-  type PointerEvent,
-} from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
+import { FormSignaturePad } from "@/components/FormSignaturePad";
 import { FreeTextCombobox } from "@/components/FreeTextCombobox";
 import {
   getProjectFormPresetOptions,
@@ -319,7 +314,12 @@ function SafetyFields({
               </select>
             </label>
           ) : field.type === "signature" ? (
-            <SignaturePad name={field.id} label={field.label} value={String(values[field.id] ?? "")} />
+            <FormSignaturePad
+              name={`value:${field.id}`}
+              label={field.label}
+              required={field.required}
+              value={String(values[field.id] ?? "")}
+            />
           ) : (
             <Text
               name={field.id}
@@ -336,100 +336,6 @@ function SafetyFields({
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-function SignaturePad({
-  label,
-  name,
-  value,
-}: {
-  label: string;
-  name: string;
-  value: string;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const drawingRef = useRef(false);
-  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-  const [signature, setSignature] = useState(value);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-    if (!canvas || !context) return;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    if (!signature) return;
-    const image = new window.Image();
-    image.onload = () => context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    image.src = signature;
-  }, [signature]);
-
-  function point(event: PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-    };
-  }
-
-  function start(event: PointerEvent<HTMLCanvasElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drawingRef.current = true;
-    lastPointRef.current = point(event);
-  }
-
-  function draw(event: PointerEvent<HTMLCanvasElement>) {
-    if (!drawingRef.current) return;
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-    const next = point(event);
-    const previous = lastPointRef.current;
-    if (!canvas || !context || !next || !previous) return;
-    context.strokeStyle = "#111827";
-    context.lineWidth = 5;
-    context.lineCap = "round";
-    context.beginPath();
-    context.moveTo(previous.x, previous.y);
-    context.lineTo(next.x, next.y);
-    context.stroke();
-    lastPointRef.current = next;
-  }
-
-  function finish() {
-    const canvas = canvasRef.current;
-    if (!canvas || !drawingRef.current) return;
-    drawingRef.current = false;
-    lastPointRef.current = null;
-    setSignature(canvas.toDataURL("image/png"));
-  }
-
-  function clear() {
-    setSignature("");
-  }
-
-  return (
-    <div>
-      <input type="hidden" name={`value:${name}`} value={signature} />
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-gray-800">{label}</span>
-        <button type="button" onClick={clear} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800">
-          Zurücksetzen
-        </button>
-      </div>
-      <canvas
-        ref={canvasRef}
-        width={720}
-        height={220}
-        className="block h-32 w-full touch-none rounded-xl border border-gray-300 bg-white shadow-inner"
-        onPointerCancel={finish}
-        onPointerDown={start}
-        onPointerLeave={finish}
-        onPointerMove={draw}
-        onPointerUp={finish}
-      />
     </div>
   );
 }

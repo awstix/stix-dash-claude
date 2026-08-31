@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ActionIcon } from "@/components/ActionIcon";
+import { FormSignaturePad } from "@/components/FormSignaturePad";
 import {
   createProjectFormTemplate,
   deleteProjectFormTemplate,
@@ -316,7 +317,26 @@ export function ProjectFormManager({
   }
 
   function editTemplate(template: ProjectFormTemplateItem) {
-    router.push(`/form-builder?scope=PROJECT&templateId=${template.id}`);
+    setEditingTemplateId(template.id);
+    setTemplateFields(
+      template.fields.map((field) => ({
+        description: field.description,
+        label: field.label,
+        optionsText: field.options.join("\n"),
+        required: field.required,
+        type: field.type,
+        width: field.width,
+      })),
+    );
+    setEditingFieldIndex(null);
+    setShowTemplateForm(true);
+  }
+
+  function newTemplate() {
+    setEditingTemplateId(null);
+    setTemplateFields([]);
+    setEditingFieldIndex(null);
+    setShowTemplateForm(true);
   }
 
   function closeTemplateForm() {
@@ -406,12 +426,12 @@ export function ProjectFormManager({
             <h2 className="text-lg font-semibold text-gray-900">Formulare</h2>
             <p className="mt-1 text-sm text-gray-600">
               Formulare projektbezogen ausfüllen und in der Projektakte speichern.
-              Vorlagen werden zentral im Formularbuilder gepflegt.
+              Vorlagen direkt hier anlegen und bearbeiten.
             </p>
           </div>
           <button
             className="w-fit rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-            onClick={() => router.push("/form-builder?scope=PROJECT")}
+            onClick={newTemplate}
             type="button"
           >
             Formularvorlage anlegen
@@ -554,15 +574,13 @@ export function ProjectFormManager({
               >
                 {editingTemplate ? "Änderungen speichern" : "Vorlage speichern"}
               </button>
-              {editingTemplate ? (
-                <button
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
-                  onClick={closeTemplateForm}
-                  type="button"
-                >
-                  Abbrechen
-                </button>
-              ) : null}
+              <button
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                onClick={closeTemplateForm}
+                type="button"
+              >
+                Abbrechen
+              </button>
             </div>
 
             {editingFieldIndex !== null &&
@@ -1488,17 +1506,15 @@ function ProjectFormFieldInput({
 
   if (field.type === "signature") {
     return (
-      <label>
-        <FieldLabel field={field} />
+      <div>
         <FieldDescription field={field} />
-        <textarea
-          className={`${textAreaClassName} min-h-20 border-dashed italic`}
-          defaultValue={textDefaultValue}
+        <FormSignaturePad
+          label={field.label}
           name={name}
-          placeholder="Name oder Unterschrift eintragen"
           required={field.required}
+          value={textDefaultValue?.startsWith("data:image/") ? textDefaultValue : ""}
         />
-      </label>
+      </div>
     );
   }
 

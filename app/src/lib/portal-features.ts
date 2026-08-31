@@ -40,7 +40,6 @@ export const portalModules: PortalModule[] = [
       { key: "fotos", label: "Fotos", path: "/projects/fotos" },
       { key: "notizen", label: "Notizen", path: "/projects/notizen" },
       { key: "formulare", label: "Formulare", path: "/projects/formulare" },
-      { key: "formularbuilder", label: "Formularbuilder", path: "/form-builder?scope=PROJECT" },
       { key: "leistung", label: "Leistung", path: "/projects/performance" },
       { key: "projekte_importieren", label: "Projekte importieren", path: "/projects/imports" },
     ],
@@ -99,7 +98,6 @@ export const portalModules: PortalModule[] = [
       { key: "gefahrstoffe", label: "Gefahrstoffe", path: "/safety/hazardous-substances" },
       { key: "beauftragungen", label: "Beauftragungen", path: "/safety/commissions" },
       { key: "formularvorlagen_sicherheit", label: "Formularvorlagen", path: "/safety/forms" },
-      { key: "formularbuilder_sicherheit", label: "Formularbuilder", path: "/form-builder?scope=SAFETY" },
     ],
   },
   {
@@ -108,7 +106,6 @@ export const portalModules: PortalModule[] = [
     features: [
       { key: "werkstattuebersicht", label: "Werkstattübersicht", path: "/workshop" },
       { key: "formularvorlagen_werkstatt", label: "Formularvorlagen", path: "/workshop/forms" },
-      { key: "formularbuilder_werkstatt", label: "Formularbuilder", path: "/form-builder?scope=WORKSHOP" },
     ],
   },
   {
