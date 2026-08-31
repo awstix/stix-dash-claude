@@ -277,6 +277,16 @@ export async function createFormPdf(input: {
       if (imageDrawn) return;
     }
 
+    if (field.type === "signature" && value.startsWith("data:image/png;base64,")) {
+      const imageDrawn = await drawSignatureImage(targetPage, value, {
+        height: box.height - 26,
+        width: box.width - 14,
+        x: box.x + 7,
+        y: box.y + 7,
+      });
+      if (imageDrawn) return;
+    }
+
     const font = field.type === "signature" ? regular : regular;
     const fontSize = field.type === "signature" ? 11 : 9;
     const lines = wrapText(
@@ -326,6 +336,34 @@ export async function createFormPdf(input: {
         height,
         width,
         x: box.x + (box.width - width) / 2,
+        y: box.y + (box.height - height) / 2,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function drawSignatureImage(
+    targetPage: PDFPage,
+    dataUrl: string,
+    box: { height: number; width: number; x: number; y: number },
+  ) {
+    try {
+      const base64 = dataUrl.split(",", 2)[1];
+      if (!base64) return false;
+      const embedded = await pdf.embedPng(Buffer.from(base64, "base64"));
+      const scale = Math.min(
+        box.width / embedded.width,
+        box.height / embedded.height,
+        1,
+      );
+      const width = embedded.width * scale;
+      const height = embedded.height * scale;
+      targetPage.drawImage(embedded, {
+        height,
+        width,
+        x: box.x,
         y: box.y + (box.height - height) / 2,
       });
       return true;

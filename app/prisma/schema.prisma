@@ -214,6 +214,7 @@ model Project {
   controllingInvoiceItems           ControllingInvoiceItem[]
   safetyAccidentReports             SafetyAccidentReport[]
   safetyInstructionRecords          SafetyInstructionRecord[]
+  safetyFormSubmissions             SafetyFormSubmission[]
   projectStartChecklists            ProjectStartChecklist[]
   generalRiskAssessments            GeneralRiskAssessment[]
   userAccesses                      UserProjectAccess[]
@@ -3203,12 +3204,40 @@ model SafetyFormTemplate {
   paperSize           String  @default("A4")
   paperOrientation    String  @default("PORTRAIT")
 
+  submissions SafetyFormSubmission[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isActive])
   @@index([name])
   @@index([sortOrder])
+}
+
+model SafetyFormSubmission {
+  id String @id @default(cuid())
+
+  templateId String?
+  template   SafetyFormTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  title                String
+  formDate             DateTime?
+  valuesJson           String
+  templateSnapshotJson String?
+  createdByName        String?
+  completedAt          DateTime?
+  completedByName      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([projectId])
+  @@index([formDate])
+  @@index([completedAt])
 }
 
 model SafetyInstructionTemplate {
