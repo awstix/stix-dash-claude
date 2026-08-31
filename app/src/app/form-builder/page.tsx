@@ -42,27 +42,18 @@ export default async function UniversalFormBuilderPage({
 
   const [projectTemplates, workshopTemplates, safetyTemplates] =
     await Promise.all([
-      prisma.$queryRawUnsafe<TemplateRow[]>(
-        `SELECT id, name, category, description, fieldsJson, emailRecipientsJson,
-                paperSize, paperOrientation, sortOrder
-         FROM ProjectFormTemplate
-         WHERE isActive = 1
-         ORDER BY sortOrder ASC, name ASC`,
-      ),
-      prisma.$queryRawUnsafe<TemplateRow[]>(
-        `SELECT id, name, category, description, fieldsJson, emailRecipientsJson,
-                paperSize, paperOrientation, sortOrder
-         FROM WorkshopFormTemplate
-         WHERE isActive = 1
-         ORDER BY sortOrder ASC, name ASC`,
-      ),
-      prisma.$queryRawUnsafe<TemplateRow[]>(
-        `SELECT id, name, category, description, fieldsJson, emailRecipientsJson,
-                paperSize, paperOrientation, sortOrder
-         FROM SafetyFormTemplate
-         WHERE isActive = 1
-         ORDER BY sortOrder ASC, name ASC`,
-      ),
+      prisma.projectFormTemplate.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.workshopFormTemplate.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.safetyFormTemplate.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
     ]);
 
   const templates: UniversalFormTemplate[] = [

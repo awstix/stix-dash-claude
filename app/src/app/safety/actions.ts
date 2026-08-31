@@ -237,40 +237,23 @@ export async function saveSafetyFormTemplate(input: SafetyFormTemplateInput) {
   };
 
   if (input.id) {
-    await prisma.$executeRawUnsafe(
-      `UPDATE SafetyFormTemplate
-       SET name = ?, category = ?, description = ?, emailRecipientsJson = ?,
-           fieldsJson = ?, paperOrientation = ?, paperSize = ?, updatedAt = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      data.name,
-      data.category,
-      data.description,
-      data.emailRecipientsJson,
-      data.fieldsJson,
-      data.paperOrientation,
-      data.paperSize,
-      input.id,
-    );
+    await prisma.safetyFormTemplate.update({
+      data,
+      where: { id: input.id },
+    });
   } else {
-    const maxRows = await prisma.$queryRawUnsafe<
-      Array<{ maxSortOrder: number | null }>
-    >(`SELECT MAX(sortOrder) AS maxSortOrder FROM SafetyFormTemplate`);
+    const maxSortOrder = await prisma.safetyFormTemplate.aggregate({
+      _max: { sortOrder: true },
+    });
 
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO SafetyFormTemplate
-       (id, name, category, description, emailRecipientsJson, fieldsJson,
-        isActive, sortOrder, paperSize, paperOrientation, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      randomUUID(),
-      data.name,
-      data.category,
-      data.description,
-      data.emailRecipientsJson,
-      data.fieldsJson,
-      (maxRows[0]?.maxSortOrder ?? 0) + 10,
-      data.paperSize,
-      data.paperOrientation,
-    );
+    await prisma.safetyFormTemplate.create({
+      data: {
+        ...data,
+        id: randomUUID(),
+        isActive: true,
+        sortOrder: (maxSortOrder._max.sortOrder ?? 0) + 10,
+      },
+    });
   }
 
   revalidatePath("/safety");
@@ -282,10 +265,7 @@ export async function deleteSafetyFormTemplate(id: string) {
   const templateId = cleanSafetyFormText(id, 100);
   if (!templateId) return;
 
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM SafetyFormTemplate WHERE id = ?`,
-    templateId,
-  );
+  await prisma.safetyFormTemplate.delete({ where: { id: templateId } });
 
   revalidatePath("/safety");
   revalidatePath("/safety/forms");

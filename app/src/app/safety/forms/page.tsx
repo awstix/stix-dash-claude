@@ -8,23 +8,10 @@ import {
 } from "@/app/projects/projectFormTypes";
 import { SafetyTemplateBuilder } from "./SafetyTemplateBuilder";
 
-type SafetyTemplateRow = {
-  category: string | null;
-  description: string | null;
-  emailRecipientsJson: string | null;
-  fieldsJson: string;
-  id: string;
-  name: string;
-  paperOrientation: string;
-  paperSize: string;
-};
-
 export default async function SafetyFormsPage() {
-  const templates = await prisma.$queryRawUnsafe<SafetyTemplateRow[]>(
-    `SELECT id, name, category, description, fieldsJson, emailRecipientsJson, paperSize, paperOrientation
-     FROM SafetyFormTemplate
-     ORDER BY sortOrder ASC, name ASC`,
-  );
+  const templates = await prisma.safetyFormTemplate.findMany({
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
 
   return (
     <AppShell
