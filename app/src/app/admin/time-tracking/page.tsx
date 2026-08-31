@@ -112,7 +112,7 @@ export default async function TimeTrackingSettingsPage() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900">Anrechnung Dispo-Kategorien</h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 break-words text-sm text-gray-600">
             Legt fest, wie viele Stunden pro Tag Krank/Schule/Innung/Schulung/Werkstatt/Mischanlage/
             Baustelle-Einträge aus der Mitarbeiterdisposition für die Zeitkonten-Berechnung (Monats-/
             Jahreskalender, Zeitkonten) zählen, sofern an dem Tag keine echten Ist-Stunden erfasst
