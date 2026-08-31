@@ -1,4 +1,5 @@
 import { ActionIcon } from "@/components/ActionIcon";
+import { FormSignaturePad } from "@/components/FormSignaturePad";
 import { FreeTextCombobox } from "@/components/FreeTextCombobox";
 import {
   getProjectFormPresetOptions,
@@ -316,6 +317,19 @@ function RepairCustomField({
         />
         {field.label}
       </label>
+    );
+  }
+
+  if (field.type === "signature") {
+    return (
+      <div style={style}>
+        <FormSignaturePad
+          label={field.label}
+          name={`custom:${field.id}`}
+          required={field.required}
+          value={typeof value === "string" ? value : ""}
+        />
+      </div>
     );
   }
 
