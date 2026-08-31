@@ -1172,8 +1172,8 @@ export default async function DriverVehiclesPage({
           </div>
         </div>
 
-        <div className="overflow-visible">
-          <table className="w-full table-fixed text-left text-xs">
+        <div className="overflow-x-auto md:overflow-visible">
+          <table className="w-full min-w-[900px] table-fixed text-left text-xs md:min-w-0">
             <colgroup>
               <col className="w-[7%]" />
               <col className="w-[19%]" />
