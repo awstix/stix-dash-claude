@@ -3,7 +3,15 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
-import { confirmMatch, createPositionFromLineItem, manualMatch, rejectMatch, runMatching } from "../actions";
+import {
+  adoptBestPricesForImport,
+  adoptPrice,
+  confirmMatch,
+  createPositionFromLineItem,
+  manualMatch,
+  rejectMatch,
+  runMatching,
+} from "../actions";
 import { MatchingThresholdInput } from "../MatchingThresholdInput";
 import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { formatLvSource } from "@/lib/kalkulation-format";
@@ -104,15 +112,27 @@ export default async function KalkulationImportReviewPage({
     description: row.rawText,
     unit: row.unit ?? "",
   }));
-  const crossLvMatchByLineItem = new Map<string, (typeof otherLvItems)[number] & { similarityScore: number }>();
+  type CrossLvMatch = (typeof otherLvItems)[number] & { similarityScore: number };
+  const crossLvMatchesByLineItem = new Map<string, CrossLvMatch[]>();
   if (otherLvCatalog.length > 0) {
     for (const item of lineItems) {
       if (item.entryType !== "ITEM") continue;
       const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
-      const [best] = buildShortlist(combinedText, otherLvCatalog, 1, lvImport.matchingThreshold);
-      if (!best) continue;
-      const source = otherLvItemsById.get(best.positionId);
-      if (source) crossLvMatchByLineItem.set(item.id, { ...source, similarityScore: best.similarityScore });
+      // Größere Kurzliste holen, dann je Quell-LV nur den besten Treffer
+      // behalten - sonst könnten alle 3 Plätze aus demselben LV stammen,
+      // wenn das viele ähnliche Positionen hat.
+      const candidates = buildShortlist(combinedText, otherLvCatalog, 15, lvImport.matchingThreshold);
+      const bestPerImport = new Map<string, CrossLvMatch>();
+      for (const candidate of candidates) {
+        const source = otherLvItemsById.get(candidate.positionId);
+        if (!source) continue;
+        const existing = bestPerImport.get(source.lvImportId);
+        if (!existing || candidate.similarityScore > existing.similarityScore) {
+          bestPerImport.set(source.lvImportId, { ...source, similarityScore: candidate.similarityScore });
+        }
+      }
+      const top3 = [...bestPerImport.values()].sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 3);
+      if (top3.length > 0) crossLvMatchesByLineItem.set(item.id, top3);
     }
   }
 
@@ -164,6 +184,25 @@ export default async function KalkulationImportReviewPage({
           Abgleich starten
         </button>
       </form>
+
+      <form action={adoptBestPricesForImport} className="mb-6">
+        <input name="importId" type="hidden" value={importId} />
+        <button
+          className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+          title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
+          type="submit"
+        >
+          Alle mit bestem Treffer vorkalkulieren
+        </button>
+      </form>
+
+      <a
+        className="mb-6 inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+        href={`/kalkulation/imports/${importId}/export`}
+        title="Exportiert dieses LV als GAEB (X83) mit den aktuell hinterlegten Einheitspreisen - z.B. zum Weiterverarbeiten in iTWO"
+      >
+        Als GAEB exportieren ↓
+      </a>
 
       {relatedImports.length > 0 ? (
         <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
@@ -232,22 +271,34 @@ export default async function KalkulationImportReviewPage({
                   <td className="p-3 whitespace-nowrap">{item.unit ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{formatCents(item.unitPriceCents)}</td>
                   <td className="p-3">
-                    {(() => {
-                      const cross = crossLvMatchByLineItem.get(item.id);
-                      if (!cross) return <span className="text-gray-400">–</span>;
-                      return (
-                        <div>
-                          <div className="font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
-                          <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
-                          <div className="mt-1 text-xs font-semibold text-green-800">
-                            {formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
-                            {cross.lvImport.lvDate
-                              ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
-                              : ""}
+                    {(crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
+                      <span className="text-gray-400">–</span>
+                    ) : (
+                      <div className="space-y-2">
+                        {(crossLvMatchesByLineItem.get(item.id) ?? []).map((cross) => (
+                          <div className="border-b border-gray-100 pb-2 last:border-0 last:pb-0" key={cross.id}>
+                            <div className="font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
+                            <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
+                            <div className="mt-1 text-xs font-semibold text-green-800">
+                              {formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
+                              {cross.lvImport.lvDate
+                                ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
+                                : ""}
+                            </div>
+                            {cross.unitPriceCents != null ? (
+                              <form action={adoptPrice}>
+                                <input name="lineItemId" type="hidden" value={item.id} />
+                                <input name="unitPriceCents" type="hidden" value={cross.unitPriceCents} />
+                                <input name="quantity" type="hidden" value={item.quantity ?? ""} />
+                                <button className="mt-1 text-xs font-bold text-blue-700 underline" type="submit">
+                                  Preis übernehmen
+                                </button>
+                              </form>
+                            ) : null}
                           </div>
-                        </div>
-                      );
-                    })()}
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">
                     {item.matchedPosition ? (
@@ -262,11 +313,23 @@ export default async function KalkulationImportReviewPage({
                           <div className="text-xs text-gray-500">{item.matchReasoning}</div>
                         ) : null}
                         {(priceHistoryByPosition.get(item.matchedPosition.id) ?? []).map((history) => (
-                          <div className="mt-1 text-xs font-semibold text-green-800" key={history.id}>
-                            {formatCents(history.unitPriceCents)} · {formatLvSource(history.lvImport)}
-                            {history.lvImport.lvDate
-                              ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(history.lvImport.lvDate)})`
-                              : ""}
+                          <div className="mt-1" key={history.id}>
+                            <div className="text-xs font-semibold text-green-800">
+                              {formatCents(history.unitPriceCents)} · {formatLvSource(history.lvImport)}
+                              {history.lvImport.lvDate
+                                ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(history.lvImport.lvDate)})`
+                                : ""}
+                            </div>
+                            {history.unitPriceCents != null ? (
+                              <form action={adoptPrice}>
+                                <input name="lineItemId" type="hidden" value={item.id} />
+                                <input name="unitPriceCents" type="hidden" value={history.unitPriceCents} />
+                                <input name="quantity" type="hidden" value={item.quantity ?? ""} />
+                                <button className="text-xs font-bold text-blue-700 underline" type="submit">
+                                  Preis übernehmen
+                                </button>
+                              </form>
+                            ) : null}
                           </div>
                         ))}
                       </div>

@@ -426,3 +426,106 @@ export async function deleteImport(formData: FormData) {
   revalidatePath("/kalkulation/imports");
   redirect("/kalkulation/imports");
 }
+
+/** Übernimmt einen Einheitspreis (aus dem Katalog-Vorschlag oder einem
+ * ähnlichen LV) direkt in DIESE LV-Zeile - macht das LV selbst
+ * "vorkalkuliert", ohne dass dafür erst eine Katalogzuordnung bestätigt
+ * werden muss. Die eigentliche Zuordnung (matchStatus/matchedPositionId)
+ * bleibt davon unberührt. */
+export async function adoptPrice(formData: FormData) {
+  await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  const unitPriceCentsRaw = text(formData.get("unitPriceCents"));
+  if (!lineItemId || !unitPriceCentsRaw) throw new Error("Preis fehlt.");
+  const unitPriceCents = Number.parseInt(unitPriceCentsRaw, 10);
+
+  const current = await prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: lineItemId } });
+  const totalPriceCents = current.quantity != null ? Math.round(unitPriceCents * current.quantity) : null;
+
+  const lineItem = await prisma.kalkulationLvLineItem.update({
+    where: { id: lineItemId },
+    data: { totalPriceCents, unitPriceCents },
+  });
+
+  revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
+}
+
+/** Bulk-Variante von adoptPrice: übernimmt für JEDE noch ungepreiste
+ * Position dieses LVs automatisch den besten verfügbaren Preis - erst aus
+ * bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in
+ * einem anderen LV (gleiche Genauigkeits-Schwelle wie beim Abgleich). */
+export async function adoptBestPricesForImport(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+
+  const lvImport = await prisma.kalkulationLvImport.findUniqueOrThrow({ where: { id: importId } });
+
+  const unpriced = await prisma.kalkulationLvLineItem.findMany({
+    where: { entryType: "ITEM", lvImportId: importId, unitPriceCents: null },
+  });
+  if (unpriced.length === 0) {
+    revalidatePath(`/kalkulation/imports/${importId}`);
+    return;
+  }
+
+  const matchedPositionIds = [
+    ...new Set(unpriced.map((item) => item.matchedPositionId).filter((id): id is string => Boolean(id))),
+  ];
+  const catalogHistory = matchedPositionIds.length
+    ? await prisma.kalkulationLvLineItem.findMany({
+        where: { matchedPositionId: { in: matchedPositionIds }, matchStatus: "CONFIRMED", lvImportId: { not: importId } },
+        orderBy: { lvImport: { lvDate: "desc" } },
+      })
+    : [];
+  const bestCatalogPriceByPosition = new Map<string, number>();
+  for (const row of catalogHistory) {
+    if (!row.matchedPositionId || row.unitPriceCents == null) continue;
+    if (!bestCatalogPriceByPosition.has(row.matchedPositionId)) {
+      bestCatalogPriceByPosition.set(row.matchedPositionId, row.unitPriceCents);
+    }
+  }
+
+  const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
+    where: { entryType: "ITEM", lvImportId: { not: importId } },
+    take: 3000,
+    orderBy: { createdAt: "desc" },
+  });
+  const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
+    id: row.id,
+    code: row.positionNumber,
+    title: row.shortText ?? row.rawText.slice(0, 100),
+    description: row.rawText,
+    unit: row.unit ?? "",
+  }));
+  const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
+
+  for (const item of unpriced) {
+    let unitPriceCents: number | null = null;
+
+    if (item.matchedPositionId) {
+      unitPriceCents = bestCatalogPriceByPosition.get(item.matchedPositionId) ?? null;
+    }
+
+    if (unitPriceCents == null && otherLvCatalog.length > 0) {
+      const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
+      const [best] = buildShortlist(combinedText, otherLvCatalog, 1, lvImport.matchingThreshold);
+      if (best) {
+        const source = otherLvItemsById.get(best.positionId);
+        if (source?.unitPriceCents != null) unitPriceCents = source.unitPriceCents;
+      }
+    }
+
+    if (unitPriceCents == null) continue;
+
+    await prisma.kalkulationLvLineItem.update({
+      where: { id: item.id },
+      data: {
+        totalPriceCents: item.quantity != null ? Math.round(unitPriceCents * item.quantity) : null,
+        unitPriceCents,
+      },
+    });
+  }
+
+  revalidatePath(`/kalkulation/imports/${importId}`);
+}
