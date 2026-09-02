@@ -7,13 +7,21 @@ import { XMLParser } from "fast-xml-parser";
  * (Award/BoQ/BoQBody/BoQCtgy/Item/Description/Qty/QU/UP/IT) ist über
  * GAEB-Versionen hinweg stabil, Detailabweichungen bei Tag-Namen sind
  * möglich - deshalb wird hier bewusst generisch/rekursiv statt über einen
- * starren Pfad gesucht. Sollte an einer echten Beispieldatei nachjustiert
- * werden, sobald eine vorliegt (siehe Plan-Verifikation). */
+ * starren Pfad gesucht.
+ *
+ * Die BoQCtgy-Hierarchie wird als geordnete Liste aus TITLE- (LblTx eines
+ * BoQCtgy bzw. PerfLbl eines PerfDescr), REMARK- (Remark-Elemente,
+ * Vorbemerkungen) und ITEM-Einträgen (die eigentlichen Positionen)
+ * zurückgegeben - in Dokumentreihenfolge, damit die Review-Ansicht die LV-
+ * Gliederung nachbilden kann statt nur eine flache Positionsliste zu
+ * zeigen. */
 
 export type GaebDocType = "81" | "83" | "84" | null;
 
-export type GaebLineItem = {
+export type GaebEntry = {
+  entryType: "ITEM" | "TITLE" | "REMARK";
   positionNumber: string | null;
+  shortText: string | null;
   rawText: string;
   unit: string | null;
   quantity: number | null;
@@ -26,13 +34,15 @@ export type ParsedGaeb = {
   isPriced: boolean;
   tenderTitle: string | null;
   customerName: string | null;
-  lineItems: GaebLineItem[];
+  entries: GaebEntry[];
 };
 
 const REPEATING_TAGS = new Set([
   "BoQCtgy",
   "Item",
   "Itemlist",
+  "Remark",
+  "PerfDescr",
   "TextOutlTx",
   "TextComplTx",
   "p",
@@ -61,6 +71,11 @@ export function docTypeFromFileName(fileName: string): GaebDocType {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asArray<T>(value: T | T[] | undefined | null): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 const BINARY_TAG_NAMES = new Set(["image", "bitmap", "picture", "ole", "attachment", "graphic"]);
@@ -96,6 +111,34 @@ function collectText(node: unknown, out: string[] = []): string[] {
     }
   }
   return out;
+}
+
+function textOf(node: unknown): string {
+  return collectText(node).join(" ").trim();
+}
+
+/** Zieht Kurztext (OutlineText) und Langtext (DetailTxt) getrennt aus einem
+ * `<Description>`-Knoten - beide Zweige können je nach Version
+ * unterschiedlich tief verschachtelt sein, deshalb wird jeweils generisch
+ * unter dem passenden Ast gesammelt statt über einen starren Pfad. */
+function extractShortAndLongText(description: unknown): { shortText: string | null; longText: string } {
+  if (!isPlainObject(description)) return { shortText: null, longText: "" };
+  const completeText = description["CompleteText"];
+  const source = isPlainObject(completeText) ? completeText : description;
+
+  const detail = isPlainObject(source) ? source["DetailTxt"] : null;
+  const outline = isPlainObject(source) ? source["OutlineText"] : null;
+
+  const longText = detail != null ? textOf(detail) : "";
+  const shortText = outline != null ? textOf(outline) : "";
+
+  if (longText || shortText) {
+    return { shortText: shortText || null, longText: longText || shortText };
+  }
+
+  // Unbekannte Struktur - alles zusammen als Langtext übernehmen, besser
+  // als eine leere Position.
+  return { shortText: null, longText: textOf(description) };
 }
 
 function parseGermanNumber(value: unknown): number | null {
@@ -135,29 +178,6 @@ function extractPositionNumber(item: Record<string, unknown>): string | null {
   return null;
 }
 
-/** Läuft den BoQ-Baum rekursiv ab und sammelt jeden gefundenen `Item`-Knoten
- * ein (unabhängig davon, unter wie vielen `BoQCtgy`-Titelebenen er liegt). */
-function collectItems(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
-  if (Array.isArray(node)) {
-    for (const entry of node) collectItems(entry, out);
-    return out;
-  }
-  if (!isPlainObject(node)) return out;
-
-  if (Array.isArray(node["Item"])) {
-    for (const item of node["Item"] as unknown[]) {
-      if (isPlainObject(item)) out.push(item);
-    }
-  }
-
-  for (const [key, value] of Object.entries(node)) {
-    if (key === "Item") continue;
-    collectItems(value, out);
-  }
-
-  return out;
-}
-
 function findFirst(node: unknown, tagNames: string[]): unknown {
   if (!isPlainObject(node) && !Array.isArray(node)) return null;
   if (Array.isArray(node)) {
@@ -177,12 +197,108 @@ function findFirst(node: unknown, tagNames: string[]): unknown {
   return null;
 }
 
+function buildItemEntry(item: Record<string, unknown>, onPriceFound: () => void): GaebEntry {
+  const { shortText, longText } = extractShortAndLongText(item["Description"]);
+
+  const unit = item["QU"] != null ? String(item["QU"]).trim() : null;
+  const quantity = parseGermanNumber(item["Qty"]);
+  const unitPriceCents = toCents(item["UP"]);
+  const totalPriceCents = toCents(item["IT"]);
+
+  if (unitPriceCents != null && unitPriceCents > 0) onPriceFound();
+
+  return {
+    entryType: "ITEM",
+    positionNumber: extractPositionNumber(item),
+    shortText,
+    rawText: longText,
+    unit,
+    quantity,
+    unitPriceCents,
+    totalPriceCents,
+  };
+}
+
+/** Läuft die BoQCtgy-Hierarchie in Dokumentreihenfolge ab und sammelt
+ * TITLE-, REMARK- und ITEM-Einträge - rekursiv über verschachtelte
+ * Unter-Titel hinweg. */
+function walkCategory(ctgy: unknown, entries: GaebEntry[], onPriceFound: () => void) {
+  if (!isPlainObject(ctgy)) return;
+
+  const label = textOf(ctgy["LblTx"]);
+  if (label) {
+    entries.push({
+      entryType: "TITLE",
+      positionNumber: null,
+      shortText: null,
+      rawText: label,
+      unit: null,
+      quantity: null,
+      unitPriceCents: null,
+      totalPriceCents: null,
+    });
+  }
+
+  const body = ctgy["BoQBody"];
+  if (!isPlainObject(body)) return;
+
+  for (const child of asArray(body["BoQCtgy"])) {
+    walkCategory(child, entries, onPriceFound);
+  }
+
+  // "Itemlist" ist selbst über REPEATING_TAGS zu einem Array gezwungen
+  // (auch wenn pro Kategorie normalerweise nur eine vorkommt) - deshalb
+  // hier iterieren statt direkt als Objekt zu behandeln.
+  for (const itemlist of asArray(body["Itemlist"])) {
+    if (!isPlainObject(itemlist)) continue;
+
+    for (const remark of asArray(itemlist["Remark"])) {
+      if (!isPlainObject(remark)) continue;
+      const text = textOf(remark["Description"]);
+      if (text) {
+        entries.push({
+          entryType: "REMARK",
+          positionNumber: null,
+          shortText: null,
+          rawText: text,
+          unit: null,
+          quantity: null,
+          unitPriceCents: null,
+          totalPriceCents: null,
+        });
+      }
+    }
+
+    for (const perfDescr of asArray(itemlist["PerfDescr"])) {
+      if (!isPlainObject(perfDescr)) continue;
+      const label = textOf(perfDescr["PerfLbl"]);
+      if (label) {
+        entries.push({
+          entryType: "TITLE",
+          positionNumber: null,
+          shortText: null,
+          rawText: label,
+          unit: null,
+          quantity: null,
+          unitPriceCents: null,
+          totalPriceCents: null,
+        });
+      }
+    }
+
+    for (const item of asArray(itemlist["Item"])) {
+      if (!isPlainObject(item)) continue;
+      entries.push(buildItemEntry(item, onPriceFound));
+    }
+  }
+}
+
 export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
   const xml = buffer.toString("utf8");
 
   // Das alte GAEB-90-Format (feste Satzlänge, kein XML - z.B. Zeilen wie
-  // "T1Ausschreibungs- und Vertragsunterlagen ... 000003") wird hier
-  // (noch) nicht unterstützt. Ohne diese Prüfung würde der XML-Parser mit
+  // "T1Ausschreibungs- und Vertragsunterlagen ... 000003") wird separat in
+  // gaeb90-parser.ts behandelt. Ohne diese Prüfung würde der XML-Parser mit
   // einer kryptischen Fehlermeldung mittendrin abbrechen statt klar zu sagen,
   // woran es liegt.
   if (!/^﻿?\s*<\?xml|^﻿?\s*<GAEB/i.test(xml)) {
@@ -199,29 +315,18 @@ export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
   const tenderTitleRaw = findFirst(root, ["LblPrj", "Prj"]);
   const customerNameRaw = findFirst(root, ["NamePrj", "AwardName", "Name"]);
 
-  const rawItems = collectItems(root);
-
+  const entries: GaebEntry[] = [];
   let anyPriceFound = false;
-  const lineItems: GaebLineItem[] = rawItems.map((item) => {
-    const description = item["Description"];
-    const rawText = collectText(description).join(" ").trim() || collectText(item).join(" ").trim();
+  const markPriceFound = () => {
+    anyPriceFound = true;
+  };
 
-    const unit = item["QU"] != null ? String(item["QU"]).trim() : null;
-    const quantity = parseGermanNumber(item["Qty"]);
-    const unitPriceCents = toCents(item["UP"]);
-    const totalPriceCents = toCents(item["IT"]);
-
-    if (unitPriceCents != null && unitPriceCents > 0) anyPriceFound = true;
-
-    return {
-      positionNumber: extractPositionNumber(item),
-      rawText,
-      unit,
-      quantity,
-      unitPriceCents,
-      totalPriceCents,
-    };
-  });
+  const award = findFirst(root, ["Award"]);
+  const boQ = isPlainObject(award) ? award["BoQ"] : null;
+  const boQBody = isPlainObject(boQ) ? boQ["BoQBody"] : null;
+  for (const topCtgy of asArray(isPlainObject(boQBody) ? boQBody["BoQCtgy"] : null)) {
+    walkCategory(topCtgy, entries, markPriceFound);
+  }
 
   // Der Dateityp (X81/X83/X84) ist nur ein Hinweis, kein Beweis: in der
   // Praxis werden Ausschreibungs-LVs teils als "X83"-Datei mit komplett
@@ -233,8 +338,8 @@ export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
   return {
     docType,
     isPriced,
-    tenderTitle: tenderTitleRaw != null ? String(collectText(tenderTitleRaw).join(" ")).trim() || null : null,
-    customerName: customerNameRaw != null ? String(collectText(customerNameRaw).join(" ")).trim() || null : null,
-    lineItems,
+    tenderTitle: tenderTitleRaw != null ? textOf(tenderTitleRaw) || null : null,
+    customerName: customerNameRaw != null ? textOf(customerNameRaw) || null : null,
+    entries,
   };
 }

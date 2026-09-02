@@ -14,6 +14,14 @@ const LV_TYPE_LABELS: Record<string, string> = {
   AUSSCHREIBUNG: "Ausschreibung (ungepreist)",
 };
 
+const SOURCE_FORMAT_LABELS: Record<string, string> = {
+  GAEB_XML: "GAEB",
+  GAEB90: "GAEB (alt)",
+  EXCEL: "Excel",
+};
+
+const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
+
 export default async function KalkulationImportsPage({
   searchParams,
 }: {
@@ -67,6 +75,16 @@ export default async function KalkulationImportsPage({
           (Spalten: Position, Text, Einheit, Menge, Einheitspreis).
         </p>
         <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-semibold text-gray-900">
+              Projektnummer (optional)
+              <input className={inputClass} name="projectNumber" />
+            </label>
+            <label className="block text-sm font-semibold text-gray-900">
+              Projektname (optional)
+              <input className={inputClass} name="tenderTitle" placeholder="wird sonst aus der Datei übernommen, falls vorhanden" />
+            </label>
+          </div>
           <ProjectFileDropInput
             accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
             emptyLabel="Datei hierher ziehen oder klicken"
@@ -88,9 +106,10 @@ export default async function KalkulationImportsPage({
           <thead className="bg-gray-50 text-gray-700">
             <tr>
               <th className="p-3">Datei</th>
+              <th className="p-3">Projekt</th>
               <th className="p-3">Typ</th>
               <th className="p-3">Format</th>
-              <th className="p-3">Zeilen</th>
+              <th className="p-3">Positionen</th>
               <th className="p-3">Abgleich</th>
               <th className="p-3">Status</th>
             </tr>
@@ -103,8 +122,12 @@ export default async function KalkulationImportsPage({
                     {lvImport.fileName}
                   </Link>
                 </td>
+                <td className="p-3">
+                  {lvImport.projectNumber ? `${lvImport.projectNumber} ` : ""}
+                  {lvImport.tenderTitle ?? (lvImport.projectNumber ? "" : "–")}
+                </td>
                 <td className="p-3">{LV_TYPE_LABELS[lvImport.lvType] ?? lvImport.lvType}</td>
-                <td className="p-3">{lvImport.sourceFormat === "GAEB_XML" ? "GAEB" : "Excel"}</td>
+                <td className="p-3">{SOURCE_FORMAT_LABELS[lvImport.sourceFormat] ?? lvImport.sourceFormat}</td>
                 <td className="p-3">{lvImport.rowCount}</td>
                 <td className="p-3">
                   {lvImport.matchedCount} zugeordnet
@@ -115,7 +138,7 @@ export default async function KalkulationImportsPage({
             ))}
             {imports.length === 0 ? (
               <tr>
-                <td className="p-6 text-center text-gray-500" colSpan={6}>
+                <td className="p-6 text-center text-gray-500" colSpan={7}>
                   Noch keine LVs importiert.
                 </td>
               </tr>

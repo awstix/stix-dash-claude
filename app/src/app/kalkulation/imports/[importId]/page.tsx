@@ -43,10 +43,11 @@ export default async function KalkulationImportReviewPage({
   if (!lvImport) notFound();
 
   const aiConfigured = isAiConfigured(aiSettings);
+  const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
 
   return (
     <AppShell
-      description={lvImport.fileName}
+      description={projectLabel ? `${lvImport.fileName} · ${projectLabel}` : lvImport.fileName}
       title="LV-Abgleich"
     >
       <div className="mb-6 flex flex-wrap items-center gap-3">
@@ -80,12 +81,14 @@ export default async function KalkulationImportReviewPage({
       </div>
 
       <section className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <table className="w-full min-w-[900px] text-left text-sm">
+        <table className="w-full min-w-[1100px] text-left text-sm">
           <thead className="bg-gray-50 text-gray-700">
             <tr>
-              <th className="p-3">Pos.</th>
-              <th className="p-3">Text</th>
-              <th className="p-3">Menge/Einh.</th>
+              <th className="p-3">OZ</th>
+              <th className="p-3">Kurztext</th>
+              <th className="p-3">Langtext</th>
+              <th className="p-3">LV-Menge</th>
+              <th className="p-3">Mengeneinheit</th>
               <th className="p-3">EP</th>
               <th className="p-3">Vorschlag</th>
               <th className="p-3">Status</th>
@@ -94,14 +97,35 @@ export default async function KalkulationImportReviewPage({
           </thead>
           <tbody>
             {lineItems.map((item) => {
+              if (item.entryType === "TITLE") {
+                return (
+                  <tr key={item.id}>
+                    <td className="bg-gray-900 p-3 font-bold text-white" colSpan={9}>
+                      {item.rawText}
+                    </td>
+                  </tr>
+                );
+              }
+
+              if (item.entryType === "REMARK") {
+                return (
+                  <tr key={item.id}>
+                    <td className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950" colSpan={9}>
+                      <span className="font-bold not-italic">Vorbemerkung: </span>
+                      {item.rawText}
+                    </td>
+                  </tr>
+                );
+              }
+
               const status = STATUS_LABELS[item.matchStatus] ?? STATUS_LABELS.PENDING;
               return (
                 <tr className="border-t border-gray-100 align-top" key={item.id}>
                   <td className="p-3 text-gray-500">{item.positionNumber ?? "–"}</td>
-                  <td className="p-3 max-w-sm">{item.rawText}</td>
-                  <td className="p-3 whitespace-nowrap">
-                    {item.quantity ?? "–"} {item.unit ?? ""}
-                  </td>
+                  <td className="p-3 max-w-xs font-semibold text-gray-900">{item.shortText ?? "–"}</td>
+                  <td className="p-3 max-w-sm text-gray-700">{item.rawText}</td>
+                  <td className="p-3 whitespace-nowrap">{item.quantity ?? "–"}</td>
+                  <td className="p-3 whitespace-nowrap">{item.unit ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{formatCents(item.unitPriceCents)}</td>
                   <td className="p-3">
                     {item.matchedPosition ? (

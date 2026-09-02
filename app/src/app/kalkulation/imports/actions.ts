@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/auth-access";
 import { putFile } from "@/lib/storage";
 import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/import-value-parsing";
 import { parseGaebXml } from "@/lib/gaeb-parser";
+import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
@@ -16,8 +17,10 @@ const STORAGE_BUCKET = "uploads";
 const GAEB_EXTENSIONS = /\.(x81|x83|x84|d81|d83|d84)$/i;
 
 type ParsedRow = {
-  rawText: string;
+  entryType: "ITEM" | "TITLE" | "REMARK";
   positionNumber: string | null;
+  shortText: string | null;
+  rawText: string;
   unit: string | null;
   quantity: number | null;
   unitPriceCents: number | null;
@@ -31,14 +34,17 @@ function parseExcel(buffer: Buffer): ParsedRow[] {
 
   return rows
     .map((row): ParsedRow | null => {
-      const rawText = text(rowValue(row, "Text", "Beschreibung", "Kurztext", "Langtext"));
+      const shortText = text(rowValue(row, "Kurztext"));
+      const rawText = text(rowValue(row, "Langtext", "Text", "Beschreibung")) ?? shortText;
       if (!rawText) return null;
 
       return {
+        entryType: "ITEM",
+        positionNumber: text(rowValue(row, "OZ", "Position", "Positionsnummer", "Pos.", "Pos")),
+        shortText,
         rawText,
-        positionNumber: text(rowValue(row, "Position", "Positionsnummer", "Pos.", "Pos")),
-        unit: text(rowValue(row, "Einheit", "EH", "ME")),
-        quantity: floatValue(rowValue(row, "Menge", "Anzahl")),
+        unit: text(rowValue(row, "Mengeneinheit", "Einheit", "EH", "ME")),
+        quantity: floatValue(rowValue(row, "LV-Menge", "Menge", "Anzahl")),
         unitPriceCents: moneyCents(rowValue(row, "Einheitspreis", "EP")),
         totalPriceCents: moneyCents(rowValue(row, "Gesamtpreis", "GP")),
       };
@@ -50,6 +56,8 @@ export async function importLv(formData: FormData) {
   const session = await requireSession();
   const importRunId = text(formData.get("importRunId"));
   const file = formData.get("file");
+  const projectNumberInput = text(formData.get("projectNumber"));
+  const tenderTitleInput = text(formData.get("tenderTitle"));
 
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Bitte eine GAEB- oder Excel-Datei auswählen.");
@@ -62,13 +70,22 @@ export async function importLv(formData: FormData) {
   let sourceFormat: string;
   let gaebDocType: string | null = null;
   let lvType = "ANGEBOT";
+  let extractedTenderTitle: string | null = null;
+  let extractedCustomerName: string | null = null;
 
   try {
-    if (isGaeb) {
+    if (isGaeb && !looksLikeGaeb90(buffer)) {
       const parsed = parseGaebXml(buffer, file.name);
-      rows = parsed.lineItems;
+      rows = parsed.entries;
       sourceFormat = "GAEB_XML";
       gaebDocType = parsed.docType;
+      lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
+      extractedTenderTitle = parsed.tenderTitle;
+      extractedCustomerName = parsed.customerName;
+    } else if (isGaeb) {
+      const parsed = parseGaeb90(buffer);
+      rows = parsed.entries;
+      sourceFormat = "GAEB90";
       lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
     } else {
       rows = parseExcel(buffer);
@@ -80,7 +97,8 @@ export async function importLv(formData: FormData) {
     redirect(`/kalkulation/imports?importError=${encodeURIComponent(message)}`);
   }
 
-  if (rows.length === 0) {
+  const itemRows = rows.filter((row) => row.entryType === "ITEM");
+  if (itemRows.length === 0) {
     redirect(
       `/kalkulation/imports?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
     );
@@ -106,25 +124,30 @@ export async function importLv(formData: FormData) {
 
   const lvImport = await prisma.kalkulationLvImport.create({
     data: {
+      customerName: extractedCustomerName,
       fileName: file.name,
       gaebDocType,
       importedByUserId: session.user.id,
       lvType,
       originalStoragePath,
-      rowCount: rows.length,
+      projectNumber: projectNumberInput || null,
+      rowCount: itemRows.length,
       sourceFormat,
       status: "IMPORTED",
+      tenderTitle: tenderTitleInput || extractedTenderTitle,
     },
   });
 
   await prisma.kalkulationLvLineItem.createMany({
     data: rows.map((row, index) => ({
+      entryType: row.entryType,
       lvImportId: lvImport.id,
-      normalizedText: normalizeText(row.rawText),
+      normalizedText: normalizeText(`${row.shortText ?? ""} ${row.rawText}`),
       positionNumber: row.positionNumber,
       quantity: row.quantity,
       rawText: row.rawText,
       rowNumber: index + 1,
+      shortText: row.shortText,
       totalPriceCents: row.totalPriceCents,
       unit: row.unit,
       unitPriceCents: row.unitPriceCents,
@@ -158,7 +181,7 @@ export async function runMatching(formData: FormData) {
 
   const [lineItems, catalog] = await Promise.all([
     prisma.kalkulationLvLineItem.findMany({
-      where: { lvImportId: importId, matchStatus: { in: ["PENDING", "REJECTED"] } },
+      where: { entryType: "ITEM", lvImportId: importId, matchStatus: { in: ["PENDING", "REJECTED"] } },
     }),
     prisma.kalkulationPosition.findMany({ where: { isActive: true } }),
   ]);
@@ -189,12 +212,13 @@ export async function runMatching(formData: FormData) {
       continue;
     }
 
-    const shortlist = buildShortlist(lineItem.rawText, catalogForMatching, aiSettings.maxCandidates);
+    const combinedText = `${lineItem.shortText ?? ""} ${lineItem.rawText}`.trim();
+    const shortlist = buildShortlist(combinedText, catalogForMatching, aiSettings.maxCandidates);
     pendingForAi.push({
       candidates: shortlist,
       lineItemId: lineItem.id,
       quantity: lineItem.quantity,
-      rawText: lineItem.rawText,
+      rawText: combinedText,
       unit: lineItem.unit,
     });
   }
@@ -349,7 +373,8 @@ export async function createPositionFromLineItem(formData: FormData) {
 
   const position = await prisma.kalkulationPosition.create({
     data: {
-      title: lineItem.rawText.slice(0, 200),
+      description: lineItem.rawText.slice(0, 2000),
+      title: (lineItem.shortText || lineItem.rawText).slice(0, 200),
       unit: lineItem.unit ?? "Stk",
     },
   });

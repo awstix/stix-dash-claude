@@ -3709,12 +3709,13 @@ model KalkulationLvImport {
   projectId           String?
   project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  sourceFormat String    @default("EXCEL") // GAEB_XML | EXCEL
-  gaebDocType  String? // z.B. "81" (LV ohne Preise) | "83" (Angebot mit Preisen) | "84" (Auftrag)
-  lvType       String    @default("ANGEBOT") // AUSSCHREIBUNG | ANGEBOT | AUFTRAG
-  customerName String?
-  tenderTitle  String?
-  lvDate       DateTime?
+  sourceFormat  String    @default("EXCEL") // GAEB_XML | EXCEL | GAEB90
+  gaebDocType   String? // z.B. "81" (LV ohne Preise) | "83" (Angebot mit Preisen) | "84" (Auftrag)
+  lvType        String    @default("ANGEBOT") // AUSSCHREIBUNG | ANGEBOT | AUFTRAG
+  projectNumber String? // frei eingetragen beim Import, nicht zwingend an einen internen Project-Datensatz gekoppelt
+  customerName  String?
+  tenderTitle   String? // Projektname/Bauvorhaben
+  lvDate        DateTime?
 
   status            String    @default("IMPORTED") // IMPORTED -> MATCHING -> REVIEWED
   matchingProvider  String?
@@ -3743,8 +3744,10 @@ model KalkulationLvLineItem {
   lvImport   KalkulationLvImport @relation(fields: [lvImportId], references: [id], onDelete: Cascade)
 
   rowNumber       Int
+  entryType       String  @default("ITEM") // ITEM | TITLE | REMARK - Titel-Überschriften und Vorbemerkungen aus dem LV, nicht abgleichbar
   positionNumber  String?
-  rawText         String
+  shortText       String? // Kurztext
+  rawText         String // Langtext (bei TITLE/REMARK: der jeweilige Überschrifts-/Hinweistext)
   normalizedText  String
   unit            String?
   quantity        Float?
