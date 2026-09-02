@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { CategorySelect } from "@/components/CategorySelect";
 import { prisma } from "@/lib/prisma";
 import { archivePosition, createCategory, createPosition } from "./actions";
+import { formatLvSource } from "@/lib/kalkulation-format";
 
 const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 
@@ -171,7 +172,7 @@ export default async function KalkulationKatalogPage({
                       : new Intl.DateTimeFormat("de-DE").format(entry.lvImport.createdAt)}
                   </td>
                   <td className="p-3">
-                    {entry.lvImport.fileName}
+                    {formatLvSource(entry.lvImport)}
                     {entry.lvImport.customerName ? ` (${entry.lvImport.customerName})` : ""}
                   </td>
                   <td className="p-3">{LV_TYPE_LABELS[entry.lvImport.lvType] ?? entry.lvImport.lvType}</td>

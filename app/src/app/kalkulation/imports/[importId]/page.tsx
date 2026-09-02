@@ -6,6 +6,7 @@ import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { confirmMatch, createPositionFromLineItem, manualMatch, rejectMatch, runMatching } from "../actions";
 import { MatchingThresholdInput } from "../MatchingThresholdInput";
 import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
+import { formatLvSource } from "@/lib/kalkulation-format";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   PENDING: { label: "Offen", className: "bg-gray-100 text-gray-700" },
@@ -239,7 +240,7 @@ export default async function KalkulationImportReviewPage({
                           <div className="font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
                           <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
                           <div className="mt-1 text-xs font-semibold text-green-800">
-                            {formatCents(cross.unitPriceCents)} · {cross.lvImport.fileName}
+                            {formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
                             {cross.lvImport.lvDate
                               ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
                               : ""}
@@ -262,7 +263,7 @@ export default async function KalkulationImportReviewPage({
                         ) : null}
                         {(priceHistoryByPosition.get(item.matchedPosition.id) ?? []).map((history) => (
                           <div className="mt-1 text-xs font-semibold text-green-800" key={history.id}>
-                            {formatCents(history.unitPriceCents)} · {history.lvImport.fileName}
+                            {formatCents(history.unitPriceCents)} · {formatLvSource(history.lvImport)}
                             {history.lvImport.lvDate
                               ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(history.lvImport.lvDate)})`
                               : ""}
