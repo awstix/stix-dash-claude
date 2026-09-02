@@ -3755,6 +3755,13 @@ model KalkulationLvLineItem {
   unitPriceCents  Int?
   totalPriceCents Int?
 
+  // Woher der aktuelle Einheitspreis übernommen wurde (falls per "Preis
+  // übernehmen"/Bulk-Vorkalkulation gesetzt) - bewusst kein FK auf
+  // KalkulationLvImport (dessen ID kann später gelöscht werden), nur zum
+  // Nachschlagen beim GAEB-Export für den Info-Hinweis.
+  priceSourceLvImportId String?
+  priceSourceSimilarity Float? // 0-1, 1 = exakte Katalog-Zuordnung, sonst Ähnlichkeitswert aus dem LV-Vergleich
+
   criticalTokensJson String?
 
   matchStatus       String               @default("PENDING") // PENDING|SUGGESTED|NEEDS_REVIEW|CONFIRMED|REJECTED|NO_MATCH

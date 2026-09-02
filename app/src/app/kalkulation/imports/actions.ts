@@ -438,13 +438,24 @@ export async function adoptPrice(formData: FormData) {
   const unitPriceCentsRaw = text(formData.get("unitPriceCents"));
   if (!lineItemId || !unitPriceCentsRaw) throw new Error("Preis fehlt.");
   const unitPriceCents = Number.parseInt(unitPriceCentsRaw, 10);
+  const sourceLvImportId = text(formData.get("sourceLvImportId"));
+  const similarityRaw = text(formData.get("similarityScore"));
+  // Katalog-Preishistorie liefert keinen Ähnlichkeitswert (exakte
+  // Zuordnung über dieselbe Katalogposition) - dafür 100% annehmen, damit
+  // der GAEB-Export-Hinweis konsistent eine Prozentzahl zeigt.
+  const similarityScore = similarityRaw ? Number.parseFloat(similarityRaw) : 1;
 
   const current = await prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: lineItemId } });
   const totalPriceCents = current.quantity != null ? Math.round(unitPriceCents * current.quantity) : null;
 
   const lineItem = await prisma.kalkulationLvLineItem.update({
     where: { id: lineItemId },
-    data: { totalPriceCents, unitPriceCents },
+    data: {
+      priceSourceLvImportId: sourceLvImportId || null,
+      priceSourceSimilarity: sourceLvImportId ? similarityScore : null,
+      totalPriceCents,
+      unitPriceCents,
+    },
   });
 
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
@@ -478,11 +489,14 @@ export async function adoptBestPricesForImport(formData: FormData) {
         orderBy: { lvImport: { lvDate: "desc" } },
       })
     : [];
-  const bestCatalogPriceByPosition = new Map<string, number>();
+  const bestCatalogPriceByPosition = new Map<string, { unitPriceCents: number; sourceLvImportId: string }>();
   for (const row of catalogHistory) {
     if (!row.matchedPositionId || row.unitPriceCents == null) continue;
     if (!bestCatalogPriceByPosition.has(row.matchedPositionId)) {
-      bestCatalogPriceByPosition.set(row.matchedPositionId, row.unitPriceCents);
+      bestCatalogPriceByPosition.set(row.matchedPositionId, {
+        sourceLvImportId: row.lvImportId,
+        unitPriceCents: row.unitPriceCents,
+      });
     }
   }
 
@@ -502,9 +516,15 @@ export async function adoptBestPricesForImport(formData: FormData) {
 
   for (const item of unpriced) {
     let unitPriceCents: number | null = null;
+    let sourceLvImportId: string | null = null;
+    let similarityScore = 1; // exakte Katalog-Zuordnung, sofern nicht unten überschrieben
 
     if (item.matchedPositionId) {
-      unitPriceCents = bestCatalogPriceByPosition.get(item.matchedPositionId) ?? null;
+      const catalogMatch = bestCatalogPriceByPosition.get(item.matchedPositionId);
+      if (catalogMatch) {
+        unitPriceCents = catalogMatch.unitPriceCents;
+        sourceLvImportId = catalogMatch.sourceLvImportId;
+      }
     }
 
     if (unitPriceCents == null && otherLvCatalog.length > 0) {
@@ -512,7 +532,11 @@ export async function adoptBestPricesForImport(formData: FormData) {
       const [best] = buildShortlist(combinedText, otherLvCatalog, 1, lvImport.matchingThreshold);
       if (best) {
         const source = otherLvItemsById.get(best.positionId);
-        if (source?.unitPriceCents != null) unitPriceCents = source.unitPriceCents;
+        if (source?.unitPriceCents != null) {
+          unitPriceCents = source.unitPriceCents;
+          sourceLvImportId = source.lvImportId;
+          similarityScore = best.similarityScore;
+        }
       }
     }
 
@@ -521,6 +545,8 @@ export async function adoptBestPricesForImport(formData: FormData) {
     await prisma.kalkulationLvLineItem.update({
       where: { id: item.id },
       data: {
+        priceSourceLvImportId: sourceLvImportId,
+        priceSourceSimilarity: sourceLvImportId ? similarityScore : null,
         totalPriceCents: item.quantity != null ? Math.round(unitPriceCents * item.quantity) : null,
         unitPriceCents,
       },

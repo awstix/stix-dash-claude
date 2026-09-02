@@ -14,6 +14,11 @@ export type GaebExportEntry = {
   quantity: number | null;
   unitPriceCents: number | null;
   totalPriceCents: number | null;
+  /** Herkunfts-Hinweis für übernommene Preise ("Info: aus Projekt ...
+   * importiert - Übereinstimmung XX%.") - landet als erster Absatz im
+   * Langtext, damit er beim Wiedereinlesen (z.B. in iTWO) direkt sichtbar
+   * ist, ohne die eigentliche Positionsbeschreibung zu verändern. */
+  infoLine?: string | null;
 };
 
 function escapeXml(value: string): string {
@@ -36,6 +41,7 @@ function itemXml(entry: GaebExportEntry, index: number): string {
   const it = entry.totalPriceCents != null ? formatGermanNumber(entry.totalPriceCents / 100, 2) : "";
   const shortText = entry.shortText ? escapeXml(entry.shortText) : "";
   const longText = escapeXml(entry.rawText);
+  const infoParagraph = entry.infoLine ? `<p>${escapeXml(entry.infoLine)}</p>\n                      ` : "";
 
   return `            <Item RNoPart="${escapeXml(oz)}">
               <Qty>${qty}</Qty>
@@ -46,7 +52,7 @@ function itemXml(entry: GaebExportEntry, index: number): string {
                 <CompleteText>
                   <DetailTxt>
                     <Text>
-                      <p>${longText}</p>
+                      ${infoParagraph}<p>${longText}</p>
                     </Text>
                   </DetailTxt>
                   ${

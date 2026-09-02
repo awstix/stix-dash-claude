@@ -136,6 +136,17 @@ export default async function KalkulationImportReviewPage({
     }
   }
 
+  // Für die "übernommen aus ..."-Anzeige je Zeile: die Quell-Imports
+  // übernommener Preise auflösen (gleiche Info, die auch im GAEB-Export
+  // landet).
+  const priceSourceImportIds = [
+    ...new Set(lineItems.map((item) => item.priceSourceLvImportId).filter((id): id is string => Boolean(id))),
+  ];
+  const priceSourceImports = priceSourceImportIds.length
+    ? await prisma.kalkulationLvImport.findMany({ where: { id: { in: priceSourceImportIds } } })
+    : [];
+  const priceSourceImportById = new Map(priceSourceImports.map((source) => [source.id, source]));
+
   const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
   const prefillParams = new URLSearchParams();
@@ -269,7 +280,15 @@ export default async function KalkulationImportReviewPage({
                   <td className="p-3 max-w-sm text-gray-700">{item.rawText}</td>
                   <td className="p-3 whitespace-nowrap">{item.quantity ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{item.unit ?? "–"}</td>
-                  <td className="p-3 whitespace-nowrap">{formatCents(item.unitPriceCents)}</td>
+                  <td className="p-3 whitespace-nowrap">
+                    {formatCents(item.unitPriceCents)}
+                    {item.priceSourceLvImportId && priceSourceImportById.has(item.priceSourceLvImportId) ? (
+                      <div className="text-xs font-normal text-gray-500">
+                        übernommen aus {formatLvSource(priceSourceImportById.get(item.priceSourceLvImportId)!)}
+                        {item.priceSourceSimilarity != null ? ` (${Math.round(item.priceSourceSimilarity * 100)}%)` : ""}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="p-3">
                     {(crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
                       <span className="text-gray-400">–</span>
@@ -290,6 +309,8 @@ export default async function KalkulationImportReviewPage({
                                 <input name="lineItemId" type="hidden" value={item.id} />
                                 <input name="unitPriceCents" type="hidden" value={cross.unitPriceCents} />
                                 <input name="quantity" type="hidden" value={item.quantity ?? ""} />
+                                <input name="sourceLvImportId" type="hidden" value={cross.lvImportId} />
+                                <input name="similarityScore" type="hidden" value={cross.similarityScore} />
                                 <button className="mt-1 text-xs font-bold text-blue-700 underline" type="submit">
                                   Preis übernehmen
                                 </button>
@@ -325,6 +346,7 @@ export default async function KalkulationImportReviewPage({
                                 <input name="lineItemId" type="hidden" value={item.id} />
                                 <input name="unitPriceCents" type="hidden" value={history.unitPriceCents} />
                                 <input name="quantity" type="hidden" value={item.quantity ?? ""} />
+                                <input name="sourceLvImportId" type="hidden" value={history.lvImportId} />
                                 <button className="text-xs font-bold text-blue-700 underline" type="submit">
                                   Preis übernehmen
                                 </button>
