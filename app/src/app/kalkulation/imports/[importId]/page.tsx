@@ -8,6 +8,7 @@ import {
   adoptPrice,
   confirmMatch,
   createPositionFromLineItem,
+  linkCrossLvMatch,
   manualMatch,
   rejectMatch,
   runMatching,
@@ -326,7 +327,20 @@ export default async function KalkulationImportReviewPage({
                                   {cross.matchedPositionId ? "Diesen Treffer übernehmen" : "Nur Preis übernehmen"}
                                 </button>
                               </form>
-                            ) : null}
+                            ) : (
+                              <form action={linkCrossLvMatch}>
+                                <input name="lineItemId" type="hidden" value={item.id} />
+                                <input name="sourceLineItemId" type="hidden" value={cross.id} />
+                                <input name="similarityScore" type="hidden" value={cross.similarityScore} />
+                                <button
+                                  className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
+                                  title="Markiert diese Position als dieselbe wie im anderen LV - noch ohne Preis, aber für später verknüpft (z.B. sobald eines der beiden LVs kalkuliert wird)"
+                                  type="submit"
+                                >
+                                  Als gleiche Position markieren
+                                </button>
+                              </form>
+                            )}
                           </div>
                         ))}
                       </div>

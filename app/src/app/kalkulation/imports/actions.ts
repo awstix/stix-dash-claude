@@ -496,6 +496,84 @@ export async function adoptPrice(formData: FormData) {
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
 }
 
+/** Verknüpft zwei ähnliche Positionen aus VERSCHIEDENEN LVs als dieselbe
+ * Katalogposition - auch OHNE Preis, z.B. wenn beide LVs noch ungepreiste
+ * Ausschreibungen sind. Ohne diese Funktion gibt es für Cross-LV-Vorschläge
+ * ohne Preis (adoptPrice greift nur MIT Preis) gar keine Möglichkeit, einen
+ * der Vorschläge auszuwählen. Nutzt eine bereits vorhandene
+ * Katalogzuordnung (von dieser oder der Quellzeile), sonst wird eine neue
+ * Katalogposition angelegt - und BEIDE Zeilen werden bestätigt, damit der
+ * Zusammenhang auch beim späteren Öffnen der anderen LV sichtbar bleibt. */
+export async function linkCrossLvMatch(formData: FormData) {
+  const session = await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  const sourceLineItemId = text(formData.get("sourceLineItemId"));
+  if (!lineItemId || !sourceLineItemId) throw new Error("Position fehlt.");
+  const similarityRaw = text(formData.get("similarityScore"));
+  const similarityScore = similarityRaw ? Number.parseFloat(similarityRaw) : 1;
+
+  const [current, source] = await Promise.all([
+    prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: lineItemId } }),
+    prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: sourceLineItemId } }),
+  ]);
+
+  let positionId = current.matchedPositionId ?? source.matchedPositionId;
+  if (!positionId) {
+    const created = await prisma.kalkulationPosition.create({
+      data: {
+        description: current.rawText.slice(0, 2000),
+        title: (current.shortText || current.rawText).slice(0, 200),
+        unit: current.unit ?? source.unit ?? "Stk",
+      },
+    });
+    positionId = created.id;
+  }
+
+  const confirmedAt = new Date();
+  await prisma.$transaction([
+    prisma.kalkulationLvLineItem.update({
+      where: { id: current.id },
+      data: {
+        confirmedAt,
+        confirmedByUserId: session.user.id,
+        matchConfidence: similarityScore,
+        matchStatus: "CONFIRMED",
+        matchedPositionId: positionId,
+        matchedVia: "CROSS_LV",
+      },
+    }),
+    prisma.kalkulationLvLineItem.update({
+      where: { id: source.id },
+      data: {
+        confirmedAt,
+        confirmedByUserId: session.user.id,
+        matchConfidence: similarityScore,
+        matchStatus: "CONFIRMED",
+        matchedPositionId: positionId,
+        matchedVia: "CROSS_LV",
+      },
+    }),
+  ]);
+
+  for (const normalizedText of new Set([current.normalizedText, source.normalizedText])) {
+    await prisma.kalkulationLearnedMapping.upsert({
+      where: { normalizedText },
+      create: {
+        confirmedByUserId: session.user.id,
+        confidence: similarityScore,
+        matchedPositionId: positionId,
+        matchedVia: "CROSS_LV",
+        normalizedText,
+        timesReused: 0,
+      },
+      update: { confirmedByUserId: session.user.id, matchedPositionId: positionId },
+    });
+  }
+
+  revalidatePath(`/kalkulation/imports/${current.lvImportId}`);
+  revalidatePath(`/kalkulation/imports/${source.lvImportId}`);
+}
+
 /** Bulk-Variante von adoptPrice: übernimmt für JEDE noch ungepreiste
  * Position dieses LVs automatisch den besten verfügbaren Preis - erst aus
  * bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in
