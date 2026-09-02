@@ -185,36 +185,38 @@ export default async function KalkulationImportReviewPage({
         ) : null}
       </div>
 
-      <form action={runMatching} className="mb-6 max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <input name="importId" type="hidden" value={importId} />
-        <MatchingThresholdInput defaultValue={Math.round(lvImport.matchingThreshold * 100)} name="matchingThreshold" />
-        <button
-          className="mt-4 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-          title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
-          type="submit"
-        >
-          Abgleich starten
-        </button>
-      </form>
+      <div className="mb-6 flex flex-wrap items-start gap-3">
+        <form action={runMatching} className="max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <input name="importId" type="hidden" value={importId} />
+          <MatchingThresholdInput defaultValue={Math.round(lvImport.matchingThreshold * 100)} name="matchingThreshold" />
+          <button
+            className="mt-4 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+            title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
+            type="submit"
+          >
+            Abgleich starten
+          </button>
+        </form>
 
-      <form action={adoptBestPricesForImport} className="mb-6">
-        <input name="importId" type="hidden" value={importId} />
-        <button
-          className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-          title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
-          type="submit"
-        >
-          Alle mit bestem Treffer vorkalkulieren
-        </button>
-      </form>
+        <form action={adoptBestPricesForImport}>
+          <input name="importId" type="hidden" value={importId} />
+          <button
+            className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+            title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
+            type="submit"
+          >
+            Alle mit bestem Treffer vorkalkulieren
+          </button>
+        </form>
 
-      <a
-        className="mb-6 inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-        href={`/kalkulation/imports/${importId}/export`}
-        title="Exportiert dieses LV als GAEB (X83) mit den aktuell hinterlegten Einheitspreisen - z.B. zum Weiterverarbeiten in iTWO"
-      >
-        Als GAEB exportieren ↓
-      </a>
+        <a
+          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/kalkulation/imports/${importId}/export`}
+          title="Exportiert dieses LV als GAEB (X83) mit den aktuell hinterlegten Einheitspreisen - z.B. zum Weiterverarbeiten in iTWO"
+        >
+          Als GAEB exportieren ↓
+        </a>
+      </div>
 
       {relatedImports.length > 0 ? (
         <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
