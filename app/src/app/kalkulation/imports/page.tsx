@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { ImportForm } from "@/components/ImportForm";
+import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { importLv } from "./actions";
@@ -55,12 +56,12 @@ export default async function KalkulationImportsPage() {
           (Spalten: Position, Text, Einheit, Menge, Einheitspreis).
         </p>
         <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
-          <input
+          <ProjectFileDropInput
             accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-            className="block w-full text-sm text-gray-700"
+            emptyLabel="Datei hierher ziehen oder klicken"
             name="file"
             required
-            type="file"
+            selectedLabel="GAEB- oder Excel-Datei auswählen"
           />
           <button
             className="mt-4 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
