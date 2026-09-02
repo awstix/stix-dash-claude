@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { confirmMatch, createPositionFromLineItem, manualMatch, rejectMatch, runMatching } from "../actions";
 import { MatchingThresholdInput } from "../MatchingThresholdInput";
+import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   PENDING: { label: "Offen", className: "bg-gray-100 text-gray-700" },
@@ -84,6 +85,36 @@ export default async function KalkulationImportReviewPage({
     priceHistoryByPosition.set(row.matchedPositionId, existing);
   }
 
+  // Direkter Vergleich gegen Positionen ANDERER bereits importierter LVs -
+  // unabhängig davon, ob dort schon irgendetwas bestätigt/katalogisiert
+  // wurde. Ergänzt (ersetzt nicht) den Katalog-Abgleich: hilft schon vor
+  // jeder Katalogpflege zu sehen "das gab's so ähnlich schon in LV X".
+  const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
+    where: { entryType: "ITEM", lvImportId: { not: importId } },
+    include: { lvImport: true },
+    orderBy: { createdAt: "desc" },
+    take: 3000,
+  });
+  const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
+  const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
+    id: row.id,
+    code: row.positionNumber,
+    title: row.shortText ?? row.rawText.slice(0, 100),
+    description: row.rawText,
+    unit: row.unit ?? "",
+  }));
+  const crossLvMatchByLineItem = new Map<string, (typeof otherLvItems)[number] & { similarityScore: number }>();
+  if (otherLvCatalog.length > 0) {
+    for (const item of lineItems) {
+      if (item.entryType !== "ITEM") continue;
+      const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
+      const [best] = buildShortlist(combinedText, otherLvCatalog, 1, lvImport.matchingThreshold);
+      if (!best) continue;
+      const source = otherLvItemsById.get(best.positionId);
+      if (source) crossLvMatchByLineItem.set(item.id, { ...source, similarityScore: best.similarityScore });
+    }
+  }
+
   const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
   const prefillParams = new URLSearchParams();
@@ -161,6 +192,7 @@ export default async function KalkulationImportReviewPage({
               <th className="p-3">LV-Menge</th>
               <th className="p-3">Mengeneinheit</th>
               <th className="p-3">EP</th>
+              <th className="p-3">Ähnlich in anderen LVs</th>
               <th className="p-3">Vorschlag</th>
               <th className="p-3">Status</th>
               <th className="p-3">Aktion</th>
@@ -171,7 +203,7 @@ export default async function KalkulationImportReviewPage({
               if (item.entryType === "TITLE") {
                 return (
                   <tr key={item.id}>
-                    <td className="bg-gray-900 p-3 font-bold text-white" colSpan={9}>
+                    <td className="bg-gray-900 p-3 font-bold text-white" colSpan={10}>
                       {item.rawText}
                     </td>
                   </tr>
@@ -181,7 +213,7 @@ export default async function KalkulationImportReviewPage({
               if (item.entryType === "REMARK") {
                 return (
                   <tr key={item.id}>
-                    <td className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950" colSpan={9}>
+                    <td className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950" colSpan={10}>
                       <span className="font-bold not-italic">Vorbemerkung: </span>
                       {item.rawText}
                     </td>
@@ -198,6 +230,24 @@ export default async function KalkulationImportReviewPage({
                   <td className="p-3 whitespace-nowrap">{item.quantity ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{item.unit ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{formatCents(item.unitPriceCents)}</td>
+                  <td className="p-3">
+                    {(() => {
+                      const cross = crossLvMatchByLineItem.get(item.id);
+                      if (!cross) return <span className="text-gray-400">–</span>;
+                      return (
+                        <div>
+                          <div className="font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
+                          <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
+                          <div className="mt-1 text-xs font-semibold text-green-800">
+                            {formatCents(cross.unitPriceCents)} · {cross.lvImport.fileName}
+                            {cross.lvImport.lvDate
+                              ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
+                              : ""}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="p-3">
                     {item.matchedPosition ? (
                       <div>
