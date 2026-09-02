@@ -172,6 +172,26 @@ export async function importLv(formData: FormData) {
 
 const BATCH_SIZE = 40;
 
+async function computeImportCounts(importId: string) {
+  const [matchedCount, needsReviewCount] = await Promise.all([
+    prisma.kalkulationLvLineItem.count({
+      where: { lvImportId: importId, matchStatus: { in: ["SUGGESTED", "CONFIRMED"] } },
+    }),
+    prisma.kalkulationLvLineItem.count({ where: { lvImportId: importId, matchStatus: "NEEDS_REVIEW" } }),
+  ]);
+  return { matchedCount, needsReviewCount };
+}
+
+/** Hält den "X zugeordnet"-Zähler auf der Import-Übersicht aktuell. Der
+ * Zähler steht auf KalkulationLvImport (nicht live berechnet), damit die
+ * Übersichtsliste nicht bei jedem Zeilen-Join rechnen muss - jede Aktion,
+ * die matchStatus einzelner Zeilen ändert (bestätigen, ablehnen,
+ * LV-Verknüpfung), muss ihn deshalb selbst nachziehen. */
+async function refreshImportCounts(importId: string) {
+  const counts = await computeImportCounts(importId);
+  await prisma.kalkulationLvImport.update({ where: { id: importId }, data: counts });
+}
+
 export async function runMatching(formData: FormData) {
   await requireSession();
   const importId = text(formData.get("importId"));
@@ -283,20 +303,14 @@ export async function runMatching(formData: FormData) {
     }
   }
 
-  const [matchedCount, needsReviewCount] = await Promise.all([
-    prisma.kalkulationLvLineItem.count({
-      where: { lvImportId: importId, matchStatus: { in: ["SUGGESTED", "CONFIRMED"] } },
-    }),
-    prisma.kalkulationLvLineItem.count({ where: { lvImportId: importId, matchStatus: "NEEDS_REVIEW" } }),
-  ]);
+  const counts = await computeImportCounts(importId);
 
   await prisma.kalkulationLvImport.update({
     where: { id: importId },
     data: {
-      matchedCount,
+      ...counts,
       matchingProvider: aiAvailable ? aiSettings.provider : null,
       matchingRunAt: new Date(),
-      needsReviewCount,
       status: "MATCHING",
     },
   });
@@ -336,7 +350,9 @@ export async function confirmMatch(formData: FormData) {
     },
   });
 
+  await refreshImportCounts(lineItem.lvImportId);
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
+  revalidatePath("/kalkulation/imports");
 }
 
 export async function manualMatch(formData: FormData) {
@@ -381,7 +397,9 @@ export async function rejectMatch(formData: FormData) {
     },
   });
 
+  await refreshImportCounts(lineItem.lvImportId);
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
+  revalidatePath("/kalkulation/imports");
 }
 
 export async function createPositionFromLineItem(formData: FormData) {
@@ -493,6 +511,10 @@ export async function adoptPrice(formData: FormData) {
     });
   }
 
+  if (sourcePositionId) {
+    await refreshImportCounts(lineItem.lvImportId);
+    revalidatePath("/kalkulation/imports");
+  }
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
 }
 
@@ -570,8 +592,12 @@ export async function linkCrossLvMatch(formData: FormData) {
     });
   }
 
+  await refreshImportCounts(current.lvImportId);
+  if (source.lvImportId !== current.lvImportId) await refreshImportCounts(source.lvImportId);
+
   revalidatePath(`/kalkulation/imports/${current.lvImportId}`);
   revalidatePath(`/kalkulation/imports/${source.lvImportId}`);
+  revalidatePath("/kalkulation/imports");
 }
 
 /** Bulk-Variante von adoptPrice: übernimmt für JEDE noch ungepreiste
