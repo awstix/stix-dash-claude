@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { requireSession } from "@/lib/auth-access";
 import { loadLvExportData } from "@/lib/kalkulation-export";
+import { MATCH_STATUS_LABELS } from "@/lib/kalkulation-format";
 
 export const runtime = "nodejs";
 
@@ -152,6 +153,7 @@ async function createPdfBuffer(input: {
     unitPriceCents: number | null;
     totalPriceCents: number | null;
     infoLine: string | null;
+    matchLine: string | null;
   }[];
 }) {
   const pdfDoc = await PDFDocument.create();
@@ -219,23 +221,39 @@ async function createPdfBuffer(input: {
       drawWrappedText(ctx, formatEuro(row.unitPriceCents), COLUMNS.ep.x, startY, COLUMNS.ep.width, { size: 8, lineHeight: 11 }),
       drawWrappedText(ctx, formatEuro(row.totalPriceCents), COLUMNS.gp.x, startY, COLUMNS.gp.width, { size: 8, lineHeight: 11, font: boldFont }),
     ];
-    let rowHeight = Math.max(...heights, 11);
+    let contentHeight = Math.max(...heights, 11);
+
+    // Zusatzzeilen unter dem Kurztext (Zuordnungsstatus, Preisherkunft) -
+    // beide addieren ihre Höhe auf contentHeight, damit die Trennlinie
+    // danach berechnet wird und nicht mitten durch ihren Text läuft.
+    if (row.matchLine) {
+      contentHeight += drawWrappedText(ctx, row.matchLine, COLUMNS.text.x, startY - contentHeight - 1, COLUMNS.text.width, {
+        size: 7,
+        color: rgb(0.15, 0.35, 0.6),
+        lineHeight: 9,
+      });
+    }
 
     if (row.infoLine) {
-      rowHeight += drawWrappedText(ctx, row.infoLine, COLUMNS.text.x, startY - rowHeight - 1, COLUMNS.text.width, {
+      contentHeight += drawWrappedText(ctx, row.infoLine, COLUMNS.text.x, startY - contentHeight - 1, COLUMNS.text.width, {
         size: 7,
         color: rgb(0.2, 0.45, 0.2),
         lineHeight: 9,
       });
     }
 
-    ctx.y = startY - rowHeight - 6;
+    // Trennlinie mit festem Abstand UNTER dem tiefsten gezeichneten Text
+    // dieser Zeile positionieren (nicht relativ zum Start der nächsten
+    // Zeile) - sonst rutscht sie in die Oberlänge der nächsten Zeile und
+    // läuft durch deren Text statt sauber dazwischen zu liegen.
+    const lineY = startY - contentHeight - 5;
     ctx.page.drawLine({
-      start: { x: MARGIN, y: ctx.y + 3 },
-      end: { x: PAGE_WIDTH - MARGIN, y: ctx.y + 3 },
+      start: { x: MARGIN, y: lineY },
+      end: { x: PAGE_WIDTH - MARGIN, y: lineY },
       thickness: 0.3,
       color: rgb(0.9, 0.9, 0.9),
     });
+    ctx.y = lineY - 9;
   }
 
   const bytes = await pdfDoc.save();
@@ -269,6 +287,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
       unitPriceCents: item.unitPriceCents,
       totalPriceCents: item.totalPriceCents,
       infoLine: infoLineByItemId.get(item.id) ?? null,
+      matchLine: item.matchedPosition
+        ? `Zugeordnet: ${item.matchedPosition.title} (${MATCH_STATUS_LABELS[item.matchStatus] ?? item.matchStatus})`
+        : null,
     })),
   });
 

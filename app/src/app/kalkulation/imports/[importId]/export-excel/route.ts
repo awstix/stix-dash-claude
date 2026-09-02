@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { requireSession } from "@/lib/auth-access";
 import { loadLvExportData } from "@/lib/kalkulation-export";
+import { MATCH_STATUS_LABELS } from "@/lib/kalkulation-format";
 
 export const runtime = "nodejs";
 
@@ -35,6 +36,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
     Einheit: item.unit ?? "",
     "EP (€)": toEuro(item.unitPriceCents),
     "GP (€)": toEuro(item.totalPriceCents),
+    // Zuordnungsstatus getrennt vom Preis: eine Position kann bereits
+    // bestätigt/zugeordnet sein, ohne dass schon ein Preis vorliegt (z.B.
+    // per "Als gleiche Position markieren" bei zwei ungepreisten LVs) -
+    // sonst sieht man diese Zuordnung im Export gar nicht.
+    Status: item.entryType === "ITEM" ? (MATCH_STATUS_LABELS[item.matchStatus] ?? item.matchStatus) : "",
+    "Zugeordnete Position": item.matchedPosition?.title ?? "",
     Herkunft: infoLineByItemId.get(item.id) ?? "",
   }));
 
@@ -48,6 +55,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
     { wch: 10 }, // Einheit
     { wch: 12 }, // EP
     { wch: 12 }, // GP
+    { wch: 14 }, // Status
+    { wch: 40 }, // Zugeordnete Position
     { wch: 55 }, // Herkunft
   ];
   for (let row = 1; row <= rows.length; row += 1) {

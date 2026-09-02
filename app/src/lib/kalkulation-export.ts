@@ -11,6 +11,7 @@ export async function loadLvExportData(importId: string) {
   if (!lvImport) return null;
 
   const lineItems = await prisma.kalkulationLvLineItem.findMany({
+    include: { matchedPosition: true },
     where: { lvImportId: importId },
     orderBy: { rowNumber: "asc" },
   });
