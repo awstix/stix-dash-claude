@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { ActionIcon } from "@/components/ActionIcon";
 import { CategorySelect } from "@/components/CategorySelect";
 import { prisma } from "@/lib/prisma";
-import { archivePosition, createCategory, createPosition } from "./actions";
+import { archivePosition, createCategory, createPosition, updatePosition } from "./actions";
 import { formatLvSource } from "@/lib/kalkulation-format";
+import { ArchivePositionButton } from "./ArchivePositionButton";
 
 const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 
@@ -118,24 +120,59 @@ export default async function KalkulationKatalogPage({
             </thead>
             <tbody>
               {positions.map((position) => (
-                <tr className={`border-t border-gray-100 ${position.id === selectedPositionId ? "bg-gray-50" : ""}`} key={position.id}>
-                  <td className="p-3">
-                    <Link className="font-semibold text-gray-900 hover:underline" href={`/kalkulation/katalog?position=${position.id}`}>
-                      {position.title}
-                    </Link>
-                    {position.code ? <span className="ml-2 text-xs text-gray-400">{position.code}</span> : null}
-                  </td>
-                  <td className="p-3">{position.unit}</td>
-                  <td className="p-3">{position.category?.name ?? "–"}</td>
-                  <td className="p-3">
-                    <form action={archivePosition}>
-                      <input name="id" type="hidden" value={position.id} />
-                      <button className="text-xs text-gray-500 underline" type="submit">
-                        Archivieren
-                      </button>
-                    </form>
-                  </td>
-                </tr>
+                  <tr className={`border-t border-gray-100 ${position.id === selectedPositionId ? "bg-gray-50" : ""}`} key={position.id}>
+                    <td className="p-3">
+                      <Link className="font-semibold text-gray-900 hover:underline" href={`/kalkulation/katalog?position=${position.id}`}>
+                        {position.title}
+                      </Link>
+                      {position.code ? <span className="ml-2 text-xs text-gray-400">{position.code}</span> : null}
+                    </td>
+                    <td className="p-3">{position.unit}</td>
+                    <td className="p-3">{position.category?.name ?? "–"}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <details>
+                          <summary
+                            aria-label={`${position.title} bearbeiten`}
+                            className="inline-flex h-8 w-8 list-none items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                            title="Bearbeiten"
+                          >
+                            <ActionIcon name="edit" className="h-4 w-4" />
+                          </summary>
+                          <form action={updatePosition} className="mt-3 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                            <input name="id" type="hidden" value={position.id} />
+                            <label className="block text-xs font-semibold text-gray-900">
+                              Bezeichnung
+                              <input className={inputClass} defaultValue={position.title} name="title" required />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-900">
+                              Code
+                              <input className={inputClass} defaultValue={position.code ?? ""} name="code" />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-900">
+                              Einheit
+                              <input className={inputClass} defaultValue={position.unit} name="unit" required />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-900">
+                              Beschreibung
+                              <textarea className={inputClass} defaultValue={position.description ?? ""} name="description" rows={2} />
+                            </label>
+                            <label className="block text-xs font-semibold text-gray-900">
+                              Kategorie
+                              <CategorySelect categories={categories} defaultValue={position.categoryId} name="categoryId" />
+                            </label>
+                            <button className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-700" type="submit">
+                              Speichern
+                            </button>
+                          </form>
+                        </details>
+                        <form action={archivePosition}>
+                          <input name="id" type="hidden" value={position.id} />
+                          <ArchivePositionButton title={position.title} />
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
               ))}
               {positions.length === 0 ? (
                 <tr>

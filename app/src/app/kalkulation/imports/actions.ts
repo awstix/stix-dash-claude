@@ -432,13 +432,20 @@ export async function deleteImport(formData: FormData) {
  * "vorkalkuliert", ohne dass dafür erst eine Katalogzuordnung bestätigt
  * werden muss. Die eigentliche Zuordnung (matchStatus/matchedPositionId)
  * bleibt davon unberührt. */
+/** "Diesen Treffer übernehmen" - das ist die eigentliche Auswahl unter
+ * mehreren Vorschlägen (statt einer separaten Checkbox: der Klick auf
+ * genau diesen Vorschlag IST die Auswahl). Übernimmt den Preis und, falls
+ * die Quellposition selbst einer Katalogposition zugeordnet ist, auch
+ * gleich diese Zuordnung - macht aus der Preisübernahme eine vollständige
+ * Bestätigung statt nur eine Zahl zu kopieren. */
 export async function adoptPrice(formData: FormData) {
-  await requireSession();
+  const session = await requireSession();
   const lineItemId = text(formData.get("lineItemId"));
   const unitPriceCentsRaw = text(formData.get("unitPriceCents"));
   if (!lineItemId || !unitPriceCentsRaw) throw new Error("Preis fehlt.");
   const unitPriceCents = Number.parseInt(unitPriceCentsRaw, 10);
   const sourceLvImportId = text(formData.get("sourceLvImportId"));
+  const sourcePositionId = text(formData.get("sourcePositionId"));
   const similarityRaw = text(formData.get("similarityScore"));
   // Katalog-Preishistorie liefert keinen Ähnlichkeitswert (exakte
   // Zuordnung über dieselbe Katalogposition) - dafür 100% annehmen, damit
@@ -455,8 +462,36 @@ export async function adoptPrice(formData: FormData) {
       priceSourceSimilarity: sourceLvImportId ? similarityScore : null,
       totalPriceCents,
       unitPriceCents,
+      ...(sourcePositionId
+        ? {
+            confirmedAt: new Date(),
+            confirmedByUserId: session.user.id,
+            matchConfidence: similarityScore,
+            matchStatus: "CONFIRMED",
+            matchedPositionId: sourcePositionId,
+            matchedVia: "CROSS_LV",
+          }
+        : {}),
     },
   });
+
+  if (sourcePositionId) {
+    await prisma.kalkulationLearnedMapping.upsert({
+      where: { normalizedText: lineItem.normalizedText },
+      create: {
+        confirmedByUserId: session.user.id,
+        confidence: similarityScore,
+        matchedPositionId: sourcePositionId,
+        matchedVia: "CROSS_LV",
+        normalizedText: lineItem.normalizedText,
+        timesReused: 0,
+      },
+      update: {
+        confirmedByUserId: session.user.id,
+        matchedPositionId: sourcePositionId,
+      },
+    });
+  }
 
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
 }

@@ -311,8 +311,19 @@ export default async function KalkulationImportReviewPage({
                                 <input name="quantity" type="hidden" value={item.quantity ?? ""} />
                                 <input name="sourceLvImportId" type="hidden" value={cross.lvImportId} />
                                 <input name="similarityScore" type="hidden" value={cross.similarityScore} />
-                                <button className="mt-1 text-xs font-bold text-blue-700 underline" type="submit">
-                                  Preis übernehmen
+                                {cross.matchedPositionId ? (
+                                  <input name="sourcePositionId" type="hidden" value={cross.matchedPositionId} />
+                                ) : null}
+                                <button
+                                  className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
+                                  title={
+                                    cross.matchedPositionId
+                                      ? "Übernimmt Preis UND Katalogzuordnung, bestätigt die Position"
+                                      : "Übernimmt nur den Preis - die Quellposition ist selbst noch keiner Katalogposition zugeordnet"
+                                  }
+                                  type="submit"
+                                >
+                                  {cross.matchedPositionId ? "Diesen Treffer übernehmen" : "Nur Preis übernehmen"}
                                 </button>
                               </form>
                             ) : null}
