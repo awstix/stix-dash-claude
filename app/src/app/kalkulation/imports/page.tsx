@@ -14,13 +14,18 @@ const LV_TYPE_LABELS: Record<string, string> = {
   AUSSCHREIBUNG: "Ausschreibung (ungepreist)",
 };
 
-export default async function KalkulationImportsPage() {
-  const [imports, aiSettings] = await Promise.all([
+export default async function KalkulationImportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ importError?: string }>;
+}) {
+  const [imports, aiSettings, params] = await Promise.all([
     prisma.kalkulationLvImport.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
     getAiSettings(),
+    searchParams,
   ]);
 
   const aiConfigured = isAiConfigured(aiSettings);
@@ -38,6 +43,12 @@ export default async function KalkulationImportsPage() {
           Positionskatalog →
         </Link>
       </div>
+
+      {params.importError ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
+          Import fehlgeschlagen: {params.importError}
+        </div>
+      ) : null}
 
       {!aiConfigured ? (
         <p className="mb-6 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm font-semibold text-amber-950">

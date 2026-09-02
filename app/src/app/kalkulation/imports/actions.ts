@@ -63,20 +63,27 @@ export async function importLv(formData: FormData) {
   let gaebDocType: string | null = null;
   let lvType = "ANGEBOT";
 
-  if (isGaeb) {
-    const parsed = parseGaebXml(buffer, file.name);
-    rows = parsed.lineItems;
-    sourceFormat = "GAEB_XML";
-    gaebDocType = parsed.docType;
-    lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
-  } else {
-    rows = parseExcel(buffer);
-    sourceFormat = "EXCEL";
-    lvType = rows.some((row) => row.unitPriceCents != null) ? "ANGEBOT" : "AUSSCHREIBUNG";
+  try {
+    if (isGaeb) {
+      const parsed = parseGaebXml(buffer, file.name);
+      rows = parsed.lineItems;
+      sourceFormat = "GAEB_XML";
+      gaebDocType = parsed.docType;
+      lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
+    } else {
+      rows = parseExcel(buffer);
+      sourceFormat = "EXCEL";
+      lvType = rows.some((row) => row.unitPriceCents != null) ? "ANGEBOT" : "AUSSCHREIBUNG";
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Datei konnte nicht gelesen werden.";
+    redirect(`/kalkulation/imports?importError=${encodeURIComponent(message)}`);
   }
 
   if (rows.length === 0) {
-    throw new Error("In der Datei wurden keine Positionen gefunden.");
+    redirect(
+      `/kalkulation/imports?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
+    );
   }
 
   if (importRunId) {

@@ -63,6 +63,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const BINARY_TAG_NAMES = new Set(["image", "bitmap", "picture", "ole", "attachment", "graphic"]);
+
 /** Sammelt rekursiv alle String-Blattwerte unter einem Knoten ein - GAEB
  * verschachtelt Langtexte je nach Version/Editor unterschiedlich tief
  * (CompleteText > DetailTxt > p > span o.ä.), ein starrer Pfad wäre
@@ -85,6 +87,11 @@ function collectText(node: unknown, out: string[] = []): string[] {
   if (isPlainObject(node)) {
     for (const [key, value] of Object.entries(node)) {
       if (key.startsWith("@_")) continue;
+      // Manche LVs betten Fotos/Pläne direkt als Base64 in den Beschreibungstext
+      // ein (z.B. <image Type="image/jpeg">...</image>) - das gehört nicht in
+      // den Positionstext und würde sonst jeden Abgleich/jede KI-Anfrage mit
+      // hunderten KB Bilddaten überfluten.
+      if (BINARY_TAG_NAMES.has(key.toLowerCase())) continue;
       collectText(value, out);
     }
   }
@@ -107,6 +114,14 @@ function toCents(value: unknown): number | null {
 }
 
 function extractPositionNumber(item: Record<string, unknown>): string | null {
+  // Häufigster Fall in echten GAEB-DA-XML-Dateien: RNoPart ist ein Attribut
+  // direkt am <Item>-Tag (<Item ID="..." RNoPart="10">), nicht ein
+  // verschachteltes Element.
+  const rNoPartAttr = item["@_RNoPart"];
+  if (typeof rNoPartAttr === "string" && rNoPartAttr.trim()) return rNoPartAttr.trim();
+
+  // Andere GAEB-Varianten verschachteln die Positionsnummer stattdessen in
+  // Teilstücken (<RNoPart><RNoPart1>01</RNoPart1><RNoPart2>01</RNoPart2></RNoPart>).
   const rNoPart = item["RNoPart"];
   if (isPlainObject(rNoPart)) {
     const parts = Object.entries(rNoPart)
@@ -164,6 +179,18 @@ function findFirst(node: unknown, tagNames: string[]): unknown {
 
 export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
   const xml = buffer.toString("utf8");
+
+  // Das alte GAEB-90-Format (feste Satzlänge, kein XML - z.B. Zeilen wie
+  // "T1Ausschreibungs- und Vertragsunterlagen ... 000003") wird hier
+  // (noch) nicht unterstützt. Ohne diese Prüfung würde der XML-Parser mit
+  // einer kryptischen Fehlermeldung mittendrin abbrechen statt klar zu sagen,
+  // woran es liegt.
+  if (!/^﻿?\s*<\?xml|^﻿?\s*<GAEB/i.test(xml)) {
+    throw new Error(
+      "Diese Datei sieht nach dem alten GAEB-90-Format aus (kein XML) - das wird aktuell noch nicht unterstützt. Unterstützt wird GAEB DA XML (Dateien, die mit \"<?xml\" bzw. \"<GAEB\" beginnen).",
+    );
+  }
+
   const parsed = parser.parse(xml);
 
   const docType = docTypeFromFileName(fileName);
@@ -196,7 +223,12 @@ export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
     };
   });
 
-  const isPriced = docType === "83" || docType === "84" || (docType == null && anyPriceFound);
+  // Der Dateityp (X81/X83/X84) ist nur ein Hinweis, kein Beweis: in der
+  // Praxis werden Ausschreibungs-LVs teils als "X83"-Datei mit komplett
+  // leeren Preisfeldern verschickt (Bieter füllt die Preise erst noch aus).
+  // Ob ein LV tatsächlich schon kalkuliert ist, entscheidet deshalb primär,
+  // ob überhaupt ein Einheitspreis > 0 in der Datei steht.
+  const isPriced = anyPriceFound;
 
   return {
     docType,
