@@ -4,7 +4,8 @@ import { ImportForm } from "@/components/ImportForm";
 import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
-import { importLv } from "./actions";
+import { deleteImport, importLv } from "./actions";
+import { DeleteImportButton } from "./DeleteImportButton";
 
 export const maxDuration = 300;
 
@@ -25,10 +26,11 @@ const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 
 export default async function KalkulationImportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ importError?: string }>;
+  searchParams: Promise<{ importError?: string; prefillProjectNumber?: string; prefillTenderTitle?: string }>;
 }) {
   const [imports, aiSettings, params] = await Promise.all([
     prisma.kalkulationLvImport.findMany({
+      include: { importedByUser: true },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -79,11 +81,16 @@ export default async function KalkulationImportsPage({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-semibold text-gray-900">
               Projektnummer (optional)
-              <input className={inputClass} name="projectNumber" />
+              <input className={inputClass} defaultValue={params.prefillProjectNumber ?? ""} name="projectNumber" />
             </label>
             <label className="block text-sm font-semibold text-gray-900">
               Projektname (optional)
-              <input className={inputClass} name="tenderTitle" placeholder="wird sonst aus der Datei übernommen, falls vorhanden" />
+              <input
+                className={inputClass}
+                defaultValue={params.prefillTenderTitle ?? ""}
+                name="tenderTitle"
+                placeholder="wird sonst aus der Datei übernommen, falls vorhanden"
+              />
             </label>
           </div>
           <ProjectFileDropInput
@@ -113,6 +120,8 @@ export default async function KalkulationImportsPage({
               <th className="p-3">Positionen</th>
               <th className="p-3">Abgleich</th>
               <th className="p-3">Status</th>
+              <th className="p-3">Importiert von</th>
+              <th className="p-3" />
             </tr>
           </thead>
           <tbody>
@@ -135,11 +144,26 @@ export default async function KalkulationImportsPage({
                   {lvImport.needsReviewCount > 0 ? `, ${lvImport.needsReviewCount} zu prüfen` : ""}
                 </td>
                 <td className="p-3">{lvImport.status}</td>
+                <td className="p-3 whitespace-nowrap text-xs text-gray-500">
+                  {lvImport.importedByUser?.name ?? "–"}
+                  <br />
+                  {new Intl.DateTimeFormat("de-DE", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                    timeZone: "Europe/Berlin",
+                  }).format(lvImport.createdAt)}
+                </td>
+                <td className="p-3">
+                  <form action={deleteImport}>
+                    <input name="importId" type="hidden" value={lvImport.id} />
+                    <DeleteImportButton fileName={lvImport.fileName} />
+                  </form>
+                </td>
               </tr>
             ))}
             {imports.length === 0 ? (
               <tr>
-                <td className="p-6 text-center text-gray-500" colSpan={7}>
+                <td className="p-6 text-center text-gray-500" colSpan={9}>
                   Noch keine LVs importiert.
                 </td>
               </tr>

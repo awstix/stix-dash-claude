@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
-import { putFile } from "@/lib/storage";
+import { deleteFile, putFile } from "@/lib/storage";
 import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/import-value-parsing";
 import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
@@ -391,4 +391,25 @@ export async function createPositionFromLineItem(formData: FormData) {
   withPosition.set("lineItemId", lineItemId);
   withPosition.set("positionId", position.id);
   await manualMatch(withPosition);
+}
+
+export async function deleteImport(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+
+  const lvImport = await prisma.kalkulationLvImport.findUnique({ where: { id: importId } });
+  if (!lvImport) return;
+
+  // Zeilen hängen per onDelete: Cascade an der Import-Zeile, werden also
+  // automatisch mitgelöscht - nur die abgelegte Originaldatei muss
+  // separat aus dem Storage entfernt werden.
+  await prisma.kalkulationLvImport.delete({ where: { id: importId } });
+
+  if (lvImport.originalStoragePath) {
+    await deleteFile(STORAGE_BUCKET, lvImport.originalStoragePath).catch(() => undefined);
+  }
+
+  revalidatePath("/kalkulation/imports");
+  redirect("/kalkulation/imports");
 }

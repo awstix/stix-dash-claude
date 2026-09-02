@@ -85,6 +85,9 @@ export default async function KalkulationImportReviewPage({
 
   const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
+  const prefillParams = new URLSearchParams();
+  if (lvImport.projectNumber) prefillParams.set("prefillProjectNumber", lvImport.projectNumber);
+  if (lvImport.tenderTitle) prefillParams.set("prefillTenderTitle", lvImport.tenderTitle);
 
   return (
     <AppShell
@@ -97,6 +100,14 @@ export default async function KalkulationImportReviewPage({
           href="/kalkulation/imports"
         >
           ← Alle Imports
+        </Link>
+
+        <Link
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/kalkulation/imports?${prefillParams.toString()}`}
+          title="Legt einen zweiten, mit diesem Projekt verknüpften Import an"
+        >
+          Kalkuliertes Angebot nachreichen →
         </Link>
 
         <form action={runMatching}>
