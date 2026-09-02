@@ -17,6 +17,7 @@ export function AppHeader({
   dispositionNavigation,
   employeeNavigation,
   inventoryNavigation,
+  kalkulationNavigation,
   primaryNavigation,
   projectNavigation,
   safetyNavigation,
@@ -34,6 +35,7 @@ export function AppHeader({
   dispositionNavigation: NavigationItem[];
   employeeNavigation: NavigationItem[];
   inventoryNavigation: NavigationItem[];
+  kalkulationNavigation: NavigationItem[];
   primaryNavigation: NavigationItem[];
   projectNavigation: NavigationItem[];
   safetyNavigation: NavigationItem[];
@@ -66,6 +68,7 @@ export function AppHeader({
     | "workshop"
     | "employees"
     | "controlling"
+    | "kalkulation"
     | null
   >(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -221,6 +224,18 @@ export function AppHeader({
           />
 
           <NavigationMenu
+            isOpen={openMenu === "kalkulation"}
+            items={kalkulationNavigation}
+            label="Kalkulation"
+            onNavigate={() => setOpenMenu(null)}
+            onToggle={() =>
+              setOpenMenu((current) =>
+                current === "kalkulation" ? null : "kalkulation",
+              )
+            }
+          />
+
+          <NavigationMenu
             isOpen={openMenu === "safety"}
             items={safetyNavigation}
             label="Arbeitssicherheit"
@@ -354,6 +369,11 @@ export function AppHeader({
             <MobileNavigationSection
               items={controllingNavigation}
               label="Controlling"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <MobileNavigationSection
+              items={kalkulationNavigation}
+              label="Kalkulation"
               onNavigate={() => setMobileMenuOpen(false)}
             />
             <MobileNavigationSection

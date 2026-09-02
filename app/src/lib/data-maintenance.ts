@@ -144,6 +144,12 @@ const ALL_MODEL_TABLES = [
   "PortalPermission",
   "PortalRole",
   "ImportProgress",
+  "KalkulationPositionCategory",
+  "KalkulationPosition",
+  "KalkulationLvImport",
+  "KalkulationLvLineItem",
+  "KalkulationLearnedMapping",
+  "KalkulationAiSettings",
 ] as const;
 
 const BASE_KEEP_TABLES = [
@@ -154,6 +160,10 @@ const BASE_KEEP_TABLES = [
   "ProjectFormTemplate",
   "WorkTimePreset",
   "WorkshopFormTemplate",
+  "KalkulationAiSettings",
+  "KalkulationPositionCategory",
+  "KalkulationPosition",
+  "KalkulationLearnedMapping",
 ] as const;
 
 const DEFAULT_KEEP_TABLES = [

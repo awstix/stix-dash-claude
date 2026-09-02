@@ -78,6 +78,11 @@ const controllingNavigation = [
   { name: "Verrechnungssätze", href: "/controlling/rates" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
+const kalkulationNavigation = [
+  { name: "LV importieren", href: "/kalkulation/imports" },
+  { name: "Positionskatalog", href: "/kalkulation/katalog" },
+].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+
 const safetyNavigation = [
   { name: "Beauftragungen", href: "/safety/commissions" },
   { name: "Betriebsunterweisungen", href: "/safety/operating-instructions" },
@@ -155,6 +160,7 @@ export async function AppShell({
         dispositionNavigation={filterNavigationByVisibility(dispositionNavigation, visibleFeatureKeys)}
         employeeNavigation={filterNavigationByVisibility(employeeNavigation, visibleFeatureKeys)}
         inventoryNavigation={filterNavigationByVisibility(inventoryNavigation, visibleFeatureKeys)}
+        kalkulationNavigation={filterNavigationByVisibility(kalkulationNavigation, visibleFeatureKeys)}
         primaryNavigation={primaryNavigation}
         projectNavigation={filterNavigationByVisibility(projectNavigation, visibleFeatureKeys)}
         safetyNavigation={filterNavigationByVisibility(safetyNavigation, visibleFeatureKeys)}

@@ -89,6 +89,14 @@ export const portalModules: PortalModule[] = [
     ],
   },
   {
+    key: "kalkulation",
+    label: "Kalkulation",
+    features: [
+      { key: "lv_importieren", label: "LV importieren", path: "/kalkulation/imports" },
+      { key: "positionskatalog", label: "Positionskatalog", path: "/kalkulation/katalog" },
+    ],
+  },
+  {
     key: "arbeitssicherheit",
     label: "Arbeitssicherheit",
     features: [
@@ -161,6 +169,12 @@ export const portalModules: PortalModule[] = [
         key: "mitarbeiterqualifikationen",
         label: "Mitarbeiterqualifikationen",
         path: "/admin/employee-qualifications",
+        group: "Sonstiges",
+      },
+      {
+        key: "kalkulation_ki",
+        label: "KI-Einstellungen (Kalkulation)",
+        path: "/admin/kalkulation-ai-settings",
         group: "Sonstiges",
       },
     ],

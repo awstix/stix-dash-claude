@@ -218,6 +218,7 @@ model Project {
   projectStartChecklists            ProjectStartChecklist[]
   generalRiskAssessments            GeneralRiskAssessment[]
   userAccesses                      UserProjectAccess[]
+  kalkulationLvImports              KalkulationLvImport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1341,14 +1342,17 @@ model User {
   employee                   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   photoWatermarkSettingsJson String?
 
-  sessions               Session[]
-  accounts               Account[]
-  dashboardPreferences   DashboardWidgetPreference[]
-  submittedLeaveRequests LeaveRequest[]              @relation("LeaveRequestSubmitter")
-  decidedLeaveRequests   LeaveRequest[]              @relation("LeaveRequestDecider")
-  projectAccesses        UserProjectAccess[]
-  featureAccesses        UserFeatureAccess[]
-  changelogEntryReads    ChangelogEntryRead[]
+  sessions                      Session[]
+  accounts                      Account[]
+  dashboardPreferences          DashboardWidgetPreference[]
+  submittedLeaveRequests        LeaveRequest[]              @relation("LeaveRequestSubmitter")
+  decidedLeaveRequests          LeaveRequest[]              @relation("LeaveRequestDecider")
+  projectAccesses               UserProjectAccess[]
+  featureAccesses               UserFeatureAccess[]
+  changelogEntryReads           ChangelogEntryRead[]
+  kalkulationLvImports          KalkulationLvImport[]
+  kalkulationConfirmedLineItems KalkulationLvLineItem[]
+  kalkulationConfirmedMappings  KalkulationLearnedMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3659,4 +3663,149 @@ model RateLimit {
   key         String @unique
   count       Int
   lastRequest BigInt
+}
+
+/// Kalkulation: LV-Import, Positionskatalog, KI-gestützter Preisabgleich.
+/// Eigenständiges, projektübergreifendes Modul für externe LV-/Angebotspreise
+/// (GAEB oder Excel) - unabhängig von den internen Controlling-Kostensätzen.
+model KalkulationPositionCategory {
+  id               String                        @id @default(cuid())
+  name             String
+  parentCategoryId String?
+  parentCategory   KalkulationPositionCategory?  @relation("KalkulationCategoryChildren", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  childCategories  KalkulationPositionCategory[] @relation("KalkulationCategoryChildren")
+  sortOrder        Int                           @default(0)
+  isActive         Boolean                       @default(true)
+  positions        KalkulationPosition[]
+}
+
+model KalkulationPosition {
+  id String @id @default(cuid())
+
+  code         String?
+  title        String
+  description  String?
+  unit         String
+  keywordsText String?
+  isActive     Boolean @default(true)
+
+  categoryId String?
+  category   KalkulationPositionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  lineItems       KalkulationLvLineItem[]
+  learnedMappings KalkulationLearnedMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([title])
+}
+
+model KalkulationLvImport {
+  id String @id @default(cuid())
+
+  fileName            String
+  originalStoragePath String?
+  projectId           String?
+  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  sourceFormat String    @default("EXCEL") // GAEB_XML | EXCEL
+  gaebDocType  String? // z.B. "81" (LV ohne Preise) | "83" (Angebot mit Preisen) | "84" (Auftrag)
+  lvType       String    @default("ANGEBOT") // AUSSCHREIBUNG | ANGEBOT | AUFTRAG
+  customerName String?
+  tenderTitle  String?
+  lvDate       DateTime?
+
+  status            String    @default("IMPORTED") // IMPORTED -> MATCHING -> REVIEWED
+  matchingProvider  String?
+  matchingRunAt     DateTime?
+  rowCount          Int       @default(0)
+  matchedCount      Int       @default(0)
+  needsReviewCount  Int       @default(0)
+  reportStoragePath String?
+
+  importedByUserId String?
+  importedByUser   User?   @relation(fields: [importedByUserId], references: [id], onDelete: SetNull)
+
+  lineItems KalkulationLvLineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lvDate])
+  @@index([status])
+}
+
+model KalkulationLvLineItem {
+  id String @id @default(cuid())
+
+  lvImportId String
+  lvImport   KalkulationLvImport @relation(fields: [lvImportId], references: [id], onDelete: Cascade)
+
+  rowNumber       Int
+  positionNumber  String?
+  rawText         String
+  normalizedText  String
+  unit            String?
+  quantity        Float?
+  unitPriceCents  Int?
+  totalPriceCents Int?
+
+  criticalTokensJson String?
+
+  matchStatus       String               @default("PENDING") // PENDING|SUGGESTED|NEEDS_REVIEW|CONFIRMED|REJECTED|NO_MATCH
+  matchedPositionId String?
+  matchedPosition   KalkulationPosition? @relation(fields: [matchedPositionId], references: [id], onDelete: SetNull)
+  matchConfidence   Float?
+  matchedVia        String? // RULE_EXACT | LEARNED_MAPPING | AI | MANUAL
+  matchReasoning    String?
+
+  confirmedByUserId String?
+  confirmedByUser   User?     @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  confirmedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lvImportId])
+  @@index([normalizedText])
+  @@index([matchedPositionId, createdAt])
+}
+
+model KalkulationLearnedMapping {
+  id String @id @default(cuid())
+
+  normalizedText    String               @unique
+  matchedPositionId String?
+  matchedPosition   KalkulationPosition? @relation(fields: [matchedPositionId], references: [id], onDelete: SetNull)
+  confidence        Float?
+  matchedVia        String               @default("AI") // AI | MANUAL
+  timesReused       Int                  @default(0)
+  lastUsedAt        DateTime?
+
+  confirmedByUserId String?
+  confirmedByUser   User?   @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Admin-Einstellungen für den KI-gestützten Positionsabgleich (Kalkulation).
+/// Gleiches Muster wie EmailSettings: Singleton-Zeile, Klartext-API-Key,
+/// leeres Eingabefeld beim Speichern = bestehenden Key behalten.
+model KalkulationAiSettings {
+  id String @id @default("default")
+
+  provider      String  @default("anthropic") // anthropic | openai | gemini
+  enabled       Boolean @default(false)
+  apiKey        String?
+  model         String?
+  maxCandidates Int     @default(5)
+
+  lastTestAt        DateTime?
+  lastTestSuccess   Boolean?
+  lastTestErrorText String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

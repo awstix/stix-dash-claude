@@ -20,6 +20,7 @@
     "better-auth": "^1.6.25",
     "bwip-js": "^4.11.1",
     "dotenv": "^17.4.2",
+    "fast-xml-parser": "^5.11.1",
     "next": "16.2.6",
     "nodemailer": "^9.0.5",
     "pdf-lib": "^1.17.1",

@@ -145,6 +145,18 @@ const adminSections: AdminSection[] = [
       },
     ],
   },
+  {
+    title: "Kalkulation",
+    description: "Einstellungen für den LV-Import und den Positionsabgleich.",
+    items: [
+      {
+        title: "KI-Einstellungen (Kalkulation)",
+        description:
+          "Anbieter (Anthropic/OpenAI/Gemini) und API-Key für den KI-gestützten Positionsabgleich beim LV-Import.",
+        href: "/admin/kalkulation-ai-settings",
+      },
+    ],
+  },
 ];
 
 export default async function AdminPage() {
