@@ -216,6 +216,22 @@ export default async function KalkulationImportReviewPage({
         >
           Als GAEB exportieren ↓
         </a>
+
+        <a
+          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/kalkulation/imports/${importId}/export-excel`}
+          title="Exportiert dieses LV als Excel-Tabelle mit den aktuell hinterlegten Einheitspreisen"
+        >
+          Als Excel exportieren ↓
+        </a>
+
+        <a
+          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={`/kalkulation/imports/${importId}/export-pdf`}
+          title="Exportiert dieses LV als druckbares PDF mit den aktuell hinterlegten Einheitspreisen"
+        >
+          Als PDF exportieren ↓
+        </a>
       </div>
 
       {relatedImports.length > 0 ? (

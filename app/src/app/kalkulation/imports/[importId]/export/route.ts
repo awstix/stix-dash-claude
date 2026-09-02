@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-access";
-import { prisma } from "@/lib/prisma";
 import { writeGaebXml } from "@/lib/gaeb-writer";
-import { formatLvSource } from "@/lib/kalkulation-format";
+import { loadLvExportData } from "@/lib/kalkulation-export";
 
 export const runtime = "nodejs";
 
@@ -10,47 +9,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
   await requireSession();
   const { importId } = await params;
 
-  const lvImport = await prisma.kalkulationLvImport.findUnique({ where: { id: importId } });
-  if (!lvImport) {
+  const data = await loadLvExportData(importId);
+  if (!data) {
     return NextResponse.json({ error: "Import nicht gefunden." }, { status: 404 });
   }
-
-  const lineItems = await prisma.kalkulationLvLineItem.findMany({
-    where: { lvImportId: importId },
-    orderBy: { rowNumber: "asc" },
-  });
-
-  // Für den "Info: aus Projekt ... importiert"-Hinweis im Export: die
-  // Quell-Imports übernommener Preise auflösen (Projektnummer/-name statt
-  // Dateiname, wie überall sonst auch).
-  const sourceImportIds = [
-    ...new Set(lineItems.map((item) => item.priceSourceLvImportId).filter((id): id is string => Boolean(id))),
-  ];
-  const sourceImports = sourceImportIds.length
-    ? await prisma.kalkulationLvImport.findMany({ where: { id: { in: sourceImportIds } } })
-    : [];
-  const sourceImportById = new Map(sourceImports.map((source) => [source.id, source]));
+  const { lvImport, lineItems, infoLineByItemId } = data;
 
   const xml = writeGaebXml(
-    lineItems.map((item) => {
-      const source = item.priceSourceLvImportId ? sourceImportById.get(item.priceSourceLvImportId) : null;
-      const infoLine =
-        source && item.priceSourceSimilarity != null
-          ? `Info: aus Projekt ${formatLvSource(source)} importiert - Übereinstimmung ${Math.round(item.priceSourceSimilarity * 100)}%.`
-          : null;
-
-      return {
-        entryType: item.entryType as "ITEM" | "TITLE" | "REMARK",
-        positionNumber: item.positionNumber,
-        shortText: item.shortText,
-        rawText: item.rawText,
-        unit: item.unit,
-        quantity: item.quantity,
-        unitPriceCents: item.unitPriceCents,
-        totalPriceCents: item.totalPriceCents,
-        infoLine,
-      };
-    }),
+    lineItems.map((item) => ({
+      entryType: item.entryType as "ITEM" | "TITLE" | "REMARK",
+      positionNumber: item.positionNumber,
+      shortText: item.shortText,
+      rawText: item.rawText,
+      unit: item.unit,
+      quantity: item.quantity,
+      unitPriceCents: item.unitPriceCents,
+      totalPriceCents: item.totalPriceCents,
+      infoLine: infoLineByItemId.get(item.id) ?? null,
+    })),
     {
       projectName: [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" - ") || null,
       date: new Date(),
