@@ -35,5 +35,39 @@ export async function loadLvExportData(importId: string) {
     }
   }
 
+  // Fallback für Positionen, die zwar einer Katalogposition zugeordnet/
+  // bestätigt sind, aber (noch) KEINEN Preis übernommen haben (z.B. per
+  // "Als gleiche Position markieren" bei zwei ungepreisten LVs) - ohne
+  // Preis bliebe infoLineByItemId sonst leer und die Herkunft der
+  // Zuordnung wäre im Export nicht erkennbar. Sucht dafür in ANDEREN LVs
+  // nach einer bereits bestätigten Zeile zur selben Katalogposition.
+  const unpricedMatchedIds = lineItems
+    .filter((item) => item.matchedPositionId && !infoLineByItemId.has(item.id))
+    .map((item) => item.matchedPositionId as string);
+  if (unpricedMatchedIds.length > 0) {
+    const siblingItems = await prisma.kalkulationLvLineItem.findMany({
+      where: {
+        matchedPositionId: { in: [...new Set(unpricedMatchedIds)] },
+        matchStatus: "CONFIRMED",
+        lvImportId: { not: importId },
+      },
+      include: { lvImport: true },
+      orderBy: { confirmedAt: "asc" },
+    });
+    const siblingByPositionId = new Map<string, (typeof siblingItems)[number]>();
+    for (const sibling of siblingItems) {
+      if (sibling.matchedPositionId && !siblingByPositionId.has(sibling.matchedPositionId)) {
+        siblingByPositionId.set(sibling.matchedPositionId, sibling);
+      }
+    }
+    for (const item of lineItems) {
+      if (!item.matchedPositionId || infoLineByItemId.has(item.id)) continue;
+      const sibling = siblingByPositionId.get(item.matchedPositionId);
+      if (!sibling) continue;
+      const similarity = item.matchConfidence != null ? ` - Übereinstimmung ${Math.round(item.matchConfidence * 100)}%` : "";
+      infoLineByItemId.set(item.id, `Info: Position zugeordnet zu Projekt ${formatLvSource(sibling.lvImport)}${similarity}.`);
+    }
+  }
+
   return { lvImport, lineItems, infoLineByItemId };
 }
