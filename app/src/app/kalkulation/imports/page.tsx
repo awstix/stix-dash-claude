@@ -1,12 +1,15 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { ImportForm } from "@/components/ImportForm";
+import { LiveSearchInput } from "@/components/LiveSearchInput";
 import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { deleteImport, importLv } from "./actions";
 import { DeleteImportButton } from "./DeleteImportButton";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
+import { SortSelect } from "./SortSelect";
 
 export const maxDuration = 300;
 
@@ -27,16 +30,61 @@ const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 
 export default async function KalkulationImportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ importError?: string; prefillProjectNumber?: string; prefillTenderTitle?: string }>;
+  searchParams: Promise<{
+    importError?: string;
+    prefillProjectNumber?: string;
+    prefillTenderTitle?: string;
+    q?: string;
+    sort?: string;
+  }>;
 }) {
-  const [imports, aiSettings, params] = await Promise.all([
+  const params = await searchParams;
+  const searchQuery = String(params.q ?? "").trim();
+  const sort = String(params.sort ?? "newest");
+
+  // Durchsucht Dateiname, Projektnummer/-name, Auftraggeber UND - eine
+  // Ebene tiefer - die einzelnen LV-Positionen (Kurz-/Langtext, OZ):
+  // "Ähnlich in anderen LVs" & Co. sind für den Nutzer meist über eine
+  // konkrete Position auffindbar, nicht nur über den Projektkopf.
+  const where: Prisma.KalkulationLvImportWhereInput = searchQuery
+    ? {
+        OR: [
+          { fileName: { contains: searchQuery, mode: "insensitive" } },
+          { projectNumber: { contains: searchQuery, mode: "insensitive" } },
+          { tenderTitle: { contains: searchQuery, mode: "insensitive" } },
+          { customerName: { contains: searchQuery, mode: "insensitive" } },
+          {
+            lineItems: {
+              some: {
+                OR: [
+                  { rawText: { contains: searchQuery, mode: "insensitive" } },
+                  { shortText: { contains: searchQuery, mode: "insensitive" } },
+                  { positionNumber: { contains: searchQuery, mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        ],
+      }
+    : {};
+
+  const orderBy: Prisma.KalkulationLvImportOrderByWithRelationInput[] =
+    sort === "project_asc"
+      ? [{ projectNumber: { nulls: "last", sort: "asc" } }, { createdAt: "desc" }]
+      : sort === "project_desc"
+        ? [{ projectNumber: { nulls: "last", sort: "desc" } }, { createdAt: "desc" }]
+        : sort === "oldest"
+          ? [{ createdAt: "asc" }]
+          : [{ createdAt: "desc" }];
+
+  const [imports, aiSettings] = await Promise.all([
     prisma.kalkulationLvImport.findMany({
       include: { importedByUser: true },
-      orderBy: { createdAt: "desc" },
+      orderBy,
       take: 50,
+      where,
     }),
     getAiSettings(),
-    searchParams,
   ]);
 
   const aiConfigured = isAiConfigured(aiSettings);
@@ -113,7 +161,15 @@ export default async function KalkulationImportsPage({
         </ImportForm>
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <LiveSearchInput
+          className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:max-w-md"
+          placeholder="Suche nach Projektnummer, Projektname, Dateiname oder Position..."
+        />
+        <SortSelect />
+      </div>
+
+      <section className="mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-700">
             <tr>
@@ -168,7 +224,7 @@ export default async function KalkulationImportsPage({
             {imports.length === 0 ? (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={9}>
-                  Noch keine LVs importiert.
+                  {searchQuery ? `Keine Treffer für "${searchQuery}".` : "Noch keine LVs importiert."}
                 </td>
               </tr>
             ) : null}
