@@ -19,6 +19,12 @@ function formatCents(cents: number | null) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
+const LV_TYPE_LABELS: Record<string, string> = {
+  ANGEBOT: "Angebot (gepreist)",
+  AUFTRAG: "Auftrag",
+  AUSSCHREIBUNG: "Ausschreibung (ungepreist)",
+};
+
 export default async function KalkulationImportReviewPage({
   params,
 }: {
@@ -41,6 +47,41 @@ export default async function KalkulationImportReviewPage({
   ]);
 
   if (!lvImport) notFound();
+
+  // Andere Imports desselben Projekts (z.B. erst die ungepreiste
+  // Ausschreibung, später das eigene kalkulierte Angebot dazu) - verknüpft
+  // rein über die Projektnummer, kein eigenes Datenfeld nötig.
+  const relatedImports = lvImport.projectNumber
+    ? await prisma.kalkulationLvImport.findMany({
+        where: { projectNumber: lvImport.projectNumber, id: { not: importId } },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
+  // Preishistorie aus ANDEREN Projekten für jede in diesem LV bereits
+  // (vorgeschlagen oder bestätigt) zugeordnete Position - damit man beim
+  // Prüfen direkt sieht, was dieselbe Position anderswo schon gekostet hat.
+  const matchedPositionIds = [
+    ...new Set(lineItems.map((item) => item.matchedPositionId).filter((id): id is string => Boolean(id))),
+  ];
+  const historyRows = matchedPositionIds.length
+    ? await prisma.kalkulationLvLineItem.findMany({
+        where: {
+          matchedPositionId: { in: matchedPositionIds },
+          matchStatus: "CONFIRMED",
+          lvImportId: { not: importId },
+        },
+        include: { lvImport: true },
+        orderBy: { lvImport: { lvDate: "desc" } },
+      })
+    : [];
+  const priceHistoryByPosition = new Map<string, typeof historyRows>();
+  for (const row of historyRows) {
+    if (!row.matchedPositionId) continue;
+    const existing = priceHistoryByPosition.get(row.matchedPositionId) ?? [];
+    if (existing.length < 2) existing.push(row);
+    priceHistoryByPosition.set(row.matchedPositionId, existing);
+  }
 
   const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
@@ -78,6 +119,24 @@ export default async function KalkulationImportReviewPage({
           </span>
         ) : null}
       </div>
+
+      {relatedImports.length > 0 ? (
+        <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <h2 className="text-sm font-bold text-blue-950">Weitere Imports zu diesem Projekt</h2>
+          <ul className="mt-2 space-y-1">
+            {relatedImports.map((related) => (
+              <li key={related.id}>
+                <Link className="text-sm font-semibold text-blue-800 underline" href={`/kalkulation/imports/${related.id}`}>
+                  {related.fileName}
+                </Link>
+                <span className="ml-2 text-xs text-blue-700">
+                  {LV_TYPE_LABELS[related.lvType] ?? related.lvType} · {related.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
         <table className="w-full min-w-[1100px] text-left text-sm">
@@ -138,6 +197,14 @@ export default async function KalkulationImportReviewPage({
                         {item.matchReasoning ? (
                           <div className="text-xs text-gray-500">{item.matchReasoning}</div>
                         ) : null}
+                        {(priceHistoryByPosition.get(item.matchedPosition.id) ?? []).map((history) => (
+                          <div className="mt-1 text-xs font-semibold text-green-800" key={history.id}>
+                            {formatCents(history.unitPriceCents)} · {history.lvImport.fileName}
+                            {history.lvImport.lvDate
+                              ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(history.lvImport.lvDate)})`
+                              : ""}
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <span className="text-gray-400">–</span>
