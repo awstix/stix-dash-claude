@@ -174,10 +174,12 @@ export async function runMatching(formData: FormData) {
   const importId = text(formData.get("importId"));
   if (!importId) throw new Error("Import-ID fehlt.");
 
+  // KI ist ein optionales Goodie, keine Voraussetzung: die gelernte
+  // Zuordnung (exakter Text-Treffer) läuft immer, unabhängig davon, ob ein
+  // KI-Anbieter eingerichtet ist. Nur für Positionen, die dadurch nicht
+  // aufgelöst werden, wird zusätzlich die KI gefragt - sofern konfiguriert.
   const aiSettings = await getAiSettings();
-  if (!isAiConfigured(aiSettings)) {
-    throw new Error("KI-Anbieter ist nicht konfiguriert (Admin > KI-Einstellungen).");
-  }
+  const aiAvailable = isAiConfigured(aiSettings);
 
   const [lineItems, catalog] = await Promise.all([
     prisma.kalkulationLvLineItem.findMany({
@@ -194,7 +196,7 @@ export async function runMatching(formData: FormData) {
     unit: position.unit,
   }));
 
-  const aiProvider = getAiProvider(aiSettings.provider);
+  const maxCandidates = aiSettings?.maxCandidates ?? 5;
   const pendingForAi: LineItemForMatching[] = [];
   const learnedResults = new Map<string, { positionId: string | null; confidence: number | null }>();
 
@@ -212,8 +214,10 @@ export async function runMatching(formData: FormData) {
       continue;
     }
 
+    if (!aiAvailable) continue; // Ohne KI bleibt die Position PENDING, bis sie manuell zugeordnet wird.
+
     const combinedText = `${lineItem.shortText ?? ""} ${lineItem.rawText}`.trim();
-    const shortlist = buildShortlist(combinedText, catalogForMatching, aiSettings.maxCandidates);
+    const shortlist = buildShortlist(combinedText, catalogForMatching, maxCandidates);
     pendingForAi.push({
       candidates: shortlist,
       lineItemId: lineItem.id,
@@ -235,30 +239,34 @@ export async function runMatching(formData: FormData) {
     });
   }
 
-  for (let i = 0; i < pendingForAi.length; i += BATCH_SIZE) {
-    const chunk = pendingForAi.slice(i, i + BATCH_SIZE);
-    const results = await aiProvider.matchBatch({
-      apiKey: aiSettings.apiKey,
-      items: chunk,
-      model: aiSettings.model,
-    });
-    const resultsByItem = new Map(results.map((result) => [result.lineItemId, result]));
+  if (aiAvailable && pendingForAi.length > 0) {
+    const aiProvider = getAiProvider(aiSettings.provider);
 
-    for (const item of chunk) {
-      const result = resultsByItem.get(item.lineItemId);
-      const candidate = item.candidates.find((c) => c.positionId === result?.chosenPositionId);
-      const hardMismatch = Boolean(candidate?.criticalTokenMismatch);
-
-      await prisma.kalkulationLvLineItem.update({
-        where: { id: item.lineItemId },
-        data: {
-          matchConfidence: result?.confidence ?? 0,
-          matchReasoning: result?.reasoning ?? null,
-          matchStatus: !result?.chosenPositionId ? "NO_MATCH" : hardMismatch ? "NEEDS_REVIEW" : "SUGGESTED",
-          matchedPositionId: result?.chosenPositionId ?? null,
-          matchedVia: "AI",
-        },
+    for (let i = 0; i < pendingForAi.length; i += BATCH_SIZE) {
+      const chunk = pendingForAi.slice(i, i + BATCH_SIZE);
+      const results = await aiProvider.matchBatch({
+        apiKey: aiSettings.apiKey,
+        items: chunk,
+        model: aiSettings.model,
       });
+      const resultsByItem = new Map(results.map((result) => [result.lineItemId, result]));
+
+      for (const item of chunk) {
+        const result = resultsByItem.get(item.lineItemId);
+        const candidate = item.candidates.find((c) => c.positionId === result?.chosenPositionId);
+        const hardMismatch = Boolean(candidate?.criticalTokenMismatch);
+
+        await prisma.kalkulationLvLineItem.update({
+          where: { id: item.lineItemId },
+          data: {
+            matchConfidence: result?.confidence ?? 0,
+            matchReasoning: result?.reasoning ?? null,
+            matchStatus: !result?.chosenPositionId ? "NO_MATCH" : hardMismatch ? "NEEDS_REVIEW" : "SUGGESTED",
+            matchedPositionId: result?.chosenPositionId ?? null,
+            matchedVia: "AI",
+          },
+        });
+      }
     }
   }
 
@@ -273,7 +281,7 @@ export async function runMatching(formData: FormData) {
     where: { id: importId },
     data: {
       matchedCount,
-      matchingProvider: aiSettings.provider,
+      matchingProvider: aiAvailable ? aiSettings.provider : null,
       matchingRunAt: new Date(),
       needsReviewCount,
       status: "MATCHING",

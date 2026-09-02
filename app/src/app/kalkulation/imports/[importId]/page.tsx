@@ -61,18 +61,17 @@ export default async function KalkulationImportReviewPage({
         <form action={runMatching}>
           <input name="importId" type="hidden" value={importId} />
           <button
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!aiConfigured}
-            title={aiConfigured ? undefined : "KI-Anbieter zuerst unter Admin > KI-Einstellungen einrichten"}
+            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+            title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
             type="submit"
           >
-            KI-Abgleich starten
+            Abgleich starten
           </button>
         </form>
 
         {!aiConfigured ? (
           <span className="text-sm text-amber-800">
-            KI nicht konfiguriert -{" "}
+            KI nicht konfiguriert (optional) -{" "}
             <Link className="underline" href="/admin/kalkulation-ai-settings">
               einrichten
             </Link>

@@ -60,10 +60,11 @@ export default async function KalkulationImportsPage({
 
       {!aiConfigured ? (
         <p className="mb-6 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
-          KI-Abgleich ist noch nicht eingerichtet - Import und manuelle
-          Zuordnung funktionieren trotzdem.{" "}
+          KI ist optional und noch nicht eingerichtet - der Abgleich über
+          gelernte Zuordnungen sowie Import und manuelle Zuordnung
+          funktionieren unabhängig davon.{" "}
           <Link className="underline" href="/admin/kalkulation-ai-settings">
-            Jetzt einrichten
+            KI trotzdem einrichten
           </Link>
         </p>
       ) : null}
