@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { confirmMatch, createPositionFromLineItem, manualMatch, rejectMatch, runMatching } from "../actions";
+import { MatchingThresholdInput } from "../MatchingThresholdInput";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   PENDING: { label: "Offen", className: "bg-gray-100 text-gray-700" },
@@ -110,17 +111,6 @@ export default async function KalkulationImportReviewPage({
           Kalkuliertes Angebot nachreichen →
         </Link>
 
-        <form action={runMatching}>
-          <input name="importId" type="hidden" value={importId} />
-          <button
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-            title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
-            type="submit"
-          >
-            Abgleich starten
-          </button>
-        </form>
-
         {!aiConfigured ? (
           <span className="text-sm text-amber-800">
             KI nicht konfiguriert (optional) -{" "}
@@ -130,6 +120,18 @@ export default async function KalkulationImportReviewPage({
           </span>
         ) : null}
       </div>
+
+      <form action={runMatching} className="mb-6 max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <input name="importId" type="hidden" value={importId} />
+        <MatchingThresholdInput defaultValue={Math.round(lvImport.matchingThreshold * 100)} name="matchingThreshold" />
+        <button
+          className="mt-4 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+          title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
+          type="submit"
+        >
+          Abgleich starten
+        </button>
+      </form>
 
       {relatedImports.length > 0 ? (
         <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">

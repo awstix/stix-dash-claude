@@ -58,6 +58,8 @@ export async function importLv(formData: FormData) {
   const file = formData.get("file");
   const projectNumberInput = text(formData.get("projectNumber"));
   const tenderTitleInput = text(formData.get("tenderTitle"));
+  const matchingThresholdRaw = text(formData.get("matchingThreshold"));
+  const matchingThreshold = matchingThresholdRaw ? Number.parseInt(matchingThresholdRaw, 10) / 100 : 0.3;
 
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Bitte eine GAEB- oder Excel-Datei auswählen.");
@@ -129,6 +131,7 @@ export async function importLv(formData: FormData) {
       gaebDocType,
       importedByUserId: session.user.id,
       lvType,
+      matchingThreshold,
       originalStoragePath,
       projectNumber: projectNumberInput || null,
       rowCount: itemRows.length,
@@ -181,7 +184,16 @@ export async function runMatching(formData: FormData) {
   const aiSettings = await getAiSettings();
   const aiAvailable = isAiConfigured(aiSettings);
 
-  const [lineItems, catalog] = await Promise.all([
+  const newThresholdRaw = text(formData.get("matchingThreshold"));
+  if (newThresholdRaw) {
+    await prisma.kalkulationLvImport.update({
+      where: { id: importId },
+      data: { matchingThreshold: Number.parseInt(newThresholdRaw, 10) / 100 },
+    });
+  }
+
+  const [lvImport, lineItems, catalog] = await Promise.all([
+    prisma.kalkulationLvImport.findUniqueOrThrow({ where: { id: importId } }),
     prisma.kalkulationLvLineItem.findMany({
       where: { entryType: "ITEM", lvImportId: importId, matchStatus: { in: ["PENDING", "REJECTED"] } },
     }),
@@ -214,10 +226,11 @@ export async function runMatching(formData: FormData) {
       continue;
     }
 
-    if (!aiAvailable) continue; // Ohne KI bleibt die Position PENDING, bis sie manuell zugeordnet wird.
-
     const combinedText = `${lineItem.shortText ?? ""} ${lineItem.rawText}`.trim();
-    const shortlist = buildShortlist(combinedText, catalogForMatching, maxCandidates);
+    const shortlist = buildShortlist(combinedText, catalogForMatching, maxCandidates, lvImport.matchingThreshold);
+    // Kein Kandidat erreicht die eingestellte Mindest-Ähnlichkeit - dann
+    // gibt's nichts, das sich lohnt, der KI vorzulegen (spart die Anfrage).
+    if (!aiAvailable || shortlist.length === 0) continue;
     pendingForAi.push({
       candidates: shortlist,
       lineItemId: lineItem.id,

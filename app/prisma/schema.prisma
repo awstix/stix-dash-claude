@@ -3720,6 +3720,7 @@ model KalkulationLvImport {
   status            String    @default("IMPORTED") // IMPORTED -> MATCHING -> REVIEWED
   matchingProvider  String?
   matchingRunAt     DateTime?
+  matchingThreshold Float     @default(0.3) // Mindest-Ähnlichkeit (0-1) für Abgleich-Vorschläge, pro Import einstellbar
   rowCount          Int       @default(0)
   matchedCount      Int       @default(0)
   needsReviewCount  Int       @default(0)

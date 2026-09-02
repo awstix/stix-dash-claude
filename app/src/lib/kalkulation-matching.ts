@@ -142,11 +142,17 @@ export function levenshteinDistance(a: string, b: string): number {
  * dann Levenshtein nur zur Fein-Sortierung der besten ~20 Dice-Treffer
  * (präzise, aber teurer). Kandidaten mit widersprüchlichen Kennwerten
  * (DN/Festigkeitsklasse) werden markiert, nicht ausgefiltert - die
- * Entscheidung trifft die KI-Stufe bzw. die manuelle Prüfung. */
+ * Entscheidung trifft die KI-Stufe bzw. die manuelle Prüfung.
+ *
+ * `minScore` (0-1, pro Import einstellbar) filtert Kandidaten unterhalb
+ * der Mindest-Ähnlichkeit komplett raus - höher eingestellt heißt: weniger,
+ * aber treffsicherere Vorschläge, niedriger: mehr Vorschläge, die dann per
+ * Hand/KI genauer geprüft werden müssen. */
 export function buildShortlist(
   rawText: string,
   catalog: CatalogEntryForMatching[],
   limit = 5,
+  minScore = 0,
 ): MatchCandidate[] {
   const normalizedRawText = normalizeText(rawText);
   const rawTokens = extractCriticalTokens(rawText);
@@ -180,5 +186,8 @@ export function buildShortlist(
     } satisfies MatchCandidate;
   });
 
-  return refined.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, limit);
+  return refined
+    .filter((candidate) => candidate.similarityScore >= minScore)
+    .sort((a, b) => b.similarityScore - a.similarityScore)
+    .slice(0, limit);
 }

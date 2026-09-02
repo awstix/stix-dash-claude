@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { deleteImport, importLv } from "./actions";
 import { DeleteImportButton } from "./DeleteImportButton";
+import { MatchingThresholdInput } from "./MatchingThresholdInput";
 
 export const maxDuration = 300;
 
@@ -92,6 +93,9 @@ export default async function KalkulationImportsPage({
                 placeholder="wird sonst aus der Datei übernommen, falls vorhanden"
               />
             </label>
+          </div>
+          <div className="mt-4">
+            <MatchingThresholdInput name="matchingThreshold" />
           </div>
           <ProjectFileDropInput
             accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
