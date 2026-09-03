@@ -8,11 +8,13 @@ import {
   adoptPrice,
   confirmMatch,
   createPositionFromLineItem,
+  deleteImport,
   linkCrossLvMatch,
   manualMatch,
   rejectMatch,
   runMatching,
 } from "../actions";
+import { DeleteImportButton } from "../DeleteImportButton";
 import { MatchingThresholdInput } from "../MatchingThresholdInput";
 import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { formatLvSource } from "@/lib/kalkulation-format";
@@ -183,6 +185,11 @@ export default async function KalkulationImportReviewPage({
             </Link>
           </span>
         ) : null}
+
+        <form action={deleteImport} className="ml-auto">
+          <input name="importId" type="hidden" value={importId} />
+          <DeleteImportButton fileName={lvImport.fileName} />
+        </form>
       </div>
 
       <div className="mb-6 flex flex-wrap items-start gap-3">
