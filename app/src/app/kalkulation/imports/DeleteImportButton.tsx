@@ -1,21 +1,16 @@
 "use client";
 
-import { ActionIcon } from "@/components/ActionIcon";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export function DeleteImportButton({ fileName }: { fileName: string }) {
   return (
-    <button
-      aria-label={`LV ${fileName} löschen`}
+    <ConfirmSubmitButton
+      ariaLabel={`LV ${fileName} löschen`}
       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50"
-      onClick={(event) => {
-        if (!window.confirm(`LV "${fileName}" wirklich löschen? Alle zugeordneten Positionen gehen dabei verloren.`)) {
-          event.preventDefault();
-        }
-      }}
+      confirmLabel="Löschen"
+      icon="delete"
+      message={`LV "${fileName}" wirklich löschen? Alle zugeordneten Positionen gehen dabei verloren.`}
       title="Löschen"
-      type="submit"
-    >
-      <ActionIcon name="delete" className="h-4 w-4" />
-    </button>
+    />
   );
 }
