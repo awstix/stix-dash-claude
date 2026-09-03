@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 function ProjectSlot({
   accept,
+  emptyLabel,
   hint,
   imports,
   projectNumber,
@@ -26,6 +27,7 @@ function ProjectSlot({
   title,
 }: {
   accept: string;
+  emptyLabel: string;
   hint: string;
   imports: LvImportRow[];
   projectNumber: string;
@@ -67,7 +69,7 @@ function ProjectSlot({
         <input name="tenderTitle" type="hidden" value={tenderTitle ?? ""} />
         <ProjectFileDropInput
           accept={accept}
-          emptyLabel="Datei hierher ziehen oder klicken"
+          emptyLabel={emptyLabel}
           name="file"
           required
           selectedLabel="Datei auswählen"
@@ -126,7 +128,8 @@ export default async function KalkulationProjectPage({
       <div className="space-y-4">
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          hint="Unbepreistes Leistungsverzeichnis (GAEB X81/D81 o.ä.)"
+          emptyLabel="GAEB (.x81/.x83/.x84/.d81/.d83/.d84) oder Excel (.xlsx/.xls) hierher ziehen oder klicken"
+          hint="Unbepreistes Leistungsverzeichnis - welche GAEB-Endung genau (X81 oder X83) hängt von eurer AVA-Software ab, erkannt wird anhand des Inhalts, nicht der Endung."
           imports={lvImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
@@ -135,6 +138,7 @@ export default async function KalkulationProjectPage({
         />
         <ProjectSlot
           accept=".d31"
+          emptyLabel=".D31 hierher ziehen oder klicken"
           hint="RIB iTWO-Urkalkulation mit den Kalkulationsansätzen je Position (kein berechneter Preis)"
           imports={kalkulationImports}
           projectNumber={project.projectNumber}
@@ -144,7 +148,8 @@ export default async function KalkulationProjectPage({
         />
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          hint="Bepreistes Angebot (GAEB X83/D83 o.ä.)"
+          emptyLabel="GAEB (.x81/.x83/.x84/.d81/.d83/.d84) oder Excel (.xlsx/.xls) hierher ziehen oder klicken"
+          hint="Bepreistes Angebot - welche GAEB-Endung genau (X81 oder X83) hängt von eurer AVA-Software ab, erkannt wird anhand des Inhalts, nicht der Endung."
           imports={angebotImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
