@@ -67,6 +67,7 @@ function ProjectSlot({
       <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
         <input name="projectNumber" type="hidden" value={projectNumber} />
         <input name="tenderTitle" type="hidden" value={tenderTitle ?? ""} />
+        <input name="returnTo" type="hidden" value={returnTo} />
         <ProjectFileDropInput
           accept={accept}
           emptyLabel={emptyLabel}
@@ -84,11 +85,14 @@ function ProjectSlot({
 
 export default async function KalkulationProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectNumber: string }>;
+  searchParams: Promise<{ importError?: string }>;
 }) {
   const { projectNumber: encodedProjectNumber } = await params;
   const projectNumber = decodeURIComponent(encodedProjectNumber);
+  const { importError } = await searchParams;
 
   const [project, imports] = await Promise.all([
     prisma.kalkulationProject.findUnique({ where: { projectNumber } }),
@@ -124,6 +128,12 @@ export default async function KalkulationProjectPage({
           ← Alle Projekte
         </Link>
       </div>
+
+      {importError ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
+          Import fehlgeschlagen: {importError}
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         <ProjectSlot

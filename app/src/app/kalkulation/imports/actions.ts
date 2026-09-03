@@ -62,9 +62,16 @@ export async function importLv(formData: FormData) {
   const tenderTitleInput = text(formData.get("tenderTitle"));
   const matchingThresholdRaw = text(formData.get("matchingThreshold"));
   const matchingThreshold = matchingThresholdRaw ? Number.parseInt(matchingThresholdRaw, 10) / 100 : 0.3;
+  // Von einer Projekt-Zeile aus hochgeladen (ein leeres Slot befüllt) -
+  // dann dorthin zurückkehren statt immer zur Einzel-Review-Seite zu
+  // springen, sonst sieht man nach dem Upload die eigenen "3 Zeilen"
+  // nicht mehr.
+  const returnTo = text(formData.get("returnTo"));
 
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Bitte eine GAEB- oder Excel-Datei auswählen.");
+    redirect(
+      `${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent("Bitte eine GAEB- oder Excel-Datei auswählen.")}`,
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -110,13 +117,13 @@ export async function importLv(formData: FormData) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Datei konnte nicht gelesen werden.";
-    redirect(`/kalkulation/imports?importError=${encodeURIComponent(message)}`);
+    redirect(`${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent(message)}`);
   }
 
   const itemRows = rows.filter((row) => row.entryType === "ITEM");
   if (itemRows.length === 0) {
     redirect(
-      `/kalkulation/imports?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
+      `${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
     );
   }
 
@@ -193,6 +200,10 @@ export async function importLv(formData: FormData) {
   }
 
   revalidatePath("/kalkulation/imports");
+  if (returnTo) {
+    revalidatePath(returnTo);
+    redirect(returnTo);
+  }
   redirect(`/kalkulation/imports/${lvImport.id}`);
 }
 
