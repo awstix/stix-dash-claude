@@ -89,13 +89,23 @@ export default async function KalkulationImportsPage({
   ]);
 
   const aiConfigured = isAiConfigured(aiSettings);
+  // Bei einem Sprung von "Kalkuliertes Angebot nachreichen" ist die Absicht
+  // eindeutig hochladen - dann das Formular gleich aufgeklappt zeigen,
+  // sonst bleibt es zu (Haupt-Upload-Weg sind die 3 Zeilen je Projekt).
+  const openUploadForm = Boolean(params.prefillProjectNumber || params.prefillTenderTitle);
 
   return (
     <AppShell
-      description="Leistungsverzeichnisse (GAEB oder Excel) importieren und gegen den Positionskatalog abgleichen."
-      title="LV-Import"
+      description="Projektübergreifende Suche über alle importierten LVs. Neue LVs am besten direkt auf der jeweiligen Projektseite hochladen."
+      title="Alle LV-Imports"
     >
       <div className="mb-6 flex flex-wrap gap-2">
+        <Link
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href="/kalkulation/projects"
+        >
+          ← Projekte
+        </Link>
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           href="/kalkulation/katalog"
@@ -121,50 +131,51 @@ export default async function KalkulationImportsPage({
         </p>
       ) : null}
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">LV hochladen</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Unterstützt GAEB DA XML (.x81/.x83/.x84/.d81/.d83/.d84), Excel
-          (Spalten: Position, Text, Einheit, Menge, Einheitspreis) und RIB
-          iTWO-Urkalkulationen (.d31 - übernimmt die Kalkulationsansätze je
-          Position als Referenztext, ohne berechneten Preis).
-        </p>
-        <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-semibold text-gray-900">
-              Projektnummer (optional)
-              <input className={inputClass} defaultValue={params.prefillProjectNumber ?? ""} name="projectNumber" />
-            </label>
-            <label className="block text-sm font-semibold text-gray-900">
-              Projektname (optional)
-              <input
-                className={inputClass}
-                defaultValue={params.prefillTenderTitle ?? ""}
-                name="tenderTitle"
-                placeholder="wird sonst aus der Datei übernommen, falls vorhanden"
-              />
-            </label>
-          </div>
-          <div className="mt-4">
-            <MatchingThresholdInput name="matchingThreshold" />
-          </div>
-          <ProjectFileDropInput
-            accept=".x81,.x83,.x84,.d81,.d83,.d84,.d31,.xlsx,.xls"
-            emptyLabel="Datei hierher ziehen oder klicken"
-            name="file"
-            required
-            selectedLabel="GAEB- oder Excel-Datei auswählen"
-          />
-          <button
-            className="mt-4 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
-            type="submit"
-          >
-            Importieren
-          </button>
-        </ImportForm>
-      </section>
+      <details className="rounded-2xl border border-gray-200 bg-white shadow-sm" open={openUploadForm}>
+        <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
+          LV ohne Projekt-Zuordnung hochladen
+        </summary>
+        <div className="border-t border-gray-100 p-4">
+          <p className="text-xs text-gray-500">
+            GAEB (.x81/.x83/.x84/.d81/.d83/.d84), Excel oder RIB-Urkalkulation (.d31).
+          </p>
+          <ImportForm action={importLv} className="mt-3" progressEndpoint="/kalkulation/imports/progress">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-semibold text-gray-900">
+                Projektnummer (optional)
+                <input className={inputClass} defaultValue={params.prefillProjectNumber ?? ""} name="projectNumber" />
+              </label>
+              <label className="block text-sm font-semibold text-gray-900">
+                Projektname (optional)
+                <input
+                  className={inputClass}
+                  defaultValue={params.prefillTenderTitle ?? ""}
+                  name="tenderTitle"
+                  placeholder="wird sonst aus der Datei übernommen, falls vorhanden"
+                />
+              </label>
+            </div>
+            <div className="mt-3">
+              <MatchingThresholdInput name="matchingThreshold" />
+            </div>
+            <ProjectFileDropInput
+              accept=".x81,.x83,.x84,.d81,.d83,.d84,.d31,.xlsx,.xls"
+              emptyLabel="Datei hierher ziehen oder klicken"
+              name="file"
+              required
+              selectedLabel="Datei auswählen"
+            />
+            <button
+              className="mt-3 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
+              type="submit"
+            >
+              Importieren
+            </button>
+          </ImportForm>
+        </div>
+      </details>
 
-      <div className="mt-6 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <LiveSearchInput
           className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 sm:max-w-md"
           placeholder="Suche nach Projektnummer, Projektname, Dateiname oder Position..."

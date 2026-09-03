@@ -80,7 +80,6 @@ const controllingNavigation = [
 
 const kalkulationNavigation = [
   { name: "Projekte", href: "/kalkulation/projects" },
-  { name: "LV importieren", href: "/kalkulation/imports" },
   { name: "Positionskatalog", href: "/kalkulation/katalog" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
