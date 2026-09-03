@@ -197,7 +197,15 @@ function findFirst(node: unknown, tagNames: string[]): unknown {
   return null;
 }
 
-function buildItemEntry(item: Record<string, unknown>, onPriceFound: () => void): GaebEntry {
+/** Die eigene RNoPart eines BoQCtgy ist nur der Titel-Nummernteil auf
+ * dieser Ebene (z.B. "1"), nicht schon die volle OZ. */
+function extractCategoryNumber(ctgy: Record<string, unknown>): string | null {
+  const rNoPartAttr = ctgy["@_RNoPart"];
+  if (typeof rNoPartAttr === "string" && rNoPartAttr.trim()) return rNoPartAttr.trim();
+  return null;
+}
+
+function buildItemEntry(item: Record<string, unknown>, onPriceFound: () => void, ozPrefix: string[]): GaebEntry {
   const { shortText, longText } = extractShortAndLongText(item["Description"]);
 
   const unit = item["QU"] != null ? String(item["QU"]).trim() : null;
@@ -207,9 +215,16 @@ function buildItemEntry(item: Record<string, unknown>, onPriceFound: () => void)
 
   if (unitPriceCents != null && unitPriceCents > 0) onPriceFound();
 
+  // RNoPart am Item ist nur der Teil auf dieser Ebene (z.B. "3") - die
+  // vollständige, LV-gemäße OZ (z.B. "1.1.3") ergibt sich erst zusammen mit
+  // den RNoParts aller übergeordneten BoQCtgy-Titel.
+  const ownNumber = extractPositionNumber(item);
+  const positionNumber =
+    ownNumber != null ? [...ozPrefix, ownNumber].join(".") : ozPrefix.length > 0 ? ozPrefix.join(".") : null;
+
   return {
     entryType: "ITEM",
-    positionNumber: extractPositionNumber(item),
+    positionNumber,
     shortText,
     rawText: longText,
     unit,
@@ -221,9 +236,14 @@ function buildItemEntry(item: Record<string, unknown>, onPriceFound: () => void)
 
 /** Läuft die BoQCtgy-Hierarchie in Dokumentreihenfolge ab und sammelt
  * TITLE-, REMARK- und ITEM-Einträge - rekursiv über verschachtelte
- * Unter-Titel hinweg. */
-function walkCategory(ctgy: unknown, entries: GaebEntry[], onPriceFound: () => void) {
+ * Unter-Titel hinweg. `ozPrefix` sammelt dabei die RNoPart-Nummern aller
+ * bereits durchlaufenen übergeordneten Titel auf, damit Items ihre volle,
+ * LV-gemäße OZ (z.B. "1.1.3" statt nur "3") bekommen. */
+function walkCategory(ctgy: unknown, entries: GaebEntry[], onPriceFound: () => void, ozPrefix: string[]) {
   if (!isPlainObject(ctgy)) return;
+
+  const categoryNumber = extractCategoryNumber(ctgy);
+  const nextPrefix = categoryNumber != null ? [...ozPrefix, categoryNumber] : ozPrefix;
 
   const label = textOf(ctgy["LblTx"]);
   if (label) {
@@ -243,7 +263,7 @@ function walkCategory(ctgy: unknown, entries: GaebEntry[], onPriceFound: () => v
   if (!isPlainObject(body)) return;
 
   for (const child of asArray(body["BoQCtgy"])) {
-    walkCategory(child, entries, onPriceFound);
+    walkCategory(child, entries, onPriceFound, nextPrefix);
   }
 
   // "Itemlist" ist selbst über REPEATING_TAGS zu einem Array gezwungen
@@ -288,7 +308,7 @@ function walkCategory(ctgy: unknown, entries: GaebEntry[], onPriceFound: () => v
 
     for (const item of asArray(itemlist["Item"])) {
       if (!isPlainObject(item)) continue;
-      entries.push(buildItemEntry(item, onPriceFound));
+      entries.push(buildItemEntry(item, onPriceFound, nextPrefix));
     }
   }
 }
@@ -325,7 +345,7 @@ export function parseGaebXml(buffer: Buffer, fileName: string): ParsedGaeb {
   const boQ = isPlainObject(award) ? award["BoQ"] : null;
   const boQBody = isPlainObject(boQ) ? boQ["BoQBody"] : null;
   for (const topCtgy of asArray(isPlainObject(boQBody) ? boQBody["BoQCtgy"] : null)) {
-    walkCategory(topCtgy, entries, markPriceFound);
+    walkCategory(topCtgy, entries, markPriceFound, []);
   }
 
   // Der Dateityp (X81/X83/X84) ist nur ein Hinweis, kein Beweis: in der
