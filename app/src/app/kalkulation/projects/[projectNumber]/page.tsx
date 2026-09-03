@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 import type { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { ImportForm } from "@/components/ImportForm";
 import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
-import { deleteImport, importLv } from "../../imports/actions";
+import { deleteImport, importLv, suggestAnsaetzeFromHistory } from "../../imports/actions";
 import { DeleteImportButton } from "../../imports/DeleteImportButton";
 import { LvReviewPanel } from "../../imports/LvReviewPanel";
 
@@ -23,6 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
 function ProjectSlot({
   accept,
   emptyLabel,
+  extraEmptyContent,
   imports,
   projectNumber,
   returnTo,
@@ -31,6 +33,7 @@ function ProjectSlot({
 }: {
   accept: string;
   emptyLabel: string;
+  extraEmptyContent?: ReactNode;
   imports: LvImportRow[];
   projectNumber: string;
   returnTo: string;
@@ -81,6 +84,7 @@ function ProjectSlot({
           </button>
         </ImportForm>
       )}
+      {imports.length === 0 ? extraEmptyContent : null}
     </section>
   );
 }
@@ -146,30 +150,45 @@ export default async function KalkulationProjectPage({
       <div className="grid gap-3 md:grid-cols-3">
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          emptyLabel="LV hierher ziehen"
+          emptyLabel="LV hierher ziehen (D83/X83)"
           imports={lvImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="LV / Angebotsanfrage"
+          title="LV Angebotsabgabe (D83/X83)"
         />
         <ProjectSlot
-          accept=".d31"
-          emptyLabel=".D31 hierher ziehen"
+          accept=".d31,.x31"
+          emptyLabel=".D31/.X31 hierher ziehen"
+          extraEmptyContent={
+            lvImports.length > 0 ? (
+              <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
+                <input name="projectNumber" type="hidden" value={project.projectNumber} />
+                <input name="returnTo" type="hidden" value={returnTo} />
+                <button
+                  className="w-full rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+                  title="Sucht für jede Position im hochgeladenen LV die ähnlichsten Kalkulationsansätze aus anderen Projekten - als Vorschlag, jede Position einzeln bestätigbar"
+                  type="submit"
+                >
+                  Ansätze aus anderen Projekten vorschlagen
+                </button>
+              </form>
+            ) : null
+          }
           imports={kalkulationImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="Kalkulation (D31)"
+          title="Kalkulation (D31/X31)"
         />
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          emptyLabel="LV hierher ziehen"
+          emptyLabel="LV hierher ziehen (D81/X81)"
           imports={angebotImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="Kalkuliertes LV"
+          title="Kalkuliertes LV (D81/X81)"
         />
       </div>
 

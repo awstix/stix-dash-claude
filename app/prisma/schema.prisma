@@ -3766,6 +3766,14 @@ model KalkulationLvLineItem {
   shortText       String? // Kurztext
   rawText         String // Langtext (bei TITLE/REMARK: der jeweilige Überschrifts-/Hinweistext)
   normalizedText  String
+
+  // Nur bei sourceFormat RIB_KALKULATION: der unveränderte Original-
+  // Tag-Block dieser Position (#begin[_RIB_KalkPos]...#end[_RIB_KalkPos])
+  // aus der D31-Datei - rawText ist nur eine lesbare Zusammenfassung davon
+  // fürs UI, ribRawBlock wird für den D31-Export gebraucht, damit
+  // Bausteine/Kostenarten unverändert (und damit wieder in iTWO einlesbar)
+  // erhalten bleiben.
+  ribRawBlock String?
   unit            String?
   quantity        Float?
   unitPriceCents  Int?

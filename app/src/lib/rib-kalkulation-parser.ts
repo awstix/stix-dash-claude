@@ -17,31 +17,43 @@ type RibNode = {
   name: string;
   fields: Map<string, string[]>;
   children: RibNode[];
+  // Unveränderter Original-Textblock dieses Knotens (inkl. #begin/#end-
+  // Zeilen) - wird nur für den D31-Re-Export gebraucht (siehe
+  // buildD31Block unten), deshalb erst beim Schließen des Knotens befüllt.
+  raw?: string;
 };
 
 function parseTree(text: string): RibNode {
   const root: RibNode = { name: "ROOT", fields: new Map(), children: [] };
   const stack: RibNode[] = [root];
+  const startLineStack: number[] = [];
 
   const beginRe = /^#begin\[(\w+)\]$/;
   const endRe = /^#end\[(\w+)\]$/;
   const fieldRe = /^\[(\w+)\](.*)\[end\]$/;
 
-  for (const rawLine of text.split(/\r\n|\n/)) {
+  const lines = text.split(/\r\n|\n/);
+
+  lines.forEach((rawLine, index) => {
     const line = rawLine.trim();
-    if (!line) continue;
+    if (!line) return;
 
     const beginMatch = beginRe.exec(line);
     if (beginMatch) {
       const node: RibNode = { name: beginMatch[1], fields: new Map(), children: [] };
       stack[stack.length - 1].children.push(node);
       stack.push(node);
-      continue;
+      startLineStack.push(index);
+      return;
     }
 
     if (endRe.test(line)) {
-      if (stack.length > 1) stack.pop();
-      continue;
+      if (stack.length > 1) {
+        const node = stack.pop()!;
+        const startLine = startLineStack.pop()!;
+        node.raw = lines.slice(startLine, index + 1).join("\r\n");
+      }
+      return;
     }
 
     const fieldMatch = fieldRe.exec(line);
@@ -52,7 +64,7 @@ function parseTree(text: string): RibNode {
       existing.push(value);
       current.fields.set(key, existing);
     }
-  }
+  });
 
   return root;
 }
@@ -124,7 +136,18 @@ export type RibKalkulationRow = {
   quantity: null;
   unitPriceCents: null;
   totalPriceCents: null;
+  ribRawBlock: string | null;
 };
+
+/** Ersetzt die `[_RIB_OZ]`-Zeile in einem gespeicherten `_RIB_KalkPos`-Block
+ * durch eine andere Positionsnummer - gebraucht, wenn ein Ansatz aus einem
+ * fremden Projekt für eine Position mit anderer OZ übernommen wird, damit
+ * der D31-Export beim Wiedereinlesen in iTWO zur richtigen LV-Position
+ * passt. Best-effort: übernimmt die Ziel-OZ unformatiert (kein
+ * Spalten-Padding wie im Original), das genügt der Tag-Syntax. */
+export function rewriteOzInRawBlock(rawBlock: string, newOz: string): string {
+  return rawBlock.replace(/\[_RIB_OZ\].*?\[end\]/, `[_RIB_OZ]${newOz}[end]`);
+}
 
 /** Erkennt das Format anhand der ersten Zeilen - zuverlässiger als die
  * Dateiendung allein, da ".D31" kein offizieller GAEB-Standard ist und
@@ -168,6 +191,7 @@ export function parseRibKalkulation(buffer: Buffer): {
       quantity: null,
       unitPriceCents: null,
       totalPriceCents: null,
+      ribRawBlock: kalkPos.raw ?? null,
     };
   });
 

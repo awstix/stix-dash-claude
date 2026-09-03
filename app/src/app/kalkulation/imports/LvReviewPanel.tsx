@@ -2,10 +2,12 @@ import { prisma } from "@/lib/prisma";
 import {
   adoptBestPricesForImport,
   adoptPrice,
+  confirmAnsatzSuggestion,
   confirmMatch,
   createPositionFromLineItem,
   linkCrossLvMatch,
   manualMatch,
+  rejectAnsatzSuggestion,
   rejectMatch,
   runMatching,
 } from "./actions";
@@ -167,6 +169,16 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
         >
           Als PDF exportieren ↓
         </a>
+
+        {lvImport.sourceFormat === "RIB_KALKULATION" && lineItems.some((item) => item.ribRawBlock) ? (
+          <a
+            className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href={`/kalkulation/imports/${importId}/export-d31`}
+            title="Exportiert die Kalkulationsansätze dieses Imports als .D31 - zum Wiedereinlesen in iTWO"
+          >
+            Als D31 exportieren ↓
+          </a>
+        ) : null}
       </div>
 
       <section className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -177,12 +189,12 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
               <th className="p-3">Kurztext</th>
               <th className="p-3">Langtext</th>
               <th className="p-3">LV-Menge</th>
-              <th className="p-3">Mengeneinheit</th>
+              <th className="p-3">Einheit</th>
               <th className="p-3">EP</th>
-              <th className="p-3">Ähnlich in anderen LVs</th>
-              <th className="p-3">Vorschlag</th>
+              <th className="p-3 w-56">Ähnlich in anderen LVs</th>
+              <th className="p-3 w-40">Vorschlag</th>
               <th className="p-3">Status</th>
-              <th className="p-3">Aktion</th>
+              <th className="p-3 w-40">Aktion</th>
             </tr>
           </thead>
           <tbody>
@@ -213,26 +225,26 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                 <tr className="border-t border-gray-100 align-top" key={item.id}>
                   <td className="p-3 text-gray-500">{item.positionNumber ?? "–"}</td>
                   <td className="p-3 max-w-xs font-semibold text-gray-900">{item.shortText ?? "–"}</td>
-                  <td className="p-3 max-w-sm text-gray-700">{item.rawText}</td>
+                  <td className="whitespace-pre-line p-3 max-w-sm text-gray-700">{item.rawText}</td>
                   <td className="p-3 whitespace-nowrap">{item.quantity ?? "–"}</td>
                   <td className="p-3 whitespace-nowrap">{item.unit ?? "–"}</td>
-                  <td className="p-3 whitespace-nowrap">
-                    {formatCents(item.unitPriceCents)}
+                  <td className="w-28 max-w-28 p-3">
+                    <span className="whitespace-nowrap">{formatCents(item.unitPriceCents)}</span>
                     {item.priceSourceLvImportId && priceSourceImportById.has(item.priceSourceLvImportId) ? (
-                      <div className="text-xs font-normal text-gray-500">
+                      <div className="whitespace-normal break-words text-xs font-normal text-gray-500">
                         übernommen aus {formatLvSource(priceSourceImportById.get(item.priceSourceLvImportId)!)}
                         {item.priceSourceSimilarity != null ? ` (${Math.round(item.priceSourceSimilarity * 100)}%)` : ""}
                       </div>
                     ) : null}
                   </td>
-                  <td className="p-3">
+                  <td className="w-56 max-w-56 p-3">
                     {(crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
                       <span className="text-gray-400">–</span>
                     ) : (
                       <div className="space-y-2">
                         {(crossLvMatchesByLineItem.get(item.id) ?? []).map((cross) => (
                           <div className="border-b border-gray-100 pb-2 last:border-0 last:pb-0" key={cross.id}>
-                            <div className="font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
+                            <div className="break-words font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
                             <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
                             <div className="mt-1 text-xs font-semibold text-green-800">
                               {formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
@@ -281,10 +293,10 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                       </div>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className="w-40 max-w-40 p-3">
                     {item.matchedPosition ? (
                       <div>
-                        <div className="font-semibold text-gray-900">{item.matchedPosition.title}</div>
+                        <div className="break-words font-semibold text-gray-900">{item.matchedPosition.title}</div>
                         {item.matchConfidence != null ? (
                           <div className="text-xs text-gray-500">
                             Konfidenz {Math.round(item.matchConfidence * 100)}%
@@ -324,7 +336,35 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                       {status.label}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="w-40 max-w-40 p-3">
+                    {item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
+                      <div className="flex flex-col gap-2">
+                        {item.matchStatus !== "CONFIRMED" && item.matchStatus !== "REJECTED" ? (
+                          <>
+                            <form action={confirmAnsatzSuggestion}>
+                              <input name="lineItemId" type="hidden" value={item.id} />
+                              <button
+                                className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
+                                title="Diesen übernommenen Ansatz behalten - zählt zum D31-Export dazu"
+                                type="submit"
+                              >
+                                Übernehmen
+                              </button>
+                            </form>
+                            <form action={rejectAnsatzSuggestion}>
+                              <input name="lineItemId" type="hidden" value={item.id} />
+                              <button
+                                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                                title="Diesen Vorschlag verwerfen - fehlt dann im D31-Export"
+                                type="submit"
+                              >
+                                Verwerfen
+                              </button>
+                            </form>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : (
                     <div className="flex flex-col gap-2">
                       {item.matchedPositionId && item.matchStatus !== "CONFIRMED" ? (
                         <form action={confirmMatch}>
@@ -346,9 +386,9 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                       ) : null}
 
                       {item.matchStatus !== "CONFIRMED" ? (
-                        <form action={manualMatch} className="flex gap-1">
+                        <form action={manualMatch} className="flex flex-col gap-1">
                           <input name="lineItemId" type="hidden" value={item.id} />
-                          <select className="rounded-lg border border-gray-300 px-2 py-1 text-xs" name="positionId" required>
+                          <select className="w-full max-w-full rounded-lg border border-gray-300 px-2 py-1 text-xs" name="positionId" required>
                             <option value="">Manuell wählen …</option>
                             {positions.map((position) => (
                               <option key={position.id} value={position.id}>
@@ -371,6 +411,7 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                         </form>
                       ) : null}
                     </div>
+                    )}
                   </td>
                 </tr>
               );

@@ -9,14 +9,15 @@ import { deleteFile, putFile } from "@/lib/storage";
 import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/import-value-parsing";
 import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
-import { looksLikeRibKalkulation, parseRibKalkulation } from "@/lib/rib-kalkulation-parser";
+import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
+import { buildAnsatzPool, poolToCatalog } from "@/lib/kalkulation-ansatz-pool";
 import { buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 
 const STORAGE_BUCKET = "uploads";
 const GAEB_EXTENSIONS = /\.(x81|x83|x84|d81|d83|d84)$/i;
-const RIB_KALKULATION_EXTENSIONS = /\.(d31)$/i;
+const RIB_KALKULATION_EXTENSIONS = /\.(d31|x31)$/i;
 
 type ParsedRow = {
   entryType: "ITEM" | "TITLE" | "REMARK";
@@ -27,6 +28,10 @@ type ParsedRow = {
   quantity: number | null;
   unitPriceCents: number | null;
   totalPriceCents: number | null;
+  // Nur bei RIB_KALKULATION gesetzt (siehe rib-kalkulation-parser.ts) -
+  // der unveränderte Original-Tag-Block, den der D31-Export später wieder
+  // 1:1 einbaut.
+  ribRawBlock?: string | null;
 };
 
 function parseExcel(buffer: Buffer): ParsedRow[] {
@@ -182,6 +187,7 @@ export async function importLv(formData: FormData) {
       positionNumber: row.positionNumber,
       quantity: row.quantity,
       rawText: row.rawText,
+      ribRawBlock: row.ribRawBlock ?? null,
       rowNumber: index + 1,
       shortText: row.shortText,
       totalPriceCents: row.totalPriceCents,
@@ -736,4 +742,151 @@ export async function adoptBestPricesForImport(formData: FormData) {
   }
 
   revalidatePath(`/kalkulation/imports/${importId}`);
+}
+
+// Ähnlichkeit, ab der ein Ansatz aus einem anderen Projekt als Vorschlag
+// übernommen wird - bewusst strenger als der normale LV-Preisabgleich
+// (0.3 Default dort): hier geht es nicht nur um einen Preis, sondern um
+// eine ganze Kalkulationslogik, ein zu lockerer Treffer wäre irreführend.
+const ANSATZ_MATCH_THRESHOLD = 0.55;
+
+/** Schlägt für jede Position im bereits hochgeladenen (leeren) LV eines
+ * Projekts die ähnlichste D31-Kalkulationsposition aus allen ANDEREN
+ * Projekten vor - Ziel: eine Vorlage, die man vor der eigentlichen
+ * Kalkulation in iTWO einliest, statt bei null anzufangen. Legt dafür einen
+ * eigenen RIB_KALKULATION-Import mit Status "Vorschlag prüfen" je Zeile an,
+ * nichts wird automatisch übernommen. */
+export async function suggestAnsaetzeFromHistory(formData: FormData) {
+  const session = await requireSession();
+  const projectNumber = text(formData.get("projectNumber"));
+  const returnTo = text(formData.get("returnTo")) || "/kalkulation/projects";
+  if (!projectNumber) throw new Error("Projektnummer fehlt.");
+
+  const project = await prisma.kalkulationProject.findUnique({ where: { projectNumber } });
+  if (!project) throw new Error("Projekt nicht gefunden.");
+
+  // Die D31-Datei selbst enthält keinen Positionstext (nur OZ + Ansätze) -
+  // der Abgleich braucht deshalb den echten Text aus dem eigenen LV dieses
+  // Projekts als Grundlage.
+  const ownLvImport = await prisma.kalkulationLvImport.findFirst({
+    orderBy: { createdAt: "desc" },
+    where: { projectNumber, sourceFormat: { not: "RIB_KALKULATION" } },
+  });
+  if (!ownLvImport) {
+    redirect(
+      `${returnTo}?importError=${encodeURIComponent("Bitte zuerst das LV (Angebotsabgabe) hochladen - daraus werden die Positionstexte für den Abgleich genommen.")}`,
+    );
+  }
+
+  const ownLineItems = await prisma.kalkulationLvLineItem.findMany({
+    orderBy: { rowNumber: "asc" },
+    where: { entryType: "ITEM", lvImportId: ownLvImport.id, positionNumber: { not: null } },
+  });
+
+  const pool = await buildAnsatzPool(projectNumber);
+  if (pool.length === 0) {
+    redirect(
+      `${returnTo}?importError=${encodeURIComponent("Es gibt noch keine auswertbaren Kalkulationsansätze in anderen Projekten (D31 hochgeladen UND eigenes LV mit passenden OZ nötig).")}`,
+    );
+  }
+
+  const catalog = poolToCatalog(pool);
+  const poolByKey = new Map(pool.map((entry) => [entry.key, entry]));
+
+  const rowsToCreate: Array<{
+    matchConfidence: number;
+    positionNumber: string;
+    rawText: string;
+    ribRawBlock: string;
+    shortText: string | null;
+  }> = [];
+
+  for (const item of ownLineItems) {
+    if (!item.positionNumber) continue;
+    const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
+    const [best] = buildShortlist(combinedText, catalog, 1, ANSATZ_MATCH_THRESHOLD);
+    if (!best) continue;
+    const source = poolByKey.get(best.positionId);
+    if (!source) continue;
+
+    rowsToCreate.push({
+      matchConfidence: best.similarityScore,
+      positionNumber: item.positionNumber,
+      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.similarityScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
+      ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, item.positionNumber),
+      shortText: item.shortText,
+    });
+  }
+
+  if (rowsToCreate.length === 0) {
+    redirect(
+      `${returnTo}?importError=${encodeURIComponent("Keine ausreichend ähnlichen Ansätze in anderen Projekten gefunden.")}`,
+    );
+  }
+
+  const suggestionImport = await prisma.kalkulationLvImport.create({
+    data: {
+      fileName: "Kalkulationsansätze-Vorschläge (aus anderen Projekten)",
+      importedByUserId: session.user.id,
+      lvType: "ANGEBOT",
+      projectNumber,
+      rowCount: rowsToCreate.length,
+      sourceFormat: "RIB_KALKULATION",
+      status: "IMPORTED",
+      tenderTitle: project.tenderTitle,
+    },
+  });
+
+  await prisma.kalkulationLvLineItem.createMany({
+    data: rowsToCreate.map((row, index) => ({
+      entryType: "ITEM",
+      lvImportId: suggestionImport.id,
+      matchConfidence: row.matchConfidence,
+      matchedVia: "CROSS_PROJECT_ANSATZ",
+      matchStatus: "NEEDS_REVIEW",
+      normalizedText: normalizeText(`${row.shortText ?? ""} ${row.rawText}`),
+      positionNumber: row.positionNumber,
+      rawText: row.rawText,
+      ribRawBlock: row.ribRawBlock,
+      rowNumber: index + 1,
+      shortText: row.shortText,
+    })),
+  });
+
+  revalidatePath("/kalkulation/projects");
+  revalidatePath(returnTo);
+  redirect(returnTo);
+}
+
+/** Bestätigt einen einzelnen Ansatz-Vorschlag (siehe
+ * suggestAnsaetzeFromHistory) - zählt danach zum D31-Export dieses Imports. */
+export async function confirmAnsatzSuggestion(formData: FormData) {
+  await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  if (!lineItemId) throw new Error("Zeilen-ID fehlt.");
+
+  const item = await prisma.kalkulationLvLineItem.update({
+    data: { matchStatus: "CONFIRMED" },
+    where: { id: lineItemId },
+  });
+
+  revalidatePath(`/kalkulation/imports/${item.lvImportId}`);
+  revalidatePath("/kalkulation/projects");
+}
+
+/** Lehnt einen Ansatz-Vorschlag ab - fliegt dadurch aus dem späteren
+ * D31-Export dieses Imports raus (Zeile selbst bleibt zur Nachvollziehbarkeit
+ * stehen, wird beim Export aber übersprungen). */
+export async function rejectAnsatzSuggestion(formData: FormData) {
+  await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  if (!lineItemId) throw new Error("Zeilen-ID fehlt.");
+
+  const item = await prisma.kalkulationLvLineItem.update({
+    data: { matchStatus: "REJECTED" },
+    where: { id: lineItemId },
+  });
+
+  revalidatePath(`/kalkulation/imports/${item.lvImportId}`);
+  revalidatePath("/kalkulation/projects");
 }
