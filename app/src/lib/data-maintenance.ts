@@ -146,6 +146,7 @@ const ALL_MODEL_TABLES = [
   "ImportProgress",
   "KalkulationPositionCategory",
   "KalkulationPosition",
+  "KalkulationProject",
   "KalkulationLvImport",
   "KalkulationLvLineItem",
   "KalkulationLearnedMapping",

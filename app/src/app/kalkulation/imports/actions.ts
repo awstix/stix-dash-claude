@@ -155,6 +155,18 @@ export async function importLv(formData: FormData) {
     },
   });
 
+  // Hält KalkulationProject synchron, egal auf welchem Weg importiert wird
+  // (neue Projektseite oder der freie Upload hier) - ohne das würde eine
+  // Projektnummer, die nur hier eingetippt wurde, auf der Projektübersicht
+  // fehlen. Bestehenden Projekttitel dabei nicht überschreiben.
+  if (projectNumberInput) {
+    await prisma.kalkulationProject.upsert({
+      create: { projectNumber: projectNumberInput, tenderTitle: tenderTitleInput || extractedTenderTitle },
+      update: {},
+      where: { projectNumber: projectNumberInput },
+    });
+  }
+
   await prisma.kalkulationLvLineItem.createMany({
     data: rows.map((row, index) => ({
       entryType: row.entryType,

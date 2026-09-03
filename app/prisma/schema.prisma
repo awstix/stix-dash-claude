@@ -3701,6 +3701,22 @@ model KalkulationPosition {
   @@index([title])
 }
 
+/** Bündelt mehrere KalkulationLvImport-Zeilen desselben Bauvorhabens unter
+ * einer eigenen, explizit angelegten Projektseite (3 feste Zeilen: LV/
+ * Angebotsanfrage, RIB-Urkalkulation, kalkuliertes LV) - Verknüpfung läuft
+ * weiterhin nur über die gemeinsame projectNumber (kein FK auf
+ * KalkulationLvImport), damit bestehende Imports ohne Migration weiter
+ * funktionieren. */
+model KalkulationProject {
+  id String @id @default(cuid())
+
+  projectNumber String  @unique
+  tenderTitle   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model KalkulationLvImport {
   id String @id @default(cuid())
 
