@@ -53,9 +53,9 @@ export default async function KalkulationKatalogPage({
       <div className="mb-6 flex flex-wrap gap-2">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/kalkulation/imports"
+          href="/kalkulation/projects"
         >
-          ← LV-Import
+          ← Projekte
         </Link>
       </div>
 

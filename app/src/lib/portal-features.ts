@@ -93,7 +93,6 @@ export const portalModules: PortalModule[] = [
     label: "Kalkulation",
     features: [
       { key: "projekte", label: "Projekte", path: "/kalkulation/projects" },
-      { key: "lv_importieren", label: "LV importieren", path: "/kalkulation/imports" },
       { key: "positionskatalog", label: "Positionskatalog", path: "/kalkulation/katalog" },
     ],
   },

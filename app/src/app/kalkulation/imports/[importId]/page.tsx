@@ -40,9 +40,6 @@ export default async function KalkulationImportReviewPage({
 
   const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
-  const prefillParams = new URLSearchParams();
-  if (lvImport.projectNumber) prefillParams.set("prefillProjectNumber", lvImport.projectNumber);
-  if (lvImport.tenderTitle) prefillParams.set("prefillTenderTitle", lvImport.tenderTitle);
 
   return (
     <AppShell
@@ -52,27 +49,20 @@ export default async function KalkulationImportReviewPage({
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/kalkulation/imports"
+          href="/kalkulation/projects"
         >
-          ← Alle Imports
+          ← Alle Projekte
         </Link>
 
         {lvImport.projectNumber ? (
           <Link
             className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
             href={`/kalkulation/projects/${encodeURIComponent(lvImport.projectNumber)}`}
+            title="Dort auch die anderen Zeilen (LV/Kalkulation/kalkuliertes LV) hochladen"
           >
             → Zur Projektseite
           </Link>
         ) : null}
-
-        <Link
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href={`/kalkulation/imports?${prefillParams.toString()}`}
-          title="Legt einen zweiten, mit diesem Projekt verknüpften Import an"
-        >
-          Kalkuliertes Angebot nachreichen →
-        </Link>
 
         {!aiConfigured ? (
           <span className="text-sm text-amber-800">

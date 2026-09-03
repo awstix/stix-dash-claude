@@ -70,7 +70,7 @@ export async function importLv(formData: FormData) {
 
   if (!(file instanceof File) || file.size === 0) {
     redirect(
-      `${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent("Bitte eine GAEB- oder Excel-Datei auswählen.")}`,
+      `${returnTo || "/kalkulation/projects"}?importError=${encodeURIComponent("Bitte eine GAEB- oder Excel-Datei auswählen.")}`,
     );
   }
 
@@ -117,13 +117,13 @@ export async function importLv(formData: FormData) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Datei konnte nicht gelesen werden.";
-    redirect(`${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent(message)}`);
+    redirect(`${returnTo || "/kalkulation/projects"}?importError=${encodeURIComponent(message)}`);
   }
 
   const itemRows = rows.filter((row) => row.entryType === "ITEM");
   if (itemRows.length === 0) {
     redirect(
-      `${returnTo || "/kalkulation/imports"}?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
+      `${returnTo || "/kalkulation/projects"}?importError=${encodeURIComponent("In der Datei wurden keine Positionen gefunden.")}`,
     );
   }
 
@@ -199,7 +199,7 @@ export async function importLv(formData: FormData) {
       .catch(() => undefined);
   }
 
-  revalidatePath("/kalkulation/imports");
+  revalidatePath("/kalkulation/projects");
   if (returnTo) {
     revalidatePath(returnTo);
     redirect(returnTo);
@@ -389,7 +389,7 @@ export async function confirmMatch(formData: FormData) {
 
   await refreshImportCounts(lineItem.lvImportId);
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
-  revalidatePath("/kalkulation/imports");
+  revalidatePath("/kalkulation/projects");
 }
 
 export async function manualMatch(formData: FormData) {
@@ -436,7 +436,7 @@ export async function rejectMatch(formData: FormData) {
 
   await refreshImportCounts(lineItem.lvImportId);
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
-  revalidatePath("/kalkulation/imports");
+  revalidatePath("/kalkulation/projects");
 }
 
 export async function createPositionFromLineItem(formData: FormData) {
@@ -469,7 +469,7 @@ export async function deleteImport(formData: FormData) {
   // nachgereichte kalkulierte Angebot beim Anzeigen der Ausschreibung) -
   // dann dorthin zurückkehren statt immer zur Liste zu springen, da das
   // gerade angezeigte LV selbst ja unverändert bestehen bleibt.
-  const returnTo = text(formData.get("returnTo")) || "/kalkulation/imports";
+  const returnTo = text(formData.get("returnTo")) || "/kalkulation/projects";
 
   const lvImport = await prisma.kalkulationLvImport.findUnique({ where: { id: importId } });
   if (!lvImport) return;
@@ -483,7 +483,7 @@ export async function deleteImport(formData: FormData) {
     await deleteFile(STORAGE_BUCKET, lvImport.originalStoragePath).catch(() => undefined);
   }
 
-  revalidatePath("/kalkulation/imports");
+  revalidatePath("/kalkulation/projects");
   revalidatePath(returnTo);
   redirect(returnTo);
 }
@@ -556,7 +556,7 @@ export async function adoptPrice(formData: FormData) {
 
   if (sourcePositionId) {
     await refreshImportCounts(lineItem.lvImportId);
-    revalidatePath("/kalkulation/imports");
+    revalidatePath("/kalkulation/projects");
   }
   revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
 }
@@ -640,7 +640,7 @@ export async function linkCrossLvMatch(formData: FormData) {
 
   revalidatePath(`/kalkulation/imports/${current.lvImportId}`);
   revalidatePath(`/kalkulation/imports/${source.lvImportId}`);
-  revalidatePath("/kalkulation/imports");
+  revalidatePath("/kalkulation/projects");
 }
 
 /** Bulk-Variante von adoptPrice: übernimmt für JEDE noch ungepreiste
