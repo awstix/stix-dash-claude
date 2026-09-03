@@ -428,6 +428,11 @@ export async function deleteImport(formData: FormData) {
   await requireSession();
   const importId = text(formData.get("importId"));
   if (!importId) throw new Error("Import-ID fehlt.");
+  // Von der Abgleich-Seite eines VERKNÜPFTEN LVs aus gelöscht (z.B. das
+  // nachgereichte kalkulierte Angebot beim Anzeigen der Ausschreibung) -
+  // dann dorthin zurückkehren statt immer zur Liste zu springen, da das
+  // gerade angezeigte LV selbst ja unverändert bestehen bleibt.
+  const returnTo = text(formData.get("returnTo")) || "/kalkulation/imports";
 
   const lvImport = await prisma.kalkulationLvImport.findUnique({ where: { id: importId } });
   if (!lvImport) return;
@@ -442,7 +447,8 @@ export async function deleteImport(formData: FormData) {
   }
 
   revalidatePath("/kalkulation/imports");
-  redirect("/kalkulation/imports");
+  revalidatePath(returnTo);
+  redirect(returnTo);
 }
 
 /** Übernimmt einen Einheitspreis (aus dem Katalog-Vorschlag oder einem
