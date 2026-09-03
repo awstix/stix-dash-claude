@@ -9,12 +9,14 @@ import { deleteFile, putFile } from "@/lib/storage";
 import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/import-value-parsing";
 import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
+import { looksLikeRibKalkulation, parseRibKalkulation } from "@/lib/rib-kalkulation-parser";
 import { buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 
 const STORAGE_BUCKET = "uploads";
 const GAEB_EXTENSIONS = /\.(x81|x83|x84|d81|d83|d84)$/i;
+const RIB_KALKULATION_EXTENSIONS = /\.(d31)$/i;
 
 type ParsedRow = {
   entryType: "ITEM" | "TITLE" | "REMARK";
@@ -89,6 +91,18 @@ export async function importLv(formData: FormData) {
       rows = parsed.entries;
       sourceFormat = "GAEB90";
       lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
+    } else if (RIB_KALKULATION_EXTENSIONS.test(file.name) || looksLikeRibKalkulation(buffer)) {
+      // RIB iTWO "Urkalkulation" (z.B. .D31) - kein Standard-GAEB, enthält
+      // keinen fertig berechneten Preis, nur Kalkulationsansätze je
+      // Position. Die werden als lesbarer Referenztext übernommen (siehe
+      // rib-kalkulation-parser.ts), lvType bewusst "ANGEBOT" trotz
+      // fehlender Einheitspreise - das ist die eigene Kalkulation, keine
+      // Ausschreibung.
+      const parsed = parseRibKalkulation(buffer);
+      rows = parsed.entries;
+      sourceFormat = "RIB_KALKULATION";
+      lvType = "ANGEBOT";
+      extractedTenderTitle = parsed.tenderTitle;
     } else {
       rows = parseExcel(buffer);
       sourceFormat = "EXCEL";

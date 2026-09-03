@@ -23,6 +23,7 @@ const SOURCE_FORMAT_LABELS: Record<string, string> = {
   GAEB_XML: "GAEB",
   GAEB90: "GAEB (alt)",
   EXCEL: "Excel",
+  RIB_KALKULATION: "RIB-Urkalkulation",
 };
 
 const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
@@ -123,8 +124,10 @@ export default async function KalkulationImportsPage({
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">LV hochladen</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Unterstützt GAEB DA XML (.x81/.x83/.x84/.d81/.d83/.d84) und Excel
-          (Spalten: Position, Text, Einheit, Menge, Einheitspreis).
+          Unterstützt GAEB DA XML (.x81/.x83/.x84/.d81/.d83/.d84), Excel
+          (Spalten: Position, Text, Einheit, Menge, Einheitspreis) und RIB
+          iTWO-Urkalkulationen (.d31 - übernimmt die Kalkulationsansätze je
+          Position als Referenztext, ohne berechneten Preis).
         </p>
         <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -146,7 +149,7 @@ export default async function KalkulationImportsPage({
             <MatchingThresholdInput name="matchingThreshold" />
           </div>
           <ProjectFileDropInput
-            accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
+            accept=".x81,.x83,.x84,.d81,.d83,.d84,.d31,.xlsx,.xls"
             emptyLabel="Datei hierher ziehen oder klicken"
             name="file"
             required
