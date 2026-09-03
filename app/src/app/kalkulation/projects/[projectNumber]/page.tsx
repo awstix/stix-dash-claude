@@ -7,6 +7,7 @@ import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
 import { deleteImport, importLv } from "../../imports/actions";
 import { DeleteImportButton } from "../../imports/DeleteImportButton";
+import { LvReviewPanel } from "../../imports/LvReviewPanel";
 
 type LvImportRow = Prisma.KalkulationLvImportGetPayload<Record<string, never>>;
 
@@ -16,10 +17,12 @@ const STATUS_LABELS: Record<string, string> = {
   REVIEWED: "Geprüft",
 };
 
+/** Kompakte Kopf-Kachel je Zeile - zeigt entweder die hochgeladene Datei
+ * (mit Löschen-Icon) oder ein kleines Upload-Feld, wenn die Zeile noch
+ * leer ist. Drei davon nebeneinander statt einer großen Karte pro Zeile. */
 function ProjectSlot({
   accept,
   emptyLabel,
-  hint,
   imports,
   projectNumber,
   returnTo,
@@ -28,7 +31,6 @@ function ProjectSlot({
 }: {
   accept: string;
   emptyLabel: string;
-  hint: string;
   imports: LvImportRow[];
   projectNumber: string;
   returnTo: string;
@@ -36,22 +38,20 @@ function ProjectSlot({
   title: string;
 }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-bold text-gray-900">{title}</h2>
-      <p className="text-xs text-gray-500">{hint}</p>
+    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+      <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</h2>
 
       {imports.length > 0 ? (
-        <ul className="mt-3 divide-y divide-gray-100">
+        <ul className="mt-2 space-y-1">
           {imports.map((item) => (
-            <li className="flex flex-wrap items-center justify-between gap-3 py-2" key={item.id}>
-              <div>
-                <Link className="text-sm font-semibold text-gray-900 hover:underline" href={`/kalkulation/imports/${item.id}`}>
-                  {item.fileName}
-                </Link>
-                <span className="ml-2 text-xs text-gray-500">
-                  {item.rowCount} Positionen · {STATUS_LABELS[item.status] ?? item.status}
-                </span>
-              </div>
+            <li className="flex items-center justify-between gap-2" key={item.id}>
+              <Link
+                className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 hover:underline"
+                href={`/kalkulation/imports/${item.id}`}
+                title={item.fileName}
+              >
+                {item.fileName}
+              </Link>
               <form action={deleteImport}>
                 <input name="importId" type="hidden" value={item.id} />
                 <input name="returnTo" type="hidden" value={returnTo} />
@@ -61,24 +61,26 @@ function ProjectSlot({
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-sm text-gray-400">Noch nicht hochgeladen.</p>
+        <ImportForm action={importLv} className="mt-2" progressEndpoint="/kalkulation/imports/progress">
+          <input name="projectNumber" type="hidden" value={projectNumber} />
+          <input name="tenderTitle" type="hidden" value={tenderTitle ?? ""} />
+          <input name="returnTo" type="hidden" value={returnTo} />
+          <ProjectFileDropInput
+            accept={accept}
+            compact
+            emptyLabel={emptyLabel}
+            name="file"
+            required
+            selectedLabel="Datei auswählen"
+          />
+          <button
+            className="mt-2 w-full rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
+            type="submit"
+          >
+            Hochladen
+          </button>
+        </ImportForm>
       )}
-
-      <ImportForm action={importLv} className="mt-4" progressEndpoint="/kalkulation/imports/progress">
-        <input name="projectNumber" type="hidden" value={projectNumber} />
-        <input name="tenderTitle" type="hidden" value={tenderTitle ?? ""} />
-        <input name="returnTo" type="hidden" value={returnTo} />
-        <ProjectFileDropInput
-          accept={accept}
-          emptyLabel={emptyLabel}
-          name="file"
-          required
-          selectedLabel="Datei auswählen"
-        />
-        <button className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700" type="submit">
-          Hochladen
-        </button>
-      </ImportForm>
     </section>
   );
 }
@@ -116,11 +118,17 @@ export default async function KalkulationProjectPage({
     (item) => item.sourceFormat !== "RIB_KALKULATION" && item.lvType !== "ANGEBOT" && item.lvType !== "AUFTRAG",
   );
 
+  // Reihenfolge für die eingebetteten Abgleich-Panels darunter: erst das
+  // unbepreiste LV, dann die Kalkulation, dann das kalkulierte LV - jedes
+  // vorhandene direkt mit vollständiger Positionstabelle und allen
+  // Abgleich-Werkzeugen, ohne dass man dafür extra klicken muss.
+  const orderedImports = [...lvImports, ...kalkulationImports, ...angebotImports];
+
   const returnTo = `/kalkulation/projects/${encodeURIComponent(projectNumber)}`;
 
   return (
     <AppShell description={project.tenderTitle ?? undefined} title={`Projekt ${project.projectNumber}`}>
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Link
           className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           href="/kalkulation/projects"
@@ -130,16 +138,15 @@ export default async function KalkulationProjectPage({
       </div>
 
       {importError ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
           Import fehlgeschlagen: {importError}
         </div>
       ) : null}
 
-      <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          emptyLabel="GAEB (.x81/.x83/.x84/.d81/.d83/.d84) oder Excel (.xlsx/.xls) hierher ziehen oder klicken"
-          hint="Unbepreistes Leistungsverzeichnis - welche GAEB-Endung genau (X81 oder X83) hängt von eurer AVA-Software ab, erkannt wird anhand des Inhalts, nicht der Endung."
+          emptyLabel="LV hierher ziehen"
           imports={lvImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
@@ -148,8 +155,7 @@ export default async function KalkulationProjectPage({
         />
         <ProjectSlot
           accept=".d31"
-          emptyLabel=".D31 hierher ziehen oder klicken"
-          hint="RIB iTWO-Urkalkulation mit den Kalkulationsansätzen je Position (kein berechneter Preis)"
+          emptyLabel=".D31 hierher ziehen"
           imports={kalkulationImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
@@ -158,8 +164,7 @@ export default async function KalkulationProjectPage({
         />
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          emptyLabel="GAEB (.x81/.x83/.x84/.d81/.d83/.d84) oder Excel (.xlsx/.xls) hierher ziehen oder klicken"
-          hint="Bepreistes Angebot - welche GAEB-Endung genau (X81 oder X83) hängt von eurer AVA-Software ab, erkannt wird anhand des Inhalts, nicht der Endung."
+          emptyLabel="LV hierher ziehen"
           imports={angebotImports}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
@@ -167,6 +172,22 @@ export default async function KalkulationProjectPage({
           title="Kalkuliertes LV"
         />
       </div>
+
+      {orderedImports.length > 0 ? (
+        <div className="mt-6 space-y-8">
+          {orderedImports.map((item) => (
+            <div key={item.id}>
+              <h2 className="mb-2 text-sm font-bold text-gray-900">
+                {item.fileName}
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  {item.rowCount} Positionen · {STATUS_LABELS[item.status] ?? item.status}
+                </span>
+              </h2>
+              <LvReviewPanel importId={item.id} />
+            </div>
+          ))}
+        </div>
+      ) : null}
     </AppShell>
   );
 }
