@@ -1351,6 +1351,7 @@ model User {
   featureAccesses               UserFeatureAccess[]
   changelogEntryReads           ChangelogEntryRead[]
   kalkulationLvImports          KalkulationLvImport[]
+  kalkulationCrossLvMatchRuns   KalkulationLvImport[]        @relation("KalkulationCrossLvMatchedBy")
   kalkulationConfirmedLineItems KalkulationLvLineItem[]
   kalkulationConfirmedMappings  KalkulationLearnedMapping[]
 
@@ -3748,6 +3749,8 @@ model KalkulationLvImport {
   crossLvExactMenge        Boolean   @default(false)
   crossLvExactEinheit      Boolean   @default(false)
   crossLvMatchedAt         DateTime? // wann zuletzt "Ähnlich in anderen LVs laden" mit diesen Einstellungen lief
+  crossLvMatchedByUserId   String?
+  crossLvMatchedByUser     User?     @relation("KalkulationCrossLvMatchedBy", fields: [crossLvMatchedByUserId], references: [id], onDelete: SetNull)
 
   rowCount          Int       @default(0)
   matchedCount      Int       @default(0)

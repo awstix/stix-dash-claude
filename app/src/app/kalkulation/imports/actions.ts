@@ -12,7 +12,7 @@ import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
 import { looksLikeEstimateXml, parseEstimateXml } from "@/lib/kalkulation-estimate-xml-parser";
 import { buildAnsatzPool, poolToCatalog } from "@/lib/kalkulation-ansatz-pool";
-import { buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
+import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 
@@ -666,7 +666,11 @@ export async function linkCrossLvMatch(formData: FormData) {
 /** Bulk-Variante von adoptPrice: übernimmt für JEDE noch ungepreiste
  * Position dieses LVs automatisch den besten verfügbaren Preis - erst aus
  * bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in
- * einem anderen LV (gleiche Genauigkeits-Schwelle wie beim Abgleich). */
+ * einem anderen LV. Nutzt für Letzteres dieselben Kurztext-/Langtext-/
+ * Menge-/Einheit-Kriterien wie "Abgleich starten" (buildLvMatches) - vorher
+ * lief hier noch die alte, nicht mehr sichtbare Einzel-Schwelle
+ * (matchingThreshold), inkonsistent zu dem, was der Nutzer tatsächlich
+ * einstellt. */
 export async function adoptBestPricesForImport(formData: FormData) {
   await requireSession();
   const importId = text(formData.get("importId"));
@@ -703,16 +707,20 @@ export async function adoptBestPricesForImport(formData: FormData) {
   }
 
   const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
-    where: { entryType: "ITEM", lvImportId: { not: importId } },
+    where: {
+      entryType: "ITEM",
+      lvImportId: { not: importId },
+      NOT: { shortText: { startsWith: "Kalkulation OZ " } },
+    },
     take: 3000,
     orderBy: { createdAt: "desc" },
   });
-  const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
+  const otherLvCandidates = otherLvItems.map((row) => ({
     id: row.id,
-    code: row.positionNumber,
-    title: row.shortText ?? row.rawText.slice(0, 100),
-    description: row.rawText,
-    unit: row.unit ?? "",
+    quantity: row.quantity,
+    rawText: row.rawText,
+    shortText: row.shortText,
+    unit: row.unit,
   }));
   const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
 
@@ -729,15 +737,23 @@ export async function adoptBestPricesForImport(formData: FormData) {
       }
     }
 
-    if (unitPriceCents == null && otherLvCatalog.length > 0) {
-      const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
-      const [best] = buildShortlist(combinedText, otherLvCatalog, 1, lvImport.matchingThreshold);
+    if (unitPriceCents == null && otherLvCandidates.length > 0) {
+      const [best] = buildLvMatches(
+        { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
+        otherLvCandidates,
+        {
+          exactEinheit: lvImport.crossLvExactEinheit,
+          exactMenge: lvImport.crossLvExactMenge,
+          kurztextThreshold: lvImport.crossLvKurztextThreshold,
+          langtextThreshold: lvImport.crossLvLangtextThreshold,
+        },
+      );
       if (best) {
-        const source = otherLvItemsById.get(best.positionId);
+        const source = otherLvItemsById.get(best.candidateId);
         if (source?.unitPriceCents != null) {
           unitPriceCents = source.unitPriceCents;
           sourceLvImportId = source.lvImportId;
-          similarityScore = best.similarityScore;
+          similarityScore = best.langtextScore;
         }
       }
     }
@@ -1026,7 +1042,7 @@ export async function rejectAnsatzSuggestion(formData: FormData) {
  * (Kurztext-/Langtext-Ähnlichkeit, Menge+Einheit exakt) - pro Import, wie
  * schon bei matchingThreshold für den Katalog-Abgleich üblich. */
 export async function updateCrossLvSettings(formData: FormData) {
-  await requireSession();
+  const session = await requireSession();
   const importId = text(formData.get("importId"));
   if (!importId) throw new Error("Import-ID fehlt.");
   const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
@@ -1043,6 +1059,7 @@ export async function updateCrossLvSettings(formData: FormData) {
       crossLvKurztextThreshold: kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5,
       crossLvLangtextThreshold: langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3,
       crossLvMatchedAt: new Date(),
+      crossLvMatchedByUserId: session.user.id,
     },
     where: { id: importId },
   });

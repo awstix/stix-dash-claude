@@ -58,7 +58,10 @@ export async function LvReviewPanel({
   showCrossLvMatches?: boolean;
 }) {
   const [lvImport, lineItems, positions] = await Promise.all([
-    prisma.kalkulationLvImport.findUniqueOrThrow({ where: { id: importId } }),
+    prisma.kalkulationLvImport.findUniqueOrThrow({
+      include: { crossLvMatchedByUser: true },
+      where: { id: importId },
+    }),
     prisma.kalkulationLvLineItem.findMany({
       where: { lvImportId: importId },
       include: { matchedPosition: true },
@@ -243,7 +246,12 @@ export async function LvReviewPanel({
         {lvImport.crossLvMatchedAt ? (
           <p className="mt-2 text-xs text-gray-500">
             Letzter Abgleich:{" "}
-            {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.crossLvMatchedAt)}
+            {new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "short",
+              timeStyle: "short",
+              timeZone: "Europe/Berlin",
+            }).format(lvImport.crossLvMatchedAt)}
+            {lvImport.crossLvMatchedByUser ? ` von ${lvImport.crossLvMatchedByUser.name}` : ""}
             {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
             {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
             {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}

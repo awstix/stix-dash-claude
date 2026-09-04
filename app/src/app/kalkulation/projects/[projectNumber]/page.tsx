@@ -195,7 +195,7 @@ export default async function KalkulationProjectPage({
                 <span className="ml-2 text-xs font-normal text-gray-500">
                   {item.rowCount} Positionen ·{" "}
                   {item.crossLvMatchedAt
-                    ? `abgeglichen am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "short" }).format(item.crossLvMatchedAt)}`
+                    ? `abgeglichen am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeZone: "Europe/Berlin" }).format(item.crossLvMatchedAt)}`
                     : "noch nicht abgeglichen"}
                 </span>
               </h2>
