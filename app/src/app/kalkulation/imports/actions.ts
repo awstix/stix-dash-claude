@@ -11,7 +11,7 @@ import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
 import { looksLikeEstimateXml, parseEstimateXml, rewriteOzInXmlBlock } from "@/lib/kalkulation-estimate-xml-parser";
-import { buildAnsatzPool, poolToCatalog } from "@/lib/kalkulation-ansatz-pool";
+import { buildAnsatzPool } from "@/lib/kalkulation-ansatz-pool";
 import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
@@ -874,11 +874,16 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     orderBy: { rowNumber: "asc" },
     where: { entryType: "ITEM", lvImportId: ownLvImport.id, positionNumber: { not: null } },
   });
-  const ownTextByOz = new Map<string, { shortText: string | null; rawText: string }>();
+  const ownTextByOz = new Map<
+    string,
+    { shortText: string | null; rawText: string; quantity: number | null; unit: string | null }
+  >();
   for (const item of ownLineItems) {
     if (!item.positionNumber) continue;
     const key = item.positionNumber.trim();
-    if (!ownTextByOz.has(key)) ownTextByOz.set(key, { shortText: item.shortText, rawText: item.rawText });
+    if (!ownTextByOz.has(key)) {
+      ownTextByOz.set(key, { quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit });
+    }
   }
 
   const pool = await buildAnsatzPool(projectNumber);
@@ -888,25 +893,35 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     );
   }
 
-  const catalog = poolToCatalog(pool);
-  const poolByKey = new Map(pool.map((entry) => [entry.key, entry]));
+  const poolById = new Map(pool.map((entry) => [entry.id, entry]));
 
-  function findSuggestion(positionNumber: string, ownText: { shortText: string | null; rawText: string }) {
-    const combinedText = `${ownText.shortText ?? ""} ${ownText.rawText}`.trim();
-    // Pool-Einträge haben nur einen einzigen zusammenhängenden Beschreibungstext
-    // (kein getrennter Kurz-/Langtext wie bei echten LV-Positionen), deshalb
-    // hier weiterhin ein einzelner kombinierter Score statt buildLvMatches -
-    // die Schwelle kommt aber jetzt vom selben Langtext-Regler wie bei
-    // "Abgleich starten" (LvReviewPanel), statt eines eigenen, unsichtbaren
-    // Werts, damit "Abgleich starten" und dieser Massen-Vorschlag konsistent
-    // dieselbe Einstellung verwenden.
-    const [best] = buildShortlist(combinedText, catalog, 1, ownLvImportChecked.crossLvLangtextThreshold);
+  function findSuggestion(
+    positionNumber: string,
+    ownText: { shortText: string | null; rawText: string; quantity: number | null; unit: string | null },
+  ) {
+    // Derselbe Mechanismus (buildLvMatches) und dieselben Kriterien wie
+    // "Abgleich starten" oben im LV-Panel: getrennte Kurztext-/Langtext-
+    // Schwellen statt eines einzigen zusammengeklebten Textblocks. Vorher
+    // wurden Kurz- und Langtext hier zu einem String verschmolzen, wodurch
+    // abweichende Detailangaben im Langtext (Mengen, Ortsnamen) die
+    // Trefferquote unnötig stark gedrückt haben, obwohl derselbe Vergleich
+    // oben (mit getrennten Feldern) längst einen Treffer gefunden hätte.
+    const [best] = buildLvMatches(
+      { id: "__target__", quantity: ownText.quantity, rawText: ownText.rawText, shortText: ownText.shortText, unit: ownText.unit },
+      pool,
+      {
+        exactEinheit: ownLvImportChecked.crossLvExactEinheit,
+        exactMenge: ownLvImportChecked.crossLvExactMenge,
+        kurztextThreshold: ownLvImportChecked.crossLvKurztextThreshold,
+        langtextThreshold: ownLvImportChecked.crossLvLangtextThreshold,
+      },
+    );
     if (!best) return null;
-    const source = poolByKey.get(best.positionId);
+    const source = poolById.get(best.candidateId);
     if (!source) return null;
     return {
-      matchConfidence: best.similarityScore,
-      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.similarityScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
+      matchConfidence: best.langtextScore,
+      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
       ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
       ribRawBlockXml: source.ribRawBlockXml ? rewriteOzInXmlBlock(source.ribRawBlockXml, positionNumber) : null,
     };

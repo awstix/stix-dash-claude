@@ -181,159 +181,165 @@ export async function LvReviewPanel({
     : [];
   const priceSourceImportById = new Map(priceSourceImports.map((source) => [source.id, source]));
 
+  const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
+
   return (
     <div>
-      {/* Katalog-Abgleich ("Abgleich starten") bewusst nicht mehr hier -
-       * Nutzer will keinen Positionskatalog pflegen, nur den direkten
-       * Vergleich gegen andere LVs/Kalkulationen (siehe Kurztext-/
-       * Langtext-Karte unten). Die Katalog-Funktion selbst bleibt
-       * bestehen (Positionskatalog-Seite, runMatching-Action), nur hier
-       * aus dem Panel entfernt, um nicht zwei verschiedene "Genauigkeit"-
-       * Konzepte nebeneinander zu zeigen. */}
+      {isKalkulation ? (
+        // Kalkulations-Positionen (OZ + Ansätze aus iTWO) haben keinen mit
+        // echten LVs vergleichbaren Kurz-/Langtext - der generische
+        // Kurztext-/Langtext-Abgleich unten fand hier praktisch nie etwas
+        // und wurde mit dem gleichnamigen "Abgleich starten" der eigentlichen
+        // LV-Kachel verwechselt. Deshalb hier bewusst NUR der dafür
+        // gebaute Mechanismus (Ansätze aus anderen Projekten vorschlagen)
+        // + der XML-Export, kein zweites "Abgleich starten".
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          {lvImport.projectNumber ? (
+            <form action={suggestAnsaetzeFromHistory}>
+              <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
+              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+              <button
+                className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                title="Befüllt noch leere Positionen dieser Kalkulation mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
+                type="submit"
+              >
+                Ansätze aus anderen Projekten vorschlagen
+              </button>
+            </form>
+          ) : null}
 
-      {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
-       * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
-       * zu ändern und erneut abzugleichen. */}
-      <form
-        action={updateCrossLvSettings}
-        className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
-      >
-        <input name="importId" type="hidden" value={importId} />
-        <input name="returnTo" type="hidden" value={crossLvToggleHref} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <MatchingThresholdInput
-            defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
-            label="Kurztext-Ähnlichkeit"
-            max={100}
-            min={0}
-            name="crossLvKurztextThreshold"
-          />
-          <MatchingThresholdInput
-            defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
-            label="Langtext-Ähnlichkeit"
-            max={100}
-            min={0}
-            name="crossLvLangtextThreshold"
-          />
+          {lineItems.some((item) => item.ribRawBlockXml) ? (
+            <a
+              className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/kalkulation/imports/${importId}/export-xml`}
+              title="Exportiert die Kalkulationsansätze dieses Imports als .xml - zum Wiedereinlesen in iTWO"
+            >
+              Als XML exportieren ↓
+            </a>
+          ) : null}
         </div>
-        <div className="mt-3 flex flex-wrap gap-4">
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <input
-              className="h-5 w-5 accent-gray-900"
-              defaultChecked={lvImport.crossLvExactMenge}
-              name="crossLvExactMenge"
-              type="checkbox"
-            />
-            Menge muss gleich sein
-          </label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <input
-              className="h-5 w-5 accent-gray-900"
-              defaultChecked={lvImport.crossLvExactEinheit}
-              name="crossLvExactEinheit"
-              type="checkbox"
-            />
-            Einheit muss gleich sein
-          </label>
-        </div>
-        <button
-          className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-          title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
-          type="submit"
-        >
-          {showCrossLvMatches ? "Erneut abgleichen" : "Abgleich starten"}
-        </button>
-        {lvImport.crossLvMatchedAt ? (
-          <p className="mt-2 text-xs text-gray-500">
-            Letzter Abgleich:{" "}
-            {new Intl.DateTimeFormat("de-DE", {
-              dateStyle: "short",
-              timeStyle: "short",
-              timeZone: "Europe/Berlin",
-            }).format(lvImport.crossLvMatchedAt)}
-            {lvImport.crossLvMatchedByUser ? ` von ${lvImport.crossLvMatchedByUser.name}` : ""}
-            {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
-            {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
-            {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
-            {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
-          </p>
-        ) : null}
-      </form>
-
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-
-        <form action={adoptBestPricesForImport}>
-          <input name="importId" type="hidden" value={importId} />
-          <button
-            className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-            title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
-            type="submit"
+      ) : (
+        <>
+          {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
+           * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
+           * zu ändern und erneut abzugleichen. */}
+          <form
+            action={updateCrossLvSettings}
+            className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
           >
-            Alle mit bestem Treffer vorkalkulieren
-          </button>
-        </form>
-
-        {lineItems.some((item) => item.priceSourceLvImportId) ? (
-          <form action={clearAdoptedPricesForImport}>
             <input name="importId" type="hidden" value={importId} />
+            <input name="returnTo" type="hidden" value={crossLvToggleHref} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <MatchingThresholdInput
+                defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
+                label="Kurztext-Ähnlichkeit"
+                max={100}
+                min={0}
+                name="crossLvKurztextThreshold"
+              />
+              <MatchingThresholdInput
+                defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
+                label="Langtext-Ähnlichkeit"
+                max={100}
+                min={0}
+                name="crossLvLangtextThreshold"
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <input
+                  className="h-5 w-5 accent-gray-900"
+                  defaultChecked={lvImport.crossLvExactMenge}
+                  name="crossLvExactMenge"
+                  type="checkbox"
+                />
+                Menge muss gleich sein
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <input
+                  className="h-5 w-5 accent-gray-900"
+                  defaultChecked={lvImport.crossLvExactEinheit}
+                  name="crossLvExactEinheit"
+                  type="checkbox"
+                />
+                Einheit muss gleich sein
+              </label>
+            </div>
             <button
-              className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-              title="Entfernt bei allen Positionen dieses Imports einen übernommenen Preis wieder - Preise aus der Originaldatei sind davon nicht betroffen"
+              className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+              title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
               type="submit"
             >
-              Übernommene Preise zurücksetzen
+              {showCrossLvMatches ? "Erneut abgleichen" : "Abgleich starten"}
             </button>
+            {lvImport.crossLvMatchedAt ? (
+              <p className="mt-2 text-xs text-gray-500">
+                Letzter Abgleich:{" "}
+                {new Intl.DateTimeFormat("de-DE", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                  timeZone: "Europe/Berlin",
+                }).format(lvImport.crossLvMatchedAt)}
+                {lvImport.crossLvMatchedByUser ? ` von ${lvImport.crossLvMatchedByUser.name}` : ""}
+                {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
+                {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
+                {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
+                {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
+              </p>
+            ) : null}
           </form>
-        ) : null}
 
-        <a
-          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href={`/kalkulation/imports/${importId}/export`}
-          title="Exportiert dieses LV als GAEB (X83) mit den aktuell hinterlegten Einheitspreisen - z.B. zum Weiterverarbeiten in iTWO"
-        >
-          Als GAEB exportieren ↓
-        </a>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <form action={adoptBestPricesForImport}>
+              <input name="importId" type="hidden" value={importId} />
+              <button
+                className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+                title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
+                type="submit"
+              >
+                Alle mit bestem Treffer vorkalkulieren
+              </button>
+            </form>
 
-        <a
-          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href={`/kalkulation/imports/${importId}/export-excel`}
-          title="Exportiert dieses LV als Excel-Tabelle mit den aktuell hinterlegten Einheitspreisen"
-        >
-          Als Excel exportieren ↓
-        </a>
+            {lineItems.some((item) => item.priceSourceLvImportId) ? (
+              <form action={clearAdoptedPricesForImport}>
+                <input name="importId" type="hidden" value={importId} />
+                <button
+                  className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                  title="Entfernt bei allen Positionen dieses Imports einen übernommenen Preis wieder - Preise aus der Originaldatei sind davon nicht betroffen"
+                  type="submit"
+                >
+                  Übernommene Preise zurücksetzen
+                </button>
+              </form>
+            ) : null}
 
-        <a
-          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href={`/kalkulation/imports/${importId}/export-pdf`}
-          title="Exportiert dieses LV als druckbares PDF mit den aktuell hinterlegten Einheitspreisen"
-        >
-          Als PDF exportieren ↓
-        </a>
-
-        {lvImport.sourceFormat === "RIB_KALKULATION" && lineItems.some((item) => item.ribRawBlockXml) ? (
-          <a
-            className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            href={`/kalkulation/imports/${importId}/export-xml`}
-            title="Exportiert die Kalkulationsansätze dieses Imports als .xml - zum Wiedereinlesen in iTWO"
-          >
-            Als XML exportieren ↓
-          </a>
-        ) : null}
-
-        {lvImport.sourceFormat === "RIB_KALKULATION" && lvImport.projectNumber ? (
-          <form action={suggestAnsaetzeFromHistory}>
-            <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
-            <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-            <button
-              className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-              title="Befüllt noch leere Positionen dieser Kalkulation mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
-              type="submit"
+            <a
+              className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/kalkulation/imports/${importId}/export`}
+              title="Exportiert dieses LV als GAEB (X83) mit den aktuell hinterlegten Einheitspreisen - z.B. zum Weiterverarbeiten in iTWO"
             >
-              Ansätze aus anderen Projekten vorschlagen
-            </button>
-          </form>
-        ) : null}
-      </div>
+              Als GAEB exportieren ↓
+            </a>
+
+            <a
+              className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/kalkulation/imports/${importId}/export-excel`}
+              title="Exportiert dieses LV als Excel-Tabelle mit den aktuell hinterlegten Einheitspreisen"
+            >
+              Als Excel exportieren ↓
+            </a>
+
+            <a
+              className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              href={`/kalkulation/imports/${importId}/export-pdf`}
+              title="Exportiert dieses LV als druckbares PDF mit den aktuell hinterlegten Einheitspreisen"
+            >
+              Als PDF exportieren ↓
+            </a>
+          </div>
+        </>
+      )}
 
       <section className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
         <table className="w-full min-w-[1100px] text-left text-sm">

@@ -19,7 +19,9 @@ function ProjectSlot({
   accept,
   emptyLabel,
   extraEmptyContent,
+  helpText,
   imports,
+  itemBadge,
   projectNumber,
   returnTo,
   tenderTitle,
@@ -28,7 +30,9 @@ function ProjectSlot({
   accept: string;
   emptyLabel: string;
   extraEmptyContent?: ReactNode;
+  helpText?: ReactNode;
   imports: LvImportRow[];
+  itemBadge?: (item: LvImportRow) => ReactNode;
   projectNumber: string;
   returnTo: string;
   tenderTitle: string | null;
@@ -38,17 +42,22 @@ function ProjectSlot({
     <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
       <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</h2>
 
+      {imports.length === 0 && helpText ? <div className="mt-2">{helpText}</div> : null}
+
       {imports.length > 0 ? (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-2 space-y-1.5">
           {imports.map((item) => (
             <li className="flex items-center justify-between gap-2" key={item.id}>
-              <Link
-                className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 hover:underline"
-                href={`/kalkulation/imports/${item.id}`}
-                title={item.fileName}
-              >
-                {item.fileName}
-              </Link>
+              <div className="min-w-0 flex-1">
+                <Link
+                  className="block truncate text-sm font-semibold text-gray-900 hover:underline"
+                  href={`/kalkulation/imports/${item.id}`}
+                  title={item.fileName}
+                >
+                  {item.fileName}
+                </Link>
+                {itemBadge ? itemBadge(item) : null}
+              </div>
               <form action={deleteImport}>
                 <input name="importId" type="hidden" value={item.id} />
                 <input name="returnTo" type="hidden" value={returnTo} />
@@ -122,6 +131,29 @@ export default async function KalkulationProjectPage({
   // Abgleich-Werkzeugen, ohne dass man dafür extra klicken muss.
   const orderedImports = [...lvImports, ...kalkulationImports, ...angebotImports];
 
+  // "Leer" (Skelett ohne Ansätze, z.B. frisch aus iTWO exportiert) vs.
+  // "kalkuliert" wird nicht als eigenes Feld beim Upload abgefragt (zu
+  // fehleranfällig, wenn man es vergisst umzustellen), sondern direkt aus
+  // dem Inhalt abgeleitet: enthält mindestens eine Position bereits einen
+  // Baustein- oder Kostenart-Ansatz, gilt die Datei als (teilweise)
+  // kalkuliert. Gleiche Erkennungslogik wie ribBlockIsEmpty in actions.ts.
+  const kalkulationFillCounts = new Map<string, { filled: number; total: number }>();
+  await Promise.all(
+    kalkulationImports.map(async (item) => {
+      const [filled, total] = await Promise.all([
+        prisma.kalkulationLvLineItem.count({
+          where: {
+            entryType: "ITEM",
+            lvImportId: item.id,
+            OR: [{ ribRawBlock: { contains: "#begin[_RIB_BstnA]" } }, { ribRawBlock: { contains: "#begin[_RIB_KoaA]" } }],
+          },
+        }),
+        prisma.kalkulationLvLineItem.count({ where: { entryType: "ITEM", lvImportId: item.id } }),
+      ]);
+      kalkulationFillCounts.set(item.id, { filled, total });
+    }),
+  );
+
   const returnTo = `/kalkulation/projects/${encodeURIComponent(projectNumber)}`;
 
   return (
@@ -153,7 +185,7 @@ export default async function KalkulationProjectPage({
         />
         <ProjectSlot
           accept=".xml"
-          emptyLabel=".XML hierher ziehen"
+          emptyLabel="Leere XML hierher ziehen"
           extraEmptyContent={
             lvImports.length > 0 ? (
               <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
@@ -169,7 +201,39 @@ export default async function KalkulationProjectPage({
               </form>
             ) : null
           }
+          helpText={
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px] leading-relaxed text-blue-900">
+              <p className="font-semibold">So kommst du zur vorkalkulierten XML:</p>
+              <ol className="ml-4 list-decimal space-y-0.5">
+                <li>Leere Kalkulations-XML aus iTWO exportieren (Positions-Skelett, noch ohne Ansätze) und hier hochladen.</li>
+                <li>Unten auf &quot;Ansätze aus anderen Projekten vorschlagen&quot; klicken.</li>
+                <li>Vorschläge prüfen und bestätigen.</li>
+                <li>Fertig kalkulierte XML unten exportieren und in iTWO einlesen.</li>
+              </ol>
+              <p className="mt-1 text-blue-700">
+                Geht auch ohne Upload hier - dann wird die Datei aber neu zusammengebaut statt aus deiner
+                Originaldatei übernommen.
+              </p>
+            </div>
+          }
           imports={kalkulationImports}
+          itemBadge={(item) => {
+            const counts = kalkulationFillCounts.get(item.id);
+            if (!counts || counts.total === 0) return null;
+            const label =
+              counts.filled === 0
+                ? "leer · bereit für Ansätze-Vorschläge"
+                : counts.filled === counts.total
+                  ? "vollständig kalkuliert"
+                  : `${counts.filled} von ${counts.total} Positionen kalkuliert`;
+            const colorClass =
+              counts.filled === 0
+                ? "text-gray-500"
+                : counts.filled === counts.total
+                  ? "text-green-700"
+                  : "text-amber-700";
+            return <p className={`text-[11px] font-medium ${colorClass}`}>{label}</p>;
+          }}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}

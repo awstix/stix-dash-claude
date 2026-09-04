@@ -8,17 +8,16 @@
  * erkennbar am generischen shortText "Kalkulation OZ X") ist das nicht der
  * Fall - eine D31-Datei enthält nur OZ + Ansätze, keinen Positionstext -
  * dort bleibt der Umweg "D31-Position -> eigene OZ -> eigenes LV -> Text"
- * nötig. */
+ * nötig. Menge/Einheit kommen unabhängig davon immer vom eigenen LV der
+ * Quelle (die Kalkulationsdatei selbst führt das nicht zuverlässig). */
 
 import { prisma } from "@/lib/prisma";
-import type { CatalogEntryForMatching } from "@/lib/kalkulation-matching";
+import type { LvMatchInput } from "@/lib/kalkulation-matching";
 
-export type AnsatzPoolEntry = {
-  key: string;
+export type AnsatzPoolEntry = LvMatchInput & {
   sourceLineItemId: string;
   sourceProjectNumber: string;
   sourceImportId: string;
-  descriptionText: string;
   ansatzSummary: string;
   ribRawBlock: string;
   ribRawBlockXml: string | null;
@@ -53,14 +52,12 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
     },
   });
 
-  const descriptionByProjectAndOz = new Map<string, string>();
+  const lvItemByProjectAndOz = new Map<string, (typeof lvItems)[number]>();
   for (const item of lvItems) {
     const projectNumber = item.lvImport.projectNumber;
     if (!projectNumber || !item.positionNumber) continue;
     const key = `${projectNumber}::${item.positionNumber.trim()}`;
-    if (!descriptionByProjectAndOz.has(key)) {
-      descriptionByProjectAndOz.set(key, `${item.shortText ?? ""} ${item.rawText}`.trim());
-    }
+    if (!lvItemByProjectAndOz.has(key)) lvItemByProjectAndOz.set(key, item);
   }
 
   const pool: AnsatzPoolEntry[] = [];
@@ -73,38 +70,30 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
     // ansätze") wird für den Textvergleich abgeschnitten, der soll nur den
     // Positionstext selbst vergleichen, nicht die Ansatz-Details.
     const hasOwnText = Boolean(item.shortText) && !item.shortText!.startsWith("Kalkulation OZ ");
-    // item.rawText beginnt für XML-Positionen bereits mit dem vollen
-    // Positionstext (der die shortText-Zeile mit einschließt) - shortText
-    // hier nochmal davorzuhängen würde sie doppelt reinschreiben.
-    const descriptionText = hasOwnText
+    const sourceLvItem = lvItemByProjectAndOz.get(`${projectNumber}::${item.positionNumber.trim()}`);
+    const shortText = hasOwnText ? item.shortText : (sourceLvItem?.shortText ?? null);
+    const rawText = hasOwnText
       ? item.rawText.split("\n\nKalkulationsansätze")[0].trim()
-      : descriptionByProjectAndOz.get(`${projectNumber}::${item.positionNumber.trim()}`);
+      : sourceLvItem?.rawText;
     // Kein eigener Text und kein zugehöriger LV-Text im selben Projekt
     // gefunden (z.B. LV noch nicht hochgeladen) - dann gibt's nichts,
     // wogegen sich sinnvoll matchen ließe, diese Position bleibt außen vor.
-    if (!descriptionText) continue;
+    if (!rawText) continue;
 
     pool.push({
       ansatzSummary: item.rawText,
-      descriptionText,
-      key: item.id,
+      id: item.id,
+      quantity: sourceLvItem?.quantity ?? null,
+      rawText,
       ribRawBlock: item.ribRawBlock,
       ribRawBlockXml: item.ribRawBlockXml,
+      shortText,
       sourceImportId: item.lvImportId,
       sourceLineItemId: item.id,
       sourceProjectNumber: projectNumber,
+      unit: sourceLvItem?.unit ?? null,
     });
   }
 
   return pool;
-}
-
-export function poolToCatalog(pool: AnsatzPoolEntry[]): CatalogEntryForMatching[] {
-  return pool.map((entry) => ({
-    code: null,
-    description: null,
-    id: entry.key,
-    title: entry.descriptionText,
-    unit: "",
-  }));
 }
