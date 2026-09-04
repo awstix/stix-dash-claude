@@ -13,7 +13,7 @@
  * als lesbaren Referenztext je Position (rawText) - ohne Anspruch auf
  * einen berechneten Gesamtpreis. */
 
-import { escapeXmlText } from "@/lib/kalkulation-estimate-xml-parser";
+import { escapeXmlText, formatOzForItwo } from "@/lib/kalkulation-estimate-xml-parser";
 
 type RibNode = {
   name: string;
@@ -151,7 +151,7 @@ export type RibKalkulationRow = {
 function buildSyntheticWbsItemXml(kalkPos: RibNode, oz: string): string {
   const lines: string[] = [
     "<WBSItem>",
-    `<NameWBSItem>${escapeXmlText(oz)}</NameWBSItem>`,
+    `<NameWBSItem>${escapeXmlText(formatOzForItwo(oz))}</NameWBSItem>`,
     "<OutlineSpecs>Kalkulationsansatz aus D31 (kein Positionstext in der Quelldatei enthalten)</OutlineSpecs>",
     "<EstDetails>",
   ];

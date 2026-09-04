@@ -52,12 +52,30 @@ function normalizeOz(raw: string): string | null {
   return cleaned || null;
 }
 
+/** iTWO schreibt (und erwartet beim Wiedereinlesen offenbar exakt so
+ * zurück) die OZ in einem festen Spaltenformat, nicht als schlichten
+ * Punkt-String: jede Gliederungsebene außer der letzten rechtsbündig auf
+ * Breite 2, die letzte (Positions-)Ebene rechtsbündig auf Breite 4, jede
+ * Ebene gefolgt von einem Punkt, am Ende ein Leerzeichen - z.B. "1.29.100"
+ * -> " 1.29. 100. ". Aus einer echten iTWO-Exportdatei verifiziert (u.a.
+ * " 1. 1.  10. ", " 1.29. 100. "). Ohne dieses Format lehnt iTWO den
+ * Re-Import mit "Position ... nicht vorhanden" ab, auch wenn die Position
+ * inhaltlich exakt existiert. */
+export function formatOzForItwo(dottedOz: string): string {
+  const segments = dottedOz.split(".").filter(Boolean);
+  if (segments.length === 0) return dottedOz;
+  return `${segments.map((segment, index) => `${segment.padStart(index === segments.length - 1 ? 4 : 2, " ")}.`).join("")} `;
+}
+
 /** Ersetzt die `<NameWBSItem>`-Zeile in einem gespeicherten Rohblock durch
  * eine andere Positionsnummer - Pendant zu rewriteOzInRawBlock im
  * D31-Parser, für den Fall, dass ein Ansatz aus einem fremden Projekt mit
  * anderer OZ übernommen wird. */
 export function rewriteOzInXmlBlock(xmlBlock: string, newOz: string): string {
-  return xmlBlock.replace(/<NameWBSItem>[\s\S]*?<\/NameWBSItem>/, `<NameWBSItem>${escapeXmlText(newOz)}</NameWBSItem>`);
+  return xmlBlock.replace(
+    /<NameWBSItem>[\s\S]*?<\/NameWBSItem>/,
+    `<NameWBSItem>${escapeXmlText(formatOzForItwo(newOz))}</NameWBSItem>`,
+  );
 }
 
 export function escapeXmlText(value: string): string {
