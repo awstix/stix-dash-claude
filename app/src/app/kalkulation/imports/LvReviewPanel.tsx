@@ -156,7 +156,24 @@ export async function LvReviewPanel({
           >
             Abgleich starten
           </button>
+          {lvImport.matchingRunAt ? (
+            <p className="mt-2 text-xs text-gray-500">
+              Letzter Abgleich:{" "}
+              {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.matchingRunAt)}
+              {" · "}Genauigkeit {Math.round(lvImport.matchingThreshold * 100)}%
+            </p>
+          ) : null}
         </form>
+
+        {!showCrossLvMatches ? (
+          <a
+            className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            href={crossLvToggleHref}
+            title="Vergleicht jede Position live gegen alle Positionen anderer LVs in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
+          >
+            Ähnlich in anderen LVs laden
+          </a>
+        ) : null}
 
         <form action={adoptBestPricesForImport}>
           <input name="importId" type="hidden" value={importId} />
@@ -241,14 +258,7 @@ export async function LvReviewPanel({
               <th className="p-3">LV-Menge</th>
               <th className="p-3">Einheit</th>
               <th className="p-3">EP</th>
-              <th className="p-3 w-56">
-                Ähnlich in anderen LVs
-                {showCrossLvMatches ? null : (
-                  <a className="ml-2 font-normal text-blue-700 underline" href={crossLvToggleHref}>
-                    anzeigen
-                  </a>
-                )}
-              </th>
+              <th className="p-3 w-56">Ähnlich in anderen LVs</th>
               <th className="p-3 w-40">Vorschlag</th>
               <th className="p-3">Status</th>
               <th className="p-3 w-40">Aktion</th>
