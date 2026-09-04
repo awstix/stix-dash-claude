@@ -127,8 +127,8 @@ export default async function KalkulationKatalogPage({
                       </Link>
                       {position.code ? <span className="ml-2 text-xs text-gray-400">{position.code}</span> : null}
                     </td>
-                    <td className="p-3">{position.unit}</td>
-                    <td className="p-3">{position.category?.name ?? "–"}</td>
+                    <td className="p-3 text-gray-900">{position.unit}</td>
+                    <td className="p-3 text-gray-900">{position.category?.name ?? "–"}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <details>
@@ -203,17 +203,17 @@ export default async function KalkulationKatalogPage({
             <tbody>
               {selectedHistory.map((entry) => (
                 <tr className="border-t border-gray-100" key={entry.id}>
-                  <td className="p-3">
+                  <td className="p-3 text-gray-900">
                     {entry.lvImport.lvDate
                       ? new Intl.DateTimeFormat("de-DE").format(entry.lvImport.lvDate)
                       : new Intl.DateTimeFormat("de-DE").format(entry.lvImport.createdAt)}
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 text-gray-900">
                     {formatLvSource(entry.lvImport)}
                     {entry.lvImport.customerName ? ` (${entry.lvImport.customerName})` : ""}
                   </td>
-                  <td className="p-3">{LV_TYPE_LABELS[entry.lvImport.lvType] ?? entry.lvImport.lvType}</td>
-                  <td className="p-3">{formatCents(entry.unitPriceCents)}</td>
+                  <td className="p-3 text-gray-900">{LV_TYPE_LABELS[entry.lvImport.lvType] ?? entry.lvImport.lvType}</td>
+                  <td className="p-3 font-semibold text-gray-900">{formatCents(entry.unitPriceCents)}</td>
                 </tr>
               ))}
               {selectedHistory.length === 0 ? (

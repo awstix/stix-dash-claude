@@ -153,9 +153,9 @@ export default async function KalkulationProjectsPage({
                     </Link>
                     {project.tenderTitle ? <div className="text-xs text-gray-500">{project.tenderTitle}</div> : null}
                   </td>
-                  <td className="p-3">{counts.lv > 0 ? `✓ (${counts.lv})` : "–"}</td>
-                  <td className="p-3">{counts.kalkulation > 0 ? `✓ (${counts.kalkulation})` : "–"}</td>
-                  <td className="p-3">{counts.angebot > 0 ? `✓ (${counts.angebot})` : "–"}</td>
+                  <td className="p-3 font-semibold text-gray-900">{counts.lv > 0 ? `✓ (${counts.lv})` : "–"}</td>
+                  <td className="p-3 font-semibold text-gray-900">{counts.kalkulation > 0 ? `✓ (${counts.kalkulation})` : "–"}</td>
+                  <td className="p-3 font-semibold text-gray-900">{counts.angebot > 0 ? `✓ (${counts.angebot})` : "–"}</td>
                 </tr>
               );
             })}
