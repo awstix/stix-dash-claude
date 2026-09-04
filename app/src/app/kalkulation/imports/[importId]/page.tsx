@@ -16,10 +16,13 @@ const LV_TYPE_LABELS: Record<string, string> = {
 
 export default async function KalkulationImportReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ importId: string }>;
+  searchParams: Promise<{ crossLv?: string }>;
 }) {
   const { importId } = await params;
+  const { crossLv } = await searchParams;
 
   const [lvImport, aiSettings] = await Promise.all([
     prisma.kalkulationLvImport.findUnique({ where: { id: importId } }),
@@ -112,7 +115,11 @@ export default async function KalkulationImportReviewPage({
         </ul>
       </section>
 
-      <LvReviewPanel importId={importId} />
+      <LvReviewPanel
+        crossLvToggleHref={`/kalkulation/imports/${importId}?crossLv=1`}
+        importId={importId}
+        showCrossLvMatches={crossLv === "1"}
+      />
     </AppShell>
   );
 }

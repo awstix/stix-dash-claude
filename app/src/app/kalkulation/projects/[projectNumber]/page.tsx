@@ -94,11 +94,11 @@ export default async function KalkulationProjectPage({
   searchParams,
 }: {
   params: Promise<{ projectNumber: string }>;
-  searchParams: Promise<{ importError?: string }>;
+  searchParams: Promise<{ crossLv?: string; importError?: string }>;
 }) {
   const { projectNumber: encodedProjectNumber } = await params;
   const projectNumber = decodeURIComponent(encodedProjectNumber);
-  const { importError } = await searchParams;
+  const { crossLv, importError } = await searchParams;
 
   const [project, imports] = await Promise.all([
     prisma.kalkulationProject.findUnique({ where: { projectNumber } }),
@@ -202,7 +202,11 @@ export default async function KalkulationProjectPage({
                   {item.rowCount} Positionen · {STATUS_LABELS[item.status] ?? item.status}
                 </span>
               </h2>
-              <LvReviewPanel importId={item.id} />
+              <LvReviewPanel
+                crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
+                importId={item.id}
+                showCrossLvMatches={crossLv === item.id}
+              />
             </div>
           ))}
         </div>

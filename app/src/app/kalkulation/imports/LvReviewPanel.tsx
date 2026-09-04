@@ -32,8 +32,24 @@ function formatCents(cents: number | null) {
 /** Abgleich-Werkzeuge + die vollständige Positionstabelle eines LV-Imports
  * - ausgelagert aus der Einzel-Review-Seite (imports/[importId]/page.tsx),
  * damit dieselbe Ansicht auch direkt embedded auf der Projektseite
- * gerendert werden kann, statt dorthin verlinken zu müssen. */
-export async function LvReviewPanel({ importId }: { importId: string }) {
+ * gerendert werden kann, statt dorthin verlinken zu müssen.
+ *
+ * `showCrossLvMatches`/`crossLvToggleHref`: der Live-Vergleich gegen ALLE
+ * Positionen anderer LVs in der ganzen DB ist teuer (skaliert mit der
+ * Gesamtmenge an Positionen) - lief früher bei jedem Seitenaufruf
+ * automatisch mit und hat bei mehreren eingebetteten Panels (Projektseite
+ * mit 3 Imports) zu spürbaren Ladezeiten geführt. Deshalb jetzt bewusst
+ * per Link zuschaltbar statt automatisch, analog zum bestehenden
+ * "KI-Abgleich nur per Klick"-Prinzip. */
+export async function LvReviewPanel({
+  crossLvToggleHref,
+  importId,
+  showCrossLvMatches = false,
+}: {
+  crossLvToggleHref: string;
+  importId: string;
+  showCrossLvMatches?: boolean;
+}) {
   const [lvImport, lineItems, positions] = await Promise.all([
     prisma.kalkulationLvImport.findUniqueOrThrow({ where: { id: importId } }),
     prisma.kalkulationLvLineItem.findMany({
@@ -74,29 +90,31 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
 
   // Direkter Vergleich gegen Positionen ANDERER bereits importierter LVs -
   // unabhängig davon, ob dort schon irgendetwas bestätigt/katalogisiert
-  // wurde. Ergänzt (ersetzt nicht) den Katalog-Abgleich.
-  const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
-    where: { entryType: "ITEM", lvImportId: { not: importId } },
-    include: { lvImport: true },
-    orderBy: { createdAt: "desc" },
-    take: 3000,
-  });
-  const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
-  const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
-    id: row.id,
-    code: row.positionNumber,
-    title: row.shortText ?? row.rawText.slice(0, 100),
-    description: row.rawText,
-    unit: row.unit ?? "",
-  }));
-  type CrossLvMatch = (typeof otherLvItems)[number] & { similarityScore: number };
-  const crossLvMatchesByLineItem = new Map<string, CrossLvMatch[]>();
-  if (otherLvCatalog.length > 0) {
+  // wurde. Ergänzt (ersetzt nicht) den Katalog-Abgleich. Teuer (skaliert
+  // mit der Gesamtmenge an Positionen in der DB) - läuft deshalb nur, wenn
+  // explizit zugeschaltet (siehe showCrossLvMatches oben).
+  type CrossLvItem = Awaited<ReturnType<typeof prisma.kalkulationLvLineItem.findMany<{ include: { lvImport: true } }>>>[number];
+  const crossLvMatchesByLineItem = new Map<string, (CrossLvItem & { similarityScore: number })[]>();
+  if (showCrossLvMatches) {
+    const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
+      where: { entryType: "ITEM", lvImportId: { not: importId } },
+      include: { lvImport: true },
+      orderBy: { createdAt: "desc" },
+      take: 3000,
+    });
+    const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
+    const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
+      id: row.id,
+      code: row.positionNumber,
+      title: row.shortText ?? row.rawText.slice(0, 100),
+      description: row.rawText,
+      unit: row.unit ?? "",
+    }));
     for (const item of lineItems) {
       if (item.entryType !== "ITEM") continue;
       const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
       const candidates = buildShortlist(combinedText, otherLvCatalog, 15, lvImport.matchingThreshold);
-      const bestPerImport = new Map<string, CrossLvMatch>();
+      const bestPerImport = new Map<string, CrossLvItem & { similarityScore: number }>();
       for (const candidate of candidates) {
         const source = otherLvItemsById.get(candidate.positionId);
         if (!source) continue;
@@ -191,7 +209,14 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
               <th className="p-3">LV-Menge</th>
               <th className="p-3">Einheit</th>
               <th className="p-3">EP</th>
-              <th className="p-3 w-56">Ähnlich in anderen LVs</th>
+              <th className="p-3 w-56">
+                Ähnlich in anderen LVs
+                {showCrossLvMatches ? null : (
+                  <a className="ml-2 font-normal text-blue-700 underline" href={crossLvToggleHref}>
+                    anzeigen
+                  </a>
+                )}
+              </th>
               <th className="p-3 w-40">Vorschlag</th>
               <th className="p-3">Status</th>
               <th className="p-3 w-40">Aktion</th>
@@ -238,7 +263,9 @@ export async function LvReviewPanel({ importId }: { importId: string }) {
                     ) : null}
                   </td>
                   <td className="w-56 max-w-56 p-3">
-                    {(crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
+                    {!showCrossLvMatches ? (
+                      <span className="text-gray-400">nicht geladen</span>
+                    ) : (crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
                       <span className="text-gray-400">–</span>
                     ) : (
                       <div className="space-y-2">
