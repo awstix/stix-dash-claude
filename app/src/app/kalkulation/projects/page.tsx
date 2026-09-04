@@ -4,7 +4,8 @@ import { AppShell } from "@/components/AppShell";
 import { LiveSearchInput } from "@/components/LiveSearchInput";
 import { prisma } from "@/lib/prisma";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
-import { createKalkulationProject } from "./actions";
+import { createKalkulationProject, deleteKalkulationProject } from "./actions";
+import { DeleteProjectButton } from "./DeleteProjectButton";
 
 const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 
@@ -137,6 +138,7 @@ export default async function KalkulationProjectsPage({
               <th className="p-3">LV / Angebotsanfrage</th>
               <th className="p-3">Kalkulation (D31)</th>
               <th className="p-3">Kalkuliertes LV</th>
+              <th className="p-3" />
             </tr>
           </thead>
           <tbody>
@@ -156,12 +158,18 @@ export default async function KalkulationProjectsPage({
                   <td className="p-3 font-semibold text-gray-900">{counts.lv > 0 ? `✓ (${counts.lv})` : "–"}</td>
                   <td className="p-3 font-semibold text-gray-900">{counts.kalkulation > 0 ? `✓ (${counts.kalkulation})` : "–"}</td>
                   <td className="p-3 font-semibold text-gray-900">{counts.angebot > 0 ? `✓ (${counts.angebot})` : "–"}</td>
+                  <td className="p-3">
+                    <form action={deleteKalkulationProject}>
+                      <input name="projectNumber" type="hidden" value={project.projectNumber} />
+                      <DeleteProjectButton projectNumber={project.projectNumber} />
+                    </form>
+                  </td>
                 </tr>
               );
             })}
             {projects.length === 0 ? (
               <tr>
-                <td className="p-6 text-center text-gray-500" colSpan={4}>
+                <td className="p-6 text-center text-gray-500" colSpan={5}>
                   {searchQuery ? `Keine Treffer für "${searchQuery}".` : "Noch keine Projekte angelegt."}
                 </td>
               </tr>
