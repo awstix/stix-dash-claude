@@ -191,3 +191,74 @@ export function buildShortlist(
     .sort((a, b) => b.similarityScore - a.similarityScore)
     .slice(0, limit);
 }
+
+function combinedTextScore(a: string, b: string): number {
+  const dice = diceCoefficient(a, b);
+  const maxLength = Math.max(a.length, b.length, 1);
+  const distance = levenshteinDistance(a, b);
+  const levenshteinSimilarity = 1 - distance / maxLength;
+  return dice * 0.5 + levenshteinSimilarity * 0.5;
+}
+
+export type LvMatchInput = {
+  id: string;
+  shortText: string | null;
+  rawText: string;
+  quantity: number | null;
+  unit: string | null;
+};
+
+export type LvMatchResult = {
+  candidateId: string;
+  kurztextScore: number;
+  langtextScore: number;
+  exactMengeEinheitMatch: boolean;
+};
+
+/** Vergleich direkt gegen andere LV-/Kalkulationspositionen (nicht gegen
+ * den Positionskatalog) - bewusst mit getrennten Kriterien statt einer
+ * einzelnen Ähnlichkeit: Kurztext und Langtext haben unterschiedliche
+ * Aussagekraft (Kurztext ist oft die Standardbezeichnung, Langtext trägt
+ * die Details), Menge+Einheit ist ein exakter Filter, keine Ähnlichkeit -
+ * "gleiche Menge in derselben Einheit" ist entweder wahr oder falsch.
+ *
+ * Ein Kandidat muss ALLE drei Kriterien erfüllen, um zurückgegeben zu
+ * werden. Grobe Vorfilterung per Dice über den ganzen Pool (billig), erst
+ * die besten ~30 nach Langtext-Ähnlichkeit werden mit Levenshtein
+ * verfeinert - sonst bei vielen Kandidaten zu teuer. */
+export function buildLvMatches(
+  target: LvMatchInput,
+  candidates: LvMatchInput[],
+  options: { exactMengeEinheit: boolean; kurztextThreshold: number; langtextThreshold: number },
+): LvMatchResult[] {
+  const targetKurztext = normalizeText(target.shortText ?? "");
+  const targetLangtext = normalizeText(target.rawText);
+
+  const roughRanked = candidates
+    .filter((candidate) => candidate.id !== target.id)
+    .map((candidate) => ({
+      candidate,
+      roughScore: diceCoefficient(targetLangtext, normalizeText(candidate.rawText)),
+    }))
+    .sort((a, b) => b.roughScore - a.roughScore)
+    .slice(0, 30);
+
+  const results: LvMatchResult[] = [];
+  for (const { candidate } of roughRanked) {
+    const kurztextScore = combinedTextScore(targetKurztext, normalizeText(candidate.shortText ?? ""));
+    const langtextScore = combinedTextScore(targetLangtext, normalizeText(candidate.rawText));
+    const exactMengeEinheitMatch =
+      target.quantity != null &&
+      candidate.quantity != null &&
+      target.quantity === candidate.quantity &&
+      (target.unit ?? "").trim().toLowerCase() === (candidate.unit ?? "").trim().toLowerCase();
+
+    if (kurztextScore < options.kurztextThreshold) continue;
+    if (langtextScore < options.langtextThreshold) continue;
+    if (options.exactMengeEinheit && !exactMengeEinheitMatch) continue;
+
+    results.push({ candidateId: candidate.id, exactMengeEinheitMatch, kurztextScore, langtextScore });
+  }
+
+  return results.sort((a, b) => b.langtextScore - a.langtextScore);
+}

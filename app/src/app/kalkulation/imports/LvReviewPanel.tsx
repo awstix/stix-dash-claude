@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
+  adoptAnsatzFromCandidate,
   adoptBestPricesForImport,
   adoptPrice,
   clearAdoptedPricesForImport,
@@ -13,9 +14,11 @@ import {
   rejectMatch,
   runMatching,
   suggestAnsaetzeFromHistory,
+  updateCrossLvSettings,
 } from "./actions";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
-import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
+import { buildLvMatches } from "@/lib/kalkulation-matching";
+import { diffWords } from "@/lib/kalkulation-text-diff";
 import { formatLvSource } from "@/lib/kalkulation-format";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -93,42 +96,71 @@ export async function LvReviewPanel({
     priceHistoryByPosition.set(row.matchedPositionId, existing);
   }
 
-  // Direkter Vergleich gegen Positionen ANDERER bereits importierter LVs -
-  // unabhängig davon, ob dort schon irgendetwas bestätigt/katalogisiert
-  // wurde. Ergänzt (ersetzt nicht) den Katalog-Abgleich. Teuer (skaliert
-  // mit der Gesamtmenge an Positionen in der DB) - läuft deshalb nur, wenn
-  // explizit zugeschaltet (siehe showCrossLvMatches oben).
+  // Direkter Vergleich gegen Positionen ANDERER bereits importierter LVs
+  // UND Kalkulationen - unabhängig davon, ob dort schon irgendetwas
+  // bestätigt/katalogisiert wurde. Ergänzt (ersetzt nicht) den Katalog-
+  // Abgleich. Teuer (skaliert mit der Gesamtmenge an Positionen in der DB)
+  // - läuft deshalb nur, wenn explizit zugeschaltet (siehe
+  // showCrossLvMatches oben). Getrennte Kurztext-/Langtext-Schwellen +
+  // exakter Menge/Einheit-Filter statt einer einzelnen Ähnlichkeit (siehe
+  // buildLvMatches) - ein Kandidat muss alle drei Kriterien erfüllen.
   type CrossLvItem = Awaited<ReturnType<typeof prisma.kalkulationLvLineItem.findMany<{ include: { lvImport: true } }>>>[number];
-  const crossLvMatchesByLineItem = new Map<string, (CrossLvItem & { similarityScore: number })[]>();
+  type CrossLvMatch = {
+    exactMengeEinheitMatch: boolean;
+    kurztextScore: number;
+    langtextScore: number;
+    source: CrossLvItem;
+  };
+  const crossLvMatchesByLineItem = new Map<string, CrossLvMatch[]>();
   if (showCrossLvMatches) {
     const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
-      where: { entryType: "ITEM", lvImportId: { not: importId } },
+      where: {
+        entryType: "ITEM",
+        lvImportId: { not: importId },
+        // D31-Positionen ohne echten Text (Platzhalter "Kalkulation OZ X",
+        // siehe kalkulation-ansatz-pool.ts) taugen nicht für den
+        // Textvergleich - raus, sonst nur falsche Treffer.
+        NOT: { shortText: { startsWith: "Kalkulation OZ " } },
+      },
       include: { lvImport: true },
       orderBy: { createdAt: "desc" },
       take: 3000,
     });
     const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
-    const otherLvCatalog: CatalogEntryForMatching[] = otherLvItems.map((row) => ({
+    const candidateInputs = otherLvItems.map((row) => ({
       id: row.id,
-      code: row.positionNumber,
-      title: row.shortText ?? row.rawText.slice(0, 100),
-      description: row.rawText,
-      unit: row.unit ?? "",
+      quantity: row.quantity,
+      rawText: row.rawText,
+      shortText: row.shortText,
+      unit: row.unit,
     }));
+
     for (const item of lineItems) {
       if (item.entryType !== "ITEM") continue;
-      const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
-      const candidates = buildShortlist(combinedText, otherLvCatalog, 15, lvImport.matchingThreshold);
-      const bestPerImport = new Map<string, CrossLvItem & { similarityScore: number }>();
-      for (const candidate of candidates) {
-        const source = otherLvItemsById.get(candidate.positionId);
+      const matches = buildLvMatches(
+        { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
+        candidateInputs,
+        {
+          exactMengeEinheit: lvImport.crossLvExactMengeEinheit,
+          kurztextThreshold: lvImport.crossLvKurztextThreshold,
+          langtextThreshold: lvImport.crossLvLangtextThreshold,
+        },
+      );
+      const bestPerImport = new Map<string, CrossLvMatch>();
+      for (const match of matches) {
+        const source = otherLvItemsById.get(match.candidateId);
         if (!source) continue;
         const existing = bestPerImport.get(source.lvImportId);
-        if (!existing || candidate.similarityScore > existing.similarityScore) {
-          bestPerImport.set(source.lvImportId, { ...source, similarityScore: candidate.similarityScore });
+        if (!existing || match.langtextScore > existing.langtextScore) {
+          bestPerImport.set(source.lvImportId, {
+            exactMengeEinheitMatch: match.exactMengeEinheitMatch,
+            kurztextScore: match.kurztextScore,
+            langtextScore: match.langtextScore,
+            source,
+          });
         }
       }
-      const top3 = [...bestPerImport.values()].sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 3);
+      const top3 = [...bestPerImport.values()].sort((a, b) => b.langtextScore - a.langtextScore).slice(0, 3);
       if (top3.length > 0) crossLvMatchesByLineItem.set(item.id, top3);
     }
   }
@@ -164,16 +196,57 @@ export async function LvReviewPanel({
         ) : null}
       </form>
 
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        {!showCrossLvMatches ? (
-          <a
-            className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            href={crossLvToggleHref}
-            title="Vergleicht jede Position live gegen alle Positionen anderer LVs in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
+      {!showCrossLvMatches ? (
+        <form
+          action={updateCrossLvSettings}
+          className="mb-3 flex flex-wrap items-end gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+        >
+          <input name="importId" type="hidden" value={importId} />
+          <input name="returnTo" type="hidden" value={crossLvToggleHref} />
+          <label className="text-sm font-semibold text-gray-900">
+            Kurztext ≥
+            <input
+              className="mt-1 block w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+              defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
+              max={100}
+              min={0}
+              name="crossLvKurztextThreshold"
+              type="number"
+            />
+            %
+          </label>
+          <label className="text-sm font-semibold text-gray-900">
+            Langtext ≥
+            <input
+              className="mt-1 block w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+              defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
+              max={100}
+              min={0}
+              name="crossLvLangtextThreshold"
+              type="number"
+            />
+            %
+          </label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+            <input
+              className="h-5 w-5 accent-gray-900"
+              defaultChecked={lvImport.crossLvExactMengeEinheit}
+              name="crossLvExactMengeEinheit"
+              type="checkbox"
+            />
+            Menge+Einheit muss exakt gleich sein
+          </label>
+          <button
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
+            type="submit"
           >
             Ähnlich in anderen LVs laden
-          </a>
-        ) : null}
+          </button>
+        </form>
+      ) : null}
+
+      <div className="mb-3 flex flex-wrap items-center gap-3">
 
         <form action={adoptBestPricesForImport}>
           <input name="importId" type="hidden" value={importId} />
@@ -258,7 +331,7 @@ export async function LvReviewPanel({
               <th className="p-3">LV-Menge</th>
               <th className="p-3">Einheit</th>
               <th className="p-3">EP</th>
-              <th className="p-3 w-56">Ähnlich in anderen LVs</th>
+              <th className="p-3 w-64">Ähnlich in anderen LVs</th>
               <th className="p-3 w-40">Vorschlag</th>
               <th className="p-3">Status</th>
               <th className="p-3 w-40">Aktion</th>
@@ -310,61 +383,97 @@ export async function LvReviewPanel({
                       </div>
                     ) : null}
                   </td>
-                  <td className="w-56 max-w-56 p-3">
+                  <td className="w-64 max-w-64 p-3">
                     {!showCrossLvMatches ? (
                       <span className="text-gray-400">nicht geladen</span>
                     ) : (crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
                       <span className="text-gray-400">–</span>
                     ) : (
                       <div className="space-y-2">
-                        {(crossLvMatchesByLineItem.get(item.id) ?? []).map((cross) => (
-                          <div className="border-b border-gray-100 pb-2 last:border-0 last:pb-0" key={cross.id}>
-                            <div className="break-words font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
-                            <div className="text-xs text-gray-500">Ähnlichkeit {Math.round(cross.similarityScore * 100)}%</div>
-                            <div className="mt-1 text-xs font-semibold text-green-800">
-                              {formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
-                              {cross.lvImport.lvDate
-                                ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
-                                : ""}
+                        {(crossLvMatchesByLineItem.get(item.id) ?? []).map((match) => {
+                          const cross = match.source;
+                          const isAnsatz = cross.lvImport.sourceFormat === "RIB_KALKULATION";
+                          const diffTokens = diffWords(item.rawText, cross.rawText);
+                          return (
+                            <div className="border-b border-gray-100 pb-2 last:border-0 last:pb-0" key={cross.id}>
+                              <div className="break-words font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
+                              <div className="text-xs text-gray-500">
+                                Kurztext {Math.round(match.kurztextScore * 100)}% · Langtext {Math.round(match.langtextScore * 100)}%
+                                {match.exactMengeEinheitMatch ? " · Menge/Einheit gleich" : ""}
+                              </div>
+                              <div className="mt-1 text-xs font-semibold text-green-800">
+                                {isAnsatz ? "Kalkulationsansatz" : formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}
+                                {cross.lvImport.lvDate
+                                  ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
+                                  : ""}
+                              </div>
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
+                                  Unterschiede anzeigen
+                                </summary>
+                                <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
+                                  {diffTokens.map((token, index) =>
+                                    token.changed ? (
+                                      <strong className="text-red-700" key={index}>
+                                        {token.text}{" "}
+                                      </strong>
+                                    ) : (
+                                      <span key={index}>{token.text} </span>
+                                    ),
+                                  )}
+                                </p>
+                              </details>
+                              {isAnsatz ? (
+                                <form action={adoptAnsatzFromCandidate}>
+                                  <input name="lineItemId" type="hidden" value={item.id} />
+                                  <input name="sourceCandidateId" type="hidden" value={cross.id} />
+                                  <button
+                                    className="mt-1 rounded-lg bg-purple-700 px-2 py-1 text-xs font-bold text-white hover:bg-purple-800"
+                                    title="Übernimmt den Kalkulationsansatz dieser Position in die eigene Kalkulation dieses Projekts"
+                                    type="submit"
+                                  >
+                                    Ansatz übernehmen
+                                  </button>
+                                </form>
+                              ) : cross.unitPriceCents != null ? (
+                                <form action={adoptPrice}>
+                                  <input name="lineItemId" type="hidden" value={item.id} />
+                                  <input name="unitPriceCents" type="hidden" value={cross.unitPriceCents} />
+                                  <input name="quantity" type="hidden" value={item.quantity ?? ""} />
+                                  <input name="sourceLvImportId" type="hidden" value={cross.lvImportId} />
+                                  <input name="similarityScore" type="hidden" value={match.langtextScore} />
+                                  {cross.matchedPositionId ? (
+                                    <input name="sourcePositionId" type="hidden" value={cross.matchedPositionId} />
+                                  ) : null}
+                                  <button
+                                    className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
+                                    title={
+                                      cross.matchedPositionId
+                                        ? "Übernimmt Preis UND Katalogzuordnung, bestätigt die Position"
+                                        : "Übernimmt nur den Preis - die Quellposition ist selbst noch keiner Katalogposition zugeordnet"
+                                    }
+                                    type="submit"
+                                  >
+                                    {cross.matchedPositionId ? "Diesen Treffer übernehmen" : "Nur Preis übernehmen"}
+                                  </button>
+                                </form>
+                              ) : (
+                                <form action={linkCrossLvMatch}>
+                                  <input name="lineItemId" type="hidden" value={item.id} />
+                                  <input name="sourceLineItemId" type="hidden" value={cross.id} />
+                                  <input name="similarityScore" type="hidden" value={match.langtextScore} />
+                                  <button
+                                    className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
+                                    title="Markiert diese Position als dieselbe wie im anderen LV - noch ohne Preis, aber für später verknüpft (z.B. sobald eines der beiden LVs kalkuliert wird)"
+                                    type="submit"
+                                  >
+                                    Als gleiche Position markieren
+                                  </button>
+                                </form>
+                              )}
                             </div>
-                            {cross.unitPriceCents != null ? (
-                              <form action={adoptPrice}>
-                                <input name="lineItemId" type="hidden" value={item.id} />
-                                <input name="unitPriceCents" type="hidden" value={cross.unitPriceCents} />
-                                <input name="quantity" type="hidden" value={item.quantity ?? ""} />
-                                <input name="sourceLvImportId" type="hidden" value={cross.lvImportId} />
-                                <input name="similarityScore" type="hidden" value={cross.similarityScore} />
-                                {cross.matchedPositionId ? (
-                                  <input name="sourcePositionId" type="hidden" value={cross.matchedPositionId} />
-                                ) : null}
-                                <button
-                                  className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
-                                  title={
-                                    cross.matchedPositionId
-                                      ? "Übernimmt Preis UND Katalogzuordnung, bestätigt die Position"
-                                      : "Übernimmt nur den Preis - die Quellposition ist selbst noch keiner Katalogposition zugeordnet"
-                                  }
-                                  type="submit"
-                                >
-                                  {cross.matchedPositionId ? "Diesen Treffer übernehmen" : "Nur Preis übernehmen"}
-                                </button>
-                              </form>
-                            ) : (
-                              <form action={linkCrossLvMatch}>
-                                <input name="lineItemId" type="hidden" value={item.id} />
-                                <input name="sourceLineItemId" type="hidden" value={cross.id} />
-                                <input name="similarityScore" type="hidden" value={cross.similarityScore} />
-                                <button
-                                  className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
-                                  title="Markiert diese Position als dieselbe wie im anderen LV - noch ohne Preis, aber für später verknüpft (z.B. sobald eines der beiden LVs kalkuliert wird)"
-                                  type="submit"
-                                >
-                                  Als gleiche Position markieren
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </td>

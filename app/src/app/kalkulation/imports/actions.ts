@@ -1021,3 +1021,108 @@ export async function rejectAnsatzSuggestion(formData: FormData) {
   revalidatePath(`/kalkulation/imports/${item.lvImportId}`);
   revalidatePath("/kalkulation/projects");
 }
+
+/** Speichert die drei Abgleich-Kriterien für "Ähnlich in anderen LVs"
+ * (Kurztext-/Langtext-Ähnlichkeit, Menge+Einheit exakt) - pro Import, wie
+ * schon bei matchingThreshold für den Katalog-Abgleich üblich. */
+export async function updateCrossLvSettings(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+  const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
+
+  const kurztextRaw = text(formData.get("crossLvKurztextThreshold"));
+  const langtextRaw = text(formData.get("crossLvLangtextThreshold"));
+  const exactMengeEinheit = formData.get("crossLvExactMengeEinheit") === "on";
+
+  await prisma.kalkulationLvImport.update({
+    data: {
+      crossLvExactMengeEinheit: exactMengeEinheit,
+      crossLvKurztextThreshold: kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5,
+      crossLvLangtextThreshold: langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3,
+    },
+    where: { id: importId },
+  });
+
+  revalidatePath(`/kalkulation/imports/${importId}`);
+  revalidatePath("/kalkulation/projects");
+  redirect(returnTo);
+}
+
+/** Übernimmt den Kalkulationsansatz einer per "Ähnlich in anderen LVs"
+ * gefundenen Position (egal ob deren Quelle selbst ein LV mit
+ * Kalkulation ist oder direkt eine Kalkulationsposition) in die eigene
+ * Kalkulation dieses Projekts - legt sie bei Bedarf an. Anders als beim
+ * Massen-Vorschlag (suggestAnsaetzeFromHistory) ist das hier eine
+ * bewusste Einzel-Übernahme NACH Prüfung (der Diff war ja sichtbar),
+ * deshalb direkt als "Bestätigt" markiert statt "Prüfen". */
+export async function adoptAnsatzFromCandidate(formData: FormData) {
+  const session = await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  const sourceCandidateId = text(formData.get("sourceCandidateId"));
+  if (!lineItemId || !sourceCandidateId) throw new Error("Position fehlt.");
+
+  const [lineItem, sourceItem] = await Promise.all([
+    prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: lineItemId }, include: { lvImport: true } }),
+    prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: sourceCandidateId }, include: { lvImport: true } }),
+  ]);
+
+  if (!lineItem.positionNumber || !lineItem.lvImport.projectNumber || !sourceItem.ribRawBlock) {
+    throw new Error("Für diese Position ist keine Ansatz-Übernahme möglich.");
+  }
+  const projectNumber = lineItem.lvImport.projectNumber;
+
+  let kalkulationImport = await prisma.kalkulationLvImport.findFirst({
+    orderBy: { createdAt: "desc" },
+    where: { projectNumber, sourceFormat: "RIB_KALKULATION" },
+  });
+  if (!kalkulationImport) {
+    kalkulationImport = await prisma.kalkulationLvImport.create({
+      data: {
+        fileName: "Kalkulationsansätze-Vorschläge (aus anderen Projekten)",
+        importedByUserId: session.user.id,
+        lvType: "ANGEBOT",
+        projectNumber,
+        rowCount: 0,
+        sourceFormat: "RIB_KALKULATION",
+        status: "IMPORTED",
+        tenderTitle: lineItem.lvImport.tenderTitle,
+      },
+    });
+  }
+
+  const ribRawBlock = rewriteOzInRawBlock(sourceItem.ribRawBlock, lineItem.positionNumber);
+  const sourceProjectLabel = sourceItem.lvImport.projectNumber ?? sourceItem.lvImport.fileName;
+  const rawText = `Übernommen aus Projekt ${sourceProjectLabel}:\n${sourceItem.rawText}`;
+  const data = {
+    matchConfidence: 1,
+    matchedVia: "CROSS_PROJECT_ANSATZ",
+    matchStatus: "CONFIRMED",
+    normalizedText: normalizeText(`${lineItem.shortText ?? ""} ${rawText}`),
+    positionNumber: lineItem.positionNumber,
+    rawText,
+    ribRawBlock,
+    shortText: lineItem.shortText,
+  };
+
+  const existingTarget = await prisma.kalkulationLvLineItem.findFirst({
+    where: { lvImportId: kalkulationImport.id, positionNumber: lineItem.positionNumber },
+  });
+
+  if (existingTarget) {
+    await prisma.kalkulationLvLineItem.update({ data, where: { id: existingTarget.id } });
+  } else {
+    const rowCount = await prisma.kalkulationLvLineItem.count({ where: { lvImportId: kalkulationImport.id } });
+    await prisma.kalkulationLvLineItem.create({
+      data: { ...data, entryType: "ITEM", lvImportId: kalkulationImport.id, rowNumber: rowCount + 1 },
+    });
+    await prisma.kalkulationLvImport.update({
+      data: { rowCount: rowCount + 1 },
+      where: { id: kalkulationImport.id },
+    });
+  }
+
+  revalidatePath(`/kalkulation/imports/${kalkulationImport.id}`);
+  revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
+  revalidatePath("/kalkulation/projects");
+}
