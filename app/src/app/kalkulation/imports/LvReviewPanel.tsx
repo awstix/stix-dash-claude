@@ -320,16 +320,6 @@ export async function LvReviewPanel({
           </a>
         ) : null}
 
-        {lvImport.sourceFormat === "RIB_KALKULATION" && lineItems.some((item) => item.ribRawBlock) ? (
-          <a
-            className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            href={`/kalkulation/imports/${importId}/export-d31`}
-            title="Exportiert die Kalkulationsansätze dieses Imports als .D31 (nur nötig, falls deine Kalkulationssoftware kein XML einliest)"
-          >
-            Als D31 exportieren ↓
-          </a>
-        ) : null}
-
         {lvImport.sourceFormat === "RIB_KALKULATION" && lvImport.projectNumber ? (
           <form action={suggestAnsaetzeFromHistory}>
             <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />

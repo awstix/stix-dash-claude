@@ -152,8 +152,8 @@ export default async function KalkulationProjectPage({
           title="LV Angebotsabgabe (D83/X83)"
         />
         <ProjectSlot
-          accept=".xml,.d31,.x31"
-          emptyLabel=".XML/.D31 hierher ziehen"
+          accept=".xml"
+          emptyLabel=".XML hierher ziehen"
           extraEmptyContent={
             lvImports.length > 0 ? (
               <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
@@ -173,7 +173,7 @@ export default async function KalkulationProjectPage({
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="Kalkulation (XML/D31)"
+          title="Kalkulation (XML)"
         />
         <ProjectSlot
           accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
