@@ -3814,6 +3814,13 @@ model KalkulationLvLineItem {
   matchedVia        String? // RULE_EXACT | LEARNED_MAPPING | AI | MANUAL
   matchReasoning    String?
 
+  // Nur bei matchedVia CROSS_PROJECT_ANSATZ: bis zu 2 weitere Kandidaten
+  // aus anderen Projekten (JSON-Array), die beim Massen-Vorschlag nicht
+  // automatisch übernommen wurden - lässt den Nutzer zwischen mehreren
+  // Quell-LVs für dieselbe Position wählen, statt den einen automatisch
+  // besten blind zu übernehmen.
+  ansatzAlternativesJson String?
+
   confirmedByUserId String?
   confirmedByUser   User?     @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
   confirmedAt       DateTime?

@@ -3,6 +3,7 @@ import {
   adoptAnsatzFromCandidate,
   adoptBestPricesForImport,
   adoptPrice,
+  chooseAnsatzAlternative,
   clearAdoptedPricesForImport,
   clearPrice,
   confirmAnsatzSuggestion,
@@ -17,6 +18,7 @@ import {
 } from "./actions";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
 import { buildLvMatches } from "@/lib/kalkulation-matching";
+import type { StoredAnsatzAlternative } from "@/lib/kalkulation-ansatz-pool";
 import { diffWords } from "@/lib/kalkulation-text-diff";
 import { formatLvSource } from "@/lib/kalkulation-format";
 
@@ -566,6 +568,39 @@ export async function LvReviewPanel({
                                 Verwerfen
                               </button>
                             </form>
+                            {item.ansatzAlternativesJson ? (
+                              (() => {
+                                const alternatives: StoredAnsatzAlternative[] = JSON.parse(item.ansatzAlternativesJson);
+                                if (alternatives.length === 0) return null;
+                                return (
+                                  <details className="mt-1">
+                                    <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
+                                      Andere Vorschläge ({alternatives.length})
+                                    </summary>
+                                    <div className="mt-1 space-y-1.5">
+                                      {alternatives.map((alternative, index) => (
+                                        <div className="border-t border-gray-100 pt-1" key={`${alternative.sourceProjectNumber}-${index}`}>
+                                          <div className="break-words text-xs text-gray-700">
+                                            Projekt {alternative.sourceProjectNumber} ({Math.round(alternative.similarity * 100)}%)
+                                          </div>
+                                          <form action={chooseAnsatzAlternative}>
+                                            <input name="lineItemId" type="hidden" value={item.id} />
+                                            <input name="alternativeIndex" type="hidden" value={index} />
+                                            <button
+                                              className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
+                                              title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen"
+                                              type="submit"
+                                            >
+                                              Diesen stattdessen nehmen
+                                            </button>
+                                          </form>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                );
+                              })()
+                            ) : null}
                           </>
                         ) : null}
                       </div>

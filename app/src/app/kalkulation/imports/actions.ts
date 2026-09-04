@@ -11,7 +11,12 @@ import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
 import { looksLikeEstimateXml, parseEstimateXml, rewriteOzInXmlBlock } from "@/lib/kalkulation-estimate-xml-parser";
-import { ansatzPoolByProjectAndOz, buildAnsatzPool, findBestAnsatzViaLvMatch } from "@/lib/kalkulation-ansatz-pool";
+import {
+  ansatzPoolByProjectAndOz,
+  buildAnsatzPool,
+  findAnsatzCandidatesViaLvMatch,
+  type StoredAnsatzAlternative,
+} from "@/lib/kalkulation-ansatz-pool";
 import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
@@ -925,7 +930,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     positionNumber: string,
     ownText: { shortText: string | null; rawText: string; quantity: number | null; unit: string | null },
   ) {
-    const result = findBestAnsatzViaLvMatch(
+    // Bis zu 3 Kandidaten (je einer pro Quellprojekt) statt nur des
+    // einen besten - der beste wird direkt übernommen, die übrigen als
+    // "Andere Vorschläge" mitgespeichert, damit der Nutzer z.B. zwischen
+    // 3 verschiedenen LVs mit "Baustelle einrichten" wählen kann.
+    const [best, ...rest] = findAnsatzCandidatesViaLvMatch(
       { id: "__target__", quantity: ownText.quantity, rawText: ownText.rawText, shortText: ownText.shortText, unit: ownText.unit },
       otherLvCandidates,
       otherLvMetaById,
@@ -936,12 +945,23 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
         kurztextThreshold: ownLvImportChecked.crossLvKurztextThreshold,
         langtextThreshold: ownLvImportChecked.crossLvLangtextThreshold,
       },
+      3,
     );
-    if (!result) return null;
-    const source = result.ansatz;
+    if (!best) return null;
+    const source = best.ansatz;
+    const alternatives: StoredAnsatzAlternative[] = rest.map((candidate) => ({
+      ansatzSummary: candidate.ansatz.ansatzSummary,
+      ribRawBlock: rewriteOzInRawBlock(candidate.ansatz.ribRawBlock, positionNumber),
+      ribRawBlockXml: candidate.ansatz.ribRawBlockXml
+        ? rewriteOzInXmlBlock(candidate.ansatz.ribRawBlockXml, positionNumber)
+        : null,
+      similarity: candidate.langtextScore,
+      sourceProjectNumber: candidate.ansatz.sourceProjectNumber,
+    }));
     return {
-      matchConfidence: result.langtextScore,
-      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(result.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
+      alternativesJson: alternatives.length > 0 ? JSON.stringify(alternatives) : null,
+      matchConfidence: best.langtextScore,
+      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
       ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
       ribRawBlockXml: source.ribRawBlockXml ? rewriteOzInXmlBlock(source.ribRawBlockXml, positionNumber) : null,
     };
@@ -972,6 +992,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
       await prisma.kalkulationLvLineItem.update({
         data: {
+          ansatzAlternativesJson: suggestion.alternativesJson,
           matchConfidence: suggestion.matchConfidence,
           matchedVia: "CROSS_PROJECT_ANSATZ",
           matchStatus: "NEEDS_REVIEW",
@@ -994,6 +1015,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   } else {
     // Noch keine D31 im Projekt - neuen Import aus den LV-Positionen anlegen.
     const rowsToCreate: Array<{
+      alternativesJson: string | null;
       matchConfidence: number;
       positionNumber: string;
       rawText: string;
@@ -1030,6 +1052,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
     await prisma.kalkulationLvLineItem.createMany({
       data: rowsToCreate.map((row, index) => ({
+        ansatzAlternativesJson: row.alternativesJson,
         entryType: "ITEM",
         lvImportId: suggestionImport.id,
         matchConfidence: row.matchConfidence,
@@ -1081,6 +1104,44 @@ export async function rejectAnsatzSuggestion(formData: FormData) {
   });
 
   revalidatePath(`/kalkulation/imports/${item.lvImportId}`);
+  revalidatePath("/kalkulation/projects");
+}
+
+/** Ersetzt den aktuell übernommenen Ansatz-Vorschlag durch einen der
+ * mitgespeicherten Alternativ-Kandidaten (siehe ansatzAlternativesJson) -
+ * z.B. wenn 3 andere LVs dieselbe Position ("Baustelle einrichten")
+ * enthalten und der automatisch beste nicht der gewünschte ist. Die
+ * gewählte Alternative fliegt danach aus der Liste, der Rest bleibt für
+ * eine weitere Auswahl stehen. */
+export async function chooseAnsatzAlternative(formData: FormData) {
+  await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  const alternativeIndexRaw = text(formData.get("alternativeIndex"));
+  const alternativeIndex = alternativeIndexRaw ? Number.parseInt(alternativeIndexRaw, 10) : Number.NaN;
+  if (!lineItemId || Number.isNaN(alternativeIndex)) throw new Error("Ungültige Auswahl.");
+
+  const lineItem = await prisma.kalkulationLvLineItem.findUniqueOrThrow({ where: { id: lineItemId } });
+  const alternatives: StoredAnsatzAlternative[] = lineItem.ansatzAlternativesJson
+    ? JSON.parse(lineItem.ansatzAlternativesJson)
+    : [];
+  const chosen = alternatives[alternativeIndex];
+  if (!chosen) throw new Error("Alternative nicht gefunden.");
+  const remaining = alternatives.filter((_, index) => index !== alternativeIndex);
+
+  await prisma.kalkulationLvLineItem.update({
+    data: {
+      ansatzAlternativesJson: remaining.length > 0 ? JSON.stringify(remaining) : null,
+      matchConfidence: chosen.similarity,
+      matchedVia: "CROSS_PROJECT_ANSATZ",
+      matchStatus: "NEEDS_REVIEW",
+      rawText: `Vorschlag aus Projekt ${chosen.sourceProjectNumber} (Ähnlichkeit ${Math.round(chosen.similarity * 100)}%), bitte prüfen:\n${chosen.ansatzSummary}`,
+      ribRawBlock: chosen.ribRawBlock,
+      ribRawBlockXml: chosen.ribRawBlockXml,
+    },
+    where: { id: lineItemId },
+  });
+
+  revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
   revalidatePath("/kalkulation/projects");
 }
 

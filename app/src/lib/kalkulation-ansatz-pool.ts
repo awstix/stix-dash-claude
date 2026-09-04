@@ -115,9 +115,21 @@ export type AnsatzViaLvMatch = {
   langtextScore: number;
 };
 
-/** Sucht für eine LV-Position den besten Kalkulationsansatz aus anderen
- * Projekten - nicht direkt gegen den (oft schlechter aufbereiteten) Text
- * der Kalkulationsdatei selbst, sondern über den Umweg "welche andere
+/** Wie ein nicht übernommener Alternativ-Kandidat in
+ * KalkulationLvLineItem.ansatzAlternativesJson abgelegt wird - ribRawBlock/
+ * ribRawBlockXml sind hier bereits auf die Ziel-OZ umgeschrieben (siehe
+ * rewriteOzInRawBlock/rewriteOzInXmlBlock), also direkt einsatzbereit. */
+export type StoredAnsatzAlternative = {
+  sourceProjectNumber: string;
+  similarity: number;
+  ansatzSummary: string;
+  ribRawBlock: string;
+  ribRawBlockXml: string | null;
+};
+
+/** Sucht für eine LV-Position die ähnlichsten Kalkulationsansätze aus
+ * anderen Projekten - nicht direkt gegen den (oft schlechter aufbereiteten)
+ * Text der Kalkulationsdatei selbst, sondern über den Umweg "welche andere
  * LV-Position ist textlich am ähnlichsten (Abgleich starten) -> hat DEREN
  * Projekt für dieselbe OZ bereits einen Ansatz?". Der direkte
  * Text-zu-Text-Vergleich gegen die Kalkulationsdatei selbst fand spürbar
@@ -125,21 +137,31 @@ export type AnsatzViaLvMatch = {
  * anders aufbereitet ist als der GAEB-Text des LVs, gegen den "Abgleich
  * starten" vergleicht - der reguläre LV-Textvergleich ist der
  * verlässlichere, umfangreichere Datensatz, ein Ansatz existiert oder
- * nicht ist davon unabhängig. */
-export function findBestAnsatzViaLvMatch(
+ * nicht ist davon unabhängig.
+ *
+ * Gibt bis zu `limit` Kandidaten zurück (bester zuerst), höchstens einer
+ * je Quellprojekt - z.B. wenn dieselbe Position in 3 anderen LVs
+ * ("Baustelle einrichten") vorkommt, lässt sich so zwischen den 3
+ * Quellprojekten wählen statt blind den einen besten zu übernehmen. */
+export function findAnsatzCandidatesViaLvMatch(
   target: LvMatchInput,
   otherLvCandidates: LvMatchInput[],
   otherLvMetaById: Map<string, { projectNumber: string; positionNumber: string | null }>,
   ansatzByProjectAndOz: Map<string, AnsatzPoolEntry>,
   options: { exactEinheit: boolean; exactMenge: boolean; kurztextThreshold: number; langtextThreshold: number },
-): AnsatzViaLvMatch | null {
+  limit = 3,
+): AnsatzViaLvMatch[] {
   const matches = buildLvMatches(target, otherLvCandidates, options);
+  const seenProjects = new Set<string>();
+  const results: AnsatzViaLvMatch[] = [];
   for (const match of matches) {
     const meta = otherLvMetaById.get(match.candidateId);
     if (!meta?.positionNumber) continue;
     const ansatz = ansatzByProjectAndOz.get(`${meta.projectNumber}::${meta.positionNumber.trim()}`);
-    if (!ansatz) continue;
-    return { ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore };
+    if (!ansatz || seenProjects.has(ansatz.sourceProjectNumber)) continue;
+    seenProjects.add(ansatz.sourceProjectNumber);
+    results.push({ ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore });
+    if (results.length >= limit) break;
   }
-  return null;
+  return results;
 }
