@@ -102,11 +102,13 @@ export async function LvReviewPanel({
   // Abgleich. Teuer (skaliert mit der Gesamtmenge an Positionen in der DB)
   // - läuft deshalb nur, wenn explizit zugeschaltet (siehe
   // showCrossLvMatches oben). Getrennte Kurztext-/Langtext-Schwellen +
-  // exakter Menge/Einheit-Filter statt einer einzelnen Ähnlichkeit (siehe
-  // buildLvMatches) - ein Kandidat muss alle drei Kriterien erfüllen.
+  // je ein exakter Menge- bzw. Einheit-Filter statt einer einzelnen
+  // Ähnlichkeit (siehe buildLvMatches) - ein Kandidat muss alle aktiven
+  // Kriterien erfüllen.
   type CrossLvItem = Awaited<ReturnType<typeof prisma.kalkulationLvLineItem.findMany<{ include: { lvImport: true } }>>>[number];
   type CrossLvMatch = {
-    exactMengeEinheitMatch: boolean;
+    exactEinheitMatch: boolean;
+    exactMengeMatch: boolean;
     kurztextScore: number;
     langtextScore: number;
     source: CrossLvItem;
@@ -141,7 +143,8 @@ export async function LvReviewPanel({
         { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
         candidateInputs,
         {
-          exactMengeEinheit: lvImport.crossLvExactMengeEinheit,
+          exactEinheit: lvImport.crossLvExactEinheit,
+          exactMenge: lvImport.crossLvExactMenge,
           kurztextThreshold: lvImport.crossLvKurztextThreshold,
           langtextThreshold: lvImport.crossLvLangtextThreshold,
         },
@@ -153,7 +156,8 @@ export async function LvReviewPanel({
         const existing = bestPerImport.get(source.lvImportId);
         if (!existing || match.langtextScore > existing.langtextScore) {
           bestPerImport.set(source.lvImportId, {
-            exactMengeEinheitMatch: match.exactMengeEinheitMatch,
+            exactEinheitMatch: match.exactEinheitMatch,
+            exactMengeMatch: match.exactMengeMatch,
             kurztextScore: match.kurztextScore,
             langtextScore: match.langtextScore,
             source,
@@ -199,45 +203,48 @@ export async function LvReviewPanel({
       {!showCrossLvMatches ? (
         <form
           action={updateCrossLvSettings}
-          className="mb-3 flex flex-wrap items-end gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+          className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
         >
           <input name="importId" type="hidden" value={importId} />
           <input name="returnTo" type="hidden" value={crossLvToggleHref} />
-          <label className="text-sm font-semibold text-gray-900">
-            Kurztext ≥
-            <input
-              className="mt-1 block w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+          <div className="grid gap-4 sm:grid-cols-2">
+            <MatchingThresholdInput
               defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
+              label="Kurztext-Ähnlichkeit"
               max={100}
               min={0}
               name="crossLvKurztextThreshold"
-              type="number"
             />
-            %
-          </label>
-          <label className="text-sm font-semibold text-gray-900">
-            Langtext ≥
-            <input
-              className="mt-1 block w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+            <MatchingThresholdInput
               defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
+              label="Langtext-Ähnlichkeit"
               max={100}
               min={0}
               name="crossLvLangtextThreshold"
-              type="number"
             />
-            %
-          </label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <input
-              className="h-5 w-5 accent-gray-900"
-              defaultChecked={lvImport.crossLvExactMengeEinheit}
-              name="crossLvExactMengeEinheit"
-              type="checkbox"
-            />
-            Menge+Einheit muss exakt gleich sein
-          </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <input
+                className="h-5 w-5 accent-gray-900"
+                defaultChecked={lvImport.crossLvExactMenge}
+                name="crossLvExactMenge"
+                type="checkbox"
+              />
+              Menge muss gleich sein
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <input
+                className="h-5 w-5 accent-gray-900"
+                defaultChecked={lvImport.crossLvExactEinheit}
+                name="crossLvExactEinheit"
+                type="checkbox"
+              />
+              Einheit muss gleich sein
+            </label>
+          </div>
           <button
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            className="mt-3 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
             title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
             type="submit"
           >
@@ -399,7 +406,8 @@ export async function LvReviewPanel({
                               <div className="break-words font-semibold text-gray-900">{cross.shortText ?? cross.rawText.slice(0, 60)}</div>
                               <div className="text-xs text-gray-500">
                                 Kurztext {Math.round(match.kurztextScore * 100)}% · Langtext {Math.round(match.langtextScore * 100)}%
-                                {match.exactMengeEinheitMatch ? " · Menge/Einheit gleich" : ""}
+                                {match.exactMengeMatch ? " · Menge gleich" : ""}
+                                {match.exactEinheitMatch ? " · Einheit gleich" : ""}
                               </div>
                               <div className="mt-1 text-xs font-semibold text-green-800">
                                 {isAnsatz ? "Kalkulationsansatz" : formatCents(cross.unitPriceCents)} · {formatLvSource(cross.lvImport)}

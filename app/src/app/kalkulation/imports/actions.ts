@@ -1033,11 +1033,13 @@ export async function updateCrossLvSettings(formData: FormData) {
 
   const kurztextRaw = text(formData.get("crossLvKurztextThreshold"));
   const langtextRaw = text(formData.get("crossLvLangtextThreshold"));
-  const exactMengeEinheit = formData.get("crossLvExactMengeEinheit") === "on";
+  const exactMenge = formData.get("crossLvExactMenge") === "on";
+  const exactEinheit = formData.get("crossLvExactEinheit") === "on";
 
   await prisma.kalkulationLvImport.update({
     data: {
-      crossLvExactMengeEinheit: exactMengeEinheit,
+      crossLvExactEinheit: exactEinheit,
+      crossLvExactMenge: exactMenge,
       crossLvKurztextThreshold: kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5,
       crossLvLangtextThreshold: langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3,
     },

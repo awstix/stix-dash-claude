@@ -2,25 +2,37 @@
 
 import { useState } from "react";
 
-/** Schieberegler für die Mindest-Ähnlichkeit beim Abgleich (pro Import
+/** Schieberegler für eine Mindest-Ähnlichkeit (0-100%, pro Import
  * gespeichert) - niedriger = mehr, aber unsicherere Vorschläge, höher =
- * weniger, aber treffsicherere. */
+ * weniger, aber treffsicherere. Wiederverwendet für den Katalog-Abgleich
+ * ("Abgleich-Genauigkeit") und die getrennten Kurztext-/Langtext-Kriterien
+ * bei "Ähnlich in anderen LVs". */
 export function MatchingThresholdInput({
   defaultValue = 30,
+  label = "Abgleich-Genauigkeit",
+  looseLabel = "Locker - mehr Vorschläge",
+  max = 70,
+  min = 5,
   name,
+  strictLabel = "Streng - nur sehr ähnliche",
 }: {
   defaultValue?: number;
+  label?: string;
+  looseLabel?: string;
+  max?: number;
+  min?: number;
   name: string;
+  strictLabel?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
 
   return (
     <label className="block text-sm font-semibold text-gray-900">
-      Abgleich-Genauigkeit: {value}%
+      {label}: {value}%
       <input
         className="mt-2 w-full"
-        max={70}
-        min={5}
+        max={max}
+        min={min}
         name={name}
         onChange={(event) => setValue(Number(event.target.value))}
         step={5}
@@ -28,8 +40,8 @@ export function MatchingThresholdInput({
         value={value}
       />
       <div className="mt-1 flex justify-between text-xs font-normal text-gray-500">
-        <span>Locker - mehr Vorschläge</span>
-        <span>Streng - nur sehr ähnliche</span>
+        <span>{looseLabel}</span>
+        <span>{strictLabel}</span>
       </div>
     </label>
   );

@@ -212,24 +212,31 @@ export type LvMatchResult = {
   candidateId: string;
   kurztextScore: number;
   langtextScore: number;
-  exactMengeEinheitMatch: boolean;
+  exactMengeMatch: boolean;
+  exactEinheitMatch: boolean;
 };
 
 /** Vergleich direkt gegen andere LV-/Kalkulationspositionen (nicht gegen
  * den Positionskatalog) - bewusst mit getrennten Kriterien statt einer
  * einzelnen Ähnlichkeit: Kurztext und Langtext haben unterschiedliche
  * Aussagekraft (Kurztext ist oft die Standardbezeichnung, Langtext trägt
- * die Details), Menge+Einheit ist ein exakter Filter, keine Ähnlichkeit -
- * "gleiche Menge in derselben Einheit" ist entweder wahr oder falsch.
+ * die Details), Menge und Einheit sind je ein eigener exakter Filter,
+ * keine Ähnlichkeit - "gleiche Menge" bzw. "gleiche Einheit" ist entweder
+ * wahr oder falsch, unabhängig voneinander zuschaltbar.
  *
- * Ein Kandidat muss ALLE drei Kriterien erfüllen, um zurückgegeben zu
+ * Ein Kandidat muss alle aktiven Kriterien erfüllen, um zurückgegeben zu
  * werden. Grobe Vorfilterung per Dice über den ganzen Pool (billig), erst
  * die besten ~30 nach Langtext-Ähnlichkeit werden mit Levenshtein
  * verfeinert - sonst bei vielen Kandidaten zu teuer. */
 export function buildLvMatches(
   target: LvMatchInput,
   candidates: LvMatchInput[],
-  options: { exactMengeEinheit: boolean; kurztextThreshold: number; langtextThreshold: number },
+  options: {
+    exactEinheit: boolean;
+    exactMenge: boolean;
+    kurztextThreshold: number;
+    langtextThreshold: number;
+  },
 ): LvMatchResult[] {
   const targetKurztext = normalizeText(target.shortText ?? "");
   const targetLangtext = normalizeText(target.rawText);
@@ -247,17 +254,15 @@ export function buildLvMatches(
   for (const { candidate } of roughRanked) {
     const kurztextScore = combinedTextScore(targetKurztext, normalizeText(candidate.shortText ?? ""));
     const langtextScore = combinedTextScore(targetLangtext, normalizeText(candidate.rawText));
-    const exactMengeEinheitMatch =
-      target.quantity != null &&
-      candidate.quantity != null &&
-      target.quantity === candidate.quantity &&
-      (target.unit ?? "").trim().toLowerCase() === (candidate.unit ?? "").trim().toLowerCase();
+    const exactMengeMatch = target.quantity != null && candidate.quantity != null && target.quantity === candidate.quantity;
+    const exactEinheitMatch = (target.unit ?? "").trim().toLowerCase() === (candidate.unit ?? "").trim().toLowerCase();
 
     if (kurztextScore < options.kurztextThreshold) continue;
     if (langtextScore < options.langtextThreshold) continue;
-    if (options.exactMengeEinheit && !exactMengeEinheitMatch) continue;
+    if (options.exactMenge && !exactMengeMatch) continue;
+    if (options.exactEinheit && !exactEinheitMatch) continue;
 
-    results.push({ candidateId: candidate.id, exactMengeEinheitMatch, kurztextScore, langtextScore });
+    results.push({ candidateId: candidate.id, exactEinheitMatch, exactMengeMatch, kurztextScore, langtextScore });
   }
 
   return results.sort((a, b) => b.langtextScore - a.langtextScore);

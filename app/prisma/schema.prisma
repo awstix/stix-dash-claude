@@ -3740,11 +3740,13 @@ model KalkulationLvImport {
 
   // Getrennte Kriterien für "Ähnlich in anderen LVs" (Vergleich gegen andere
   // LVs/Kalkulationen, nicht gegen den Positionskatalog) - Kurztext und
-  // Langtext brauchen unterschiedliche Mindest-Ähnlichkeiten, Menge+Einheit
-  // ist ein exakter Ja/Nein-Filter statt einer Ähnlichkeit.
+  // Langtext brauchen unterschiedliche Mindest-Ähnlichkeiten, Menge und
+  // Einheit sind je ein eigener exakter Ja/Nein-Filter statt einer
+  // Ähnlichkeit, unabhängig voneinander einstellbar.
   crossLvKurztextThreshold Float   @default(0.5)
   crossLvLangtextThreshold Float   @default(0.3)
-  crossLvExactMengeEinheit Boolean @default(false)
+  crossLvExactMenge        Boolean @default(false)
+  crossLvExactEinheit      Boolean @default(false)
 
   rowCount          Int       @default(0)
   matchedCount      Int       @default(0)
