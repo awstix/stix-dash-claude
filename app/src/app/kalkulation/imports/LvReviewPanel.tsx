@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import {
   adoptBestPricesForImport,
   adoptPrice,
+  clearAdoptedPricesForImport,
+  clearPrice,
   confirmAnsatzSuggestion,
   confirmMatch,
   createPositionFromLineItem,
@@ -167,6 +169,19 @@ export async function LvReviewPanel({
           </button>
         </form>
 
+        {lineItems.some((item) => item.priceSourceLvImportId) ? (
+          <form action={clearAdoptedPricesForImport}>
+            <input name="importId" type="hidden" value={importId} />
+            <button
+              className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+              title="Entfernt bei allen Positionen dieses Imports einen übernommenen Preis wieder - Preise aus der Originaldatei sind davon nicht betroffen"
+              type="submit"
+            >
+              Übernommene Preise zurücksetzen
+            </button>
+          </form>
+        ) : null}
+
         <a
           className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           href={`/kalkulation/imports/${importId}/export`}
@@ -276,6 +291,12 @@ export async function LvReviewPanel({
                       <div className="whitespace-normal break-words text-xs font-normal text-gray-500">
                         übernommen aus {formatLvSource(priceSourceImportById.get(item.priceSourceLvImportId)!)}
                         {item.priceSourceSimilarity != null ? ` (${Math.round(item.priceSourceSimilarity * 100)}%)` : ""}
+                        <form action={clearPrice} className="mt-1">
+                          <input name="lineItemId" type="hidden" value={item.id} />
+                          <button className="font-bold text-red-700 underline" type="submit">
+                            entfernen
+                          </button>
+                        </form>
                       </div>
                     ) : null}
                   </td>

@@ -744,6 +744,52 @@ export async function adoptBestPricesForImport(formData: FormData) {
   revalidatePath(`/kalkulation/imports/${importId}`);
 }
 
+/** Macht eine per "Preis übernehmen"/"Diesen Treffer übernehmen" gesetzte
+ * Preisübernahme für EINE Position wieder rückgängig - die Position wird
+ * wieder ungepreist. Rührt bewusst NICHT an einer eventuell schon
+ * bestätigten Katalogzuordnung (matchedPositionId/matchStatus), das ist
+ * ein eigener Schritt (dafür gibt's "Ablehnen"). */
+export async function clearPrice(formData: FormData) {
+  await requireSession();
+  const lineItemId = text(formData.get("lineItemId"));
+  if (!lineItemId) throw new Error("Zeilen-ID fehlt.");
+
+  const lineItem = await prisma.kalkulationLvLineItem.update({
+    data: {
+      priceSourceLvImportId: null,
+      priceSourceSimilarity: null,
+      totalPriceCents: null,
+      unitPriceCents: null,
+    },
+    where: { id: lineItemId },
+  });
+
+  revalidatePath(`/kalkulation/imports/${lineItem.lvImportId}`);
+  revalidatePath("/kalkulation/projects");
+}
+
+/** Wie clearPrice, aber für ALLE Positionen eines Imports auf einmal -
+ * betrifft nur Positionen, deren Preis tatsächlich übernommen wurde
+ * (priceSourceLvImportId gesetzt), nicht Preise aus der Originaldatei. */
+export async function clearAdoptedPricesForImport(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+
+  await prisma.kalkulationLvLineItem.updateMany({
+    data: {
+      priceSourceLvImportId: null,
+      priceSourceSimilarity: null,
+      totalPriceCents: null,
+      unitPriceCents: null,
+    },
+    where: { lvImportId: importId, priceSourceLvImportId: { not: null } },
+  });
+
+  revalidatePath(`/kalkulation/imports/${importId}`);
+  revalidatePath("/kalkulation/projects");
+}
+
 // Ähnlichkeit, ab der ein Ansatz aus einem anderen Projekt als Vorschlag
 // übernommen wird - bewusst strenger als der normale LV-Preisabgleich
 // (0.3 Default dort): hier geht es nicht nur um einen Preis, sondern um
