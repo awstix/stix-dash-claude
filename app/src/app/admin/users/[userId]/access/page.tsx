@@ -38,6 +38,10 @@ export default async function UserAccessPage({
       title={`Zugriffe · ${user.name}`}
       description="Der Admin legt fest, welche Bereiche und Baustellen dieses Konto sehen und bearbeiten darf."
     >
+      <p className="mb-6 font-semibold text-gray-700">
+        Benutzername: <span className="font-black text-gray-950">{user.displayUsername ?? user.username ?? "—"}</span>
+      </p>
+
       <section className="mb-6 rounded-2xl border border-gray-300 bg-white p-6 text-gray-950 shadow-sm">
         <h2 className="text-xl font-black">Passwort</h2>
         <p className="mt-1 font-medium text-gray-700">
