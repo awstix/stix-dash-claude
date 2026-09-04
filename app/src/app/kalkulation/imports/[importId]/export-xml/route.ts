@@ -9,6 +9,23 @@ export const runtime = "nodejs";
 
 const STORAGE_BUCKET = "uploads";
 
+/** Leitet die LV-eigene WBS-Kennung (Code + Bezeichnung, in iTWO getrennt
+ * von der Projektnummer geführt) aus dem Dateinamen des LV-Imports ab -
+ * z.B. "26-079191_FBE_Ottorfszell-Kirchzell.X83" -> Code "26-079191",
+ * Bezeichnung "FBE_Ottorfszell-Kirchzell". Best-effort: nur sinnvoll, wenn
+ * der Dateiname tatsächlich diesem "Code_Bezeichnung"-Muster folgt (wie
+ * bei iTWO-Exporten üblich) - sonst wird die ganze Datei als Code
+ * verwendet, besser als komplett zu fehlen. */
+function deriveWbsFromFileName(fileName: string): { name: string; description: string | null } {
+  const withoutExt = fileName.replace(/\.[^.]+$/, "");
+  const underscoreIndex = withoutExt.indexOf("_");
+  if (underscoreIndex === -1) return { description: null, name: withoutExt };
+  return {
+    description: withoutExt.slice(underscoreIndex + 1) || null,
+    name: withoutExt.slice(0, underscoreIndex),
+  };
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ importId: string }> }) {
   await requireSession();
   const { importId } = await params;
@@ -55,11 +72,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
     }
   }
 
-  content ??= buildEstimateXmlFile({
-    projectNumber: lvImport.projectNumber ?? lvImport.fileName,
-    tenderTitle: lvImport.tenderTitle,
-    wbsItemBlocks,
-  });
+  if (!content) {
+    // Die eigentliche LV-Kennung (getrennt von der Projektnummer, siehe
+    // deriveWbsFromFileName) kommt vom bereits hochgeladenen LV
+    // desselben Projekts - iTWO lehnt den Re-Import sonst mit "LV im
+    // Projekt nicht vorhanden" ab, wenn die WBS-Kennung nicht zu einem
+    // bestehenden LV passt.
+    const siblingLvImport = lvImport.projectNumber
+      ? await prisma.kalkulationLvImport.findFirst({
+          orderBy: { createdAt: "desc" },
+          where: { projectNumber: lvImport.projectNumber, sourceFormat: { not: "RIB_KALKULATION" } },
+        })
+      : null;
+    const wbs = siblingLvImport ? deriveWbsFromFileName(siblingLvImport.fileName) : null;
+
+    content = buildEstimateXmlFile({
+      projectNumber: lvImport.projectNumber ?? lvImport.fileName,
+      tenderTitle: lvImport.tenderTitle,
+      wbsDescription: wbs?.description,
+      wbsItemBlocks,
+      wbsName: wbs?.name,
+    });
+  }
 
   const fileName = `${(lvImport.projectNumber ?? lvImport.fileName).replace(/[^\w.-]+/g, "_")}_Kalkulation.xml`;
 

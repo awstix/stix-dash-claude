@@ -19,8 +19,16 @@ export function buildEstimateXmlFile(args: {
   projectNumber: string;
   tenderTitle: string | null;
   wbsItemBlocks: string[];
+  // Das "WBS" (Leistungsverzeichnis) hat in iTWO eine EIGENE, vom
+  // Projekt-Code getrennte Kennung (z.B. Projekt "262160", LV
+  // "26-079191") - beim Wiedereinlesen prüft iTWO, dass diese Kennung zu
+  // einem im Projekt bereits vorhandenen LV passt. Ohne Angabe wird
+  // (falsch, aber besser als nichts) auf Projektnummer/-titel
+  // zurückgefallen.
+  wbsName?: string;
+  wbsDescription?: string | null;
 }): string {
-  const { projectNumber, tenderTitle, wbsItemBlocks } = args;
+  const { projectNumber, tenderTitle, wbsItemBlocks, wbsDescription, wbsName } = args;
 
   const lines: string[] = ['<?xml version="1.0"?>', "<EstimateRoot>", "\t<PrjInfo>"];
   lines.push(`\t\t<NamePrj>${escapeXmlText(projectNumber)}</NamePrj>`);
@@ -36,8 +44,9 @@ export function buildEstimateXmlFile(args: {
   lines.push("\t\t<ByUPFromDetailPricePortions>0</ByUPFromDetailPricePortions>");
   lines.push("\t\t<IsDomesticEstimate>1</IsDomesticEstimate>");
   lines.push("\t\t<WBS>");
-  lines.push(`\t\t\t<NameWBS>${escapeXmlText(projectNumber)}</NameWBS>`);
-  if (tenderTitle) lines.push(`\t\t\t<DescrWBS>${escapeXmlText(tenderTitle)}</DescrWBS>`);
+  lines.push(`\t\t\t<NameWBS>${escapeXmlText(wbsName || projectNumber)}</NameWBS>`);
+  const descrWbs = wbsDescription ?? tenderTitle;
+  if (descrWbs) lines.push(`\t\t\t<DescrWBS>${escapeXmlText(descrWbs)}</DescrWBS>`);
   lines.push("\t\t\t<WBSType>MajorWBS</WBSType>");
   lines.push("\t\t\t<ITEMS>");
   for (const block of wbsItemBlocks) {
