@@ -984,7 +984,17 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     });
 
     for (const item of targetItems) {
-      if (!item.positionNumber || !ribBlockIsEmpty(item.ribRawBlock)) continue;
+      if (!item.positionNumber) continue;
+      // Echte, direkt hochgeladene Ansätze (kein Vorschlag von uns) und
+      // bereits vom Nutzer entschiedene Vorschläge (Übernehmen/Verwerfen)
+      // werden nie angetastet. Ein noch unentschiedener Vorschlag
+      // ("Prüfen") darf dagegen erneut berechnet werden - z.B. wenn seit
+      // dem letzten Lauf ein weiteres Projekt mit Ansätzen dazugekommen
+      // ist, sollen dessen Alternativen auch bei bereits vorgeschlagenen
+      // Positionen auftauchen, nicht nur bei noch leeren.
+      const isRealUploadedAnsatz = !ribBlockIsEmpty(item.ribRawBlock) && item.matchedVia !== "CROSS_PROJECT_ANSATZ";
+      const isDecided = item.matchStatus === "CONFIRMED" || item.matchStatus === "REJECTED";
+      if (isRealUploadedAnsatz || isDecided) continue;
       const ownText = ownTextByOz.get(item.positionNumber.trim());
       if (!ownText) continue;
       const suggestion = findSuggestion(item.positionNumber, ownText);
@@ -1007,7 +1017,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
     if (filledCount === 0) {
       redirect(
-        `${returnTo}?importError=${encodeURIComponent("Keine leeren Positionen mit ausreichend ähnlichen Ansätzen in anderen Projekten gefunden.")}`,
+        `${returnTo}?importError=${encodeURIComponent("Keine leeren oder noch unentschiedenen Positionen mit ausreichend ähnlichen Ansätzen in anderen Projekten gefunden.")}`,
       );
     }
 

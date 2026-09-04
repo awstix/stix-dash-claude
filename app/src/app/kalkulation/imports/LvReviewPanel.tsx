@@ -546,62 +546,68 @@ export async function LvReviewPanel({
                   <td className="w-40 max-w-40 p-3">
                     {item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
                       <div className="flex flex-col gap-2">
-                        {item.matchStatus !== "CONFIRMED" && item.matchStatus !== "REJECTED" ? (
-                          <>
-                            <form action={confirmAnsatzSuggestion}>
-                              <input name="lineItemId" type="hidden" value={item.id} />
-                              <button
-                                className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
-                                title="Diesen übernommenen Ansatz behalten - zählt zum D31-Export dazu"
-                                type="submit"
-                              >
-                                Übernehmen
-                              </button>
-                            </form>
-                            <form action={rejectAnsatzSuggestion}>
-                              <input name="lineItemId" type="hidden" value={item.id} />
-                              <button
-                                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
-                                title="Diesen Vorschlag verwerfen - fehlt dann im D31-Export"
-                                type="submit"
-                              >
-                                Verwerfen
-                              </button>
-                            </form>
-                            {item.ansatzAlternativesJson ? (
-                              (() => {
-                                const alternatives: StoredAnsatzAlternative[] = JSON.parse(item.ansatzAlternativesJson);
-                                if (alternatives.length === 0) return null;
-                                return (
-                                  <details className="mt-1">
-                                    <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
-                                      Andere Vorschläge ({alternatives.length})
-                                    </summary>
-                                    <div className="mt-1 space-y-1.5">
-                                      {alternatives.map((alternative, index) => (
-                                        <div className="border-t border-gray-100 pt-1" key={`${alternative.sourceProjectNumber}-${index}`}>
-                                          <div className="break-words text-xs text-gray-700">
-                                            Projekt {alternative.sourceProjectNumber} ({Math.round(alternative.similarity * 100)}%)
-                                          </div>
-                                          <form action={chooseAnsatzAlternative}>
-                                            <input name="lineItemId" type="hidden" value={item.id} />
-                                            <input name="alternativeIndex" type="hidden" value={index} />
-                                            <button
-                                              className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
-                                              title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen"
-                                              type="submit"
-                                            >
-                                              Diesen stattdessen nehmen
-                                            </button>
-                                          </form>
-                                        </div>
-                                      ))}
+                        {/* Übernehmen/Verwerfen bleiben auch nach einer
+                         * Entscheidung nutzbar (nur die jeweils schon
+                         * aktive Aktion wird ausgeblendet) - sonst gibt es
+                         * nach einem Klick keine Möglichkeit mehr, die
+                         * Entscheidung zu ändern oder eine Alternative zu
+                         * wählen. */}
+                        {item.matchStatus !== "CONFIRMED" ? (
+                          <form action={confirmAnsatzSuggestion}>
+                            <input name="lineItemId" type="hidden" value={item.id} />
+                            <button
+                              className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
+                              title="Diesen übernommenen Ansatz behalten - zählt zum D31-Export dazu"
+                              type="submit"
+                            >
+                              Übernehmen
+                            </button>
+                          </form>
+                        ) : null}
+                        {item.matchStatus !== "REJECTED" ? (
+                          <form action={rejectAnsatzSuggestion}>
+                            <input name="lineItemId" type="hidden" value={item.id} />
+                            <button
+                              className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                              title="Diesen Vorschlag verwerfen - fehlt dann im D31-Export"
+                              type="submit"
+                            >
+                              Verwerfen
+                            </button>
+                          </form>
+                        ) : null}
+                        {item.ansatzAlternativesJson ? (
+                          (() => {
+                            const alternatives: StoredAnsatzAlternative[] = JSON.parse(item.ansatzAlternativesJson);
+                            if (alternatives.length === 0) return null;
+                            return (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
+                                  Andere Vorschläge ({alternatives.length})
+                                </summary>
+                                <div className="mt-1 space-y-1.5">
+                                  {alternatives.map((alternative, index) => (
+                                    <div className="border-t border-gray-100 pt-1" key={`${alternative.sourceProjectNumber}-${index}`}>
+                                      <div className="break-words text-xs text-gray-700">
+                                        Projekt {alternative.sourceProjectNumber} ({Math.round(alternative.similarity * 100)}%)
+                                      </div>
+                                      <form action={chooseAnsatzAlternative}>
+                                        <input name="lineItemId" type="hidden" value={item.id} />
+                                        <input name="alternativeIndex" type="hidden" value={index} />
+                                        <button
+                                          className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
+                                          title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen - setzt die Entscheidung auf 'Prüfen' zurück"
+                                          type="submit"
+                                        >
+                                          Diesen stattdessen nehmen
+                                        </button>
+                                      </form>
                                     </div>
-                                  </details>
-                                );
-                              })()
-                            ) : null}
-                          </>
+                                  ))}
+                                </div>
+                              </details>
+                            );
+                          })()
                         ) : null}
                       </div>
                     ) : (
