@@ -13,6 +13,8 @@
  * als lesbaren Referenztext je Position (rawText) - ohne Anspruch auf
  * einen berechneten Gesamtpreis. */
 
+import { escapeXmlText } from "@/lib/kalkulation-estimate-xml-parser";
+
 type RibNode = {
   name: string;
   fields: Map<string, string[]>;
@@ -137,7 +139,58 @@ export type RibKalkulationRow = {
   unitPriceCents: null;
   totalPriceCents: null;
   ribRawBlock: string | null;
+  ribRawBlockXml: string | null;
 };
+
+/** Baut aus einer D31-Position ein `<WBSItem>`-XML-Fragment im selben
+ * Format wie kalkulation-estimate-xml-parser.ts (Pendant zu
+ * buildApproachText, nur als XML statt lesbarem Text) - Best-effort: die
+ * D31 selbst enthält keinen Positionstext (siehe Dateikommentar oben),
+ * OutlineSpecs bleibt deshalb ein Platzhalter. Zahlenformate (Komma statt
+ * Punkt) werden unverändert übernommen, keine Konvertierung. */
+function buildSyntheticWbsItemXml(kalkPos: RibNode, oz: string): string {
+  const lines: string[] = [
+    "<WBSItem>",
+    `<NameWBSItem>${escapeXmlText(oz)}</NameWBSItem>`,
+    "<OutlineSpecs>Kalkulationsansatz aus D31 (kein Positionstext in der Quelldatei enthalten)</OutlineSpecs>",
+    "<EstDetails>",
+  ];
+
+  for (const textNode of children(kalkPos, "_RIB_Text")) {
+    const text = field(textNode, "_RIB_Textzeile");
+    if (!text) continue;
+    lines.push("<EstTextElement>", `<Text>${escapeXmlText(text)}</Text>`, "<BoolIntern>1</BoolIntern>", "</EstTextElement>");
+  }
+
+  for (const baustein of children(kalkPos, "_RIB_BstnA")) {
+    const eleNr = field(baustein, "_RIB_EleNr");
+    if (!eleNr) continue;
+    const menge = field(baustein, "_RIB_Menge");
+    const ansatz = field(baustein, "_RIB_Ansatz");
+    lines.push("<AssemblyDetail>", `<NameAssembly>${escapeXmlText(eleNr)}</NameAssembly>`);
+    if (menge) lines.push(`<Quantity>${escapeXmlText(menge)}</Quantity>`);
+    if (ansatz) lines.push(`<QuantityDetail>${escapeXmlText(ansatz)}</QuantityDetail>`);
+    lines.push("</AssemblyDetail>");
+  }
+
+  for (const kostenart of children(kalkPos, "_RIB_KoaA")) {
+    const eleNr = field(kostenart, "_RIB_EleNr");
+    if (!eleNr) continue;
+    const bez = field(kostenart, "_RIB_Bez");
+    const menge = field(kostenart, "_RIB_Menge");
+    const satz = field(kostenart, "_RIB_VS");
+    const ansatz = field(kostenart, "_RIB_Ansatz");
+    lines.push("<CoCDetail>", `<NameCoC>${escapeXmlText(eleNr)}</NameCoC>`);
+    if (bez) lines.push(`<DescrCoC>${escapeXmlText(bez)}</DescrCoC>`);
+    if (menge) lines.push(`<Quantity>${escapeXmlText(menge)}</Quantity>`);
+    if (satz) lines.push(`<URValue>${escapeXmlText(satz)}</URValue>`);
+    if (ansatz) lines.push(`<QuantityDetail>${escapeXmlText(ansatz)}</QuantityDetail>`);
+    lines.push("</CoCDetail>");
+  }
+
+  lines.push("</EstDetails>", "</WBSItem>");
+  return lines.join("\n");
+}
 
 /** Ersetzt die `[_RIB_OZ]`-Zeile in einem gespeicherten `_RIB_KalkPos`-Block
  * durch eine andere Positionsnummer - gebraucht, wenn ein Ansatz aus einem
@@ -192,6 +245,7 @@ export function parseRibKalkulation(buffer: Buffer): {
       unitPriceCents: null,
       totalPriceCents: null,
       ribRawBlock: kalkPos.raw ?? null,
+      ribRawBlockXml: buildSyntheticWbsItemXml(kalkPos, oz ?? String(index + 1)),
     };
   });
 

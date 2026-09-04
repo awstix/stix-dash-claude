@@ -3787,8 +3787,12 @@ model KalkulationLvLineItem {
   // aus der D31-Datei - rawText ist nur eine lesbare Zusammenfassung davon
   // fürs UI, ribRawBlock wird für den D31-Export gebraucht, damit
   // Bausteine/Kostenarten unverändert (und damit wieder in iTWO einlesbar)
-  // erhalten bleiben.
-  ribRawBlock String?
+  // erhalten bleiben. ribRawBlockXml ist dasselbe, nur als natives
+  // <WBSItem>-XML-Fragment (bevorzugtes Export-Format) - bei D31-Herkunft
+  // synthetisch aus denselben Ansatz-Daten gebaut, bei XML-Herkunft das
+  // unveränderte Original-Fragment.
+  ribRawBlock    String?
+  ribRawBlockXml String?
   unit            String?
   quantity        Float?
   unitPriceCents  Int?

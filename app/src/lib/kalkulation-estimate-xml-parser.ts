@@ -52,9 +52,39 @@ function normalizeOz(raw: string): string | null {
   return cleaned || null;
 }
 
+/** Ersetzt die `<NameWBSItem>`-Zeile in einem gespeicherten Rohblock durch
+ * eine andere Positionsnummer - Pendant zu rewriteOzInRawBlock im
+ * D31-Parser, für den Fall, dass ein Ansatz aus einem fremden Projekt mit
+ * anderer OZ übernommen wird. */
+export function rewriteOzInXmlBlock(xmlBlock: string, newOz: string): string {
+  return xmlBlock.replace(/<NameWBSItem>[\s\S]*?<\/NameWBSItem>/, `<NameWBSItem>${escapeXmlText(newOz)}</NameWBSItem>`);
+}
+
+export function escapeXmlText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export function looksLikeEstimateXml(buffer: Buffer): boolean {
   const head = buffer.subarray(0, 2000).toString("utf8");
   return head.includes("<EstimateRoot>") || head.includes("<EstimateRoot ");
+}
+
+/** Schneidet jeden `<WBSItem>...</WBSItem>`-Abschnitt unverändert aus dem
+ * Original-XML-Text - Struktur ist flach (kein WBSItem verschachtelt sich
+ * in ein anderes), deshalb reicht ein einfacher globaler Regex statt eines
+ * eigenen Positions-Trackers wie beim D31-Parser. Reihenfolge entspricht
+ * der Dokumentreihenfolge, genau wie beim strukturierten Parsen mit
+ * fast-xml-parser (isArray für WBSItem) - beide Listen lassen sich daher
+ * 1:1 per Index zusammenführen. */
+function extractRawWbsItemBlocks(xml: string): string[] {
+  const blocks: string[] = [];
+  const regex = /<WBSItem(?:\s[^>]*)?>[\s\S]*?<\/WBSItem>/g;
+  let match: RegExpExecArray | null = regex.exec(xml);
+  while (match !== null) {
+    blocks.push(match[0]);
+    match = regex.exec(xml);
+  }
+  return blocks;
 }
 
 type DetailBucket = {
@@ -181,11 +211,13 @@ export type EstimateXmlRow = {
   unitPriceCents: null;
   totalPriceCents: null;
   ribRawBlock: string;
+  ribRawBlockXml: string | null;
 };
 
 export function parseEstimateXml(buffer: Buffer): { entries: EstimateXmlRow[]; tenderTitle: string | null } {
   const xml = buffer.toString("utf8");
   const root = parser.parse(xml) as Record<string, unknown>;
+  const rawWbsItemBlocks = extractRawWbsItemBlocks(xml);
 
   const estimateRoot = isPlainObject(root.EstimateRoot) ? root.EstimateRoot : {};
   const prjInfo = isPlainObject(estimateRoot.PrjInfo) ? estimateRoot.PrjInfo : {};
@@ -219,6 +251,7 @@ export function parseEstimateXml(buffer: Buffer): { entries: EstimateXmlRow[]; t
       quantity: null,
       rawText,
       ribRawBlock: buildSyntheticKalkPosBlock(oz ?? String(index + 1), bucket),
+      ribRawBlockXml: rawWbsItemBlocks[index] ?? null,
       shortText,
       totalPriceCents: null,
       unit: null,

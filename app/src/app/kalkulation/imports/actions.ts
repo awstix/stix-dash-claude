@@ -10,7 +10,7 @@ import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/imp
 import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
-import { looksLikeEstimateXml, parseEstimateXml } from "@/lib/kalkulation-estimate-xml-parser";
+import { looksLikeEstimateXml, parseEstimateXml, rewriteOzInXmlBlock } from "@/lib/kalkulation-estimate-xml-parser";
 import { buildAnsatzPool, poolToCatalog } from "@/lib/kalkulation-ansatz-pool";
 import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
@@ -29,10 +29,11 @@ type ParsedRow = {
   quantity: number | null;
   unitPriceCents: number | null;
   totalPriceCents: number | null;
-  // Nur bei RIB_KALKULATION gesetzt (siehe rib-kalkulation-parser.ts) -
-  // der unveränderte Original-Tag-Block, den der D31-Export später wieder
-  // 1:1 einbaut.
+  // Nur bei RIB_KALKULATION gesetzt (siehe rib-kalkulation-parser.ts bzw.
+  // kalkulation-estimate-xml-parser.ts) - die unveränderten Original-
+  // Rohblöcke, die die Exporte später wieder 1:1 einbauen.
   ribRawBlock?: string | null;
+  ribRawBlockXml?: string | null;
 };
 
 function parseExcel(buffer: Buffer): ParsedRow[] {
@@ -202,6 +203,7 @@ export async function importLv(formData: FormData) {
       quantity: row.quantity,
       rawText: row.rawText,
       ribRawBlock: row.ribRawBlock ?? null,
+      ribRawBlockXml: row.ribRawBlockXml ?? null,
       rowNumber: index + 1,
       shortText: row.shortText,
       totalPriceCents: row.totalPriceCents,
@@ -901,6 +903,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       matchConfidence: best.similarityScore,
       rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.similarityScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
       ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
+      ribRawBlockXml: source.ribRawBlockXml ? rewriteOzInXmlBlock(source.ribRawBlockXml, positionNumber) : null,
     };
   }
 
@@ -934,6 +937,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
           matchStatus: "NEEDS_REVIEW",
           rawText: suggestion.rawText,
           ribRawBlock: suggestion.ribRawBlock,
+          ribRawBlockXml: suggestion.ribRawBlockXml,
         },
         where: { id: item.id },
       });
@@ -954,6 +958,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       positionNumber: string;
       rawText: string;
       ribRawBlock: string;
+      ribRawBlockXml: string | null;
       shortText: string | null;
     }> = [];
 
@@ -994,6 +999,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
         positionNumber: row.positionNumber,
         rawText: row.rawText,
         ribRawBlock: row.ribRawBlock,
+        ribRawBlockXml: row.ribRawBlockXml,
         rowNumber: index + 1,
         shortText: row.shortText,
       })),
@@ -1112,6 +1118,9 @@ export async function adoptAnsatzFromCandidate(formData: FormData) {
   }
 
   const ribRawBlock = rewriteOzInRawBlock(sourceItem.ribRawBlock, lineItem.positionNumber);
+  const ribRawBlockXml = sourceItem.ribRawBlockXml
+    ? rewriteOzInXmlBlock(sourceItem.ribRawBlockXml, lineItem.positionNumber)
+    : null;
   const sourceProjectLabel = sourceItem.lvImport.projectNumber ?? sourceItem.lvImport.fileName;
   const rawText = `Übernommen aus Projekt ${sourceProjectLabel}:\n${sourceItem.rawText}`;
   const data = {
@@ -1122,6 +1131,7 @@ export async function adoptAnsatzFromCandidate(formData: FormData) {
     positionNumber: lineItem.positionNumber,
     rawText,
     ribRawBlock,
+    ribRawBlockXml,
     shortText: lineItem.shortText,
   };
 

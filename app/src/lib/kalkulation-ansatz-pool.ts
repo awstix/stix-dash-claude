@@ -21,6 +21,7 @@ export type AnsatzPoolEntry = {
   descriptionText: string;
   ansatzSummary: string;
   ribRawBlock: string;
+  ribRawBlockXml: string | null;
 };
 
 export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<AnsatzPoolEntry[]> {
@@ -88,6 +89,7 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
       descriptionText,
       key: item.id,
       ribRawBlock: item.ribRawBlock,
+      ribRawBlockXml: item.ribRawBlockXml,
       sourceImportId: item.lvImportId,
       sourceLineItemId: item.id,
       sourceProjectNumber: projectNumber,
