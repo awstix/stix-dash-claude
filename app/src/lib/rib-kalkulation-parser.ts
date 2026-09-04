@@ -202,6 +202,21 @@ export function rewriteOzInRawBlock(rawBlock: string, newOz: string): string {
   return rawBlock.replace(/\[_RIB_OZ\].*?\[end\]/, `[_RIB_OZ]${newOz}[end]`);
 }
 
+/** Baut das XML-Pendant (ribRawBlockXml) nachträglich aus einem bereits
+ * gespeicherten D31-Rohblock (ribRawBlock) - für Positionen, die vor
+ * Einführung des XML-Exports importiert wurden, ohne dass die Original-
+ * D31-Datei erneut hochgeladen werden muss: der gespeicherte Block ist
+ * selbst schon ein gültiger `#begin[_RIB_KalkPos]...#end[_RIB_KalkPos]`-
+ * Ausschnitt und lässt sich direkt erneut parsen. */
+export function synthesizeXmlFromStoredRawBlock(rawBlock: string): string | null {
+  const root = parseTree(rawBlock);
+  const kalkPos = children(root, "_RIB_KalkPos")[0];
+  if (!kalkPos) return null;
+  const ozRaw = field(kalkPos, "_RIB_OZ");
+  const oz = ozRaw ? normalizeOz(ozRaw) : null;
+  return buildSyntheticWbsItemXml(kalkPos, oz ?? "");
+}
+
 /** Erkennt das Format anhand der ersten Zeilen - zuverlässiger als die
  * Dateiendung allein, da ".D31" kein offizieller GAEB-Standard ist und
  * je nach AVA-Software abweichen kann. */
