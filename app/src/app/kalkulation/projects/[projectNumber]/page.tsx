@@ -205,6 +205,7 @@ export default async function KalkulationProjectPage({
               <LvReviewPanel
                 crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
                 importId={item.id}
+                returnTo={returnTo}
                 showCrossLvMatches={crossLv === item.id}
               />
             </div>

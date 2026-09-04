@@ -750,12 +750,28 @@ export async function adoptBestPricesForImport(formData: FormData) {
 // eine ganze Kalkulationslogik, ein zu lockerer Treffer wäre irreführend.
 const ANSATZ_MATCH_THRESHOLD = 0.55;
 
-/** Schlägt für jede Position im bereits hochgeladenen (leeren) LV eines
- * Projekts die ähnlichste D31-Kalkulationsposition aus allen ANDEREN
- * Projekten vor - Ziel: eine Vorlage, die man vor der eigentlichen
- * Kalkulation in iTWO einliest, statt bei null anzufangen. Legt dafür einen
- * eigenen RIB_KALKULATION-Import mit Status "Vorschlag prüfen" je Zeile an,
- * nichts wird automatisch übernommen. */
+/** Eine D31-Position gilt als "leer" (noch keine echte Kalkulation), wenn ihr
+ * Rohblock keine Baustein- oder Kostenart-Ansätze enthält - z.B. ein aus
+ * iTWO frisch exportiertes Skelett zu einem neuen LV, noch ohne Ansätze. Nur
+ * solche Positionen werden mit einem Vorschlag befüllt, echte, bereits
+ * vorhandene Ansätze werden nie überschrieben. */
+function ribBlockIsEmpty(raw: string | null): boolean {
+  if (!raw) return true;
+  return !raw.includes("#begin[_RIB_BstnA]") && !raw.includes("#begin[_RIB_KoaA]");
+}
+
+/** Schlägt für jede Position eines Projekts die ähnlichste D31-
+ * Kalkulationsposition aus allen ANDEREN Projekten vor - Ziel: eine
+ * Vorlage, die man vor der eigentlichen Kalkulation in iTWO einliest, statt
+ * bei null anzufangen. Zwei Fälle:
+ * - Noch keine D31 im Projekt: legt einen neuen RIB_KALKULATION-Import an,
+ *   eine Zeile je LV-Position.
+ * - Bereits eine D31 vorhanden (z.B. ein aus iTWO frisch exportiertes,
+ *   noch leeres Kalkulations-Skelett): befüllt NUR deren leere Positionen
+ *   direkt, vorhandene Ansätze bleiben unangetastet - so bleibt die exakte
+ *   OZ-Struktur aus iTWO erhalten.
+ * In beiden Fällen Status "Prüfen" je Zeile, nichts wird automatisch
+ * übernommen. */
 export async function suggestAnsaetzeFromHistory(formData: FormData) {
   const session = await requireSession();
   const projectNumber = text(formData.get("projectNumber"));
@@ -767,7 +783,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
   // Die D31-Datei selbst enthält keinen Positionstext (nur OZ + Ansätze) -
   // der Abgleich braucht deshalb den echten Text aus dem eigenen LV dieses
-  // Projekts als Grundlage.
+  // Projekts als Grundlage, in beiden Fällen unten.
   const ownLvImport = await prisma.kalkulationLvImport.findFirst({
     orderBy: { createdAt: "desc" },
     where: { projectNumber, sourceFormat: { not: "RIB_KALKULATION" } },
@@ -782,6 +798,12 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     orderBy: { rowNumber: "asc" },
     where: { entryType: "ITEM", lvImportId: ownLvImport.id, positionNumber: { not: null } },
   });
+  const ownTextByOz = new Map<string, { shortText: string | null; rawText: string }>();
+  for (const item of ownLineItems) {
+    if (!item.positionNumber) continue;
+    const key = item.positionNumber.trim();
+    if (!ownTextByOz.has(key)) ownTextByOz.set(key, { shortText: item.shortText, rawText: item.rawText });
+  }
 
   const pool = await buildAnsatzPool(projectNumber);
   if (pool.length === 0) {
@@ -793,65 +815,114 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   const catalog = poolToCatalog(pool);
   const poolByKey = new Map(pool.map((entry) => [entry.key, entry]));
 
-  const rowsToCreate: Array<{
-    matchConfidence: number;
-    positionNumber: string;
-    rawText: string;
-    ribRawBlock: string;
-    shortText: string | null;
-  }> = [];
-
-  for (const item of ownLineItems) {
-    if (!item.positionNumber) continue;
-    const combinedText = `${item.shortText ?? ""} ${item.rawText}`.trim();
+  function findSuggestion(positionNumber: string, ownText: { shortText: string | null; rawText: string }) {
+    const combinedText = `${ownText.shortText ?? ""} ${ownText.rawText}`.trim();
     const [best] = buildShortlist(combinedText, catalog, 1, ANSATZ_MATCH_THRESHOLD);
-    if (!best) continue;
+    if (!best) return null;
     const source = poolByKey.get(best.positionId);
-    if (!source) continue;
-
-    rowsToCreate.push({
+    if (!source) return null;
+    return {
       matchConfidence: best.similarityScore,
-      positionNumber: item.positionNumber,
       rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.similarityScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
-      ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, item.positionNumber),
-      shortText: item.shortText,
+      ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
+    };
+  }
+
+  const existingKalkulationImport = await prisma.kalkulationLvImport.findFirst({
+    orderBy: { createdAt: "desc" },
+    where: { projectNumber, sourceFormat: "RIB_KALKULATION" },
+  });
+
+  let filledCount = 0;
+
+  if (existingKalkulationImport) {
+    // Vorhandene D31 (z.B. frisch aus iTWO exportiertes Skelett) direkt an
+    // ihren eigenen, leeren Positionen befüllen - deren OZ-Struktur ist
+    // bereits die richtige für dieses Projekt.
+    const targetItems = await prisma.kalkulationLvLineItem.findMany({
+      orderBy: { rowNumber: "asc" },
+      where: { entryType: "ITEM", lvImportId: existingKalkulationImport.id, positionNumber: { not: null } },
+    });
+
+    for (const item of targetItems) {
+      if (!item.positionNumber || !ribBlockIsEmpty(item.ribRawBlock)) continue;
+      const ownText = ownTextByOz.get(item.positionNumber.trim());
+      if (!ownText) continue;
+      const suggestion = findSuggestion(item.positionNumber, ownText);
+      if (!suggestion) continue;
+
+      await prisma.kalkulationLvLineItem.update({
+        data: {
+          matchConfidence: suggestion.matchConfidence,
+          matchedVia: "CROSS_PROJECT_ANSATZ",
+          matchStatus: "NEEDS_REVIEW",
+          rawText: suggestion.rawText,
+          ribRawBlock: suggestion.ribRawBlock,
+        },
+        where: { id: item.id },
+      });
+      filledCount += 1;
+    }
+
+    if (filledCount === 0) {
+      redirect(
+        `${returnTo}?importError=${encodeURIComponent("Keine leeren Positionen mit ausreichend ähnlichen Ansätzen in anderen Projekten gefunden.")}`,
+      );
+    }
+
+    revalidatePath(`/kalkulation/imports/${existingKalkulationImport.id}`);
+  } else {
+    // Noch keine D31 im Projekt - neuen Import aus den LV-Positionen anlegen.
+    const rowsToCreate: Array<{
+      matchConfidence: number;
+      positionNumber: string;
+      rawText: string;
+      ribRawBlock: string;
+      shortText: string | null;
+    }> = [];
+
+    for (const item of ownLineItems) {
+      if (!item.positionNumber) continue;
+      const suggestion = findSuggestion(item.positionNumber, item);
+      if (!suggestion) continue;
+      rowsToCreate.push({ ...suggestion, positionNumber: item.positionNumber, shortText: item.shortText });
+    }
+
+    if (rowsToCreate.length === 0) {
+      redirect(
+        `${returnTo}?importError=${encodeURIComponent("Keine ausreichend ähnlichen Ansätze in anderen Projekten gefunden.")}`,
+      );
+    }
+
+    const suggestionImport = await prisma.kalkulationLvImport.create({
+      data: {
+        fileName: "Kalkulationsansätze-Vorschläge (aus anderen Projekten)",
+        importedByUserId: session.user.id,
+        lvType: "ANGEBOT",
+        projectNumber,
+        rowCount: rowsToCreate.length,
+        sourceFormat: "RIB_KALKULATION",
+        status: "IMPORTED",
+        tenderTitle: project.tenderTitle,
+      },
+    });
+
+    await prisma.kalkulationLvLineItem.createMany({
+      data: rowsToCreate.map((row, index) => ({
+        entryType: "ITEM",
+        lvImportId: suggestionImport.id,
+        matchConfidence: row.matchConfidence,
+        matchedVia: "CROSS_PROJECT_ANSATZ",
+        matchStatus: "NEEDS_REVIEW",
+        normalizedText: normalizeText(`${row.shortText ?? ""} ${row.rawText}`),
+        positionNumber: row.positionNumber,
+        rawText: row.rawText,
+        ribRawBlock: row.ribRawBlock,
+        rowNumber: index + 1,
+        shortText: row.shortText,
+      })),
     });
   }
-
-  if (rowsToCreate.length === 0) {
-    redirect(
-      `${returnTo}?importError=${encodeURIComponent("Keine ausreichend ähnlichen Ansätze in anderen Projekten gefunden.")}`,
-    );
-  }
-
-  const suggestionImport = await prisma.kalkulationLvImport.create({
-    data: {
-      fileName: "Kalkulationsansätze-Vorschläge (aus anderen Projekten)",
-      importedByUserId: session.user.id,
-      lvType: "ANGEBOT",
-      projectNumber,
-      rowCount: rowsToCreate.length,
-      sourceFormat: "RIB_KALKULATION",
-      status: "IMPORTED",
-      tenderTitle: project.tenderTitle,
-    },
-  });
-
-  await prisma.kalkulationLvLineItem.createMany({
-    data: rowsToCreate.map((row, index) => ({
-      entryType: "ITEM",
-      lvImportId: suggestionImport.id,
-      matchConfidence: row.matchConfidence,
-      matchedVia: "CROSS_PROJECT_ANSATZ",
-      matchStatus: "NEEDS_REVIEW",
-      normalizedText: normalizeText(`${row.shortText ?? ""} ${row.rawText}`),
-      positionNumber: row.positionNumber,
-      rawText: row.rawText,
-      ribRawBlock: row.ribRawBlock,
-      rowNumber: index + 1,
-      shortText: row.shortText,
-    })),
-  });
 
   revalidatePath("/kalkulation/projects");
   revalidatePath(returnTo);

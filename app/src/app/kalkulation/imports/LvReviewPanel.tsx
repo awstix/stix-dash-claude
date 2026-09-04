@@ -10,6 +10,7 @@ import {
   rejectAnsatzSuggestion,
   rejectMatch,
   runMatching,
+  suggestAnsaetzeFromHistory,
 } from "./actions";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
 import { buildShortlist, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
@@ -44,10 +45,12 @@ function formatCents(cents: number | null) {
 export async function LvReviewPanel({
   crossLvToggleHref,
   importId,
+  returnTo,
   showCrossLvMatches = false,
 }: {
   crossLvToggleHref: string;
   importId: string;
+  returnTo?: string;
   showCrossLvMatches?: boolean;
 }) {
   const [lvImport, lineItems, positions] = await Promise.all([
@@ -196,6 +199,20 @@ export async function LvReviewPanel({
           >
             Als D31 exportieren ↓
           </a>
+        ) : null}
+
+        {lvImport.sourceFormat === "RIB_KALKULATION" && lvImport.projectNumber ? (
+          <form action={suggestAnsaetzeFromHistory}>
+            <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
+            <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+            <button
+              className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+              title="Befüllt noch leere Positionen dieser Kalkulation mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
+              type="submit"
+            >
+              Ansätze aus anderen Projekten vorschlagen
+            </button>
+          </form>
         ) : null}
       </div>
 
