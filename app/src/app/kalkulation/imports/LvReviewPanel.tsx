@@ -188,58 +188,59 @@ export async function LvReviewPanel({
        * aus dem Panel entfernt, um nicht zwei verschiedene "Genauigkeit"-
        * Konzepte nebeneinander zu zeigen. */}
 
-      {!showCrossLvMatches ? (
-        <form
-          action={updateCrossLvSettings}
-          className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+      {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
+       * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
+       * zu ändern und erneut abzugleichen. */}
+      <form
+        action={updateCrossLvSettings}
+        className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+      >
+        <input name="importId" type="hidden" value={importId} />
+        <input name="returnTo" type="hidden" value={crossLvToggleHref} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MatchingThresholdInput
+            defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
+            label="Kurztext-Ähnlichkeit"
+            max={100}
+            min={0}
+            name="crossLvKurztextThreshold"
+          />
+          <MatchingThresholdInput
+            defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
+            label="Langtext-Ähnlichkeit"
+            max={100}
+            min={0}
+            name="crossLvLangtextThreshold"
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+            <input
+              className="h-5 w-5 accent-gray-900"
+              defaultChecked={lvImport.crossLvExactMenge}
+              name="crossLvExactMenge"
+              type="checkbox"
+            />
+            Menge muss gleich sein
+          </label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+            <input
+              className="h-5 w-5 accent-gray-900"
+              defaultChecked={lvImport.crossLvExactEinheit}
+              name="crossLvExactEinheit"
+              type="checkbox"
+            />
+            Einheit muss gleich sein
+          </label>
+        </div>
+        <button
+          className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+          title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
+          type="submit"
         >
-          <input name="importId" type="hidden" value={importId} />
-          <input name="returnTo" type="hidden" value={crossLvToggleHref} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <MatchingThresholdInput
-              defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
-              label="Kurztext-Ähnlichkeit"
-              max={100}
-              min={0}
-              name="crossLvKurztextThreshold"
-            />
-            <MatchingThresholdInput
-              defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
-              label="Langtext-Ähnlichkeit"
-              max={100}
-              min={0}
-              name="crossLvLangtextThreshold"
-            />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <input
-                className="h-5 w-5 accent-gray-900"
-                defaultChecked={lvImport.crossLvExactMenge}
-                name="crossLvExactMenge"
-                type="checkbox"
-              />
-              Menge muss gleich sein
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <input
-                className="h-5 w-5 accent-gray-900"
-                defaultChecked={lvImport.crossLvExactEinheit}
-                name="crossLvExactEinheit"
-                type="checkbox"
-              />
-              Einheit muss gleich sein
-            </label>
-          </div>
-          <button
-            className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-            title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
-            type="submit"
-          >
-            Abgleich starten
-          </button>
-        </form>
-      ) : null}
+          {showCrossLvMatches ? "Erneut abgleichen" : "Abgleich starten"}
+        </button>
+      </form>
 
       {lvImport.crossLvMatchedAt ? (
         <p className="mb-3 text-xs text-gray-500">

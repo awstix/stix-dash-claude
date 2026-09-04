@@ -12,12 +12,6 @@ import { LvReviewPanel } from "../../imports/LvReviewPanel";
 
 type LvImportRow = Prisma.KalkulationLvImportGetPayload<Record<string, never>>;
 
-const STATUS_LABELS: Record<string, string> = {
-  IMPORTED: "Importiert",
-  MATCHING: "Abgleich läuft",
-  REVIEWED: "Geprüft",
-};
-
 /** Kompakte Kopf-Kachel je Zeile - zeigt entweder die hochgeladene Datei
  * (mit Löschen-Icon) oder ein kleines Upload-Feld, wenn die Zeile noch
  * leer ist. Drei davon nebeneinander statt einer großen Karte pro Zeile. */
@@ -199,7 +193,10 @@ export default async function KalkulationProjectPage({
               <h2 className="mb-2 text-sm font-bold text-gray-900">
                 {item.fileName}
                 <span className="ml-2 text-xs font-normal text-gray-500">
-                  {item.rowCount} Positionen · {STATUS_LABELS[item.status] ?? item.status}
+                  {item.rowCount} Positionen ·{" "}
+                  {item.crossLvMatchedAt
+                    ? `abgeglichen am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "short" }).format(item.crossLvMatchedAt)}`
+                    : "noch nicht abgeglichen"}
                 </span>
               </h2>
               <LvReviewPanel
