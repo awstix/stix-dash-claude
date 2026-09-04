@@ -113,8 +113,33 @@ function collectText(node: unknown, out: string[] = []): string[] {
   return out;
 }
 
+// Manche AVA-Programme HTML-escapen Sonderzeichen (v.a. Apostrophe) im
+// Text, BEVOR der als XML exportiert wird - der XML-Parser entschärft dann
+// nur die äußere XML-Maskierung ("&amp;#x27;" -> "&#x27;") und die HTML-
+// Entity bleibt als sichtbarer Text stehen (z.B. "&#x27;im Anbaubereich&#x27;"
+// statt "'im Anbaubereich'"). Deshalb hier eine zweite Entschärfung auf
+// jeden extrahierten Text - &amp; bewusst zuletzt, sonst würde z.B.
+// "&amp;lt;" fälschlich zu "<" statt zu "&lt;" werden.
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  "&quot;": '"',
+  "&apos;": "'",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&nbsp;": " ",
+};
+
+function decodeLeftoverHtmlEntities(text: string): string {
+  let result = text
+    .replace(/&#x([0-9a-fA-F]+);?/g, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)));
+  for (const [entity, char] of Object.entries(NAMED_HTML_ENTITIES)) {
+    result = result.split(entity).join(char);
+  }
+  return result.replace(/&amp;/g, "&");
+}
+
 function textOf(node: unknown): string {
-  return collectText(node).join(" ").trim();
+  return decodeLeftoverHtmlEntities(collectText(node).join(" ").trim());
 }
 
 /** Zieht Kurztext (OutlineText) und Langtext (DetailTxt) getrennt aus einem
