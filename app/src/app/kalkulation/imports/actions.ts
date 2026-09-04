@@ -11,7 +11,7 @@ import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
 import { looksLikeEstimateXml, parseEstimateXml, rewriteOzInXmlBlock } from "@/lib/kalkulation-estimate-xml-parser";
-import { buildAnsatzPool } from "@/lib/kalkulation-ansatz-pool";
+import { ansatzPoolByProjectAndOz, buildAnsatzPool, findBestAnsatzViaLvMatch } from "@/lib/kalkulation-ansatz-pool";
 import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
@@ -892,23 +892,44 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       `${returnTo}?importError=${encodeURIComponent("Es gibt noch keine auswertbaren Kalkulationsansätze in anderen Projekten (D31 hochgeladen UND eigenes LV mit passenden OZ nötig).")}`,
     );
   }
+  const ansatzByProjectAndOz = ansatzPoolByProjectAndOz(pool);
 
-  const poolById = new Map(pool.map((entry) => [entry.id, entry]));
+  // Nicht direkt gegen den (oft schlechter aufbereiteten) Text der
+  // Kalkulationsdatei selbst matchen, sondern über denselben, größeren und
+  // verlässlicheren LV-Textvergleich wie "Abgleich starten" oben im
+  // LV-Panel - der findet zuverlässig deutlich mehr Übereinstimmungen.
+  // Danach nur prüfen, ob das jeweils beste Projekt für dieselbe OZ auch
+  // einen Ansatz hat (siehe findBestAnsatzViaLvMatch).
+  const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
+    include: { lvImport: true },
+    where: {
+      entryType: "ITEM",
+      lvImport: { projectNumber: { not: projectNumber }, sourceFormat: { not: "RIB_KALKULATION" } },
+      NOT: { shortText: { startsWith: "Kalkulation OZ " } },
+      positionNumber: { not: null },
+    },
+    take: 3000,
+  });
+  const otherLvCandidates = otherLvItems.map((row) => ({
+    id: row.id,
+    quantity: row.quantity,
+    rawText: row.rawText,
+    shortText: row.shortText,
+    unit: row.unit,
+  }));
+  const otherLvMetaById = new Map(
+    otherLvItems.map((row) => [row.id, { positionNumber: row.positionNumber, projectNumber: row.lvImport.projectNumber! }]),
+  );
 
   function findSuggestion(
     positionNumber: string,
     ownText: { shortText: string | null; rawText: string; quantity: number | null; unit: string | null },
   ) {
-    // Derselbe Mechanismus (buildLvMatches) und dieselben Kriterien wie
-    // "Abgleich starten" oben im LV-Panel: getrennte Kurztext-/Langtext-
-    // Schwellen statt eines einzigen zusammengeklebten Textblocks. Vorher
-    // wurden Kurz- und Langtext hier zu einem String verschmolzen, wodurch
-    // abweichende Detailangaben im Langtext (Mengen, Ortsnamen) die
-    // Trefferquote unnötig stark gedrückt haben, obwohl derselbe Vergleich
-    // oben (mit getrennten Feldern) längst einen Treffer gefunden hätte.
-    const [best] = buildLvMatches(
+    const result = findBestAnsatzViaLvMatch(
       { id: "__target__", quantity: ownText.quantity, rawText: ownText.rawText, shortText: ownText.shortText, unit: ownText.unit },
-      pool,
+      otherLvCandidates,
+      otherLvMetaById,
+      ansatzByProjectAndOz,
       {
         exactEinheit: ownLvImportChecked.crossLvExactEinheit,
         exactMenge: ownLvImportChecked.crossLvExactMenge,
@@ -916,12 +937,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
         langtextThreshold: ownLvImportChecked.crossLvLangtextThreshold,
       },
     );
-    if (!best) return null;
-    const source = poolById.get(best.candidateId);
-    if (!source) return null;
+    if (!result) return null;
+    const source = result.ansatz;
     return {
-      matchConfidence: best.langtextScore,
-      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
+      matchConfidence: result.langtextScore,
+      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(result.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
       ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
       ribRawBlockXml: source.ribRawBlockXml ? rewriteOzInXmlBlock(source.ribRawBlockXml, positionNumber) : null,
     };

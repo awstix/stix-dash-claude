@@ -12,11 +12,12 @@
  * Quelle (die Kalkulationsdatei selbst führt das nicht zuverlässig). */
 
 import { prisma } from "@/lib/prisma";
-import type { LvMatchInput } from "@/lib/kalkulation-matching";
+import { buildLvMatches, type LvMatchInput } from "@/lib/kalkulation-matching";
 
 export type AnsatzPoolEntry = LvMatchInput & {
   sourceLineItemId: string;
   sourceProjectNumber: string;
+  sourcePositionNumber: string;
   sourceImportId: string;
   ansatzSummary: string;
   ribRawBlock: string;
@@ -90,10 +91,55 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
       shortText,
       sourceImportId: item.lvImportId,
       sourceLineItemId: item.id,
+      sourcePositionNumber: item.positionNumber.trim(),
       sourceProjectNumber: projectNumber,
       unit: sourceLvItem?.unit ?? null,
     });
   }
 
   return pool;
+}
+
+/** Für den O(1)-Nachschlag "hat Projekt X für OZ Y bereits einen Ansatz?". */
+export function ansatzPoolByProjectAndOz(pool: AnsatzPoolEntry[]): Map<string, AnsatzPoolEntry> {
+  const map = new Map<string, AnsatzPoolEntry>();
+  for (const entry of pool) {
+    map.set(`${entry.sourceProjectNumber}::${entry.sourcePositionNumber}`, entry);
+  }
+  return map;
+}
+
+export type AnsatzViaLvMatch = {
+  ansatz: AnsatzPoolEntry;
+  kurztextScore: number;
+  langtextScore: number;
+};
+
+/** Sucht für eine LV-Position den besten Kalkulationsansatz aus anderen
+ * Projekten - nicht direkt gegen den (oft schlechter aufbereiteten) Text
+ * der Kalkulationsdatei selbst, sondern über den Umweg "welche andere
+ * LV-Position ist textlich am ähnlichsten (Abgleich starten) -> hat DEREN
+ * Projekt für dieselbe OZ bereits einen Ansatz?". Der direkte
+ * Text-zu-Text-Vergleich gegen die Kalkulationsdatei selbst fand spürbar
+ * weniger Treffer, weil deren Text (aus der XML-eigenen OutlineSpecs)
+ * anders aufbereitet ist als der GAEB-Text des LVs, gegen den "Abgleich
+ * starten" vergleicht - der reguläre LV-Textvergleich ist der
+ * verlässlichere, umfangreichere Datensatz, ein Ansatz existiert oder
+ * nicht ist davon unabhängig. */
+export function findBestAnsatzViaLvMatch(
+  target: LvMatchInput,
+  otherLvCandidates: LvMatchInput[],
+  otherLvMetaById: Map<string, { projectNumber: string; positionNumber: string | null }>,
+  ansatzByProjectAndOz: Map<string, AnsatzPoolEntry>,
+  options: { exactEinheit: boolean; exactMenge: boolean; kurztextThreshold: number; langtextThreshold: number },
+): AnsatzViaLvMatch | null {
+  const matches = buildLvMatches(target, otherLvCandidates, options);
+  for (const match of matches) {
+    const meta = otherLvMetaById.get(match.candidateId);
+    if (!meta?.positionNumber) continue;
+    const ansatz = ansatzByProjectAndOz.get(`${meta.projectNumber}::${meta.positionNumber.trim()}`);
+    if (!ansatz) continue;
+    return { ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore };
+  }
+  return null;
 }
