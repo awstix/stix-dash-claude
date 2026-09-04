@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-access";
 import { prisma } from "@/lib/prisma";
-import { buildEstimateXmlFile } from "@/lib/kalkulation-estimate-xml-writer";
+import { readFile } from "@/lib/storage";
+import { looksLikeEstimateXml } from "@/lib/kalkulation-estimate-xml-parser";
+import { buildEstimateXmlFile, spliceWbsItemsIntoOriginalXml } from "@/lib/kalkulation-estimate-xml-writer";
 
 export const runtime = "nodejs";
+
+const STORAGE_BUCKET = "uploads";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ importId: string }> }) {
   await requireSession();
@@ -32,7 +36,26 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
     return NextResponse.json({ error: "Keine exportierbaren Kalkulationsansätze in diesem Import." }, { status: 400 });
   }
 
-  const content = buildEstimateXmlFile({
+  // Wurde dieser Import selbst als echte iTWO-XML hochgeladen, die
+  // Positionsliste direkt in die Original-Datei zurücksetzen - dann bleibt
+  // JEDES Projekt-/Estimate-Setting (u.a. IsDomesticEstimate, das beim
+  // von Hand nachgebauten Rahmen zunächst fehlte und den Import mit
+  // "Inlandsprojekt stimmt nicht überein" abgebrochen hat) exakt so
+  // erhalten, wie iTWO es selbst geschrieben hat.
+  let content: string | null = null;
+  if (lvImport.originalStoragePath) {
+    try {
+      const originalBuffer = await readFile(STORAGE_BUCKET, lvImport.originalStoragePath);
+      if (looksLikeEstimateXml(originalBuffer)) {
+        content = spliceWbsItemsIntoOriginalXml(originalBuffer.toString("utf8"), wbsItemBlocks);
+      }
+    } catch {
+      // Original nicht mehr verfügbar (z.B. Import ist eine Kopie ohne
+      // eigene Datei) - unten auf den nachgebauten Rahmen zurückfallen.
+    }
+  }
+
+  content ??= buildEstimateXmlFile({
     projectNumber: lvImport.projectNumber ?? lvImport.fileName,
     tenderTitle: lvImport.tenderTitle,
     wbsItemBlocks,
