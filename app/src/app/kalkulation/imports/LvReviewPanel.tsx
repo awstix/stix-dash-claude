@@ -240,18 +240,17 @@ export async function LvReviewPanel({
         >
           {showCrossLvMatches ? "Erneut abgleichen" : "Abgleich starten"}
         </button>
+        {lvImport.crossLvMatchedAt ? (
+          <p className="mt-2 text-xs text-gray-500">
+            Letzter Abgleich:{" "}
+            {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.crossLvMatchedAt)}
+            {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
+            {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
+            {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
+            {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
+          </p>
+        ) : null}
       </form>
-
-      {lvImport.crossLvMatchedAt ? (
-        <p className="mb-3 text-xs text-gray-500">
-          Letzter Abgleich:{" "}
-          {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.crossLvMatchedAt)}
-          {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
-          {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
-          {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
-          {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
-        </p>
-      ) : null}
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
 
