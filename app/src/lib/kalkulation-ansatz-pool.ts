@@ -1,10 +1,14 @@
-/** Baut den projektübergreifenden Pool aller bereits importierten D31-
- * Kalkulationspositionen, angereichert um den echten Positionstext aus dem
- * jeweils eigenen LV-Import desselben Projekts. Nötig, weil eine D31-Datei
- * selbst keinen Positionstext enthält, nur OZ + Ansätze (siehe
- * rib-kalkulation-parser.ts) - der Abgleich für ein neues, leeres LV kann
- * also nur über den Umweg "D31-Position -> eigene OZ -> eigenes LV -> Text"
- * laufen. */
+/** Baut den projektübergreifenden Pool aller bereits importierten
+ * Kalkulationspositionen (D31 oder Kalkulations-XML), angereichert um den
+ * echten Positionstext.
+ *
+ * Bei aus XML importierten Positionen (kalkulation-estimate-xml-parser.ts)
+ * ist der echte Positionstext bereits direkt an der Position selbst
+ * gespeichert (OutlineSpecs). Bei D31-Positionen (rib-kalkulation-parser.ts,
+ * erkennbar am generischen shortText "Kalkulation OZ X") ist das nicht der
+ * Fall - eine D31-Datei enthält nur OZ + Ansätze, keinen Positionstext -
+ * dort bleibt der Umweg "D31-Position -> eigene OZ -> eigenes LV -> Text"
+ * nötig. */
 
 import { prisma } from "@/lib/prisma";
 import type { CatalogEntryForMatching } from "@/lib/kalkulation-matching";
@@ -62,10 +66,21 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
   for (const item of relevantKalkulationItems) {
     const projectNumber = item.lvImport.projectNumber;
     if (!projectNumber || !item.positionNumber || !item.ribRawBlock) continue;
-    const descriptionText = descriptionByProjectAndOz.get(`${projectNumber}::${item.positionNumber.trim()}`);
-    // Kein zugehöriger LV-Text im selben Projekt gefunden (z.B. LV noch
-    // nicht hochgeladen) - dann gibt's nichts, wogegen sich sinnvoll matchen
-    // ließe, diese Position bleibt außen vor.
+
+    // Aus XML importiert -> trägt den echten Positionstext schon selbst
+    // (siehe Dateikommentar oben) - der Ansatz-Teil (ab "\n\nKalkulations-
+    // ansätze") wird für den Textvergleich abgeschnitten, der soll nur den
+    // Positionstext selbst vergleichen, nicht die Ansatz-Details.
+    const hasOwnText = Boolean(item.shortText) && !item.shortText!.startsWith("Kalkulation OZ ");
+    // item.rawText beginnt für XML-Positionen bereits mit dem vollen
+    // Positionstext (der die shortText-Zeile mit einschließt) - shortText
+    // hier nochmal davorzuhängen würde sie doppelt reinschreiben.
+    const descriptionText = hasOwnText
+      ? item.rawText.split("\n\nKalkulationsansätze")[0].trim()
+      : descriptionByProjectAndOz.get(`${projectNumber}::${item.positionNumber.trim()}`);
+    // Kein eigener Text und kein zugehöriger LV-Text im selben Projekt
+    // gefunden (z.B. LV noch nicht hochgeladen) - dann gibt's nichts,
+    // wogegen sich sinnvoll matchen ließe, diese Position bleibt außen vor.
     if (!descriptionText) continue;
 
     pool.push({

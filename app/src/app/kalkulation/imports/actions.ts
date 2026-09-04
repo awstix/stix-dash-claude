@@ -10,6 +10,7 @@ import { floatValue, moneyCents, rowValue, text, type ExcelRow } from "@/lib/imp
 import { parseGaebXml } from "@/lib/gaeb-parser";
 import { looksLikeGaeb90, parseGaeb90 } from "@/lib/gaeb90-parser";
 import { looksLikeRibKalkulation, parseRibKalkulation, rewriteOzInRawBlock } from "@/lib/rib-kalkulation-parser";
+import { looksLikeEstimateXml, parseEstimateXml } from "@/lib/kalkulation-estimate-xml-parser";
 import { buildAnsatzPool, poolToCatalog } from "@/lib/kalkulation-ansatz-pool";
 import { buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
@@ -103,6 +104,19 @@ export async function importLv(formData: FormData) {
       rows = parsed.entries;
       sourceFormat = "GAEB90";
       lvType = parsed.isPriced ? "ANGEBOT" : "AUSSCHREIBUNG";
+    } else if (looksLikeEstimateXml(buffer)) {
+      // RIB iTWO Kalkulations-XML-Export ("EstimateRoot") - im Gegensatz
+      // zur D31 trägt hier jede Position ihren Beschreibungstext direkt
+      // (kein Umweg über ein separat hochgeladenes LV nötig), deshalb das
+      // bevorzugte Format für hochgeladene Kalkulationen. Gleicher
+      // sourceFormat wie D31, da beide denselben ribRawBlock liefern und
+      // die restliche Pipeline (Pool-Aufbau, Matching, D31-Export) davon
+      // nicht wissen muss, aus welchem Format eine Kalkulation stammt.
+      const parsed = parseEstimateXml(buffer);
+      rows = parsed.entries;
+      sourceFormat = "RIB_KALKULATION";
+      lvType = "ANGEBOT";
+      extractedTenderTitle = parsed.tenderTitle;
     } else if (RIB_KALKULATION_EXTENSIONS.test(file.name) || looksLikeRibKalkulation(buffer)) {
       // RIB iTWO "Urkalkulation" (z.B. .D31) - kein Standard-GAEB, enthält
       // keinen fertig berechneten Preis, nur Kalkulationsansätze je
