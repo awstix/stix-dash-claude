@@ -136,7 +136,7 @@ export default async function KalkulationProjectsPage({
             <tr>
               <th className="p-3">Projekt</th>
               <th className="p-3">LV / Angebotsanfrage</th>
-              <th className="p-3">Kalkulation (D31)</th>
+              <th className="p-3">Kalkulation (XML)</th>
               <th className="p-3">Kalkuliertes LV</th>
               <th className="p-3" />
             </tr>

@@ -822,12 +822,6 @@ export async function clearAdoptedPricesForImport(formData: FormData) {
   revalidatePath("/kalkulation/projects");
 }
 
-// Ähnlichkeit, ab der ein Ansatz aus einem anderen Projekt als Vorschlag
-// übernommen wird - bewusst strenger als der normale LV-Preisabgleich
-// (0.3 Default dort): hier geht es nicht nur um einen Preis, sondern um
-// eine ganze Kalkulationslogik, ein zu lockerer Treffer wäre irreführend.
-const ANSATZ_MATCH_THRESHOLD = 0.55;
-
 /** Eine D31-Position gilt als "leer" (noch keine echte Kalkulation), wenn ihr
  * Rohblock keine Baustein- oder Kostenart-Ansätze enthält - z.B. ein aus
  * iTWO frisch exportiertes Skelett zu einem neuen LV, noch ohne Ansätze. Nur
@@ -870,7 +864,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     redirect(
       `${returnTo}?importError=${encodeURIComponent("Bitte zuerst das LV (Angebotsabgabe) hochladen - daraus werden die Positionstexte für den Abgleich genommen.")}`,
     );
+    return;
   }
+  // Non-null-Zwischenvariable, weil TypeScript die obige Narrowing-Prüfung
+  // nicht in die weiter unten definierte findSuggestion-Closure überträgt.
+  const ownLvImportChecked = ownLvImport;
 
   const ownLineItems = await prisma.kalkulationLvLineItem.findMany({
     orderBy: { rowNumber: "asc" },
@@ -895,7 +893,14 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
   function findSuggestion(positionNumber: string, ownText: { shortText: string | null; rawText: string }) {
     const combinedText = `${ownText.shortText ?? ""} ${ownText.rawText}`.trim();
-    const [best] = buildShortlist(combinedText, catalog, 1, ANSATZ_MATCH_THRESHOLD);
+    // Pool-Einträge haben nur einen einzigen zusammenhängenden Beschreibungstext
+    // (kein getrennter Kurz-/Langtext wie bei echten LV-Positionen), deshalb
+    // hier weiterhin ein einzelner kombinierter Score statt buildLvMatches -
+    // die Schwelle kommt aber jetzt vom selben Langtext-Regler wie bei
+    // "Abgleich starten" (LvReviewPanel), statt eines eigenen, unsichtbaren
+    // Werts, damit "Abgleich starten" und dieser Massen-Vorschlag konsistent
+    // dieselbe Einstellung verwenden.
+    const [best] = buildShortlist(combinedText, catalog, 1, ownLvImportChecked.crossLvLangtextThreshold);
     if (!best) return null;
     const source = poolByKey.get(best.positionId);
     if (!source) return null;
