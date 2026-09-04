@@ -1042,6 +1042,7 @@ export async function updateCrossLvSettings(formData: FormData) {
       crossLvExactMenge: exactMenge,
       crossLvKurztextThreshold: kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5,
       crossLvLangtextThreshold: langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3,
+      crossLvMatchedAt: new Date(),
     },
     where: { id: importId },
   });
