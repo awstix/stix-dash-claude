@@ -145,26 +145,26 @@ export async function LvReviewPanel({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-start gap-3">
-        <form action={runMatching} className="max-w-md rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-          <input name="importId" type="hidden" value={importId} />
-          <MatchingThresholdInput defaultValue={Math.round(lvImport.matchingThreshold * 100)} name="matchingThreshold" />
-          <button
-            className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-            title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
-            type="submit"
-          >
-            Abgleich starten
-          </button>
-          {lvImport.matchingRunAt ? (
-            <p className="mt-2 text-xs text-gray-500">
-              Letzter Abgleich:{" "}
-              {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.matchingRunAt)}
-              {" · "}Genauigkeit {Math.round(lvImport.matchingThreshold * 100)}%
-            </p>
-          ) : null}
-        </form>
+      <form action={runMatching} className="mb-3 max-w-md rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+        <input name="importId" type="hidden" value={importId} />
+        <MatchingThresholdInput defaultValue={Math.round(lvImport.matchingThreshold * 100)} name="matchingThreshold" />
+        <button
+          className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+          title="Wendet zuerst gelernte Zuordnungen an, danach - falls eingerichtet - die KI"
+          type="submit"
+        >
+          Abgleich starten
+        </button>
+        {lvImport.matchingRunAt ? (
+          <p className="mt-2 text-xs text-gray-500">
+            Letzter Abgleich:{" "}
+            {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(lvImport.matchingRunAt)}
+            {" · "}Genauigkeit {Math.round(lvImport.matchingThreshold * 100)}%
+          </p>
+        ) : null}
+      </form>
 
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         {!showCrossLvMatches ? (
           <a
             className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
