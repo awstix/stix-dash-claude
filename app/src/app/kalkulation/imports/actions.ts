@@ -715,18 +715,20 @@ function ribBlockIsEmpty(raw: string | null): boolean {
   return !raw.includes("#begin[_RIB_BstnA]") && !raw.includes("#begin[_RIB_KoaA]");
 }
 
-/** Schlägt für jede Position eines Projekts die ähnlichste D31-
- * Kalkulationsposition aus allen ANDEREN Projekten vor - Ziel: eine
- * Vorlage, die man vor der eigentlichen Kalkulation in iTWO einliest, statt
- * bei null anzufangen. Zwei Fälle:
- * - Noch keine D31 im Projekt: legt einen neuen RIB_KALKULATION-Import an,
- *   eine Zeile je LV-Position.
- * - Bereits eine D31 vorhanden (z.B. ein aus iTWO frisch exportiertes,
- *   noch leeres Kalkulations-Skelett): befüllt NUR deren leere Positionen
- *   direkt, vorhandene Ansätze bleiben unangetastet - so bleibt die exakte
- *   OZ-Struktur aus iTWO erhalten.
- * In beiden Fällen Status "Prüfen" je Zeile, nichts wird automatisch
- * übernommen. */
+/** Übernimmt für JEDE Position eines Projekts automatisch den besten
+ * verfügbaren Kalkulationsansatz aus allen ANDEREN Projekten (direkt als
+ * "Bestätigt", wie eine manuelle Einzel-Übernahme über "Ähnlich in
+ * anderen LVs") - Ziel: mit einem Klick eine vollständig vorkalkulierte
+ * Basis, statt bei null anzufangen. Bis zu 2 weitere Kandidaten werden
+ * als "Andere Vorschläge" mitgespeichert, falls der automatisch gewählte
+ * nicht passt (siehe chooseAnsatzAlternative). Zwei Fälle:
+ * - Noch keine Kalkulation im Projekt: legt einen neuen RIB_KALKULATION-
+ *   Import an, eine Zeile je LV-Position.
+ * - Bereits eine Kalkulation vorhanden (z.B. ein aus iTWO frisch
+ *   exportiertes, noch leeres Skelett): befüllt NUR deren leere oder noch
+ *   unentschiedene Positionen, vorhandene/bestätigte/verworfene Ansätze
+ *   bleiben unangetastet - so bleibt die exakte OZ-Struktur aus iTWO
+ *   erhalten. */
 export async function suggestAnsaetzeFromHistory(formData: FormData) {
   const session = await requireSession();
   const projectNumber = text(formData.get("projectNumber"));
@@ -846,7 +848,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     return {
       alternativesJson: alternatives.length > 0 ? JSON.stringify(alternatives) : null,
       matchConfidence: best.langtextScore,
-      rawText: `Vorschlag aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.langtextScore * 100)}%), bitte prüfen:\n${source.ansatzSummary}`,
+      rawText: `Übernommen aus Projekt ${source.sourceProjectNumber} (Ähnlichkeit ${Math.round(best.langtextScore * 100)}%):\n${source.ansatzSummary}`,
       ribRawBlock: rewriteOzInRawBlock(source.ribRawBlock, positionNumber),
       ribRawBlockXml: source.ribRawBlockXml ? rewriteOzInXmlBlock(source.ribRawBlockXml, positionNumber) : null,
     };
@@ -874,12 +876,10 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     for (const item of targetItems) {
       if (!item.positionNumber) continue;
       // Echte, direkt hochgeladene Ansätze (kein Vorschlag von uns) und
-      // bereits vom Nutzer entschiedene Vorschläge (Übernehmen/Verwerfen)
-      // werden nie angetastet. Ein noch unentschiedener Vorschlag
-      // ("Prüfen") darf dagegen erneut berechnet werden - z.B. wenn seit
-      // dem letzten Lauf ein weiteres Projekt mit Ansätzen dazugekommen
-      // ist, sollen dessen Alternativen auch bei bereits vorgeschlagenen
-      // Positionen auftauchen, nicht nur bei noch leeren.
+      // bereits vom Nutzer entschiedene Positionen (Bestätigt/Verworfen)
+      // werden nie angetastet - alles andere darf (erneut) automatisch
+      // befüllt werden, z.B. wenn seit dem letzten Lauf ein weiteres
+      // Projekt mit Ansätzen dazugekommen ist.
       const isRealUploadedAnsatz = !ribBlockIsEmpty(item.ribRawBlock) && item.matchedVia !== "CROSS_PROJECT_ANSATZ";
       const isDecided = item.matchStatus === "CONFIRMED" || item.matchStatus === "REJECTED";
       if (isRealUploadedAnsatz || isDecided) continue;
@@ -891,9 +891,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       await prisma.kalkulationLvLineItem.update({
         data: {
           ansatzAlternativesJson: suggestion.alternativesJson,
+          confirmedAt: new Date(),
+          confirmedByUserId: session.user.id,
           matchConfidence: suggestion.matchConfidence,
           matchedVia: "CROSS_PROJECT_ANSATZ",
-          matchStatus: "NEEDS_REVIEW",
+          matchStatus: "CONFIRMED",
           rawText: suggestion.rawText,
           ribRawBlock: suggestion.ribRawBlock,
           ribRawBlockXml: suggestion.ribRawBlockXml,
@@ -948,14 +950,17 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       },
     });
 
+    const suggestionConfirmedAt = new Date();
     await prisma.kalkulationLvLineItem.createMany({
       data: rowsToCreate.map((row, index) => ({
         ansatzAlternativesJson: row.alternativesJson,
+        confirmedAt: suggestionConfirmedAt,
+        confirmedByUserId: session.user.id,
         entryType: "ITEM",
         lvImportId: suggestionImport.id,
         matchConfidence: row.matchConfidence,
         matchedVia: "CROSS_PROJECT_ANSATZ",
-        matchStatus: "NEEDS_REVIEW",
+        matchStatus: "CONFIRMED",
         normalizedText: normalizeText(`${row.shortText ?? ""} ${row.rawText}`),
         positionNumber: row.positionNumber,
         rawText: row.rawText,
@@ -988,28 +993,6 @@ export async function confirmAnsatzSuggestion(formData: FormData) {
   revalidatePath("/kalkulation/projects");
 }
 
-/** Bulk-Variante von confirmAnsatzSuggestion: übernimmt ALLE noch
- * unentschiedenen Ansatz-Vorschläge dieses Imports auf einmal, statt jede
- * Position einzeln bestätigen zu müssen. Rührt nur an Zeilen mit Status
- * "Prüfen" - bereits verworfene oder schon bestätigte Positionen bleiben
- * unangetastet, ein einzelner Vorschlag lässt sich danach immer noch per
- * "Verwerfen" oder "Andere Vorschläge" korrigieren. */
-export async function confirmAllAnsatzSuggestions(formData: FormData) {
-  await requireSession();
-  const importId = text(formData.get("importId"));
-  if (!importId) throw new Error("Import-ID fehlt.");
-  const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
-
-  await prisma.kalkulationLvLineItem.updateMany({
-    data: { matchStatus: "CONFIRMED" },
-    where: { lvImportId: importId, matchedVia: "CROSS_PROJECT_ANSATZ", matchStatus: "NEEDS_REVIEW" },
-  });
-
-  revalidatePath(`/kalkulation/imports/${importId}`);
-  revalidatePath("/kalkulation/projects");
-  redirect(returnTo);
-}
-
 /** Lehnt einen Ansatz-Vorschlag ab - fliegt dadurch aus dem späteren
  * D31-Export dieses Imports raus (Zeile selbst bleibt zur Nachvollziehbarkeit
  * stehen, wird beim Export aber übersprungen). */
@@ -1034,7 +1017,7 @@ export async function rejectAnsatzSuggestion(formData: FormData) {
  * gewählte Alternative fliegt danach aus der Liste, der Rest bleibt für
  * eine weitere Auswahl stehen. */
 export async function chooseAnsatzAlternative(formData: FormData) {
-  await requireSession();
+  const session = await requireSession();
   const lineItemId = text(formData.get("lineItemId"));
   const alternativeIndexRaw = text(formData.get("alternativeIndex"));
   const alternativeIndex = alternativeIndexRaw ? Number.parseInt(alternativeIndexRaw, 10) : Number.NaN;
@@ -1051,10 +1034,12 @@ export async function chooseAnsatzAlternative(formData: FormData) {
   await prisma.kalkulationLvLineItem.update({
     data: {
       ansatzAlternativesJson: remaining.length > 0 ? JSON.stringify(remaining) : null,
+      confirmedAt: new Date(),
+      confirmedByUserId: session.user.id,
       matchConfidence: chosen.similarity,
       matchedVia: "CROSS_PROJECT_ANSATZ",
-      matchStatus: "NEEDS_REVIEW",
-      rawText: `Vorschlag aus Projekt ${chosen.sourceProjectNumber} (Ähnlichkeit ${Math.round(chosen.similarity * 100)}%), bitte prüfen:\n${chosen.ansatzSummary}`,
+      matchStatus: "CONFIRMED",
+      rawText: `Übernommen aus Projekt ${chosen.sourceProjectNumber} (Ähnlichkeit ${Math.round(chosen.similarity * 100)}%):\n${chosen.ansatzSummary}`,
       ribRawBlock: chosen.ribRawBlock,
       ribRawBlockXml: chosen.ribRawBlockXml,
     },

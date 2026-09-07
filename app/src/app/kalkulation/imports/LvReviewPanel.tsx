@@ -4,7 +4,6 @@ import {
   adoptPrice,
   chooseAnsatzAlternative,
   clearPrice,
-  confirmAllAnsatzSuggestions,
   confirmAnsatzSuggestion,
   confirmMatch,
   createPositionFromLineItem,
@@ -171,7 +170,6 @@ export async function LvReviewPanel({
   // XML-eigene Textähnlichkeit zu prüfen).
   let linkedKalkulationImportId: string | null = null;
   let linkedKalkulationHasExportableItems = false;
-  let linkedKalkulationHasPendingSuggestions = false;
   let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
   // Welche anderen Projekte überhaupt eine als final markierte Kalkulation
   // haben - Grundlage für die Projekt-Auswahl neben "Ansätze aus anderen
@@ -203,16 +201,10 @@ export async function LvReviewPanel({
     });
     if (linkedKalkulationImport) {
       linkedKalkulationImportId = linkedKalkulationImport.id;
-      const [exportableCount, pendingCount] = await Promise.all([
-        prisma.kalkulationLvLineItem.count({
-          where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
-        }),
-        prisma.kalkulationLvLineItem.count({
-          where: { lvImportId: linkedKalkulationImport.id, matchedVia: "CROSS_PROJECT_ANSATZ", matchStatus: "NEEDS_REVIEW" },
-        }),
-      ]);
+      const exportableCount = await prisma.kalkulationLvLineItem.count({
+        where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
+      });
       linkedKalkulationHasExportableItems = exportableCount > 0;
-      linkedKalkulationHasPendingSuggestions = pendingCount > 0;
     }
     // Ein OZ-Nachschlag, welche der "Ähnlich in anderen LVs"-Treffer
     // bereits einen Ansatz haben (siehe findAnsatzCandidatesViaLvMatch in
@@ -243,20 +235,6 @@ export async function LvReviewPanel({
               projectNumber={lvImport.projectNumber}
               returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
             />
-          ) : null}
-
-          {lineItems.some((item) => item.matchedVia === "CROSS_PROJECT_ANSATZ" && item.matchStatus === "NEEDS_REVIEW") ? (
-            <form action={confirmAllAnsatzSuggestions}>
-              <input name="importId" type="hidden" value={importId} />
-              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-              <button
-                className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-                title="Übernimmt ALLE noch nicht entschiedenen Ansatz-Vorschläge dieses Imports auf einmal - einzelne Zeilen lassen sich danach immer noch per Verwerfen oder Andere Vorschläge korrigieren"
-                type="submit"
-              >
-                Alle Vorschläge übernehmen
-              </button>
-            </form>
           ) : null}
 
           {lineItems.some((item) => item.ribRawBlockXml) ? (
@@ -378,20 +356,6 @@ export async function LvReviewPanel({
                   projectNumber={lvImport.projectNumber}
                   returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
                 />
-              ) : null}
-
-              {linkedKalkulationHasPendingSuggestions && linkedKalkulationImportId ? (
-                <form action={confirmAllAnsatzSuggestions}>
-                  <input name="importId" type="hidden" value={linkedKalkulationImportId} />
-                  <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-                  <button
-                    className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-                    title="Übernimmt ALLE noch nicht entschiedenen Ansatz-Vorschläge dieses Projekts auf einmal - einzelne Zeilen lassen sich danach immer noch per Verwerfen oder Andere Vorschläge korrigieren"
-                    type="submit"
-                  >
-                    Alle Vorschläge übernehmen
-                  </button>
-                </form>
               ) : null}
 
               {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
@@ -674,7 +638,7 @@ export async function LvReviewPanel({
                                         <input name="alternativeIndex" type="hidden" value={index} />
                                         <button
                                           className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
-                                          title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen - setzt die Entscheidung auf 'Prüfen' zurück"
+                                          title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen und direkt bestätigen"
                                           type="submit"
                                         >
                                           Diesen stattdessen nehmen

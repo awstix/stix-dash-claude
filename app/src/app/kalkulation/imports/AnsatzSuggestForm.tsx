@@ -18,10 +18,10 @@ export function AnsatzSuggestForm({
       <input name="returnTo" type="hidden" value={returnTo} />
       <button
         className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-        title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet. Nutzt den in der Abgleich-Kachel eingestellten Projekt-Filter."
+        title="Übernimmt für jede noch offene Position sofort den besten Ansatz aus anderen Projekten - bereits entschiedene Positionen (bestätigt oder verworfen) bleiben unangetastet. Nutzt den in der Abgleich-Kachel eingestellten Projekt-Filter. Bis zu 2 weitere Kandidaten stehen danach je Position unter 'Andere Vorschläge' zur Auswahl."
         type="submit"
       >
-        Ansätze aus anderen Projekten vorschlagen
+        Alle besten Vorschläge übernehmen
       </button>
     </form>
   );
