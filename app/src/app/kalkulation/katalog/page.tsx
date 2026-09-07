@@ -3,9 +3,10 @@ import { AppShell } from "@/components/AppShell";
 import { ActionIcon } from "@/components/ActionIcon";
 import { CategorySelect } from "@/components/CategorySelect";
 import { prisma } from "@/lib/prisma";
-import { archivePosition, createCategory, createPosition, restorePosition, updatePosition } from "./actions";
+import { archivePosition, createCategory, createPosition, deletePosition, restorePosition, updatePosition } from "./actions";
 import { formatLvSource } from "@/lib/kalkulation-format";
 import { ArchivePositionButton } from "./ArchivePositionButton";
+import { DeletePositionButton } from "./DeletePositionButton";
 
 const inputClass = "mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 
@@ -176,15 +177,21 @@ export default async function KalkulationKatalogPage({
                           </form>
                         </details>
                         {showArchived ? (
-                          <form action={restorePosition}>
-                            <input name="id" type="hidden" value={position.id} />
-                            <button
-                              className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 hover:bg-green-100"
-                              type="submit"
-                            >
-                              Wiederherstellen
-                            </button>
-                          </form>
+                          <>
+                            <form action={restorePosition}>
+                              <input name="id" type="hidden" value={position.id} />
+                              <button
+                                className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 hover:bg-green-100"
+                                type="submit"
+                              >
+                                Wiederherstellen
+                              </button>
+                            </form>
+                            <form action={deletePosition}>
+                              <input name="id" type="hidden" value={position.id} />
+                              <DeletePositionButton title={position.title} />
+                            </form>
+                          </>
                         ) : (
                           <form action={archivePosition}>
                             <input name="id" type="hidden" value={position.id} />

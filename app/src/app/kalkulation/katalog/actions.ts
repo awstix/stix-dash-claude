@@ -80,6 +80,21 @@ export async function restorePosition(formData: FormData) {
   revalidatePath("/kalkulation/katalog");
 }
 
+/** Endgültiges Löschen - nur aus der Archiv-Ansicht erreichbar (siehe
+ * page.tsx). Referenzen von KalkulationLvLineItem/KalkulationLearnedMapping
+ * auf diese Position sind onDelete: SetNull (Schema) - eine bereits
+ * bestätigte Preiszuordnung in einem LV bleibt also stehen, verliert nur
+ * den Bezug zur (dann nicht mehr existierenden) Katalogposition. */
+export async function deletePosition(formData: FormData) {
+  await requireSession();
+  const id = text(formData, "id");
+  if (!id) throw new Error("Position fehlt.");
+
+  await prisma.kalkulationPosition.delete({ where: { id } });
+
+  revalidatePath("/kalkulation/katalog");
+}
+
 export async function createCategory(formData: FormData) {
   await requireSession();
 
