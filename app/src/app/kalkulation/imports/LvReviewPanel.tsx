@@ -146,6 +146,12 @@ export async function LvReviewPanel({
       if (resolved.length > 0) crossLvMatchesByLineItem.set(itemId, resolved);
     }
   }
+  // Für die Anzeige "X/Y Positionen haben Treffer" direkt in der
+  // Abgleich-Kachel - Titel/Vorbemerkungen zählen nicht als Position.
+  const matchableItemCount = lineItems.filter((item) => item.entryType === "ITEM").length;
+  const itemsWithCrossLvMatchCount = lineItems.filter(
+    (item) => item.entryType === "ITEM" && crossLvMatchesByLineItem.has(item.id),
+  ).length;
 
   // Für die "übernommen aus ..."-Anzeige je Zeile: die Quell-Imports
   // übernommener Preise auflösen.
@@ -326,7 +332,12 @@ export async function LvReviewPanel({
                 {lvImport.crossLvMatchedAt ? "Erneut abgleichen" : "Abgleich starten"}
               </button>
               {lvImport.crossLvMatchedAt ? (
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {itemsWithCrossLvMatchCount}/{matchableItemCount} Positionen haben Treffer in anderen LVs
+                </p>
+              ) : null}
+              {lvImport.crossLvMatchedAt ? (
+                <p className="mt-1 text-xs text-gray-500">
                   Letzter Abgleich:{" "}
                   {new Intl.DateTimeFormat("de-DE", {
                     dateStyle: "short",
