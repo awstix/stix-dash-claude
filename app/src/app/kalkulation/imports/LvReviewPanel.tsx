@@ -52,11 +52,23 @@ function AnsatzActions({
     id: string;
     ansatzAlternativesJson: string | null;
     matchStatus: string;
+    rawText: string;
   };
 }) {
   const alternatives: StoredAnsatzAlternative[] = target.ansatzAlternativesJson
     ? JSON.parse(target.ansatzAlternativesJson)
     : [];
+  // Die erste Zeile von rawText beschreibt die Quelle des aktuell
+  // übernommenen Ansatzes ("Übernommen aus Projekt X (Ähnlichkeit Y%):" -
+  // siehe suggestAnsaetzeFromHistory/chooseAnsatzAlternative/
+  // adoptAnsatzFromCandidate in actions.ts, alle drei Schreibstellen
+  // beginnen rawText auf dieselbe Weise) - damit lässt sich der aktuelle
+  // Stand in derselben Liste wie die Alternativen hervorheben, ohne ihn
+  // separat zu speichern.
+  const activeSourceLabel =
+    target.matchStatus === "CONFIRMED"
+      ? /^Übernommen aus Projekt (.+):/.exec(target.rawText)?.[1]
+      : undefined;
   return (
     <div className="flex flex-col gap-2">
       {target.matchStatus !== "CONFIRMED" ? (
@@ -86,9 +98,19 @@ function AnsatzActions({
       {alternatives.length > 0 ? (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
-            Andere Vorschläge ({alternatives.length})
+            Vorschläge ({alternatives.length + (activeSourceLabel ? 1 : 0)})
           </summary>
           <div className="mt-1 space-y-1.5">
+            {activeSourceLabel ? (
+              <div className="rounded-lg border border-purple-300 bg-purple-50 p-1.5">
+                <span className="text-xs font-bold text-purple-800">
+                  ✓ Übernommen:{" "}
+                </span>
+                <span className="break-words text-xs text-gray-700">
+                  Projekt {activeSourceLabel}
+                </span>
+              </div>
+            ) : null}
             {alternatives.map((alternative, index) => (
               <div
                 className="border-t border-gray-100 pt-1"
@@ -876,6 +898,7 @@ export async function LvReviewPanel({
                               ansatzAlternativesJson:
                                 item.ansatzAlternativesJson,
                               matchStatus: item.matchStatus,
+                              rawText: item.rawText,
                             }}
                           />
                         ) : (
