@@ -434,6 +434,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       where: { entryType: "ITEM", lvImportId: existingKalkulationImport.id, positionNumber: { not: null } },
     });
 
+    // Für eine einfache, zutreffende Fehlermeldung unten: war schon jede
+    // Position entschieden (nichts zu tun), oder wurden offene Positionen
+    // versucht, aber ohne Treffer?
+    let attemptedCount = 0;
+
     for (const item of targetItems) {
       if (!item.positionNumber) continue;
       // Echte, direkt hochgeladene Ansätze (kein Vorschlag von uns) und
@@ -446,6 +451,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       if (isRealUploadedAnsatz || isDecided) continue;
       const ownText = ownTextByOz.get(item.positionNumber.trim());
       if (!ownText) continue;
+      attemptedCount += 1;
       const suggestion = findSuggestion(item.positionNumber, ownText);
       if (!suggestion) continue;
 
@@ -467,9 +473,11 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     }
 
     if (filledCount === 0) {
-      redirect(
-        `${returnTo}?importError=${encodeURIComponent("Keine leeren oder noch unentschiedenen Positionen mit ausreichend ähnlichen Ansätzen in anderen Projekten gefunden.")}`,
-      );
+      const message =
+        attemptedCount === 0
+          ? "Es gibt keine offenen Positionen mehr - alle sind schon bestätigt oder verworfen."
+          : "Für die noch offenen Positionen wurde in anderen Projekten kein ähnlicher Ansatz gefunden.";
+      redirect(`${returnTo}?importError=${encodeURIComponent(message)}`);
     }
 
     revalidatePath(`/kalkulation/imports/${existingKalkulationImport.id}`);
@@ -494,7 +502,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
 
     if (rowsToCreate.length === 0) {
       redirect(
-        `${returnTo}?importError=${encodeURIComponent("Keine ausreichend ähnlichen Ansätze in anderen Projekten gefunden.")}`,
+        `${returnTo}?importError=${encodeURIComponent("Für keine Position wurde in anderen Projekten ein ähnlicher Ansatz gefunden.")}`,
       );
     }
 

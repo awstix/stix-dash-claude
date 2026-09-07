@@ -38,6 +38,91 @@ function formatCents(cents: number | null) {
   }).format(cents / 100);
 }
 
+/** Übernehmen/Verwerfen/Andere Vorschläge für eine automatisch per Ansatz-
+ * Übernahme befüllte Kalkulationszeile - wird sowohl direkt in der
+ * Kalkulations-Tabelle als auch (über den verknüpften Kalkulations-
+ * Eintrag) direkt an der zugehörigen LV-Zeile gerendert, damit man nicht
+ * extra zur Kalkulations-Kachel scrollen muss, um eine Übernahme rückgängig
+ * zu machen. Übernehmen/Verwerfen bleiben auch nach einer Entscheidung
+ * nutzbar (nur die jeweils schon aktive Aktion wird ausgeblendet). */
+function AnsatzActions({
+  target,
+}: {
+  target: {
+    id: string;
+    ansatzAlternativesJson: string | null;
+    matchStatus: string;
+  };
+}) {
+  const alternatives: StoredAnsatzAlternative[] = target.ansatzAlternativesJson
+    ? JSON.parse(target.ansatzAlternativesJson)
+    : [];
+  return (
+    <div className="flex flex-col gap-2">
+      {target.matchStatus !== "CONFIRMED" ? (
+        <form action={confirmAnsatzSuggestion}>
+          <input name="lineItemId" type="hidden" value={target.id} />
+          <button
+            className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
+            title="Diesen übernommenen Ansatz behalten - zählt zum D31-Export dazu"
+            type="submit"
+          >
+            Übernehmen
+          </button>
+        </form>
+      ) : null}
+      {target.matchStatus !== "REJECTED" ? (
+        <form action={rejectAnsatzSuggestion}>
+          <input name="lineItemId" type="hidden" value={target.id} />
+          <button
+            className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+            title="Diesen Vorschlag verwerfen - fehlt dann im D31-Export"
+            type="submit"
+          >
+            Verwerfen
+          </button>
+        </form>
+      ) : null}
+      {alternatives.length > 0 ? (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
+            Andere Vorschläge ({alternatives.length})
+          </summary>
+          <div className="mt-1 space-y-1.5">
+            {alternatives.map((alternative, index) => (
+              <div
+                className="border-t border-gray-100 pt-1"
+                key={`${alternative.sourceProjectNumber}-${index}`}
+              >
+                <div className="break-words text-xs text-gray-700">
+                  Projekt {alternative.sourceProjectNumber} (
+                  {Math.round(alternative.similarity * 100)}%,{" "}
+                  {new Intl.DateTimeFormat("de-DE", {
+                    month: "2-digit",
+                    year: "numeric",
+                  }).format(new Date(alternative.sourceImportDate))}
+                  )
+                </div>
+                <form action={chooseAnsatzAlternative}>
+                  <input name="lineItemId" type="hidden" value={target.id} />
+                  <input name="alternativeIndex" type="hidden" value={index} />
+                  <button
+                    className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
+                    title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen und direkt bestätigen"
+                    type="submit"
+                  >
+                    Diesen stattdessen nehmen
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 /** Abgleich-Werkzeuge + die vollständige Positionstabelle eines LV-Imports
  * - ausgelagert aus der Einzel-Review-Seite (imports/[importId]/page.tsx),
  * damit dieselbe Ansicht auch direkt embedded auf der Projektseite
@@ -149,10 +234,18 @@ export async function LvReviewPanel({
   // Kalkulation dieses Projekts bereits einen übernommenen Ansatz hat -
   // sonst sieht man einem Klick auf "Ansatz übernehmen" nicht an, dass er
   // etwas bewirkt hat (er schreibt in die separate Kalkulationsdatei, die
-  // LV-Zeile selbst ändert sich dabei nicht).
+  // LV-Zeile selbst ändert sich dabei nicht). id/ansatzAlternativesJson
+  // werden mitgeführt, damit sich Verwerfen/Andere Vorschläge auch direkt
+  // von der LV-Zeile aus bedienen lassen (Status/Aktion sind bei einer
+  // reinen LV-Zeile sonst tot, seit der Preiskatalog-Abgleich entfernt ist).
   let ownAnsatzStatusByOz = new Map<
     string,
-    { matchStatus: string; rawText: string }
+    {
+      id: string;
+      ansatzAlternativesJson: string | null;
+      matchStatus: string;
+      rawText: string;
+    }
   >();
   // Welche anderen Projekte überhaupt eine als final markierte Kalkulation
   // haben - Grundlage für die Projekt-Auswahl neben "Ansätze aus anderen
@@ -211,12 +304,23 @@ export async function LvReviewPanel({
           matchedVia: "CROSS_PROJECT_ANSATZ",
           positionNumber: { not: null },
         },
-        select: { matchStatus: true, positionNumber: true, rawText: true },
+        select: {
+          ansatzAlternativesJson: true,
+          id: true,
+          matchStatus: true,
+          positionNumber: true,
+          rawText: true,
+        },
       });
       ownAnsatzStatusByOz = new Map(
         ownAnsatzItems.map((row) => [
           row.positionNumber!.trim(),
-          { matchStatus: row.matchStatus, rawText: row.rawText },
+          {
+            id: row.id,
+            ansatzAlternativesJson: row.ansatzAlternativesJson,
+            matchStatus: row.matchStatus,
+            rawText: row.rawText,
+          },
         ]),
       );
     }
@@ -585,28 +689,15 @@ export async function LvReviewPanel({
                             const ansatzStatus = ownAnsatzStatusByOz.get(
                               item.positionNumber!.trim(),
                             )!;
-                            const isConfirmed =
-                              ansatzStatus.matchStatus === "CONFIRMED";
                             return (
-                              <div
-                                className={`mb-2 rounded-lg border p-2 text-xs ${isConfirmed ? "border-purple-200 bg-purple-50" : "border-gray-200 bg-gray-50"}`}
-                              >
-                                <span
-                                  className={`font-bold ${isConfirmed ? "text-purple-800" : "text-gray-600"}`}
-                                >
-                                  {isConfirmed
-                                    ? "✓ Ansatz in eigener Kalkulation übernommen"
-                                    : "Ansatz verworfen"}
-                                </span>
-                                <details className="mt-1">
-                                  <summary className="cursor-pointer font-semibold text-blue-700 underline">
-                                    Ansatz anzeigen
-                                  </summary>
-                                  <p className="mt-1 whitespace-pre-line break-words text-gray-700">
-                                    {ansatzStatus.rawText}
-                                  </p>
-                                </details>
-                              </div>
+                              <details className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
+                                <summary className="cursor-pointer font-semibold text-blue-700 underline">
+                                  Übernommenen Ansatz anzeigen
+                                </summary>
+                                <p className="mt-1 whitespace-pre-line break-words text-gray-700">
+                                  {ansatzStatus.rawText}
+                                </p>
+                              </details>
                             );
                           })()
                         : null}
@@ -738,123 +829,71 @@ export async function LvReviewPanel({
                       )}
                     </td>
                     <td className="p-3">
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}
-                      >
-                        {status.label}
-                      </span>
+                      {isKalkulation ? (
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      ) : (
+                        (() => {
+                          // Preis-/Katalog-Status gibt es für eine reine
+                          // LV-Zeile nicht mehr (Preiskatalog-Abgleich
+                          // entfernt) - hier zählt nur noch, ob für diese
+                          // Position bereits ein Ansatz übernommen wurde.
+                          const ansatzStatus = item.positionNumber
+                            ? ownAnsatzStatusByOz.get(
+                                item.positionNumber.trim(),
+                              )
+                            : undefined;
+                          if (!ansatzStatus) {
+                            return (
+                              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                Offen
+                              </span>
+                            );
+                          }
+                          const isConfirmed =
+                            ansatzStatus.matchStatus === "CONFIRMED";
+                          return (
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs font-semibold ${isConfirmed ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800"}`}
+                            >
+                              {isConfirmed
+                                ? "Ansatz übernommen"
+                                : "Ansatz verworfen"}
+                            </span>
+                          );
+                        })()
+                      )}
                     </td>
                     <td className="w-40 max-w-40 p-3">
-                      {item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
-                        <div className="flex flex-col gap-2">
-                          {/* Übernehmen/Verwerfen bleiben auch nach einer
-                           * Entscheidung nutzbar (nur die jeweils schon
-                           * aktive Aktion wird ausgeblendet) - sonst gibt es
-                           * nach einem Klick keine Möglichkeit mehr, die
-                           * Entscheidung zu ändern oder eine Alternative zu
-                           * wählen. */}
-                          {item.matchStatus !== "CONFIRMED" ? (
-                            <form action={confirmAnsatzSuggestion}>
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <button
-                                className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
-                                title="Diesen übernommenen Ansatz behalten - zählt zum D31-Export dazu"
-                                type="submit"
-                              >
-                                Übernehmen
-                              </button>
-                            </form>
-                          ) : null}
-                          {item.matchStatus !== "REJECTED" ? (
-                            <form action={rejectAnsatzSuggestion}>
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <button
-                                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
-                                title="Diesen Vorschlag verwerfen - fehlt dann im D31-Export"
-                                type="submit"
-                              >
-                                Verwerfen
-                              </button>
-                            </form>
-                          ) : null}
-                          {item.ansatzAlternativesJson
-                            ? (() => {
-                                const alternatives: StoredAnsatzAlternative[] =
-                                  JSON.parse(item.ansatzAlternativesJson);
-                                if (alternatives.length === 0) return null;
-                                return (
-                                  <details className="mt-1">
-                                    <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
-                                      Andere Vorschläge ({alternatives.length})
-                                    </summary>
-                                    <div className="mt-1 space-y-1.5">
-                                      {alternatives.map(
-                                        (alternative, index) => (
-                                          <div
-                                            className="border-t border-gray-100 pt-1"
-                                            key={`${alternative.sourceProjectNumber}-${index}`}
-                                          >
-                                            <div className="break-words text-xs text-gray-700">
-                                              Projekt{" "}
-                                              {alternative.sourceProjectNumber}{" "}
-                                              (
-                                              {Math.round(
-                                                alternative.similarity * 100,
-                                              )}
-                                              %,{" "}
-                                              {new Intl.DateTimeFormat(
-                                                "de-DE",
-                                                {
-                                                  month: "2-digit",
-                                                  year: "numeric",
-                                                },
-                                              ).format(
-                                                new Date(
-                                                  alternative.sourceImportDate,
-                                                ),
-                                              )}
-                                              )
-                                            </div>
-                                            <form
-                                              action={chooseAnsatzAlternative}
-                                            >
-                                              <input
-                                                name="lineItemId"
-                                                type="hidden"
-                                                value={item.id}
-                                              />
-                                              <input
-                                                name="alternativeIndex"
-                                                type="hidden"
-                                                value={index}
-                                              />
-                                              <button
-                                                className="mt-0.5 rounded-lg border border-purple-300 bg-purple-50 px-2 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100"
-                                                title="Diesen Ansatz aus diesem Projekt stattdessen übernehmen und direkt bestätigen"
-                                                type="submit"
-                                              >
-                                                Diesen stattdessen nehmen
-                                              </button>
-                                            </form>
-                                          </div>
-                                        ),
-                                      )}
-                                    </div>
-                                  </details>
-                                );
-                              })()
-                            : null}
-                        </div>
+                      {isKalkulation ? (
+                        item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
+                          <AnsatzActions
+                            target={{
+                              id: item.id,
+                              ansatzAlternativesJson:
+                                item.ansatzAlternativesJson,
+                              matchStatus: item.matchStatus,
+                            }}
+                          />
+                        ) : (
+                          <span className="text-gray-400">–</span>
+                        )
                       ) : (
-                        <span className="text-gray-400">–</span>
+                        (() => {
+                          const ansatzStatus = item.positionNumber
+                            ? ownAnsatzStatusByOz.get(
+                                item.positionNumber.trim(),
+                              )
+                            : undefined;
+                          return ansatzStatus ? (
+                            <AnsatzActions target={ansatzStatus} />
+                          ) : (
+                            <span className="text-gray-400">–</span>
+                          );
+                        })()
                       )}
                     </td>
                   </tr>
