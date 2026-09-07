@@ -240,7 +240,6 @@ export async function LvReviewPanel({
            * Button hier würde also ohnehin an dieser Datei vorbeischreiben. */}
           {lvImport.projectNumber && !lvImport.isFinalCalculation ? (
             <AnsatzSuggestForm
-              eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
               projectNumber={lvImport.projectNumber}
               returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
             />
@@ -325,6 +324,22 @@ export async function LvReviewPanel({
                   Einheit muss gleich sein
                 </label>
               </div>
+              <label className="mt-3 block text-sm font-semibold text-gray-900">
+                Gegen welche Projekte?
+                <select
+                  className="mt-1 w-full max-w-xs rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  defaultValue={lvImport.crossLvTargetProjectNumber ?? ""}
+                  name="targetProjectNumber"
+                  title="Gilt für 'Abgleich starten' und 'Ansätze aus anderen Projekten vorschlagen' gleichermaßen"
+                >
+                  <option value="">Alle Projekte</option>
+                  {eligibleTargetProjectNumbers.map((number) => (
+                    <option key={number} value={number}>
+                      Nur Projekt {number}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
                 title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
@@ -345,6 +360,10 @@ export async function LvReviewPanel({
                   {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
                   {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
                   {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
+                  {" · "}
+                  {lvImport.crossLvTargetProjectNumber
+                    ? `Nur Projekt ${lvImport.crossLvTargetProjectNumber}`
+                    : "Alle Projekte"}
                 </p>
               ) : null}
             </ImportForm>
@@ -356,7 +375,6 @@ export async function LvReviewPanel({
             <div className="flex flex-1 flex-col items-start gap-2">
               {lvImport.projectNumber ? (
                 <AnsatzSuggestForm
-                  eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
                   projectNumber={lvImport.projectNumber}
                   returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
                 />

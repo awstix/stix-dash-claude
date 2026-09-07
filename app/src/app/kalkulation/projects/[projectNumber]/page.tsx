@@ -157,18 +157,6 @@ export default async function KalkulationProjectPage({
     }),
   );
 
-  // Für die Projekt-Auswahl neben "Ansätze aus anderen Projekten
-  // vorschlagen" im Bootstrap-Fall (noch keine eigene Kalkulation
-  // hochgeladen) - dieselbe Liste wie im LV-Panel selbst.
-  const finalKalkulationImportsElsewhere = await prisma.kalkulationLvImport.findMany({
-    distinct: ["projectNumber"],
-    select: { projectNumber: true },
-    where: { isFinalCalculation: true, projectNumber: { not: projectNumber }, sourceFormat: "RIB_KALKULATION" },
-  });
-  const eligibleTargetProjectNumbers = finalKalkulationImportsElsewhere
-    .map((entry) => entry.projectNumber)
-    .filter((value): value is string => Boolean(value));
-
   const returnTo = `/kalkulation/projects/${encodeURIComponent(projectNumber)}`;
 
   return (
@@ -204,11 +192,7 @@ export default async function KalkulationProjectPage({
           extraEmptyContent={
             lvImports.length > 0 ? (
               <div className="mt-2 border-t border-gray-100 pt-2">
-                <AnsatzSuggestForm
-                  eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
-                  projectNumber={project.projectNumber}
-                  returnTo={returnTo}
-                />
+                <AnsatzSuggestForm projectNumber={project.projectNumber} returnTo={returnTo} />
               </div>
             ) : null
           }

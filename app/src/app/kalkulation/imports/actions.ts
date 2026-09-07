@@ -732,9 +732,6 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   const projectNumber = text(formData.get("projectNumber"));
   const returnTo = text(formData.get("returnTo")) || "/kalkulation/projects";
   if (!projectNumber) throw new Error("Projektnummer fehlt.");
-  // Optional: gezielt gegen genau ein anderes Projekt abgleichen statt
-  // gegen den gesamten Pool - leer/nicht gesetzt heißt "alle Projekte".
-  const targetProjectNumber = text(formData.get("targetProjectNumber")) || undefined;
 
   const project = await prisma.kalkulationProject.findUnique({ where: { projectNumber } });
   if (!project) throw new Error("Projekt nicht gefunden.");
@@ -755,6 +752,9 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   // Non-null-Zwischenvariable, weil TypeScript die obige Narrowing-Prüfung
   // nicht in die weiter unten definierte findSuggestion-Closure überträgt.
   const ownLvImportChecked = ownLvImport;
+  // Derselbe Projekt-Filter wie "Abgleich starten" (im LV selbst
+  // eingestellt, siehe updateCrossLvSettings) - leer heißt "alle Projekte".
+  const targetProjectNumber = ownLvImportChecked.crossLvTargetProjectNumber ?? undefined;
 
   const ownLineItems = await prisma.kalkulationLvLineItem.findMany({
     orderBy: { rowNumber: "asc" },
@@ -1081,8 +1081,11 @@ export async function updateCrossLvSettings(formData: FormData) {
   const exactEinheit = formData.get("crossLvExactEinheit") === "on";
   const kurztextThreshold = kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5;
   const langtextThreshold = langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3;
+  // Leer = gegen alle anderen Projekte - gilt danach auch für "Ansätze aus
+  // anderen Projekten vorschlagen" (liest denselben gespeicherten Wert).
+  const targetProjectNumber = text(formData.get("targetProjectNumber")) || null;
 
-  await prisma.kalkulationLvImport.update({
+  const updatedImport = await prisma.kalkulationLvImport.update({
     data: {
       crossLvExactEinheit: exactEinheit,
       crossLvExactMenge: exactMenge,
@@ -1090,6 +1093,7 @@ export async function updateCrossLvSettings(formData: FormData) {
       crossLvLangtextThreshold: langtextThreshold,
       crossLvMatchedAt: new Date(),
       crossLvMatchedByUserId: session.user.id,
+      crossLvTargetProjectNumber: targetProjectNumber,
     },
     where: { id: importId },
   });
@@ -1108,6 +1112,11 @@ export async function updateCrossLvSettings(formData: FormData) {
         entryType: "ITEM",
         lvImportId: { not: importId },
         NOT: { shortText: { startsWith: "Kalkulation OZ " } },
+        ...(targetProjectNumber
+          ? { lvImport: { projectNumber: targetProjectNumber } }
+          : updatedImport.projectNumber
+            ? { lvImport: { projectNumber: { not: updatedImport.projectNumber } } }
+            : {}),
       },
     }),
   ]);

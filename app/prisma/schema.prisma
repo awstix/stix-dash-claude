@@ -3748,6 +3748,12 @@ model KalkulationLvImport {
   crossLvLangtextThreshold Float     @default(0.3)
   crossLvExactMenge        Boolean   @default(false)
   crossLvExactEinheit      Boolean   @default(false)
+  // Leer = gegen alle anderen Projekte, sonst nur gegen dieses eine -
+  // gilt sowohl für "Abgleich starten" als auch für "Ansätze aus anderen
+  // Projekten vorschlagen" (liest dort direkt dieses Feld statt eines
+  // eigenen Formularfelds, damit beide Aktionen konsistent denselben
+  // Projekt-Filter verwenden).
+  crossLvTargetProjectNumber String?
   crossLvMatchedAt         DateTime? // wann zuletzt "Ähnlich in anderen LVs laden" mit diesen Einstellungen lief
   crossLvMatchedByUserId   String?
   crossLvMatchedByUser     User?     @relation("KalkulationCrossLvMatchedBy", fields: [crossLvMatchedByUserId], references: [id], onDelete: SetNull)
