@@ -19,25 +19,56 @@ export default async function KalkulationProjectsPage({
 
   const [imports, aiSettings] = await Promise.all([
     prisma.kalkulationLvImport.findMany({
-      select: { lvType: true, projectNumber: true, sourceFormat: true },
+      select: { id: true, isFinalCalculation: true, projectNumber: true, sourceFormat: true },
     }),
     getAiSettings(),
   ]);
   const aiConfigured = isAiConfigured(aiSettings);
 
-  // Drei feste Spalten pro Projekt (LV/Angebotsanfrage, RIB-Kalkulation,
-  // kalkuliertes LV) - hier nur als Trefferzahl je Spalte, damit man auf
-  // einen Blick sieht, was für ein Projekt schon vorhanden ist. Immer über
-  // ALLE Imports berechnet, unabhängig von der Suche.
-  const slotCountsByProject = new Map<string, { angebot: number; kalkulation: number; lv: number }>();
+  // Drei feste Spalten pro Projekt, spiegelt die drei Kacheln der
+  // Projekt-Detailseite (LV Angebotsabgabe / Kalkulation-Entwurf / Finale
+  // Kalkulation - siehe [projectNumber]/page.tsx) - vorher gab es hier noch
+  // eine eigene "Kalkuliertes LV"-Spalte für die nie genutzte lvType-
+  // Aufteilung, die mit der Umbenennung dieser Kachel entfallen ist.
+  const slotCountsByProject = new Map<
+    string,
+    { entwurfImportId: string | null; finalCount: number; lv: number }
+  >();
   for (const item of imports) {
     if (!item.projectNumber) continue;
-    const counts = slotCountsByProject.get(item.projectNumber) ?? { angebot: 0, kalkulation: 0, lv: 0 };
-    if (item.sourceFormat === "RIB_KALKULATION") counts.kalkulation += 1;
-    else if (item.lvType === "ANGEBOT" || item.lvType === "AUFTRAG") counts.angebot += 1;
-    else counts.lv += 1;
+    const counts = slotCountsByProject.get(item.projectNumber) ?? { entwurfImportId: null, finalCount: 0, lv: 0 };
+    if (item.sourceFormat === "RIB_KALKULATION") {
+      if (item.isFinalCalculation) counts.finalCount += 1;
+      else counts.entwurfImportId = item.id;
+    } else {
+      counts.lv += 1;
+    }
     slotCountsByProject.set(item.projectNumber, counts);
   }
+
+  // Für die Entwurfs-Spalte: "leer" vs. "X von Y kalkuliert", dieselbe
+  // Erkennung wie der Badge auf der Projekt-Detailseite (ribBlockIsEmpty-
+  // Logik in actions.ts) - nur für Projekte mit einem Entwurf, nicht für
+  // jedes Projekt in der Liste.
+  const entwurfFillCounts = new Map<string, { filled: number; total: number }>();
+  await Promise.all(
+    [...slotCountsByProject.values()]
+      .map((counts) => counts.entwurfImportId)
+      .filter((id): id is string => Boolean(id))
+      .map(async (entwurfImportId) => {
+        const [filled, total] = await Promise.all([
+          prisma.kalkulationLvLineItem.count({
+            where: {
+              entryType: "ITEM",
+              lvImportId: entwurfImportId,
+              OR: [{ ribRawBlock: { contains: "#begin[_RIB_BstnA]" } }, { ribRawBlock: { contains: "#begin[_RIB_KoaA]" } }],
+            },
+          }),
+          prisma.kalkulationLvLineItem.count({ where: { entryType: "ITEM", lvImportId: entwurfImportId } }),
+        ]);
+        entwurfFillCounts.set(entwurfImportId, { filled, total });
+      }),
+  );
 
   // Durchsucht Projektnummer/-name direkt UND - eine Ebene tiefer - Dateiname
   // sowie einzelne Positionen innerhalb der zugehörigen LVs (frühere
@@ -82,7 +113,7 @@ export default async function KalkulationProjectsPage({
 
   return (
     <AppShell
-      description="Bündelt LV/Angebotsanfrage, RIB-Urkalkulation und kalkuliertes LV je Bauvorhaben an einer Stelle."
+      description="Bündelt LV, Kalkulations-Entwurf und finale Kalkulation je Bauvorhaben an einer Stelle."
       title="Kalkulation - Projekte"
     >
       <div className="mb-6 flex flex-wrap gap-2">
@@ -135,15 +166,29 @@ export default async function KalkulationProjectsPage({
           <thead className="bg-gray-50 text-gray-700">
             <tr>
               <th className="p-3">Projekt</th>
-              <th className="p-3">LV / Angebotsanfrage</th>
-              <th className="p-3">Kalkulation (XML)</th>
-              <th className="p-3">Kalkuliertes LV</th>
+              <th className="p-3">LV / Angebotsabgabe</th>
+              <th className="p-3">Kalkulation (Entwurf)</th>
+              <th className="p-3">Finale Kalkulation</th>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
             {projects.map((project) => {
-              const counts = slotCountsByProject.get(project.projectNumber) ?? { angebot: 0, kalkulation: 0, lv: 0 };
+              const counts = slotCountsByProject.get(project.projectNumber) ?? {
+                entwurfImportId: null,
+                finalCount: 0,
+                lv: 0,
+              };
+              const entwurfCounts = counts.entwurfImportId ? entwurfFillCounts.get(counts.entwurfImportId) : null;
+              const entwurfLabel = !counts.entwurfImportId
+                ? "–"
+                : !entwurfCounts || entwurfCounts.total === 0
+                  ? "leer"
+                  : entwurfCounts.filled === 0
+                    ? "leer"
+                    : entwurfCounts.filled === entwurfCounts.total
+                      ? "vollständig kalkuliert"
+                      : `${entwurfCounts.filled} von ${entwurfCounts.total} kalkuliert`;
               return (
                 <tr className="border-t border-gray-100" key={project.id}>
                   <td className="p-3">
@@ -156,8 +201,10 @@ export default async function KalkulationProjectsPage({
                     {project.tenderTitle ? <div className="text-xs text-gray-500">{project.tenderTitle}</div> : null}
                   </td>
                   <td className="p-3 font-semibold text-gray-900">{counts.lv > 0 ? `✓ (${counts.lv})` : "–"}</td>
-                  <td className="p-3 font-semibold text-gray-900">{counts.kalkulation > 0 ? `✓ (${counts.kalkulation})` : "–"}</td>
-                  <td className="p-3 font-semibold text-gray-900">{counts.angebot > 0 ? `✓ (${counts.angebot})` : "–"}</td>
+                  <td className="p-3 font-semibold text-gray-900">{entwurfLabel}</td>
+                  <td className="p-3 font-semibold text-gray-900">
+                    {counts.finalCount > 0 ? `✓ (${counts.finalCount})` : "–"}
+                  </td>
                   <td className="p-3">
                     <form action={deleteKalkulationProject}>
                       <input name="projectNumber" type="hidden" value={project.projectNumber} />
