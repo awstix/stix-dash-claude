@@ -13,11 +13,11 @@ import {
   manualMatch,
   rejectAnsatzSuggestion,
   rejectMatch,
-  suggestAnsaetzeFromHistory,
   updateCrossLvSettings,
 } from "./actions";
+import { AnsatzSuggestForm } from "./AnsatzSuggestForm";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
-import { buildLvMatches } from "@/lib/kalkulation-matching";
+import type { StoredCrossLvMatch } from "@/lib/kalkulation-matching";
 import {
   ansatzPoolByProjectAndOz,
   buildAnsatzPool,
@@ -46,23 +46,17 @@ function formatCents(cents: number | null) {
  * damit dieselbe Ansicht auch direkt embedded auf der Projektseite
  * gerendert werden kann, statt dorthin verlinken zu müssen.
  *
- * `showCrossLvMatches`/`crossLvToggleHref`: der Live-Vergleich gegen ALLE
- * Positionen anderer LVs in der ganzen DB ist teuer (skaliert mit der
- * Gesamtmenge an Positionen) - lief früher bei jedem Seitenaufruf
- * automatisch mit und hat bei mehreren eingebetteten Panels (Projektseite
- * mit 3 Imports) zu spürbaren Ladezeiten geführt. Deshalb jetzt bewusst
- * per Link zuschaltbar statt automatisch, analog zum bestehenden
- * "KI-Abgleich nur per Klick"-Prinzip. */
+ * Der Vergleich gegen ALLE Positionen anderer LVs in der ganzen DB ist
+ * teuer (skaliert mit der Gesamtmenge an Positionen) - läuft deshalb nur
+ * beim Klick auf "Abgleich starten" (siehe updateCrossLvSettings in
+ * actions.ts), das Ergebnis wird dort gespeichert und hier nur noch
+ * gelesen, nicht bei jedem Seitenaufruf neu berechnet. */
 export async function LvReviewPanel({
-  crossLvToggleHref,
   importId,
   returnTo,
-  showCrossLvMatches = false,
 }: {
-  crossLvToggleHref: string;
   importId: string;
   returnTo?: string;
-  showCrossLvMatches?: boolean;
 }) {
   const [lvImport, lineItems, positions] = await Promise.all([
     prisma.kalkulationLvImport.findUniqueOrThrow({
@@ -107,15 +101,12 @@ export async function LvReviewPanel({
     priceHistoryByPosition.set(row.matchedPositionId, existing);
   }
 
-  // Direkter Vergleich gegen Positionen ANDERER bereits importierter LVs
-  // UND Kalkulationen - unabhängig davon, ob dort schon irgendetwas
-  // bestätigt/katalogisiert wurde. Ergänzt (ersetzt nicht) den Katalog-
-  // Abgleich. Teuer (skaliert mit der Gesamtmenge an Positionen in der DB)
-  // - läuft deshalb nur, wenn explizit zugeschaltet (siehe
-  // showCrossLvMatches oben). Getrennte Kurztext-/Langtext-Schwellen +
-  // je ein exakter Menge- bzw. Einheit-Filter statt einer einzelnen
-  // Ähnlichkeit (siehe buildLvMatches) - ein Kandidat muss alle aktiven
-  // Kriterien erfüllen.
+  // Ergebnis von "Abgleich starten" wird beim Klick berechnet und in
+  // crossLvMatchesJson je Position gespeichert (siehe updateCrossLvSettings
+  // in actions.ts) - hier nur noch aus der Datenbank laden und die
+  // referenzierten Quell-Positionen auflösen, keine Live-Berechnung mehr
+  // bei jedem Seitenaufruf. Zeigt so immer den letzten Abgleich-Stand,
+  // auch ohne ihn erneut auszulösen.
   type CrossLvItem = Awaited<ReturnType<typeof prisma.kalkulationLvLineItem.findMany<{ include: { lvImport: true } }>>>[number];
   type CrossLvMatch = {
     exactEinheitMatch: boolean;
@@ -125,58 +116,35 @@ export async function LvReviewPanel({
     source: CrossLvItem;
   };
   const crossLvMatchesByLineItem = new Map<string, CrossLvMatch[]>();
-  if (showCrossLvMatches) {
-    const otherLvItems = await prisma.kalkulationLvLineItem.findMany({
-      where: {
-        entryType: "ITEM",
-        lvImportId: { not: importId },
-        // D31-Positionen ohne echten Text (Platzhalter "Kalkulation OZ X",
-        // siehe kalkulation-ansatz-pool.ts) taugen nicht für den
-        // Textvergleich - raus, sonst nur falsche Treffer.
-        NOT: { shortText: { startsWith: "Kalkulation OZ " } },
-      },
+  const storedMatchesByItemId = new Map<string, StoredCrossLvMatch[]>();
+  const referencedSourceIds = new Set<string>();
+  for (const item of lineItems) {
+    if (!item.crossLvMatchesJson) continue;
+    const stored: StoredCrossLvMatch[] = JSON.parse(item.crossLvMatchesJson);
+    storedMatchesByItemId.set(item.id, stored);
+    for (const match of stored) referencedSourceIds.add(match.sourceLineItemId);
+  }
+  if (referencedSourceIds.size > 0) {
+    const sourceItems = await prisma.kalkulationLvLineItem.findMany({
       include: { lvImport: true },
-      orderBy: { createdAt: "desc" },
-      take: 3000,
+      where: { id: { in: [...referencedSourceIds] } },
     });
-    const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
-    const candidateInputs = otherLvItems.map((row) => ({
-      id: row.id,
-      quantity: row.quantity,
-      rawText: row.rawText,
-      shortText: row.shortText,
-      unit: row.unit,
-    }));
-
-    for (const item of lineItems) {
-      if (item.entryType !== "ITEM") continue;
-      const matches = buildLvMatches(
-        { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
-        candidateInputs,
-        {
-          exactEinheit: lvImport.crossLvExactEinheit,
-          exactMenge: lvImport.crossLvExactMenge,
-          kurztextThreshold: lvImport.crossLvKurztextThreshold,
-          langtextThreshold: lvImport.crossLvLangtextThreshold,
-        },
-      );
-      const bestPerImport = new Map<string, CrossLvMatch>();
-      for (const match of matches) {
-        const source = otherLvItemsById.get(match.candidateId);
-        if (!source) continue;
-        const existing = bestPerImport.get(source.lvImportId);
-        if (!existing || match.langtextScore > existing.langtextScore) {
-          bestPerImport.set(source.lvImportId, {
+    const sourceItemsById = new Map(sourceItems.map((row) => [row.id, row]));
+    for (const [itemId, stored] of storedMatchesByItemId) {
+      const resolved = stored
+        .map((match) => {
+          const source = sourceItemsById.get(match.sourceLineItemId);
+          if (!source) return null;
+          return {
             exactEinheitMatch: match.exactEinheitMatch,
             exactMengeMatch: match.exactMengeMatch,
             kurztextScore: match.kurztextScore,
             langtextScore: match.langtextScore,
             source,
-          });
-        }
-      }
-      const top3 = [...bestPerImport.values()].sort((a, b) => b.langtextScore - a.langtextScore).slice(0, 3);
-      if (top3.length > 0) crossLvMatchesByLineItem.set(item.id, top3);
+          } satisfies CrossLvMatch;
+        })
+        .filter((match): match is CrossLvMatch => match !== null);
+      if (resolved.length > 0) crossLvMatchesByLineItem.set(itemId, resolved);
     }
   }
 
@@ -203,18 +171,12 @@ export async function LvReviewPanel({
   // XML-eigene Textähnlichkeit zu prüfen).
   let linkedKalkulationImportId: string | null = null;
   let linkedKalkulationHasExportableItems = false;
-  let eligibleTargetProjectNumbers: string[] = [];
   let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
-  if (!isKalkulation && lvImport.projectNumber) {
-    const [linkedKalkulationImport, finalKalkulationImports] = await Promise.all([
-      // isFinalCalculation: false - der Export-Link hier zeigt immer die
-      // vorkalkulierte Entwurfsdatei, nie die als final hochgeladene
-      // Referenz (die hat ihre eigene Kachel "Finale Kalkulation").
-      prisma.kalkulationLvImport.findFirst({
-        orderBy: { createdAt: "desc" },
-        where: { isFinalCalculation: false, projectNumber: lvImport.projectNumber, sourceFormat: "RIB_KALKULATION" },
-      }),
-      prisma.kalkulationLvImport.findMany({
+  // Welche anderen Projekte überhaupt eine als final markierte Kalkulation
+  // haben - Grundlage für die Projekt-Auswahl neben "Ansätze aus anderen
+  // Projekten vorschlagen" (gilt für beide Zweige: LV und Kalkulation).
+  const finalKalkulationImports = lvImport.projectNumber
+    ? await prisma.kalkulationLvImport.findMany({
         distinct: ["projectNumber"],
         select: { projectNumber: true },
         where: {
@@ -222,11 +184,22 @@ export async function LvReviewPanel({
           projectNumber: { not: lvImport.projectNumber },
           sourceFormat: "RIB_KALKULATION",
         },
-      }),
-    ]);
-    eligibleTargetProjectNumbers = finalKalkulationImports
-      .map((entry) => entry.projectNumber)
-      .filter((value): value is string => Boolean(value));
+      })
+    : [];
+  const eligibleTargetProjectNumbers = finalKalkulationImports
+    .map((entry) => entry.projectNumber)
+    .filter((value): value is string => Boolean(value));
+  if (!isKalkulation && lvImport.projectNumber) {
+    // Der verknüpfte Kalkulations-Import dieses Projekts (falls vorhanden)
+    // - damit sich "Als XML exportieren" direkt von hier aus bedienen
+    // lässt, ohne zum separaten Kalkulations-Panel scrollen zu müssen.
+    // isFinalCalculation: false, weil dieser Export-Link immer die
+    // vorkalkulierte Entwurfsdatei zeigt, nie die als final hochgeladene
+    // Referenz (die hat ihre eigene Kachel "Finale Kalkulation").
+    const linkedKalkulationImport = await prisma.kalkulationLvImport.findFirst({
+      orderBy: { createdAt: "desc" },
+      where: { isFinalCalculation: false, projectNumber: lvImport.projectNumber, sourceFormat: "RIB_KALKULATION" },
+    });
     if (linkedKalkulationImport) {
       linkedKalkulationImportId = linkedKalkulationImport.id;
       linkedKalkulationHasExportableItems =
@@ -234,10 +207,13 @@ export async function LvReviewPanel({
           where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
         })) > 0;
     }
-    if (showCrossLvMatches) {
-      const pool = await buildAnsatzPool(lvImport.projectNumber);
-      ansatzByProjectAndOz = ansatzPoolByProjectAndOz(pool);
-    }
+    // Ein OZ-Nachschlag, welche der "Ähnlich in anderen LVs"-Treffer
+    // bereits einen Ansatz haben (siehe findAnsatzCandidatesViaLvMatch in
+    // kalkulation-ansatz-pool.ts - genau dieselbe Logik wie beim
+    // Massen-Vorschlag, statt nur die Kalkulations-XML-eigene
+    // Textähnlichkeit zu prüfen).
+    const pool = await buildAnsatzPool(lvImport.projectNumber);
+    ansatzByProjectAndOz = ansatzPoolByProjectAndOz(pool);
   }
 
   return (
@@ -256,17 +232,11 @@ export async function LvReviewPanel({
            * isFinalCalculation-Filter in suggestAnsaetzeFromHistory), der
            * Button hier würde also ohnehin an dieser Datei vorbeischreiben. */}
           {lvImport.projectNumber && !lvImport.isFinalCalculation ? (
-            <form action={suggestAnsaetzeFromHistory}>
-              <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
-              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-              <button
-                className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                title="Befüllt noch leere Positionen dieser Kalkulation mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
-                type="submit"
-              >
-                Ansätze aus anderen Projekten vorschlagen
-              </button>
-            </form>
+            <AnsatzSuggestForm
+              eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
+              projectNumber={lvImport.projectNumber}
+              returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
+            />
           ) : null}
 
           {lineItems.some((item) => item.ribRawBlockXml) ? (
@@ -281,116 +251,103 @@ export async function LvReviewPanel({
         </div>
       ) : (
         <>
-          {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
-           * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
-           * zu ändern und erneut abzugleichen. */}
-          <form
-            action={updateCrossLvSettings}
-            className="mb-3 max-w-2xl rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
-          >
-            <input name="importId" type="hidden" value={importId} />
-            <input name="returnTo" type="hidden" value={crossLvToggleHref} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <MatchingThresholdInput
-                defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
-                label="Kurztext-Ähnlichkeit"
-                max={100}
-                min={0}
-                name="crossLvKurztextThreshold"
-              />
-              <MatchingThresholdInput
-                defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
-                label="Langtext-Ähnlichkeit"
-                max={100}
-                min={0}
-                name="crossLvLangtextThreshold"
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <input
-                  className="h-5 w-5 accent-gray-900"
-                  defaultChecked={lvImport.crossLvExactMenge}
-                  name="crossLvExactMenge"
-                  type="checkbox"
-                />
-                Menge muss gleich sein
-              </label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <input
-                  className="h-5 w-5 accent-gray-900"
-                  defaultChecked={lvImport.crossLvExactEinheit}
-                  name="crossLvExactEinheit"
-                  type="checkbox"
-                />
-                Einheit muss gleich sein
-              </label>
-            </div>
-            <button
-              className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-              title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
-              type="submit"
+          {/* Abgleich-Kachel und Ansätze-vorschlagen-Block nebeneinander -
+           * bei max-w-2xl auf der Abgleich-Kachel bleibt auf normalen
+           * Bildschirmbreiten genug Platz rechts daneben frei, statt beides
+           * in getrennten volle-Breite-Zeilen untereinander zu zeigen. */}
+          <div className="mb-3 flex flex-wrap items-start gap-4">
+            {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
+             * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
+             * zu ändern und erneut abzugleichen. */}
+            <form
+              action={updateCrossLvSettings}
+              className="max-w-2xl flex-1 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
             >
-              {showCrossLvMatches ? "Erneut abgleichen" : "Abgleich starten"}
-            </button>
-            {lvImport.crossLvMatchedAt ? (
-              <p className="mt-2 text-xs text-gray-500">
-                Letzter Abgleich:{" "}
-                {new Intl.DateTimeFormat("de-DE", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                  timeZone: "Europe/Berlin",
-                }).format(lvImport.crossLvMatchedAt)}
-                {lvImport.crossLvMatchedByUser ? ` von ${lvImport.crossLvMatchedByUser.name}` : ""}
-                {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
-                {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
-                {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
-                {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
-              </p>
-            ) : null}
-          </form>
-
-          {/* Wichtigste Aktionen zuerst: Ansätze vorschlagen und der
-           * Export der daraus entstehenden vorkalkulierten XML - vorher
-           * stand der Export-Link ganz am Ende der Reihe, nach GAEB/Excel/
-           * PDF, obwohl er der eigentliche Ziel-Download dieses Ablaufs ist. */}
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            {lvImport.projectNumber ? (
-              <form action={suggestAnsaetzeFromHistory} className="flex flex-wrap items-center gap-2">
-                <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
-                <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-                <select
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                  defaultValue=""
-                  name="targetProjectNumber"
-                  title="Gegen alle Projekte oder gezielt gegen ein bestimmtes Projekt abgleichen"
-                >
-                  <option value="">Alle Projekte</option>
-                  {eligibleTargetProjectNumbers.map((number) => (
-                    <option key={number} value={number}>
-                      Nur Projekt {number}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                  title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
-                  type="submit"
-                >
-                  Ansätze aus anderen Projekten vorschlagen
-                </button>
-              </form>
-            ) : null}
-
-            {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
-              <a
-                className="inline-block rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                href={`/kalkulation/imports/${linkedKalkulationImportId}/export-xml`}
-                title="Exportiert den aktuellen Kalkulations-Entwurf dieses Projekts als .xml - zum Wiedereinlesen in iTWO"
+              <input name="importId" type="hidden" value={importId} />
+              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <MatchingThresholdInput
+                  defaultValue={Math.round(lvImport.crossLvKurztextThreshold * 100)}
+                  label="Kurztext-Ähnlichkeit"
+                  max={100}
+                  min={0}
+                  name="crossLvKurztextThreshold"
+                />
+                <MatchingThresholdInput
+                  defaultValue={Math.round(lvImport.crossLvLangtextThreshold * 100)}
+                  label="Langtext-Ähnlichkeit"
+                  max={100}
+                  min={0}
+                  name="crossLvLangtextThreshold"
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                  <input
+                    className="h-5 w-5 accent-gray-900"
+                    defaultChecked={lvImport.crossLvExactMenge}
+                    name="crossLvExactMenge"
+                    type="checkbox"
+                  />
+                  Menge muss gleich sein
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                  <input
+                    className="h-5 w-5 accent-gray-900"
+                    defaultChecked={lvImport.crossLvExactEinheit}
+                    name="crossLvExactEinheit"
+                    type="checkbox"
+                  />
+                  Einheit muss gleich sein
+                </label>
+              </div>
+              <button
+                className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+                title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
+                type="submit"
               >
-                Vorkalkulierte XML exportieren ↓
-              </a>
-            ) : null}
+                {lvImport.crossLvMatchedAt ? "Erneut abgleichen" : "Abgleich starten"}
+              </button>
+              {lvImport.crossLvMatchedAt ? (
+                <p className="mt-2 text-xs text-gray-500">
+                  Letzter Abgleich:{" "}
+                  {new Intl.DateTimeFormat("de-DE", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                    timeZone: "Europe/Berlin",
+                  }).format(lvImport.crossLvMatchedAt)}
+                  {lvImport.crossLvMatchedByUser ? ` von ${lvImport.crossLvMatchedByUser.name}` : ""}
+                  {" · "}Kurztext {Math.round(lvImport.crossLvKurztextThreshold * 100)}%
+                  {" · "}Langtext {Math.round(lvImport.crossLvLangtextThreshold * 100)}%
+                  {" · "}Menge: {lvImport.crossLvExactMenge ? "muss gleich sein" : "beliebig"}
+                  {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
+                </p>
+              ) : null}
+            </form>
+
+            {/* Wichtigste Aktionen daneben: Ansätze vorschlagen und der
+             * Export der daraus entstehenden vorkalkulierten XML - vorher
+             * stand der Export-Link ganz am Ende der Reihe, nach GAEB/Excel/
+             * PDF, obwohl er der eigentliche Ziel-Download dieses Ablaufs ist. */}
+            <div className="flex flex-1 flex-col items-start gap-2">
+              {lvImport.projectNumber ? (
+                <AnsatzSuggestForm
+                  eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
+                  projectNumber={lvImport.projectNumber}
+                  returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
+                />
+              ) : null}
+
+              {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
+                <a
+                  className="inline-block rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                  href={`/kalkulation/imports/${linkedKalkulationImportId}/export-xml`}
+                  title="Exportiert den aktuellen Kalkulations-Entwurf dieses Projekts als .xml - zum Wiedereinlesen in iTWO"
+                >
+                  Vorkalkulierte XML exportieren ↓
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -484,9 +441,7 @@ export async function LvReviewPanel({
                     ) : null}
                   </td>
                   <td className="w-64 max-w-64 p-3">
-                    {!showCrossLvMatches ? (
-                      <span className="text-gray-400">nicht geladen</span>
-                    ) : (crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
+                    {(crossLvMatchesByLineItem.get(item.id) ?? []).length === 0 ? (
                       <span className="text-gray-400">–</span>
                     ) : (
                       <div className="space-y-2">

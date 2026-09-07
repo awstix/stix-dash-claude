@@ -17,7 +17,13 @@ import {
   findAnsatzCandidatesViaLvMatch,
   type StoredAnsatzAlternative,
 } from "@/lib/kalkulation-ansatz-pool";
-import { buildLvMatches, buildShortlist, normalizeText, type CatalogEntryForMatching } from "@/lib/kalkulation-matching";
+import {
+  buildLvMatches,
+  buildShortlist,
+  normalizeText,
+  type CatalogEntryForMatching,
+  type StoredCrossLvMatch,
+} from "@/lib/kalkulation-matching";
 import { getAiProvider, type LineItemForMatching } from "@/lib/kalkulation-ai-provider";
 import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 
@@ -1183,18 +1189,74 @@ export async function updateCrossLvSettings(formData: FormData) {
   const langtextRaw = text(formData.get("crossLvLangtextThreshold"));
   const exactMenge = formData.get("crossLvExactMenge") === "on";
   const exactEinheit = formData.get("crossLvExactEinheit") === "on";
+  const kurztextThreshold = kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5;
+  const langtextThreshold = langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3;
 
   await prisma.kalkulationLvImport.update({
     data: {
       crossLvExactEinheit: exactEinheit,
       crossLvExactMenge: exactMenge,
-      crossLvKurztextThreshold: kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5,
-      crossLvLangtextThreshold: langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3,
+      crossLvKurztextThreshold: kurztextThreshold,
+      crossLvLangtextThreshold: langtextThreshold,
       crossLvMatchedAt: new Date(),
       crossLvMatchedByUserId: session.user.id,
     },
     where: { id: importId },
   });
+
+  // Ergebnis direkt hier berechnen und je Position speichern
+  // (crossLvMatchesJson), statt bei jedem Seitenaufruf live neu zu
+  // rechnen - "Abgleich starten" bleibt der einzige (teure) Auslöser,
+  // das Ergebnis bleibt danach aber dauerhaft sichtbar, auch ohne
+  // erneuten Klick ("letzter Stand" statt Live-Neuberechnung pro Ansicht).
+  const [ownItems, otherLvItems] = await Promise.all([
+    prisma.kalkulationLvLineItem.findMany({ where: { entryType: "ITEM", lvImportId: importId } }),
+    prisma.kalkulationLvLineItem.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 3000,
+      where: {
+        entryType: "ITEM",
+        lvImportId: { not: importId },
+        NOT: { shortText: { startsWith: "Kalkulation OZ " } },
+      },
+    }),
+  ]);
+  const otherLvItemsById = new Map(otherLvItems.map((row) => [row.id, row]));
+  const candidateInputs = otherLvItems.map((row) => ({
+    id: row.id,
+    quantity: row.quantity,
+    rawText: row.rawText,
+    shortText: row.shortText,
+    unit: row.unit,
+  }));
+
+  for (const item of ownItems) {
+    const matches = buildLvMatches(
+      { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
+      candidateInputs,
+      { exactEinheit, exactMenge, kurztextThreshold, langtextThreshold },
+    );
+    const bestPerImport = new Map<string, StoredCrossLvMatch>();
+    for (const match of matches) {
+      const source = otherLvItemsById.get(match.candidateId);
+      if (!source) continue;
+      const existing = bestPerImport.get(source.lvImportId);
+      if (!existing || match.langtextScore > existing.langtextScore) {
+        bestPerImport.set(source.lvImportId, {
+          exactEinheitMatch: match.exactEinheitMatch,
+          exactMengeMatch: match.exactMengeMatch,
+          kurztextScore: match.kurztextScore,
+          langtextScore: match.langtextScore,
+          sourceLineItemId: source.id,
+        });
+      }
+    }
+    const top3 = [...bestPerImport.values()].sort((a, b) => b.langtextScore - a.langtextScore).slice(0, 3);
+    await prisma.kalkulationLvLineItem.update({
+      data: { crossLvMatchesJson: top3.length > 0 ? JSON.stringify(top3) : null },
+      where: { id: item.id },
+    });
+  }
 
   revalidatePath(`/kalkulation/imports/${importId}`);
   revalidatePath("/kalkulation/projects");

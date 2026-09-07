@@ -3831,6 +3831,13 @@ model KalkulationLvLineItem {
   // besten blind zu übernehmen.
   ansatzAlternativesJson String?
 
+  // Gespeichertes Ergebnis von "Abgleich starten" (bis zu 3 Kandidaten aus
+  // anderen LVs/Kalkulationen, JSON-Array) - wird beim Klick berechnet und
+  // hier abgelegt, statt bei jedem Seitenaufruf live neu zu rechnen. So
+  // bleibt sichtbar, was der letzte Abgleich-Lauf gefunden hat, auch ohne
+  // ihn erneut auszulösen.
+  crossLvMatchesJson String?
+
   confirmedByUserId String?
   confirmedByUser   User?     @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
   confirmedAt       DateTime?

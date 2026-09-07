@@ -216,6 +216,20 @@ export type LvMatchResult = {
   exactEinheitMatch: boolean;
 };
 
+/** Wie das Ergebnis von "Abgleich starten" in
+ * KalkulationLvLineItem.crossLvMatchesJson abgelegt wird (bis zu 3
+ * Kandidaten, höchstens einer je Quell-Import) - nur die Referenz-ID wird
+ * gespeichert, die eigentlichen Positionsdaten (Text, Preis, Projekt)
+ * werden beim Anzeigen frisch nachgeschlagen, damit z.B. ein zwischenzeitlich
+ * übernommener Preis dort sofort sichtbar ist. */
+export type StoredCrossLvMatch = {
+  sourceLineItemId: string;
+  kurztextScore: number;
+  langtextScore: number;
+  exactMengeMatch: boolean;
+  exactEinheitMatch: boolean;
+};
+
 /** Vergleich direkt gegen andere LV-/Kalkulationspositionen (nicht gegen
  * den Positionskatalog) - bewusst mit getrennten Kriterien statt einer
  * einzelnen Ähnlichkeit: Kurztext und Langtext haben unterschiedliche

@@ -6,7 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { ImportForm } from "@/components/ImportForm";
 import { ProjectFileDropInput } from "@/app/projects/ProjectFileDropInput";
 import { prisma } from "@/lib/prisma";
-import { deleteImport, importLv, suggestAnsaetzeFromHistory } from "../../imports/actions";
+import { deleteImport, importLv } from "../../imports/actions";
+import { AnsatzSuggestForm } from "../../imports/AnsatzSuggestForm";
 import { DeleteImportButton } from "../../imports/DeleteImportButton";
 import { LvReviewPanel } from "../../imports/LvReviewPanel";
 
@@ -100,11 +101,11 @@ export default async function KalkulationProjectPage({
   searchParams,
 }: {
   params: Promise<{ projectNumber: string }>;
-  searchParams: Promise<{ crossLv?: string; importError?: string }>;
+  searchParams: Promise<{ importError?: string }>;
 }) {
   const { projectNumber: encodedProjectNumber } = await params;
   const projectNumber = decodeURIComponent(encodedProjectNumber);
-  const { crossLv, importError } = await searchParams;
+  const { importError } = await searchParams;
 
   const [project, imports] = await Promise.all([
     prisma.kalkulationProject.findUnique({ where: { projectNumber } }),
@@ -156,6 +157,18 @@ export default async function KalkulationProjectPage({
     }),
   );
 
+  // Für die Projekt-Auswahl neben "Ansätze aus anderen Projekten
+  // vorschlagen" im Bootstrap-Fall (noch keine eigene Kalkulation
+  // hochgeladen) - dieselbe Liste wie im LV-Panel selbst.
+  const finalKalkulationImportsElsewhere = await prisma.kalkulationLvImport.findMany({
+    distinct: ["projectNumber"],
+    select: { projectNumber: true },
+    where: { isFinalCalculation: true, projectNumber: { not: projectNumber }, sourceFormat: "RIB_KALKULATION" },
+  });
+  const eligibleTargetProjectNumbers = finalKalkulationImportsElsewhere
+    .map((entry) => entry.projectNumber)
+    .filter((value): value is string => Boolean(value));
+
   const returnTo = `/kalkulation/projects/${encodeURIComponent(projectNumber)}`;
 
   return (
@@ -190,17 +203,13 @@ export default async function KalkulationProjectPage({
           emptyLabel="Leere XML hierher ziehen"
           extraEmptyContent={
             lvImports.length > 0 ? (
-              <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
-                <input name="projectNumber" type="hidden" value={project.projectNumber} />
-                <input name="returnTo" type="hidden" value={returnTo} />
-                <button
-                  className="w-full rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
-                  title="Sucht für jede Position im hochgeladenen LV die ähnlichsten Kalkulationsansätze aus anderen Projekten - als Vorschlag, jede Position einzeln bestätigbar"
-                  type="submit"
-                >
-                  Ansätze aus anderen Projekten vorschlagen
-                </button>
-              </form>
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <AnsatzSuggestForm
+                  eligibleTargetProjectNumbers={eligibleTargetProjectNumbers}
+                  projectNumber={project.projectNumber}
+                  returnTo={returnTo}
+                />
+              </div>
             ) : null
           }
           helpText={
@@ -293,12 +302,7 @@ export default async function KalkulationProjectPage({
                     ) : null}
                   </summary>
                   <div className="mt-3">
-                    <LvReviewPanel
-                      crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
-                      importId={item.id}
-                      returnTo={returnTo}
-                      showCrossLvMatches={crossLv === item.id}
-                    />
+                    <LvReviewPanel importId={item.id} returnTo={returnTo} />
                   </div>
                 </details>
               );
@@ -315,12 +319,7 @@ export default async function KalkulationProjectPage({
                       : "noch nicht abgeglichen"}
                   </span>
                 </h2>
-                <LvReviewPanel
-                  crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
-                  importId={item.id}
-                  returnTo={returnTo}
-                  showCrossLvMatches={crossLv === item.id}
-                />
+                <LvReviewPanel importId={item.id} returnTo={returnTo} />
               </div>
             );
           })}
