@@ -116,23 +116,22 @@ export default async function KalkulationProjectPage({
 
   if (!project) notFound();
 
-  // Drei feste Zeilen statt einer freien Liste - Zuordnung läuft über
-  // sourceFormat (RIB-Kalkulation hat ein eigenes Format) bzw. lvType
-  // (bepreist vs. unbepreist), nicht über eine eigene Kennzeichnung beim
-  // Import, damit bestehende Imports ohne Änderung reinfallen.
-  const kalkulationImports = imports.filter((item) => item.sourceFormat === "RIB_KALKULATION");
-  const angebotImports = imports.filter(
-    (item) => item.sourceFormat !== "RIB_KALKULATION" && (item.lvType === "ANGEBOT" || item.lvType === "AUFTRAG"),
-  );
-  const lvImports = imports.filter(
-    (item) => item.sourceFormat !== "RIB_KALKULATION" && item.lvType !== "ANGEBOT" && item.lvType !== "AUFTRAG",
-  );
+  // Zwei feste Zeilen für Kalkulationen (Entwurf vs. finale, verifizierte
+  // Referenz - siehe isFinalCalculation) plus eine für alles andere (LV/
+  // Angebot/Auftrag als GAEB oder Excel). Die frühere Drei-Wege-Aufteilung
+  // nach lvType (unbepreist vs. bepreist) wurde entfernt - die dafür
+  // gedachte Kachel "Kalkuliertes LV" wurde nie genutzt (0 Imports in der
+  // Praxis) und ihre Bezeichnung (D81/X81, eigentlich das UNbepreiste
+  // GAEB-Format) war ohnehin irreführend.
+  const kalkulationImports = imports.filter((item) => item.sourceFormat === "RIB_KALKULATION" && !item.isFinalCalculation);
+  const finalKalkulationImports = imports.filter((item) => item.sourceFormat === "RIB_KALKULATION" && item.isFinalCalculation);
+  const lvImports = imports.filter((item) => item.sourceFormat !== "RIB_KALKULATION");
 
   // Reihenfolge für die eingebetteten Abgleich-Panels darunter: erst das
-  // unbepreiste LV, dann die Kalkulation, dann das kalkulierte LV - jedes
+  // LV, dann der Kalkulations-Entwurf, dann die finale Kalkulation - jedes
   // vorhandene direkt mit vollständiger Positionstabelle und allen
   // Abgleich-Werkzeugen, ohne dass man dafür extra klicken muss.
-  const orderedImports = [...lvImports, ...kalkulationImports, ...angebotImports];
+  const orderedImports = [...lvImports, ...kalkulationImports, ...finalKalkulationImports];
 
   // "Leer" (Skelett ohne Ansätze, z.B. frisch aus iTWO exportiert) vs.
   // "kalkuliert" wird nicht als eigenes Feld beim Upload abgefragt (zu
@@ -142,7 +141,7 @@ export default async function KalkulationProjectPage({
   // kalkuliert. Gleiche Erkennungslogik wie ribBlockIsEmpty in actions.ts.
   const kalkulationFillCounts = new Map<string, { filled: number; total: number }>();
   await Promise.all(
-    kalkulationImports.map(async (item) => {
+    [...kalkulationImports, ...finalKalkulationImports].map(async (item) => {
       const [filled, total] = await Promise.all([
         prisma.kalkulationLvLineItem.count({
           where: {
@@ -189,15 +188,6 @@ export default async function KalkulationProjectPage({
         <ProjectSlot
           accept=".xml"
           emptyLabel="Leere XML hierher ziehen"
-          extraFormFields={
-            <label className="mt-2 flex items-start gap-2 text-xs text-gray-700">
-              <input className="mt-0.5 h-4 w-4" name="isFinalCalculation" type="checkbox" />
-              <span>
-                Das ist die fertige, finale Kalkulation (nicht nur ein Entwurf) - fließt in Ansatz-Vorschläge für
-                andere Projekte ein
-              </span>
-            </label>
-          }
           extraEmptyContent={
             lvImports.length > 0 ? (
               <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
@@ -218,18 +208,14 @@ export default async function KalkulationProjectPage({
               <p className="font-semibold">So kommst du zur vorkalkulierten XML:</p>
               <ol className="ml-4 list-decimal space-y-0.5">
                 <li>Leere Kalkulations-XML aus iTWO exportieren (Positions-Skelett, noch ohne Ansätze) und hier hochladen.</li>
-                <li>Unten auf &quot;Ansätze aus anderen Projekten vorschlagen&quot; klicken.</li>
+                <li>Oben im LV auf &quot;Ansätze aus anderen Projekten vorschlagen&quot; klicken.</li>
                 <li>Vorschläge prüfen und bestätigen.</li>
-                <li>Fertig kalkulierte XML unten exportieren und in iTWO einlesen.</li>
-                <li>
-                  Nach der echten Fertigstellung in iTWO: die Datei löschen und die finale, fertig kalkulierte
-                  XML hier erneut hochladen (Haken bei &quot;fertige, finale Kalkulation&quot; setzen) - erst
-                  dann fließt sie in Ansatz-Vorschläge für andere Projekte ein.
-                </li>
+                <li>Vorkalkulierte XML oben im LV exportieren und in iTWO einlesen.</li>
               </ol>
               <p className="mt-1 text-blue-700">
-                Geht auch ohne Upload hier - dann wird die Datei aber neu zusammengebaut statt aus deiner
-                Originaldatei übernommen.
+                Nach der echten Fertigstellung in iTWO: die fertig kalkulierte XML in der Kachel &quot;Finale
+                Kalkulation&quot; daneben hochladen - erst die dortige Datei fließt in Ansatz-Vorschläge für
+                andere Projekte ein.
               </p>
             </div>
           }
@@ -237,36 +223,41 @@ export default async function KalkulationProjectPage({
           itemBadge={(item) => {
             const counts = kalkulationFillCounts.get(item.id);
             if (!counts || counts.total === 0) return null;
-            if (item.isFinalCalculation) {
-              return <p className="text-[11px] font-semibold text-green-700">✓ Finale Kalkulation</p>;
-            }
             const label =
               counts.filled === 0
                 ? "leer · bereit für Ansätze-Vorschläge"
                 : counts.filled === counts.total
                   ? "vollständig kalkuliert (Entwurf)"
                   : `${counts.filled} von ${counts.total} Positionen kalkuliert (Entwurf)`;
-            const colorClass =
-              counts.filled === 0
-                ? "text-gray-500"
-                : counts.filled === counts.total
-                  ? "text-amber-700"
-                  : "text-amber-700";
+            const colorClass = counts.filled === 0 ? "text-gray-500" : "text-amber-700";
             return <p className={`text-[11px] font-medium ${colorClass}`}>{label}</p>;
           }}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="Kalkulation (XML)"
+          title="Kalkulation (XML) - Entwurf"
         />
         <ProjectSlot
-          accept=".x81,.x83,.x84,.d81,.d83,.d84,.xlsx,.xls"
-          emptyLabel="LV hierher ziehen (D81/X81)"
-          imports={angebotImports}
+          accept=".xml"
+          emptyLabel="Finale Kalkulation hierher ziehen"
+          extraFormFields={<input name="isFinalCalculation" type="hidden" value="on" />}
+          helpText={
+            <p className="rounded-lg border border-green-100 bg-green-50 p-2 text-[11px] leading-relaxed text-green-900">
+              Hier kommt die in iTWO fertig kalkulierte XML rein, nachdem der Entwurf links wirklich
+              fertiggestellt wurde. Nur diese Datei zählt als Referenz für Ansatz-Vorschläge bei anderen
+              Projekten - ein noch unbestätigter Entwurf fließt dort nicht ein.
+            </p>
+          }
+          imports={finalKalkulationImports}
+          itemBadge={(item) => {
+            const counts = kalkulationFillCounts.get(item.id);
+            if (!counts || counts.total === 0) return null;
+            return <p className="text-[11px] font-semibold text-green-700">✓ Finale Kalkulation</p>;
+          }}
           projectNumber={project.projectNumber}
           returnTo={returnTo}
           tenderTitle={project.tenderTitle}
-          title="Kalkuliertes LV (D81/X81)"
+          title="Finale Kalkulation (XML)"
         />
       </div>
 
@@ -297,7 +288,7 @@ export default async function KalkulationProjectPage({
                         href={`/kalkulation/imports/${item.id}/export-xml`}
                         title="Exportiert die Kalkulationsansätze dieses Imports als .xml - zum Wiedereinlesen in iTWO"
                       >
-                        Als XML exportieren ↓
+                        {item.isFinalCalculation ? "Finale XML exportieren ↓" : "Vorkalkulierte XML exportieren ↓"}
                       </a>
                     ) : null}
                   </summary>

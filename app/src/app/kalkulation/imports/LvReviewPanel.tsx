@@ -207,9 +207,12 @@ export async function LvReviewPanel({
   let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
   if (!isKalkulation && lvImport.projectNumber) {
     const [linkedKalkulationImport, finalKalkulationImports] = await Promise.all([
+      // isFinalCalculation: false - der Export-Link hier zeigt immer die
+      // vorkalkulierte Entwurfsdatei, nie die als final hochgeladene
+      // Referenz (die hat ihre eigene Kachel "Finale Kalkulation").
       prisma.kalkulationLvImport.findFirst({
         orderBy: { createdAt: "desc" },
-        where: { projectNumber: lvImport.projectNumber, sourceFormat: "RIB_KALKULATION" },
+        where: { isFinalCalculation: false, projectNumber: lvImport.projectNumber, sourceFormat: "RIB_KALKULATION" },
       }),
       prisma.kalkulationLvImport.findMany({
         distinct: ["projectNumber"],
@@ -248,7 +251,11 @@ export async function LvReviewPanel({
         // gebaute Mechanismus (Ansätze aus anderen Projekten vorschlagen)
         // + der XML-Export, kein zweites "Abgleich starten".
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          {lvImport.projectNumber ? (
+          {/* Eine als final hochgeladene Kalkulation ist die verifizierte
+           * Referenzdatei - Vorschläge dürfen die nie befüllen (siehe
+           * isFinalCalculation-Filter in suggestAnsaetzeFromHistory), der
+           * Button hier würde also ohnehin an dieser Datei vorbeischreiben. */}
+          {lvImport.projectNumber && !lvImport.isFinalCalculation ? (
             <form action={suggestAnsaetzeFromHistory}>
               <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
               <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
@@ -268,7 +275,7 @@ export async function LvReviewPanel({
               href={`/kalkulation/imports/${importId}/export-xml`}
               title="Exportiert die Kalkulationsansätze dieses Imports als .xml - zum Wiedereinlesen in iTWO"
             >
-              Als XML exportieren ↓
+              {lvImport.isFinalCalculation ? "Finale XML exportieren ↓" : "Vorkalkulierte XML exportieren ↓"}
             </a>
           ) : null}
         </div>
@@ -343,6 +350,49 @@ export async function LvReviewPanel({
             ) : null}
           </form>
 
+          {/* Wichtigste Aktionen zuerst: Ansätze vorschlagen und der
+           * Export der daraus entstehenden vorkalkulierten XML - vorher
+           * stand der Export-Link ganz am Ende der Reihe, nach GAEB/Excel/
+           * PDF, obwohl er der eigentliche Ziel-Download dieses Ablaufs ist. */}
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            {lvImport.projectNumber ? (
+              <form action={suggestAnsaetzeFromHistory} className="flex flex-wrap items-center gap-2">
+                <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
+                <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+                <select
+                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  defaultValue=""
+                  name="targetProjectNumber"
+                  title="Gegen alle Projekte oder gezielt gegen ein bestimmtes Projekt abgleichen"
+                >
+                  <option value="">Alle Projekte</option>
+                  {eligibleTargetProjectNumbers.map((number) => (
+                    <option key={number} value={number}>
+                      Nur Projekt {number}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                  title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
+                  type="submit"
+                >
+                  Ansätze aus anderen Projekten vorschlagen
+                </button>
+              </form>
+            ) : null}
+
+            {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
+              <a
+                className="inline-block rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                href={`/kalkulation/imports/${linkedKalkulationImportId}/export-xml`}
+                title="Exportiert den aktuellen Kalkulations-Entwurf dieses Projekts als .xml - zum Wiedereinlesen in iTWO"
+              >
+                Vorkalkulierte XML exportieren ↓
+              </a>
+            ) : null}
+          </div>
+
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <form action={adoptBestPricesForImport}>
               <input name="importId" type="hidden" value={importId} />
@@ -391,44 +441,7 @@ export async function LvReviewPanel({
             >
               Als PDF exportieren ↓
             </a>
-
-            {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
-              <a
-                className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-                href={`/kalkulation/imports/${linkedKalkulationImportId}/export-xml`}
-                title="Exportiert die Kalkulationsansätze dieses Projekts als .xml - zum Wiedereinlesen in iTWO"
-              >
-                Als XML exportieren ↓
-              </a>
-            ) : null}
           </div>
-
-          {lvImport.projectNumber ? (
-            <form action={suggestAnsaetzeFromHistory} className="mb-3 flex flex-wrap items-center gap-2">
-              <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
-              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
-              <select
-                className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                defaultValue=""
-                name="targetProjectNumber"
-                title="Gegen alle Projekte oder gezielt gegen ein bestimmtes Projekt abgleichen"
-              >
-                <option value="">Alle Projekte</option>
-                {eligibleTargetProjectNumbers.map((number) => (
-                  <option key={number} value={number}>
-                    Nur Projekt {number}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
-                title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
-                type="submit"
-              >
-                Ansätze aus anderen Projekten vorschlagen
-              </button>
-            </form>
-          ) : null}
         </>
       )}
 

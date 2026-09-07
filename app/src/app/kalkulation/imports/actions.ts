@@ -979,9 +979,12 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     };
   }
 
+  // isFinalCalculation: false - eine als final hochgeladene Kalkulation ist
+  // die verifizierte Referenzdatei dieses Projekts und darf niemals durch
+  // automatische Vorschläge überschrieben werden, nur der Entwurf.
   const existingKalkulationImport = await prisma.kalkulationLvImport.findFirst({
     orderBy: { createdAt: "desc" },
-    where: { projectNumber, sourceFormat: "RIB_KALKULATION" },
+    where: { isFinalCalculation: false, projectNumber, sourceFormat: "RIB_KALKULATION" },
   });
 
   let filledCount = 0;
@@ -1221,9 +1224,11 @@ export async function adoptAnsatzFromCandidate(formData: FormData) {
   }
   const projectNumber = lineItem.lvImport.projectNumber;
 
+  // isFinalCalculation: false - eine Einzel-Übernahme landet immer im
+  // Entwurf, niemals in der als final hochgeladenen Referenzdatei.
   let kalkulationImport = await prisma.kalkulationLvImport.findFirst({
     orderBy: { createdAt: "desc" },
-    where: { projectNumber, sourceFormat: "RIB_KALKULATION" },
+    where: { isFinalCalculation: false, projectNumber, sourceFormat: "RIB_KALKULATION" },
   });
   if (!kalkulationImport) {
     kalkulationImport = await prisma.kalkulationLvImport.create({

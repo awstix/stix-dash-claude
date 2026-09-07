@@ -95,7 +95,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ imp
     });
   }
 
-  const fileName = `${(lvImport.projectNumber ?? lvImport.fileName).replace(/[^\w.-]+/g, "_")}_Kalkulation.xml`;
+  const safeProjectNumber = (lvImport.projectNumber ?? lvImport.fileName).replace(/[^\w.-]+/g, "_");
+  const fileName = `${safeProjectNumber} ${lvImport.isFinalCalculation ? "final" : "vorkalkuliert"}.xml`;
 
   return new NextResponse(content, {
     headers: {
