@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import {
   adoptAnsatzFromCandidate,
-  adoptBestPricesForImport,
   adoptPrice,
   chooseAnsatzAlternative,
-  clearAdoptedPricesForImport,
   clearPrice,
   confirmAnsatzSuggestion,
   confirmMatch,
@@ -348,32 +346,6 @@ export async function LvReviewPanel({
                 </a>
               ) : null}
             </div>
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <form action={adoptBestPricesForImport}>
-              <input name="importId" type="hidden" value={importId} />
-              <button
-                className="rounded-xl border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-                title="Füllt jede noch ungepreiste Position mit dem besten verfügbaren Preis - aus bestätigten Katalog-Zuordnungen, sonst aus dem ähnlichsten Treffer in einem anderen LV"
-                type="submit"
-              >
-                Alle mit bestem Treffer vorkalkulieren
-              </button>
-            </form>
-
-            {lineItems.some((item) => item.priceSourceLvImportId) ? (
-              <form action={clearAdoptedPricesForImport}>
-                <input name="importId" type="hidden" value={importId} />
-                <button
-                  className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                  title="Entfernt bei allen Positionen dieses Imports einen übernommenen Preis wieder - Preise aus der Originaldatei sind davon nicht betroffen"
-                  type="submit"
-                >
-                  Übernommene Preise zurücksetzen
-                </button>
-              </form>
-            ) : null}
           </div>
         </>
       )}

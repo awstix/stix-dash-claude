@@ -42,7 +42,7 @@ export function AnsatzSuggestForm({
         title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
         type="submit"
       >
-        {target ? `Kalkulationsansätze aus Projekt ${target} verwenden` : "Ansätze aus anderen Projekten vorschlagen"}
+        {target ? `Kalkulationsansätze aus Projekt ${target} verwenden` : "Ansätze aus allen Projekten vorschlagen"}
       </button>
     </form>
   );
