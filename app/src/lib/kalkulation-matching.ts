@@ -248,6 +248,8 @@ export function buildLvMatches(
   options: {
     exactEinheit: boolean;
     exactMenge: boolean;
+    filterByKurztext: boolean;
+    filterByLangtext: boolean;
     kurztextThreshold: number;
     langtextThreshold: number;
   },
@@ -271,8 +273,8 @@ export function buildLvMatches(
     const exactMengeMatch = target.quantity != null && candidate.quantity != null && target.quantity === candidate.quantity;
     const exactEinheitMatch = (target.unit ?? "").trim().toLowerCase() === (candidate.unit ?? "").trim().toLowerCase();
 
-    if (kurztextScore < options.kurztextThreshold) continue;
-    if (langtextScore < options.langtextThreshold) continue;
+    if (options.filterByKurztext && kurztextScore < options.kurztextThreshold) continue;
+    if (options.filterByLangtext && langtextScore < options.langtextThreshold) continue;
     if (options.exactMenge && !exactMengeMatch) continue;
     if (options.exactEinheit && !exactEinheitMatch) continue;
 

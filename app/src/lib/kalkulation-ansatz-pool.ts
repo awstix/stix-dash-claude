@@ -168,7 +168,14 @@ export function findAnsatzCandidatesViaLvMatch(
   otherLvCandidates: LvMatchInput[],
   otherLvMetaById: Map<string, { projectNumber: string; positionNumber: string | null }>,
   ansatzByProjectAndOz: Map<string, AnsatzPoolEntry>,
-  options: { exactEinheit: boolean; exactMenge: boolean; kurztextThreshold: number; langtextThreshold: number },
+  options: {
+    exactEinheit: boolean;
+    exactMenge: boolean;
+    filterByKurztext: boolean;
+    filterByLangtext: boolean;
+    kurztextThreshold: number;
+    langtextThreshold: number;
+  },
   limit = 3,
 ): AnsatzViaLvMatch[] {
   const matches = buildLvMatches(target, otherLvCandidates, options);

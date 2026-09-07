@@ -3746,6 +3746,13 @@ model KalkulationLvImport {
   // Ähnlichkeit, unabhängig voneinander einstellbar.
   crossLvKurztextThreshold Float     @default(0.5)
   crossLvLangtextThreshold Float     @default(0.3)
+  // Ob die jeweilige Schwelle überhaupt als Filter angewendet wird (statt
+  // beide immer zwingend UND-verknüpft zu prüfen) - Kurztexte sind zwischen
+  // LVs oft uneinheitlich formuliert/abgekürzt, ein sonst inhaltlich
+  // identischer Langtext-Treffer fiel dadurch bisher trotzdem komplett raus.
+  // Standard: nur Langtext filtert, Kurztext ist reine Zusatzinfo.
+  crossLvFilterByKurztext  Boolean   @default(false)
+  crossLvFilterByLangtext  Boolean   @default(true)
   crossLvExactMenge        Boolean   @default(false)
   crossLvExactEinheit      Boolean   @default(false)
   // Leer = gegen alle anderen Projekte, sonst nur gegen dieses eine -

@@ -828,6 +828,8 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       {
         exactEinheit: ownLvImportChecked.crossLvExactEinheit,
         exactMenge: ownLvImportChecked.crossLvExactMenge,
+        filterByKurztext: ownLvImportChecked.crossLvFilterByKurztext,
+        filterByLangtext: ownLvImportChecked.crossLvFilterByLangtext,
         kurztextThreshold: ownLvImportChecked.crossLvKurztextThreshold,
         langtextThreshold: ownLvImportChecked.crossLvLangtextThreshold,
       },
@@ -1097,6 +1099,8 @@ export async function updateCrossLvSettings(formData: FormData) {
   const langtextRaw = text(formData.get("crossLvLangtextThreshold"));
   const exactMenge = formData.get("crossLvExactMenge") === "on";
   const exactEinheit = formData.get("crossLvExactEinheit") === "on";
+  const filterByKurztext = formData.get("crossLvFilterByKurztext") === "on";
+  const filterByLangtext = formData.get("crossLvFilterByLangtext") === "on";
   const kurztextThreshold = kurztextRaw ? Number.parseInt(kurztextRaw, 10) / 100 : 0.5;
   const langtextThreshold = langtextRaw ? Number.parseInt(langtextRaw, 10) / 100 : 0.3;
   // Leer = gegen alle anderen Projekte - gilt danach auch für "Ansätze aus
@@ -1107,6 +1111,8 @@ export async function updateCrossLvSettings(formData: FormData) {
     data: {
       crossLvExactEinheit: exactEinheit,
       crossLvExactMenge: exactMenge,
+      crossLvFilterByKurztext: filterByKurztext,
+      crossLvFilterByLangtext: filterByLangtext,
       crossLvKurztextThreshold: kurztextThreshold,
       crossLvLangtextThreshold: langtextThreshold,
       crossLvMatchedAt: new Date(),
@@ -1167,7 +1173,7 @@ export async function updateCrossLvSettings(formData: FormData) {
     const matches = buildLvMatches(
       { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
       candidateInputs,
-      { exactEinheit, exactMenge, kurztextThreshold, langtextThreshold },
+      { exactEinheit, exactMenge, filterByKurztext, filterByLangtext, kurztextThreshold, langtextThreshold },
     );
     const bestPerImport = new Map<string, StoredCrossLvMatch>();
     for (const match of matches) {
