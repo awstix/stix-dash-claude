@@ -67,6 +67,19 @@ export async function archivePosition(formData: FormData) {
   revalidatePath("/kalkulation/katalog");
 }
 
+export async function restorePosition(formData: FormData) {
+  await requireSession();
+  const id = text(formData, "id");
+  if (!id) throw new Error("Position fehlt.");
+
+  await prisma.kalkulationPosition.update({
+    data: { isActive: true },
+    where: { id },
+  });
+
+  revalidatePath("/kalkulation/katalog");
+}
+
 export async function createCategory(formData: FormData) {
   await requireSession();
 

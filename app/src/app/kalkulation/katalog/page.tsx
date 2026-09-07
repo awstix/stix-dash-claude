@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { ActionIcon } from "@/components/ActionIcon";
 import { CategorySelect } from "@/components/CategorySelect";
 import { prisma } from "@/lib/prisma";
-import { archivePosition, createCategory, createPosition, updatePosition } from "./actions";
+import { archivePosition, createCategory, createPosition, restorePosition, updatePosition } from "./actions";
 import { formatLvSource } from "@/lib/kalkulation-format";
 import { ArchivePositionButton } from "./ArchivePositionButton";
 
@@ -23,13 +23,14 @@ const LV_TYPE_LABELS: Record<string, string> = {
 export default async function KalkulationKatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ position?: string }>;
+  searchParams: Promise<{ archived?: string; position?: string }>;
 }) {
-  const { position: selectedPositionId } = await searchParams;
+  const { archived, position: selectedPositionId } = await searchParams;
+  const showArchived = archived === "1";
 
-  const [positions, categories, selectedHistory] = await Promise.all([
+  const [positions, categories, selectedHistory, archivedCount, activeCount] = await Promise.all([
     prisma.kalkulationPosition.findMany({
-      where: { isActive: true },
+      where: { isActive: !showArchived },
       include: { category: true },
       orderBy: { title: "asc" },
     }),
@@ -41,6 +42,8 @@ export default async function KalkulationKatalogPage({
           orderBy: { lvImport: { lvDate: "desc" } },
         })
       : Promise.resolve([]),
+    prisma.kalkulationPosition.count({ where: { isActive: false } }),
+    prisma.kalkulationPosition.count({ where: { isActive: true } }),
   ]);
 
   const selectedPosition = positions.find((p) => p.id === selectedPositionId);
@@ -56,6 +59,12 @@ export default async function KalkulationKatalogPage({
           href="/kalkulation/projects"
         >
           ← Projekte
+        </Link>
+        <Link
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          href={showArchived ? "/kalkulation/katalog" : "/kalkulation/katalog?archived=1"}
+        >
+          {showArchived ? `Aktive Positionen anzeigen (${activeCount})` : `Archivierte Positionen anzeigen (${archivedCount})`}
         </Link>
       </div>
 
@@ -166,10 +175,22 @@ export default async function KalkulationKatalogPage({
                             </button>
                           </form>
                         </details>
-                        <form action={archivePosition}>
-                          <input name="id" type="hidden" value={position.id} />
-                          <ArchivePositionButton title={position.title} />
-                        </form>
+                        {showArchived ? (
+                          <form action={restorePosition}>
+                            <input name="id" type="hidden" value={position.id} />
+                            <button
+                              className="rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 hover:bg-green-100"
+                              type="submit"
+                            >
+                              Wiederherstellen
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={archivePosition}>
+                            <input name="id" type="hidden" value={position.id} />
+                            <ArchivePositionButton title={position.title} />
+                          </form>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -177,7 +198,7 @@ export default async function KalkulationKatalogPage({
               {positions.length === 0 ? (
                 <tr>
                   <td className="p-6 text-center text-gray-500" colSpan={4}>
-                    Noch keine Positionen im Katalog.
+                    {showArchived ? "Keine archivierten Positionen." : "Noch keine Positionen im Katalog."}
                   </td>
                 </tr>
               ) : null}
