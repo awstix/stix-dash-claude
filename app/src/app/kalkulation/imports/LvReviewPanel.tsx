@@ -204,6 +204,15 @@ export async function LvReviewPanel({
   let linkedKalkulationHasExportableItems = false;
   let linkedKalkulationHasAnsatzSuggestions = false;
   let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
+  // Zeigt direkt an der LV-Zeile an, ob ihre Position in der eigenen
+  // Kalkulation dieses Projekts bereits einen übernommenen Ansatz hat -
+  // sonst sieht man einem Klick auf "Ansatz übernehmen" nicht an, dass er
+  // etwas bewirkt hat (er schreibt in die separate Kalkulationsdatei, die
+  // LV-Zeile selbst ändert sich dabei nicht).
+  let ownAnsatzStatusByOz = new Map<
+    string,
+    { matchStatus: string; rawText: string }
+  >();
   // Welche anderen Projekte überhaupt eine als final markierte Kalkulation
   // haben - Grundlage für die Projekt-Auswahl neben "Ansätze aus anderen
   // Projekten vorschlagen" (gilt für beide Zweige: LV und Kalkulation).
@@ -254,6 +263,21 @@ export async function LvReviewPanel({
       ]);
       linkedKalkulationHasExportableItems = exportableCount > 0;
       linkedKalkulationHasAnsatzSuggestions = suggestionCount > 0;
+
+      const ownAnsatzItems = await prisma.kalkulationLvLineItem.findMany({
+        where: {
+          lvImportId: linkedKalkulationImport.id,
+          matchedVia: "CROSS_PROJECT_ANSATZ",
+          positionNumber: { not: null },
+        },
+        select: { matchStatus: true, positionNumber: true, rawText: true },
+      });
+      ownAnsatzStatusByOz = new Map(
+        ownAnsatzItems.map((row) => [
+          row.positionNumber!.trim(),
+          { matchStatus: row.matchStatus, rawText: row.rawText },
+        ]),
+      );
     }
     // Ein OZ-Nachschlag, welche der "Ähnlich in anderen LVs"-Treffer
     // bereits einen Ansatz haben (siehe findAnsatzCandidatesViaLvMatch in
@@ -644,6 +668,37 @@ export async function LvReviewPanel({
                       ) : null}
                     </td>
                     <td className="w-64 max-w-64 p-3">
+                      {item.positionNumber &&
+                      ownAnsatzStatusByOz.has(item.positionNumber.trim())
+                        ? (() => {
+                            const ansatzStatus = ownAnsatzStatusByOz.get(
+                              item.positionNumber!.trim(),
+                            )!;
+                            const isConfirmed =
+                              ansatzStatus.matchStatus === "CONFIRMED";
+                            return (
+                              <div
+                                className={`mb-2 rounded-lg border p-2 text-xs ${isConfirmed ? "border-purple-200 bg-purple-50" : "border-gray-200 bg-gray-50"}`}
+                              >
+                                <span
+                                  className={`font-bold ${isConfirmed ? "text-purple-800" : "text-gray-600"}`}
+                                >
+                                  {isConfirmed
+                                    ? "✓ Ansatz in eigener Kalkulation übernommen"
+                                    : "Ansatz verworfen"}
+                                </span>
+                                <details className="mt-1">
+                                  <summary className="cursor-pointer font-semibold text-blue-700 underline">
+                                    Ansatz anzeigen
+                                  </summary>
+                                  <p className="mt-1 whitespace-pre-line break-words text-gray-700">
+                                    {ansatzStatus.rawText}
+                                  </p>
+                                </details>
+                              </div>
+                            );
+                          })()
+                        : null}
                       {(crossLvMatchesByLineItem.get(item.id) ?? []).length ===
                       0 ? (
                         <span className="text-gray-400">–</span>
@@ -721,6 +776,16 @@ export async function LvReviewPanel({
                                     </p>
                                   </details>
                                   {isAnsatz && resolvedAnsatz ? (
+                                    <details className="mt-1">
+                                      <summary className="cursor-pointer text-xs font-semibold text-purple-700 underline">
+                                        Ansatz anzeigen
+                                      </summary>
+                                      <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
+                                        {resolvedAnsatz.ansatzSummary}
+                                      </p>
+                                    </details>
+                                  ) : null}
+                                  {isAnsatz && resolvedAnsatz ? (
                                     <form action={adoptAnsatzFromCandidate}>
                                       <input
                                         name="lineItemId"
@@ -739,6 +804,13 @@ export async function LvReviewPanel({
                                       >
                                         Ansatz übernehmen
                                       </button>
+                                      <p className="mt-0.5 text-[11px] text-gray-500">
+                                        Kopiert den Kalkulationsansatz
+                                        (Bausteine/Kostenarten) oben in die
+                                        eigene Kalkulation dieses Projekts,
+                                        sichtbar in der Kachel &quot;Kalkulation
+                                        (XML)&quot; weiter unten.
+                                      </p>
                                     </form>
                                   ) : cross.unitPriceCents != null ? (
                                     <form action={adoptPrice}>
@@ -787,6 +859,14 @@ export async function LvReviewPanel({
                                           ? "Diesen Treffer übernehmen"
                                           : "Nur Preis übernehmen"}
                                       </button>
+                                      <p className="mt-0.5 text-[11px] text-gray-500">
+                                        Kein Ansatz vorhanden, nur ein Preis.
+                                        Übernimmt{" "}
+                                        {cross.matchedPositionId
+                                          ? "Preis und Katalogzuordnung, bestätigt die Position"
+                                          : "nur den €-Preis in dieses LV"}
+                                        .
+                                      </p>
                                     </form>
                                   ) : (
                                     <form action={linkCrossLvMatch}>
@@ -812,6 +892,12 @@ export async function LvReviewPanel({
                                       >
                                         Als gleiche Position markieren
                                       </button>
+                                      <p className="mt-0.5 text-[11px] text-gray-500">
+                                        Weder Ansatz noch Preis vorhanden. Merkt
+                                        sich nur, dass beide Positionen dieselbe
+                                        Leistung sind - kein Preis oder Ansatz
+                                        wird jetzt übernommen.
+                                      </p>
                                     </form>
                                   )}
                                 </div>
