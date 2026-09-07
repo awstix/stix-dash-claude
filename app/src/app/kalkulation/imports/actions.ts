@@ -1051,6 +1051,7 @@ export async function updateCrossLvSettings(formData: FormData) {
   const importId = text(formData.get("importId"));
   if (!importId) throw new Error("Import-ID fehlt.");
   const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
+  const importRunId = text(formData.get("importRunId"));
 
   const kurztextRaw = text(formData.get("crossLvKurztextThreshold"));
   const langtextRaw = text(formData.get("crossLvLangtextThreshold"));
@@ -1097,7 +1098,23 @@ export async function updateCrossLvSettings(formData: FormData) {
     unit: row.unit,
   }));
 
-  for (const item of ownItems) {
+  // Läuft leicht über mehrere Sekunden bei größeren LVs (ein Update pro
+  // Position) - Fortschritt wie beim Datei-Import über ImportProgress
+  // sichtbar machen, statt dass der Button einfach nur reglos hängt.
+  if (importRunId) {
+    await prisma.importProgress.upsert({
+      create: { id: importRunId, kind: "cross_lv_abgleich", total: ownItems.length },
+      update: { processed: 0, status: "running", total: ownItems.length },
+      where: { id: importRunId },
+    });
+  }
+
+  for (const [index, item] of ownItems.entries()) {
+    if (importRunId && index % 3 === 0) {
+      await prisma.importProgress
+        .update({ data: { processed: index }, where: { id: importRunId } })
+        .catch(() => undefined);
+    }
     const matches = buildLvMatches(
       { id: item.id, quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit },
       candidateInputs,

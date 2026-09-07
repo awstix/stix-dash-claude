@@ -14,6 +14,7 @@ import {
   updateCrossLvSettings,
 } from "./actions";
 import { AnsatzSuggestForm } from "./AnsatzSuggestForm";
+import { ImportForm } from "@/components/ImportForm";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
 import type { StoredCrossLvMatch } from "@/lib/kalkulation-matching";
 import {
@@ -257,9 +258,12 @@ export async function LvReviewPanel({
             {/* Immer sichtbar (nicht nur solange noch nicht geladen) - sonst gibt
              * es nach dem ersten Abgleich keine Möglichkeit mehr, die Kriterien
              * zu ändern und erneut abzugleichen. */}
-            <form
+            <ImportForm
               action={updateCrossLvSettings}
               className="max-w-2xl flex-1 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+              itemLabel="Position"
+              progressEndpoint="/kalkulation/imports/progress"
+              startingLabel="Abgleich startet …"
             >
               <input name="importId" type="hidden" value={importId} />
               <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
@@ -321,7 +325,7 @@ export async function LvReviewPanel({
                   {" · "}Einheit: {lvImport.crossLvExactEinheit ? "muss gleich sein" : "beliebig"}
                 </p>
               ) : null}
-            </form>
+            </ImportForm>
 
             {/* Wichtigste Aktionen daneben: Ansätze vorschlagen und der
              * Export der daraus entstehenden vorkalkulierten XML - vorher

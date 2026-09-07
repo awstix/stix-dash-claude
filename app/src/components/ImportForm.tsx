@@ -11,10 +11,14 @@ type ProgressState = {
 
 function ImportProgressStatus({
   importRunId,
+  itemLabel = "Zeile",
   progressEndpoint,
+  startingLabel = "Import startet …",
 }: {
   importRunId: string;
+  itemLabel?: string;
   progressEndpoint: string;
+  startingLabel?: string;
 }) {
   const { pending } = useFormStatus();
   const [progress, setProgress] = useState<ProgressState | null>(null);
@@ -75,7 +79,7 @@ function ImportProgressStatus({
     <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
       <div className="flex items-center justify-between text-sm font-semibold text-blue-900">
         <span>
-          {total > 0 ? `Zeile ${processed} von ${total}` : "Import startet …"}
+          {total > 0 ? `${itemLabel} ${processed} von ${total}` : startingLabel}
         </span>
         <span>{percent}%</span>
       </div>
@@ -105,12 +109,16 @@ export function ImportForm({
   action,
   children,
   className,
+  itemLabel,
   progressEndpoint,
+  startingLabel,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   children: ReactNode;
   className?: string;
+  itemLabel?: string;
   progressEndpoint: string;
+  startingLabel?: string;
 }) {
   const importRunIdRef = useRef<HTMLInputElement>(null);
   const [importRunId, setImportRunId] = useState(() => crypto.randomUUID());
@@ -134,7 +142,9 @@ export function ImportForm({
       {children}
       <ImportProgressStatus
         importRunId={importRunId}
+        itemLabel={itemLabel}
         progressEndpoint={progressEndpoint}
+        startingLabel={startingLabel}
       />
     </form>
   );
