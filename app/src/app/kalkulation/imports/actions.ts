@@ -988,6 +988,28 @@ export async function confirmAnsatzSuggestion(formData: FormData) {
   revalidatePath("/kalkulation/projects");
 }
 
+/** Bulk-Variante von confirmAnsatzSuggestion: übernimmt ALLE noch
+ * unentschiedenen Ansatz-Vorschläge dieses Imports auf einmal, statt jede
+ * Position einzeln bestätigen zu müssen. Rührt nur an Zeilen mit Status
+ * "Prüfen" - bereits verworfene oder schon bestätigte Positionen bleiben
+ * unangetastet, ein einzelner Vorschlag lässt sich danach immer noch per
+ * "Verwerfen" oder "Andere Vorschläge" korrigieren. */
+export async function confirmAllAnsatzSuggestions(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+  const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
+
+  await prisma.kalkulationLvLineItem.updateMany({
+    data: { matchStatus: "CONFIRMED" },
+    where: { lvImportId: importId, matchedVia: "CROSS_PROJECT_ANSATZ", matchStatus: "NEEDS_REVIEW" },
+  });
+
+  revalidatePath(`/kalkulation/imports/${importId}`);
+  revalidatePath("/kalkulation/projects");
+  redirect(returnTo);
+}
+
 /** Lehnt einen Ansatz-Vorschlag ab - fliegt dadurch aus dem späteren
  * D31-Export dieses Imports raus (Zeile selbst bleibt zur Nachvollziehbarkeit
  * stehen, wird beim Export aber übersprungen). */
