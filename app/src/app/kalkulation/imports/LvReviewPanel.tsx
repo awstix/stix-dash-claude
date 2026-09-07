@@ -555,7 +555,7 @@ export async function LvReviewPanel({
                   STATUS_LABELS[item.matchStatus] ?? STATUS_LABELS.PENDING;
                 return (
                   <tr
-                    className="border-t border-gray-100 align-top"
+                    className="border-t border-gray-100 align-top even:bg-gray-50"
                     key={item.id}
                   >
                     <td className="p-3 text-gray-500">
