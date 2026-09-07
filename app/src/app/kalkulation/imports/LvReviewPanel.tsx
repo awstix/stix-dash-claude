@@ -1,17 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import {
   adoptAnsatzFromCandidate,
-  adoptPrice,
   chooseAnsatzAlternative,
   clearAnsatzSuggestions,
-  clearPrice,
   confirmAnsatzSuggestion,
-  confirmMatch,
-  createPositionFromLineItem,
-  linkCrossLvMatch,
-  manualMatch,
   rejectAnsatzSuggestion,
-  rejectMatch,
   updateCrossLvSettings,
 } from "./actions";
 import { AnsatzSuggestForm } from "./AnsatzSuggestForm";
@@ -62,52 +55,18 @@ export async function LvReviewPanel({
   importId: string;
   returnTo?: string;
 }) {
-  const [lvImport, lineItems, positions] = await Promise.all([
+  const [lvImport, lineItems] = await Promise.all([
     prisma.kalkulationLvImport.findUniqueOrThrow({
       include: { crossLvMatchedByUser: true },
       where: { id: importId },
     }),
     prisma.kalkulationLvLineItem.findMany({
       where: { lvImportId: importId },
-      include: { matchedPosition: true },
       orderBy: { rowNumber: "asc" },
-    }),
-    prisma.kalkulationPosition.findMany({
-      where: { isActive: true },
-      orderBy: { title: "asc" },
     }),
   ]);
 
   const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
-
-  // Preishistorie aus ANDEREN Projekten für jede in diesem LV bereits
-  // (vorgeschlagen oder bestätigt) zugeordnete Position - damit man beim
-  // Prüfen direkt sieht, was dieselbe Position anderswo schon gekostet hat.
-  const matchedPositionIds = [
-    ...new Set(
-      lineItems
-        .map((item) => item.matchedPositionId)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  const historyRows = matchedPositionIds.length
-    ? await prisma.kalkulationLvLineItem.findMany({
-        where: {
-          matchedPositionId: { in: matchedPositionIds },
-          matchStatus: "CONFIRMED",
-          lvImportId: { not: importId },
-        },
-        include: { lvImport: true },
-        orderBy: { lvImport: { lvDate: "desc" } },
-      })
-    : [];
-  const priceHistoryByPosition = new Map<string, typeof historyRows>();
-  for (const row of historyRows) {
-    if (!row.matchedPositionId) continue;
-    const existing = priceHistoryByPosition.get(row.matchedPositionId) ?? [];
-    if (existing.length < 2) existing.push(row);
-    priceHistoryByPosition.set(row.matchedPositionId, existing);
-  }
 
   // Ergebnis von "Abgleich starten" wird beim Klick berechnet und in
   // crossLvMatchesJson je Position gespeichert (siehe updateCrossLvSettings
@@ -170,24 +129,6 @@ export async function LvReviewPanel({
     (item) =>
       item.entryType === "ITEM" && crossLvMatchesByLineItem.has(item.id),
   ).length;
-
-  // Für die "übernommen aus ..."-Anzeige je Zeile: die Quell-Imports
-  // übernommener Preise auflösen.
-  const priceSourceImportIds = [
-    ...new Set(
-      lineItems
-        .map((item) => item.priceSourceLvImportId)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  const priceSourceImports = priceSourceImportIds.length
-    ? await prisma.kalkulationLvImport.findMany({
-        where: { id: { in: priceSourceImportIds } },
-      })
-    : [];
-  const priceSourceImportById = new Map(
-    priceSourceImports.map((source) => [source.id, source]),
-  );
 
   // Für den Nicht-Kalkulations-Zweig (das eigentliche LV): der verknüpfte
   // Kalkulations-Import dieses Projekts (falls vorhanden) - damit sich
@@ -573,9 +514,6 @@ export async function LvReviewPanel({
                 <th className="sticky top-0 z-10 w-64 bg-gray-50 p-3">
                   Ähnlich in anderen LVs
                 </th>
-                <th className="sticky top-0 z-10 w-40 bg-gray-50 p-3">
-                  Vorschlag
-                </th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Status</th>
                 <th className="sticky top-0 z-10 w-40 bg-gray-50 p-3">
                   Aktion
@@ -589,7 +527,7 @@ export async function LvReviewPanel({
                     <tr key={item.id}>
                       <td
                         className="bg-gray-900 p-3 font-bold text-white"
-                        colSpan={10}
+                        colSpan={9}
                       >
                         {item.rawText}
                       </td>
@@ -602,7 +540,7 @@ export async function LvReviewPanel({
                     <tr key={item.id}>
                       <td
                         className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950"
-                        colSpan={10}
+                        colSpan={9}
                       >
                         <span className="font-bold not-italic">
                           Vorbemerkung:{" "}
@@ -639,33 +577,6 @@ export async function LvReviewPanel({
                       <span className="whitespace-nowrap">
                         {formatCents(item.unitPriceCents)}
                       </span>
-                      {item.priceSourceLvImportId &&
-                      priceSourceImportById.has(item.priceSourceLvImportId) ? (
-                        <div className="whitespace-normal break-words text-xs font-normal text-gray-500">
-                          übernommen aus{" "}
-                          {formatLvSource(
-                            priceSourceImportById.get(
-                              item.priceSourceLvImportId,
-                            )!,
-                          )}
-                          {item.priceSourceSimilarity != null
-                            ? ` (${Math.round(item.priceSourceSimilarity * 100)}%)`
-                            : ""}
-                          <form action={clearPrice} className="mt-1">
-                            <input
-                              name="lineItemId"
-                              type="hidden"
-                              value={item.id}
-                            />
-                            <button
-                              className="font-bold text-red-700 underline"
-                              type="submit"
-                            >
-                              entfernen
-                            </button>
-                          </form>
-                        </div>
-                      ) : null}
                     </td>
                     <td className="w-64 max-w-64 p-3">
                       {item.positionNumber &&
@@ -750,7 +661,7 @@ export async function LvReviewPanel({
                                   <div className="mt-1 text-xs font-semibold text-green-800">
                                     {isAnsatz
                                       ? "Kalkulationsansatz"
-                                      : formatCents(cross.unitPriceCents)}{" "}
+                                      : "Kein Ansatz vorhanden"}{" "}
                                     · {formatLvSource(cross.lvImport)}
                                     {cross.lvImport.lvDate
                                       ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
@@ -812,166 +723,18 @@ export async function LvReviewPanel({
                                         (XML)&quot; weiter unten.
                                       </p>
                                     </form>
-                                  ) : cross.unitPriceCents != null ? (
-                                    <form action={adoptPrice}>
-                                      <input
-                                        name="lineItemId"
-                                        type="hidden"
-                                        value={item.id}
-                                      />
-                                      <input
-                                        name="unitPriceCents"
-                                        type="hidden"
-                                        value={cross.unitPriceCents}
-                                      />
-                                      <input
-                                        name="quantity"
-                                        type="hidden"
-                                        value={item.quantity ?? ""}
-                                      />
-                                      <input
-                                        name="sourceLvImportId"
-                                        type="hidden"
-                                        value={cross.lvImportId}
-                                      />
-                                      <input
-                                        name="similarityScore"
-                                        type="hidden"
-                                        value={match.langtextScore}
-                                      />
-                                      {cross.matchedPositionId ? (
-                                        <input
-                                          name="sourcePositionId"
-                                          type="hidden"
-                                          value={cross.matchedPositionId}
-                                        />
-                                      ) : null}
-                                      <button
-                                        className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
-                                        title={
-                                          cross.matchedPositionId
-                                            ? "Übernimmt Preis UND Katalogzuordnung, bestätigt die Position"
-                                            : "Übernimmt nur den Preis - die Quellposition ist selbst noch keiner Katalogposition zugeordnet"
-                                        }
-                                        type="submit"
-                                      >
-                                        {cross.matchedPositionId
-                                          ? "Diesen Treffer übernehmen"
-                                          : "Nur Preis übernehmen"}
-                                      </button>
-                                      <p className="mt-0.5 text-[11px] text-gray-500">
-                                        Kein Ansatz vorhanden, nur ein Preis.
-                                        Übernimmt{" "}
-                                        {cross.matchedPositionId
-                                          ? "Preis und Katalogzuordnung, bestätigt die Position"
-                                          : "nur den €-Preis in dieses LV"}
-                                        .
-                                      </p>
-                                    </form>
                                   ) : (
-                                    <form action={linkCrossLvMatch}>
-                                      <input
-                                        name="lineItemId"
-                                        type="hidden"
-                                        value={item.id}
-                                      />
-                                      <input
-                                        name="sourceLineItemId"
-                                        type="hidden"
-                                        value={cross.id}
-                                      />
-                                      <input
-                                        name="similarityScore"
-                                        type="hidden"
-                                        value={match.langtextScore}
-                                      />
-                                      <button
-                                        className="mt-1 rounded-lg bg-blue-700 px-2 py-1 text-xs font-bold text-white hover:bg-blue-800"
-                                        title="Markiert diese Position als dieselbe wie im anderen LV - noch ohne Preis, aber für später verknüpft (z.B. sobald eines der beiden LVs kalkuliert wird)"
-                                        type="submit"
-                                      >
-                                        Als gleiche Position markieren
-                                      </button>
-                                      <p className="mt-0.5 text-[11px] text-gray-500">
-                                        Weder Ansatz noch Preis vorhanden. Merkt
-                                        sich nur, dass beide Positionen dieselbe
-                                        Leistung sind - kein Preis oder Ansatz
-                                        wird jetzt übernommen.
-                                      </p>
-                                    </form>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      Für diese Position ist in{" "}
+                                      {formatLvSource(cross.lvImport)} kein
+                                      Kalkulationsansatz hinterlegt.
+                                    </p>
                                   )}
                                 </div>
                               );
                             },
                           )}
                         </div>
-                      )}
-                    </td>
-                    <td className="w-40 max-w-40 p-3">
-                      {item.matchedPosition ? (
-                        <div>
-                          <div className="break-words font-semibold text-gray-900">
-                            {item.matchedPosition.title}
-                          </div>
-                          {item.matchConfidence != null ? (
-                            <div className="text-xs text-gray-500">
-                              Konfidenz {Math.round(item.matchConfidence * 100)}
-                              %
-                            </div>
-                          ) : null}
-                          {item.matchReasoning ? (
-                            <div className="text-xs text-gray-500">
-                              {item.matchReasoning}
-                            </div>
-                          ) : null}
-                          {(
-                            priceHistoryByPosition.get(
-                              item.matchedPosition.id,
-                            ) ?? []
-                          ).map((history) => (
-                            <div className="mt-1" key={history.id}>
-                              <div className="text-xs font-semibold text-green-800">
-                                {formatCents(history.unitPriceCents)} ·{" "}
-                                {formatLvSource(history.lvImport)}
-                                {history.lvImport.lvDate
-                                  ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(history.lvImport.lvDate)})`
-                                  : ""}
-                              </div>
-                              {history.unitPriceCents != null ? (
-                                <form action={adoptPrice}>
-                                  <input
-                                    name="lineItemId"
-                                    type="hidden"
-                                    value={item.id}
-                                  />
-                                  <input
-                                    name="unitPriceCents"
-                                    type="hidden"
-                                    value={history.unitPriceCents}
-                                  />
-                                  <input
-                                    name="quantity"
-                                    type="hidden"
-                                    value={item.quantity ?? ""}
-                                  />
-                                  <input
-                                    name="sourceLvImportId"
-                                    type="hidden"
-                                    value={history.lvImportId}
-                                  />
-                                  <button
-                                    className="text-xs font-bold text-blue-700 underline"
-                                    type="submit"
-                                  >
-                                    Preis übernehmen
-                                  </button>
-                                </form>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">–</span>
                       )}
                     </td>
                     <td className="p-3">
@@ -1091,93 +854,7 @@ export async function LvReviewPanel({
                             : null}
                         </div>
                       ) : (
-                        <div className="flex flex-col gap-2">
-                          {item.matchedPositionId &&
-                          item.matchStatus !== "CONFIRMED" ? (
-                            <form action={confirmMatch}>
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <input
-                                name="positionId"
-                                type="hidden"
-                                value={item.matchedPositionId}
-                              />
-                              <button
-                                className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-bold text-white"
-                                type="submit"
-                              >
-                                Bestätigen
-                              </button>
-                            </form>
-                          ) : null}
-
-                          {item.matchStatus !== "REJECTED" &&
-                          item.matchStatus !== "CONFIRMED" ? (
-                            <form action={rejectMatch}>
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <button
-                                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
-                                type="submit"
-                              >
-                                Ablehnen
-                              </button>
-                            </form>
-                          ) : null}
-
-                          {item.matchStatus !== "CONFIRMED" ? (
-                            <form
-                              action={manualMatch}
-                              className="flex flex-col gap-1"
-                            >
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <select
-                                className="w-full max-w-full rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                                name="positionId"
-                                required
-                              >
-                                <option value="">Manuell wählen …</option>
-                                {positions.map((position) => (
-                                  <option key={position.id} value={position.id}>
-                                    {position.title}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold hover:bg-gray-50"
-                                type="submit"
-                              >
-                                OK
-                              </button>
-                            </form>
-                          ) : null}
-
-                          {item.matchStatus !== "CONFIRMED" ? (
-                            <form action={createPositionFromLineItem}>
-                              <input
-                                name="lineItemId"
-                                type="hidden"
-                                value={item.id}
-                              />
-                              <button
-                                className="text-left text-xs text-gray-500 underline"
-                                type="submit"
-                              >
-                                Neue Katalogposition anlegen
-                              </button>
-                            </form>
-                          ) : null}
-                        </div>
+                        <span className="text-gray-400">–</span>
                       )}
                     </td>
                   </tr>

@@ -1,16 +1,8 @@
-/** Regelbasierte Vorstufe des LV-Positionsabgleichs (Kalkulation) - reine
- * Funktionen ohne Prisma/Netzwerk, damit sie ohne DB/Kosten testbar sind.
- * Liefert für einen rohen LV-Positionstext eine Kurzliste ähnlicher
- * Katalogpositionen, die dann an die KI-Stufe (kalkulation-ai-provider.ts)
- * weitergereicht wird. */
-
-export type CatalogEntryForMatching = {
-  id: string;
-  code: string | null;
-  title: string;
-  description: string | null;
-  unit: string;
-};
+/** Reine Text-Ähnlichkeitsfunktionen (kein Prisma/Netzwerk, damit sie ohne
+ * DB/Kosten testbar sind) für den Positionsabgleich zwischen LVs/
+ * Kalkulationen verschiedener Projekte (siehe buildLvMatches unten und
+ * kalkulation-ansatz-pool.ts). MatchCandidate bleibt für die KI-
+ * Verbindungsprüfung in admin/kalkulation-ai-settings erhalten. */
 
 export type MatchCandidate = {
   positionId: string;
@@ -29,57 +21,6 @@ export function normalizeText(value: string) {
     .replace(/[^a-z0-9äöüß\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-const CRITICAL_TOKEN_PATTERNS = [
-  /\bdn\s?\d{2,4}\b/g,
-  /\bc\s?\d{1,3}\/\d{1,3}\b/g,
-  /\b\d+(?:[.,]\d+)?\s?(?:mm|cm|m2|m3|m²|m³|kg|to|t)\b/g,
-];
-
-/** Leichte Normalisierung nur fürs Kennwert-Erkennen - anders als
- * `normalizeText` bleiben "/" und "," erhalten (werden für "DN100",
- * "C25/30", "1,5m" gebraucht), es wird nur klein geschrieben und auf
- * Mehrfach-Leerzeichen reduziert. */
-function normalizeForTokenExtraction(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Extrahiert technische Kennwerte (Rohrdurchmesser, Festigkeitsklasse,
- * Maß-/Mengenangaben mit Einheit) aus einem LV-Text - zwei Positionen mit
- * widersprüchlichen Kennwerten (z.B. DN100 vs. DN150) dürfen nie als
- * sichere Übereinstimmung durchgehen, auch wenn der restliche Text sehr
- * ähnlich ist. */
-export function extractCriticalTokens(rawText: string): Set<string> {
-  const normalized = normalizeForTokenExtraction(rawText);
-  const tokens = new Set<string>();
-
-  for (const pattern of CRITICAL_TOKEN_PATTERNS) {
-    const matches = normalized.match(pattern);
-    if (matches) {
-      for (const match of matches) {
-        tokens.add(match.replace(/\s+/g, ""));
-      }
-    }
-  }
-
-  return tokens;
-}
-
-function hasCriticalTokenMismatch(a: Set<string>, b: Set<string>) {
-  if (a.size === 0 || b.size === 0) return false;
-  for (const token of a) {
-    if (b.has(token)) return false;
-  }
-  for (const token of b) {
-    if (a.has(token)) return false;
-  }
-  return true;
 }
 
 function bigrams(value: string): Map<string, number> {
@@ -135,61 +76,6 @@ export function levenshteinDistance(a: string, b: string): number {
   }
 
   return distances[rows - 1][cols - 1];
-}
-
-/** Baut eine Kurzliste der `limit` ähnlichsten Katalogpositionen zu einem
- * rohen LV-Text: erst Dice-Koeffizient über den ganzen Katalog (billig),
- * dann Levenshtein nur zur Fein-Sortierung der besten ~20 Dice-Treffer
- * (präzise, aber teurer). Kandidaten mit widersprüchlichen Kennwerten
- * (DN/Festigkeitsklasse) werden markiert, nicht ausgefiltert - die
- * Entscheidung trifft die KI-Stufe bzw. die manuelle Prüfung.
- *
- * `minScore` (0-1, pro Import einstellbar) filtert Kandidaten unterhalb
- * der Mindest-Ähnlichkeit komplett raus - höher eingestellt heißt: weniger,
- * aber treffsicherere Vorschläge, niedriger: mehr Vorschläge, die dann per
- * Hand/KI genauer geprüft werden müssen. */
-export function buildShortlist(
-  rawText: string,
-  catalog: CatalogEntryForMatching[],
-  limit = 5,
-  minScore = 0,
-): MatchCandidate[] {
-  const normalizedRawText = normalizeText(rawText);
-  const rawTokens = extractCriticalTokens(rawText);
-
-  const diceRanked = catalog
-    .map((entry) => {
-      const entryText = normalizeText(`${entry.title} ${entry.description ?? ""}`);
-      return {
-        entry,
-        entryText,
-        score: diceCoefficient(normalizedRawText, entryText),
-      };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
-
-  const refined = diceRanked.map(({ entry, entryText, score }) => {
-    const maxLength = Math.max(normalizedRawText.length, entryText.length, 1);
-    const distance = levenshteinDistance(normalizedRawText, entryText);
-    const levenshteinSimilarity = 1 - distance / maxLength;
-    const combinedScore = score * 0.5 + levenshteinSimilarity * 0.5;
-    const entryTokens = extractCriticalTokens(`${entry.title} ${entry.description ?? ""}`);
-
-    return {
-      positionId: entry.id,
-      code: entry.code,
-      title: entry.title,
-      unit: entry.unit,
-      similarityScore: combinedScore,
-      criticalTokenMismatch: hasCriticalTokenMismatch(rawTokens, entryTokens),
-    } satisfies MatchCandidate;
-  });
-
-  return refined
-    .filter((candidate) => candidate.similarityScore >= minScore)
-    .sort((a, b) => b.similarityScore - a.similarityScore)
-    .slice(0, limit);
 }
 
 function combinedTextScore(a: string, b: string): number {

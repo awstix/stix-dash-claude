@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { deleteImport } from "../actions";
 import { DeleteImportButton } from "../DeleteImportButton";
 import { LvReviewPanel } from "../LvReviewPanel";
@@ -21,10 +20,7 @@ export default async function KalkulationImportReviewPage({
 }) {
   const { importId } = await params;
 
-  const [lvImport, aiSettings] = await Promise.all([
-    prisma.kalkulationLvImport.findUnique({ where: { id: importId } }),
-    getAiSettings(),
-  ]);
+  const lvImport = await prisma.kalkulationLvImport.findUnique({ where: { id: importId } });
 
   if (!lvImport) notFound();
 
@@ -38,7 +34,6 @@ export default async function KalkulationImportReviewPage({
       })
     : [];
 
-  const aiConfigured = isAiConfigured(aiSettings);
   const projectLabel = [lvImport.projectNumber, lvImport.tenderTitle].filter(Boolean).join(" – ");
 
   return (
@@ -62,15 +57,6 @@ export default async function KalkulationImportReviewPage({
           >
             → Zur Projektseite
           </Link>
-        ) : null}
-
-        {!aiConfigured ? (
-          <span className="text-sm text-amber-800">
-            KI nicht konfiguriert (optional) -{" "}
-            <Link className="underline" href="/admin/kalkulation-ai-settings">
-              einrichten
-            </Link>
-          </span>
         ) : null}
       </div>
 

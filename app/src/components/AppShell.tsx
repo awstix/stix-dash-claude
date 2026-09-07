@@ -78,10 +78,9 @@ const controllingNavigation = [
   { name: "Verrechnungssätze", href: "/controlling/rates" },
 ].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
 
-const kalkulationNavigation = [
-  { name: "Projekte", href: "/kalkulation/projects" },
-  { name: "Positionskatalog", href: "/kalkulation/katalog" },
-].sort((a, b) => a.name.localeCompare(b.name, "de-DE"));
+const kalkulationNavigation = [{ name: "Projekte", href: "/kalkulation/projects" }].sort((a, b) =>
+  a.name.localeCompare(b.name, "de-DE"),
+);
 
 const safetyNavigation = [
   { name: "Beauftragungen", href: "/safety/commissions" },

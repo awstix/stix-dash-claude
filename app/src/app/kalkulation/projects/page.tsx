@@ -3,7 +3,6 @@ import type { Prisma } from "@prisma/client";
 import { AppShell } from "@/components/AppShell";
 import { LiveSearchInput } from "@/components/LiveSearchInput";
 import { prisma } from "@/lib/prisma";
-import { getAiSettings, isAiConfigured } from "@/lib/kalkulation-ai-settings";
 import { createKalkulationProject, deleteKalkulationProject } from "./actions";
 import { DeleteProjectButton } from "./DeleteProjectButton";
 
@@ -17,13 +16,9 @@ export default async function KalkulationProjectsPage({
   const { q } = await searchParams;
   const searchQuery = String(q ?? "").trim();
 
-  const [imports, aiSettings] = await Promise.all([
-    prisma.kalkulationLvImport.findMany({
-      select: { id: true, isFinalCalculation: true, projectNumber: true, sourceFormat: true },
-    }),
-    getAiSettings(),
-  ]);
-  const aiConfigured = isAiConfigured(aiSettings);
+  const imports = await prisma.kalkulationLvImport.findMany({
+    select: { id: true, isFinalCalculation: true, projectNumber: true, sourceFormat: true },
+  });
 
   // Drei feste Spalten pro Projekt, spiegelt die drei Kacheln der
   // Projekt-Detailseite (LV Angebotsabgabe / Kalkulation-Entwurf / Finale
@@ -116,26 +111,6 @@ export default async function KalkulationProjectsPage({
       description="Bündelt LV, Kalkulations-Entwurf und finale Kalkulation je Bauvorhaben an einer Stelle."
       title="Kalkulation - Projekte"
     >
-      <div className="mb-6 flex flex-wrap gap-2">
-        <Link
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-          href="/kalkulation/katalog"
-        >
-          Positionskatalog →
-        </Link>
-      </div>
-
-      {!aiConfigured ? (
-        <p className="mb-6 rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
-          KI ist optional und noch nicht eingerichtet - der Abgleich über
-          gelernte Zuordnungen sowie Import und manuelle Zuordnung
-          funktionieren unabhängig davon.{" "}
-          <Link className="underline" href="/admin/kalkulation-ai-settings">
-            KI trotzdem einrichten
-          </Link>
-        </p>
-      ) : null}
-
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Neues Projekt anlegen</h2>
         <form action={createKalkulationProject} className="mt-4 grid gap-4 sm:grid-cols-2">
