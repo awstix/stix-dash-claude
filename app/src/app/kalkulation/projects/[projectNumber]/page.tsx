@@ -19,6 +19,7 @@ function ProjectSlot({
   accept,
   emptyLabel,
   extraEmptyContent,
+  extraFormFields,
   helpText,
   imports,
   itemBadge,
@@ -30,6 +31,7 @@ function ProjectSlot({
   accept: string;
   emptyLabel: string;
   extraEmptyContent?: ReactNode;
+  extraFormFields?: ReactNode;
   helpText?: ReactNode;
   imports: LvImportRow[];
   itemBadge?: (item: LvImportRow) => ReactNode;
@@ -79,6 +81,7 @@ function ProjectSlot({
             required
             selectedLabel="Datei auswählen"
           />
+          {extraFormFields}
           <button
             className="mt-2 w-full rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700"
             type="submit"
@@ -186,6 +189,15 @@ export default async function KalkulationProjectPage({
         <ProjectSlot
           accept=".xml"
           emptyLabel="Leere XML hierher ziehen"
+          extraFormFields={
+            <label className="mt-2 flex items-start gap-2 text-xs text-gray-700">
+              <input className="mt-0.5 h-4 w-4" name="isFinalCalculation" type="checkbox" />
+              <span>
+                Das ist die fertige, finale Kalkulation (nicht nur ein Entwurf) - fließt in Ansatz-Vorschläge für
+                andere Projekte ein
+              </span>
+            </label>
+          }
           extraEmptyContent={
             lvImports.length > 0 ? (
               <form action={suggestAnsaetzeFromHistory} className="mt-2 border-t border-gray-100 pt-2">
@@ -209,6 +221,11 @@ export default async function KalkulationProjectPage({
                 <li>Unten auf &quot;Ansätze aus anderen Projekten vorschlagen&quot; klicken.</li>
                 <li>Vorschläge prüfen und bestätigen.</li>
                 <li>Fertig kalkulierte XML unten exportieren und in iTWO einlesen.</li>
+                <li>
+                  Nach der echten Fertigstellung in iTWO: die Datei löschen und die finale, fertig kalkulierte
+                  XML hier erneut hochladen (Haken bei &quot;fertige, finale Kalkulation&quot; setzen) - erst
+                  dann fließt sie in Ansatz-Vorschläge für andere Projekte ein.
+                </li>
               </ol>
               <p className="mt-1 text-blue-700">
                 Geht auch ohne Upload hier - dann wird die Datei aber neu zusammengebaut statt aus deiner
@@ -220,17 +237,20 @@ export default async function KalkulationProjectPage({
           itemBadge={(item) => {
             const counts = kalkulationFillCounts.get(item.id);
             if (!counts || counts.total === 0) return null;
+            if (item.isFinalCalculation) {
+              return <p className="text-[11px] font-semibold text-green-700">✓ Finale Kalkulation</p>;
+            }
             const label =
               counts.filled === 0
                 ? "leer · bereit für Ansätze-Vorschläge"
                 : counts.filled === counts.total
-                  ? "vollständig kalkuliert"
-                  : `${counts.filled} von ${counts.total} Positionen kalkuliert`;
+                  ? "vollständig kalkuliert (Entwurf)"
+                  : `${counts.filled} von ${counts.total} Positionen kalkuliert (Entwurf)`;
             const colorClass =
               counts.filled === 0
                 ? "text-gray-500"
                 : counts.filled === counts.total
-                  ? "text-green-700"
+                  ? "text-amber-700"
                   : "text-amber-700";
             return <p className={`text-[11px] font-medium ${colorClass}`}>{label}</p>;
           }}
@@ -252,25 +272,67 @@ export default async function KalkulationProjectPage({
 
       {orderedImports.length > 0 ? (
         <div className="mt-6 space-y-8">
-          {orderedImports.map((item) => (
-            <div key={item.id}>
-              <h2 className="mb-2 text-sm font-bold text-gray-900">
-                {item.fileName}
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  {item.rowCount} Positionen ·{" "}
-                  {item.crossLvMatchedAt
-                    ? `abgeglichen am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeZone: "Europe/Berlin" }).format(item.crossLvMatchedAt)}`
-                    : "noch nicht abgeglichen"}
-                </span>
-              </h2>
-              <LvReviewPanel
-                crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
-                importId={item.id}
-                returnTo={returnTo}
-                showCrossLvMatches={crossLv === item.id}
-              />
-            </div>
-          ))}
+          {orderedImports.map((item) => {
+            // Die Kalkulations-Kachel ist jetzt bewusst eingeklappt: seit
+            // "Ansätze aus anderen Projekten vorschlagen" und "Als XML
+            // exportieren" auch direkt oben im LV-Panel verfügbar sind
+            // (siehe LvReviewPanel.tsx), braucht es die volle Tabelle hier
+            // nur noch zur Kontrolle, nicht mehr für die eigentliche Arbeit.
+            if (item.sourceFormat === "RIB_KALKULATION") {
+              const counts = kalkulationFillCounts.get(item.id);
+              return (
+                <details className="rounded-2xl border border-gray-200 bg-white p-3" key={item.id}>
+                  <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm font-bold text-gray-900">
+                    {item.fileName}
+                    <span className="text-xs font-normal text-gray-500">
+                      {counts
+                        ? item.isFinalCalculation
+                          ? "✓ Finale Kalkulation"
+                          : `${counts.filled} von ${counts.total} Positionen kalkuliert (Entwurf)`
+                        : `${item.rowCount} Positionen`}
+                    </span>
+                    {counts && counts.filled > 0 ? (
+                      <a
+                        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-50"
+                        href={`/kalkulation/imports/${item.id}/export-xml`}
+                        title="Exportiert die Kalkulationsansätze dieses Imports als .xml - zum Wiedereinlesen in iTWO"
+                      >
+                        Als XML exportieren ↓
+                      </a>
+                    ) : null}
+                  </summary>
+                  <div className="mt-3">
+                    <LvReviewPanel
+                      crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
+                      importId={item.id}
+                      returnTo={returnTo}
+                      showCrossLvMatches={crossLv === item.id}
+                    />
+                  </div>
+                </details>
+              );
+            }
+
+            return (
+              <div key={item.id}>
+                <h2 className="mb-2 text-sm font-bold text-gray-900">
+                  {item.fileName}
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    {item.rowCount} Positionen ·{" "}
+                    {item.crossLvMatchedAt
+                      ? `abgeglichen am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeZone: "Europe/Berlin" }).format(item.crossLvMatchedAt)}`
+                      : "noch nicht abgeglichen"}
+                  </span>
+                </h2>
+                <LvReviewPanel
+                  crossLvToggleHref={`${returnTo}?crossLv=${item.id}`}
+                  importId={item.id}
+                  returnTo={returnTo}
+                  showCrossLvMatches={crossLv === item.id}
+                />
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </AppShell>

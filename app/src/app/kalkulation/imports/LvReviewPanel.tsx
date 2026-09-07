@@ -18,7 +18,12 @@ import {
 } from "./actions";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
 import { buildLvMatches } from "@/lib/kalkulation-matching";
-import type { StoredAnsatzAlternative } from "@/lib/kalkulation-ansatz-pool";
+import {
+  ansatzPoolByProjectAndOz,
+  buildAnsatzPool,
+  type AnsatzPoolEntry,
+  type StoredAnsatzAlternative,
+} from "@/lib/kalkulation-ansatz-pool";
 import { diffWords } from "@/lib/kalkulation-text-diff";
 import { formatLvSource } from "@/lib/kalkulation-format";
 
@@ -74,6 +79,8 @@ export async function LvReviewPanel({
       orderBy: { title: "asc" },
     }),
   ]);
+
+  const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
 
   // Preishistorie aus ANDEREN Projekten für jede in diesem LV bereits
   // (vorgeschlagen oder bestätigt) zugeordnete Position - damit man beim
@@ -183,7 +190,52 @@ export async function LvReviewPanel({
     : [];
   const priceSourceImportById = new Map(priceSourceImports.map((source) => [source.id, source]));
 
-  const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
+  // Für den Nicht-Kalkulations-Zweig (das eigentliche LV): der verknüpfte
+  // Kalkulations-Import dieses Projekts (falls vorhanden) - damit sich
+  // "Ansätze vorschlagen" und "Als XML exportieren" direkt von hier aus
+  // bedienen lassen, ohne zum separaten Kalkulations-Panel scrollen zu
+  // müssen. Ebenso: welche anderen Projekte überhaupt eine als final
+  // markierte Kalkulation haben (für den gezielten Projekt-Abgleich) und -
+  // nur wenn der Live-Vergleich an ist - ein OZ-Nachschlag, welche der
+  // "Ähnlich in anderen LVs"-Treffer bereits einen Ansatz haben (siehe
+  // findAnsatzCandidatesViaLvMatch in kalkulation-ansatz-pool.ts - genau
+  // dieselbe Logik wie beim Massen-Vorschlag, statt nur die Kalkulations-
+  // XML-eigene Textähnlichkeit zu prüfen).
+  let linkedKalkulationImportId: string | null = null;
+  let linkedKalkulationHasExportableItems = false;
+  let eligibleTargetProjectNumbers: string[] = [];
+  let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
+  if (!isKalkulation && lvImport.projectNumber) {
+    const [linkedKalkulationImport, finalKalkulationImports] = await Promise.all([
+      prisma.kalkulationLvImport.findFirst({
+        orderBy: { createdAt: "desc" },
+        where: { projectNumber: lvImport.projectNumber, sourceFormat: "RIB_KALKULATION" },
+      }),
+      prisma.kalkulationLvImport.findMany({
+        distinct: ["projectNumber"],
+        select: { projectNumber: true },
+        where: {
+          isFinalCalculation: true,
+          projectNumber: { not: lvImport.projectNumber },
+          sourceFormat: "RIB_KALKULATION",
+        },
+      }),
+    ]);
+    eligibleTargetProjectNumbers = finalKalkulationImports
+      .map((entry) => entry.projectNumber)
+      .filter((value): value is string => Boolean(value));
+    if (linkedKalkulationImport) {
+      linkedKalkulationImportId = linkedKalkulationImport.id;
+      linkedKalkulationHasExportableItems =
+        (await prisma.kalkulationLvLineItem.count({
+          where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
+        })) > 0;
+    }
+    if (showCrossLvMatches) {
+      const pool = await buildAnsatzPool(lvImport.projectNumber);
+      ansatzByProjectAndOz = ansatzPoolByProjectAndOz(pool);
+    }
+  }
 
   return (
     <div>
@@ -339,7 +391,44 @@ export async function LvReviewPanel({
             >
               Als PDF exportieren ↓
             </a>
+
+            {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (
+              <a
+                className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+                href={`/kalkulation/imports/${linkedKalkulationImportId}/export-xml`}
+                title="Exportiert die Kalkulationsansätze dieses Projekts als .xml - zum Wiedereinlesen in iTWO"
+              >
+                Als XML exportieren ↓
+              </a>
+            ) : null}
           </div>
+
+          {lvImport.projectNumber ? (
+            <form action={suggestAnsaetzeFromHistory} className="mb-3 flex flex-wrap items-center gap-2">
+              <input name="projectNumber" type="hidden" value={lvImport.projectNumber} />
+              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+              <select
+                className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                defaultValue=""
+                name="targetProjectNumber"
+                title="Gegen alle Projekte oder gezielt gegen ein bestimmtes Projekt abgleichen"
+              >
+                <option value="">Alle Projekte</option>
+                {eligibleTargetProjectNumbers.map((number) => (
+                  <option key={number} value={number}>
+                    Nur Projekt {number}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                title="Befüllt noch leere Positionen der Kalkulation dieses Projekts mit den ähnlichsten Ansätzen aus anderen Projekten - vorhandene Ansätze bleiben unangetastet"
+                type="submit"
+              >
+                Ansätze aus anderen Projekten vorschlagen
+              </button>
+            </form>
+          ) : null}
         </>
       )}
 
@@ -414,7 +503,18 @@ export async function LvReviewPanel({
                       <div className="space-y-2">
                         {(crossLvMatchesByLineItem.get(item.id) ?? []).map((match) => {
                           const cross = match.source;
-                          const isAnsatz = cross.lvImport.sourceFormat === "RIB_KALKULATION";
+                          // Nicht nur prüfen, ob DIESE Treffer-Position selbst aus
+                          // einer Kalkulations-XML stammt (das trifft oft nicht zu,
+                          // siehe Kommentar bei findAnsatzCandidatesViaLvMatch) -
+                          // stattdessen über Projekt+OZ nachschlagen, ob das
+                          // Treffer-Projekt für dieselbe Position überhaupt einen
+                          // Ansatz hinterlegt hat, unabhängig davon, welche Zeile
+                          // hier textlich am ähnlichsten war.
+                          const resolvedAnsatz =
+                            cross.lvImport.projectNumber && cross.positionNumber
+                              ? ansatzByProjectAndOz.get(`${cross.lvImport.projectNumber}::${cross.positionNumber.trim()}`)
+                              : undefined;
+                          const isAnsatz = Boolean(resolvedAnsatz);
                           const diffTokens = diffWords(item.rawText, cross.rawText);
                           return (
                             <div className="border-b border-gray-100 pb-2 last:border-0 last:pb-0" key={cross.id}>
@@ -446,10 +546,10 @@ export async function LvReviewPanel({
                                   )}
                                 </p>
                               </details>
-                              {isAnsatz ? (
+                              {isAnsatz && resolvedAnsatz ? (
                                 <form action={adoptAnsatzFromCandidate}>
                                   <input name="lineItemId" type="hidden" value={item.id} />
-                                  <input name="sourceCandidateId" type="hidden" value={cross.id} />
+                                  <input name="sourceCandidateId" type="hidden" value={resolvedAnsatz.sourceLineItemId} />
                                   <button
                                     className="mt-1 rounded-lg bg-purple-700 px-2 py-1 text-xs font-bold text-white hover:bg-purple-800"
                                     title="Übernimmt den Kalkulationsansatz dieser Position in die eigene Kalkulation dieses Projekts"
@@ -589,7 +689,11 @@ export async function LvReviewPanel({
                                   {alternatives.map((alternative, index) => (
                                     <div className="border-t border-gray-100 pt-1" key={`${alternative.sourceProjectNumber}-${index}`}>
                                       <div className="break-words text-xs text-gray-700">
-                                        Projekt {alternative.sourceProjectNumber} ({Math.round(alternative.similarity * 100)}%)
+                                        Projekt {alternative.sourceProjectNumber} ({Math.round(alternative.similarity * 100)}%,{" "}
+                                        {new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(
+                                          new Date(alternative.sourceImportDate),
+                                        )}
+                                        )
                                       </div>
                                       <form action={chooseAnsatzAlternative}>
                                         <input name="lineItemId" type="hidden" value={item.id} />

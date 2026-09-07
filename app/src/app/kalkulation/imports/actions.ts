@@ -74,6 +74,10 @@ export async function importLv(formData: FormData) {
   const tenderTitleInput = text(formData.get("tenderTitle"));
   const matchingThresholdRaw = text(formData.get("matchingThreshold"));
   const matchingThreshold = matchingThresholdRaw ? Number.parseInt(matchingThresholdRaw, 10) / 100 : 0.3;
+  // Nur für den Kalkulations-Upload-Slot relevant (siehe ProjectSlot in
+  // page.tsx) - markiert eine echte, in iTWO fertiggestellte Kalkulation
+  // als Referenzdaten für Ansatz-Vorschläge bei anderen Projekten.
+  const isFinalCalculation = formData.get("isFinalCalculation") === "on";
   // Von einer Projekt-Zeile aus hochgeladen (ein leeres Slot befüllt) -
   // dann dorthin zurückkehren statt immer zur Einzel-Review-Seite zu
   // springen, sonst sieht man nach dem Upload die eigenen "3 Zeilen"
@@ -176,6 +180,7 @@ export async function importLv(formData: FormData) {
       fileName: file.name,
       gaebDocType,
       importedByUserId: session.user.id,
+      isFinalCalculation: sourceFormat === "RIB_KALKULATION" && isFinalCalculation,
       lvType,
       matchingThreshold,
       originalStoragePath,
@@ -854,6 +859,9 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   const projectNumber = text(formData.get("projectNumber"));
   const returnTo = text(formData.get("returnTo")) || "/kalkulation/projects";
   if (!projectNumber) throw new Error("Projektnummer fehlt.");
+  // Optional: gezielt gegen genau ein anderes Projekt abgleichen statt
+  // gegen den gesamten Pool - leer/nicht gesetzt heißt "alle Projekte".
+  const targetProjectNumber = text(formData.get("targetProjectNumber")) || undefined;
 
   const project = await prisma.kalkulationProject.findUnique({ where: { projectNumber } });
   if (!project) throw new Error("Projekt nicht gefunden.");
@@ -891,10 +899,10 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     }
   }
 
-  const pool = await buildAnsatzPool(projectNumber);
+  const pool = await buildAnsatzPool(projectNumber, targetProjectNumber);
   if (pool.length === 0) {
     redirect(
-      `${returnTo}?importError=${encodeURIComponent("Es gibt noch keine auswertbaren Kalkulationsansätze in anderen Projekten (D31 hochgeladen UND eigenes LV mit passenden OZ nötig).")}`,
+      `${returnTo}?importError=${encodeURIComponent("Es gibt noch keine auswertbaren, als final markierten Kalkulationsansätze in anderen Projekten.")}`,
     );
   }
   const ansatzByProjectAndOz = ansatzPoolByProjectAndOz(pool);
@@ -909,7 +917,10 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     include: { lvImport: true },
     where: {
       entryType: "ITEM",
-      lvImport: { projectNumber: { not: projectNumber }, sourceFormat: { not: "RIB_KALKULATION" } },
+      lvImport: {
+        projectNumber: targetProjectNumber ? targetProjectNumber : { not: projectNumber },
+        sourceFormat: { not: "RIB_KALKULATION" },
+      },
       NOT: { shortText: { startsWith: "Kalkulation OZ " } },
       positionNumber: { not: null },
     },
@@ -956,6 +967,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
         ? rewriteOzInXmlBlock(candidate.ansatz.ribRawBlockXml, positionNumber)
         : null,
       similarity: candidate.langtextScore,
+      sourceImportDate: candidate.ansatz.sourceImportDate.toISOString(),
       sourceProjectNumber: candidate.ansatz.sourceProjectNumber,
     }));
     return {

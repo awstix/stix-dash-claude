@@ -3752,6 +3752,16 @@ model KalkulationLvImport {
   crossLvMatchedByUserId   String?
   crossLvMatchedByUser     User?     @relation("KalkulationCrossLvMatchedBy", fields: [crossLvMatchedByUserId], references: [id], onDelete: SetNull)
 
+  // Nur bei sourceFormat RIB_KALKULATION relevant: markiert eine echte,
+  // in iTWO fertiggestellte Kalkulation (im Gegensatz zu einem noch
+  // unbestätigten, automatisch aus anderen Projekten befüllten Entwurf).
+  // Nur als final gekennzeichnete Kalkulationen fließen in den
+  // projektübergreifenden Ansatz-Pool für ANDERE Projekte ein (siehe
+  // buildAnsatzPool in kalkulation-ansatz-pool.ts) - verhindert, dass sich
+  // unbestätigte Vorschläge über mehrere Projekte hinweg kopieren und an
+  // Qualität verlieren.
+  isFinalCalculation Boolean @default(false)
+
   rowCount          Int       @default(0)
   matchedCount      Int       @default(0)
   needsReviewCount  Int       @default(0)

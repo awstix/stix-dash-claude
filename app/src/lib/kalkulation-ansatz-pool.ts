@@ -19,25 +19,38 @@ export type AnsatzPoolEntry = LvMatchInput & {
   sourceProjectNumber: string;
   sourcePositionNumber: string;
   sourceImportId: string;
+  sourceImportDate: Date;
   ansatzSummary: string;
   ribRawBlock: string;
   ribRawBlockXml: string | null;
 };
 
-export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<AnsatzPoolEntry[]> {
+/** `onlyProjectNumber`: gezielter Abgleich gegen genau ein anderes Projekt
+ * statt gegen den gesamten Pool (Nutzer-Wunsch: "ich kann auch selbst ein
+ * Projekt wählen, mit dem die Kalkulation genauer abgeglichen wird"). */
+export async function buildAnsatzPool(
+  excludeProjectNumber?: string,
+  onlyProjectNumber?: string,
+): Promise<AnsatzPoolEntry[]> {
   const kalkulationItems = await prisma.kalkulationLvLineItem.findMany({
     include: { lvImport: true },
     where: {
       entryType: "ITEM",
-      lvImport: { projectNumber: { not: null }, sourceFormat: "RIB_KALKULATION" },
+      // Nur als final gekennzeichnete Kalkulationen fließen in den
+      // projektübergreifenden Pool ein - ein noch unbestätigter,
+      // automatisch befüllter Entwurf soll sich nicht über mehrere
+      // Projekte hinweg kopieren und dabei an Qualität verlieren.
+      lvImport: { isFinalCalculation: true, projectNumber: { not: null }, sourceFormat: "RIB_KALKULATION" },
       positionNumber: { not: null },
       ribRawBlock: { not: null },
     },
   });
 
-  const relevantKalkulationItems = kalkulationItems.filter(
-    (item) => item.lvImport.projectNumber !== excludeProjectNumber,
-  );
+  const relevantKalkulationItems = kalkulationItems.filter((item) => {
+    if (item.lvImport.projectNumber === excludeProjectNumber) return false;
+    if (onlyProjectNumber && item.lvImport.projectNumber !== onlyProjectNumber) return false;
+    return true;
+  });
   if (relevantKalkulationItems.length === 0) return [];
 
   const projectNumbers = [
@@ -89,6 +102,7 @@ export async function buildAnsatzPool(excludeProjectNumber?: string): Promise<An
       ribRawBlock: item.ribRawBlock,
       ribRawBlockXml: item.ribRawBlockXml,
       shortText,
+      sourceImportDate: item.lvImport.lvDate ?? item.lvImport.createdAt,
       sourceImportId: item.lvImportId,
       sourceLineItemId: item.id,
       sourcePositionNumber: item.positionNumber.trim(),
@@ -122,6 +136,7 @@ export type AnsatzViaLvMatch = {
 export type StoredAnsatzAlternative = {
   sourceProjectNumber: string;
   similarity: number;
+  sourceImportDate: string;
   ansatzSummary: string;
   ribRawBlock: string;
   ribRawBlockXml: string | null;
@@ -142,7 +157,12 @@ export type StoredAnsatzAlternative = {
  * Gibt bis zu `limit` Kandidaten zurück (bester zuerst), höchstens einer
  * je Quellprojekt - z.B. wenn dieselbe Position in 3 anderen LVs
  * ("Baustelle einrichten") vorkommt, lässt sich so zwischen den 3
- * Quellprojekten wählen statt blind den einen besten zu übernehmen. */
+ * Quellprojekten wählen statt blind den einen besten zu übernehmen.
+ *
+ * Sortierung: primär nach Ähnlichkeit in 5%-Schritten gebündelt, innerhalb
+ * eines Bündels nach Aktualität (neuere Kalkulation zuerst) - bei
+ * ähnlich guten Treffern soll die zeitlich neuere gewinnen, statt dass
+ * Nachkommastellen-Unterschiede in der reinen Textähnlichkeit entscheiden. */
 export function findAnsatzCandidatesViaLvMatch(
   target: LvMatchInput,
   otherLvCandidates: LvMatchInput[],
@@ -153,15 +173,20 @@ export function findAnsatzCandidatesViaLvMatch(
 ): AnsatzViaLvMatch[] {
   const matches = buildLvMatches(target, otherLvCandidates, options);
   const seenProjects = new Set<string>();
-  const results: AnsatzViaLvMatch[] = [];
+  const collected: AnsatzViaLvMatch[] = [];
   for (const match of matches) {
     const meta = otherLvMetaById.get(match.candidateId);
     if (!meta?.positionNumber) continue;
     const ansatz = ansatzByProjectAndOz.get(`${meta.projectNumber}::${meta.positionNumber.trim()}`);
     if (!ansatz || seenProjects.has(ansatz.sourceProjectNumber)) continue;
     seenProjects.add(ansatz.sourceProjectNumber);
-    results.push({ ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore });
-    if (results.length >= limit) break;
+    collected.push({ ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore });
   }
-  return results;
+  const scoreBucket = (score: number) => Math.round(score * 20);
+  collected.sort((a, b) => {
+    const bucketDiff = scoreBucket(b.langtextScore) - scoreBucket(a.langtextScore);
+    if (bucketDiff !== 0) return bucketDiff;
+    return b.ansatz.sourceImportDate.getTime() - a.ansatz.sourceImportDate.getTime();
+  });
+  return collected.slice(0, limit);
 }
