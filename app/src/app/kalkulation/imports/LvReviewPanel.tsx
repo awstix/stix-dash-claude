@@ -3,6 +3,7 @@ import {
   adoptAnsatzFromCandidate,
   adoptPrice,
   chooseAnsatzAlternative,
+  clearAnsatzSuggestions,
   clearPrice,
   confirmAnsatzSuggestion,
   confirmMatch,
@@ -14,6 +15,7 @@ import {
   updateCrossLvSettings,
 } from "./actions";
 import { AnsatzSuggestForm } from "./AnsatzSuggestForm";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ImportForm } from "@/components/ImportForm";
 import { MatchingThresholdInput } from "./MatchingThresholdInput";
 import type { StoredCrossLvMatch } from "@/lib/kalkulation-matching";
@@ -176,6 +178,7 @@ export async function LvReviewPanel({
   // XML-eigene Textähnlichkeit zu prüfen).
   let linkedKalkulationImportId: string | null = null;
   let linkedKalkulationHasExportableItems = false;
+  let linkedKalkulationHasAnsatzSuggestions = false;
   let ansatzByProjectAndOz = new Map<string, AnsatzPoolEntry>();
   // Welche anderen Projekte überhaupt eine als final markierte Kalkulation
   // haben - Grundlage für die Projekt-Auswahl neben "Ansätze aus anderen
@@ -207,10 +210,16 @@ export async function LvReviewPanel({
     });
     if (linkedKalkulationImport) {
       linkedKalkulationImportId = linkedKalkulationImport.id;
-      const exportableCount = await prisma.kalkulationLvLineItem.count({
-        where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
-      });
+      const [exportableCount, suggestionCount] = await Promise.all([
+        prisma.kalkulationLvLineItem.count({
+          where: { lvImportId: linkedKalkulationImport.id, ribRawBlockXml: { not: null } },
+        }),
+        prisma.kalkulationLvLineItem.count({
+          where: { lvImportId: linkedKalkulationImport.id, matchedVia: "CROSS_PROJECT_ANSATZ" },
+        }),
+      ]);
       linkedKalkulationHasExportableItems = exportableCount > 0;
+      linkedKalkulationHasAnsatzSuggestions = suggestionCount > 0;
     }
     // Ein OZ-Nachschlag, welche der "Ähnlich in anderen LVs"-Treffer
     // bereits einen Ansatz haben (siehe findAnsatzCandidatesViaLvMatch in
@@ -241,6 +250,22 @@ export async function LvReviewPanel({
               projectNumber={lvImport.projectNumber}
               returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
             />
+          ) : null}
+
+          {lineItems.some((item) => item.matchedVia === "CROSS_PROJECT_ANSATZ") ? (
+            <form action={clearAnsatzSuggestions}>
+              <input name="importId" type="hidden" value={importId} />
+              <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+              <ConfirmSubmitButton
+                ariaLabel="Alle Ansatz-Vorschläge löschen"
+                className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                confirmLabel="Löschen"
+                icon="delete"
+                label="Vorschläge löschen"
+                message="Setzt ALLE automatisch übernommenen Ansatz-Vorschläge dieses Imports zurück auf offen - egal ob schon bestätigt oder noch zu prüfen. Echte, direkt aus iTWO hochgeladene Ansätze bleiben unberührt. Danach lässt sich neu zuordnen (erneut vorschlagen oder manuell)."
+                title="Vorschläge löschen"
+              />
+            </form>
           ) : null}
 
           {lineItems.some((item) => item.ribRawBlockXml) ? (
@@ -367,6 +392,22 @@ export async function LvReviewPanel({
                   projectNumber={lvImport.projectNumber}
                   returnTo={returnTo ?? `/kalkulation/imports/${importId}`}
                 />
+              ) : null}
+
+              {linkedKalkulationHasAnsatzSuggestions && linkedKalkulationImportId ? (
+                <form action={clearAnsatzSuggestions}>
+                  <input name="importId" type="hidden" value={linkedKalkulationImportId} />
+                  <input name="returnTo" type="hidden" value={returnTo ?? `/kalkulation/imports/${importId}`} />
+                  <ConfirmSubmitButton
+                    ariaLabel="Alle Ansatz-Vorschläge löschen"
+                    className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                    confirmLabel="Löschen"
+                    icon="delete"
+                    label="Vorschläge löschen"
+                    message="Setzt ALLE automatisch übernommenen Ansatz-Vorschläge dieses Projekts zurück auf offen - egal ob schon bestätigt oder noch zu prüfen. Echte, direkt aus iTWO hochgeladene Ansätze bleiben unberührt. Danach lässt sich neu zuordnen (erneut vorschlagen oder manuell)."
+                    title="Vorschläge löschen"
+                  />
+                </form>
               ) : null}
 
               {linkedKalkulationHasExportableItems && linkedKalkulationImportId ? (

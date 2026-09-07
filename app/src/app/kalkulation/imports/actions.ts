@@ -1050,6 +1050,39 @@ export async function chooseAnsatzAlternative(formData: FormData) {
   revalidatePath("/kalkulation/projects");
 }
 
+/** Setzt ALLE automatisch übernommenen Ansatz-Vorschläge dieses Imports
+ * zurück auf leer/offen - egal ob noch offen oder schon bestätigt/
+ * verworfen. Für den Fall, dass die Vorschläge insgesamt nicht passen
+ * (z.B. falscher Projekt-Filter oder Schwellenwert) und man neu zuordnen
+ * will, statt jede Position einzeln per "Verwerfen" durchzugehen. Echte,
+ * direkt aus iTWO hochgeladene Ansätze (matchedVia ist dort nie
+ * CROSS_PROJECT_ANSATZ) bleiben davon unberührt. */
+export async function clearAnsatzSuggestions(formData: FormData) {
+  await requireSession();
+  const importId = text(formData.get("importId"));
+  if (!importId) throw new Error("Import-ID fehlt.");
+  const returnTo = text(formData.get("returnTo")) || `/kalkulation/imports/${importId}`;
+
+  await prisma.kalkulationLvLineItem.updateMany({
+    data: {
+      ansatzAlternativesJson: null,
+      confirmedAt: null,
+      confirmedByUserId: null,
+      matchConfidence: null,
+      matchedVia: null,
+      matchStatus: "PENDING",
+      rawText: "Kalkulationsansätze:",
+      ribRawBlock: null,
+      ribRawBlockXml: null,
+    },
+    where: { lvImportId: importId, matchedVia: "CROSS_PROJECT_ANSATZ" },
+  });
+
+  revalidatePath(`/kalkulation/imports/${importId}`);
+  revalidatePath("/kalkulation/projects");
+  redirect(returnTo);
+}
+
 /** Speichert die drei Abgleich-Kriterien für "Ähnlich in anderen LVs"
  * (Kurztext-/Langtext-Ähnlichkeit, Menge+Einheit exakt) - pro Import, wie
  * schon bei matchingThreshold für den Katalog-Abgleich üblich. */

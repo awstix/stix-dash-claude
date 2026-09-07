@@ -15,6 +15,7 @@ export function ConfirmSubmitButton({
   confirmLabel,
   icon,
   iconClassName = "h-4 w-4",
+  label,
   message,
   title,
 }: {
@@ -24,6 +25,7 @@ export function ConfirmSubmitButton({
   confirmLabel: string;
   icon: ActionIconName;
   iconClassName?: string;
+  label?: string;
   message: string;
   title: string;
 }) {
@@ -42,6 +44,7 @@ export function ConfirmSubmitButton({
     <>
       <button aria-label={ariaLabel} className={className} onClick={() => setOpen(true)} title={title} type="button">
         <ActionIcon className={iconClassName} name={icon} />
+        {label ? <span>{label}</span> : null}
       </button>
 
       {open ? (
