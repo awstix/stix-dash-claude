@@ -175,33 +175,6 @@ export async function LvReviewPanel({
 
   const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
 
-  // Preise stehen nur in einer schon gepreist hochgeladenen LV-Datei drin
-  // (GAEB UP/IT bzw. Excel EP/GP, siehe importLv in actions.ts) - bei einer
-  // leeren Ausschreibung oder einer Kalkulations-XML gibt's das nicht, dann
-  // bleiben GP-Spalte, Zwischensummen und Endsumme komplett weg.
-  const hasAnyPrice =
-    !isKalkulation &&
-    lineItems.some(
-      (item) =>
-        item.entryType === "ITEM" &&
-        (item.unitPriceCents != null || item.totalPriceCents != null),
-    );
-
-  // Gesamtpreis je Position: nimmt den in der Datei hinterlegten Wert,
-  // sonst geschätzt aus Einheitspreis mal Menge - deshalb der Hinweis
-  // unter der Endsumme, dass eine geschätzte Summe dabei sein kann.
-  function computeGpCents(item: {
-    totalPriceCents: number | null;
-    unitPriceCents: number | null;
-    quantity: number | null;
-  }) {
-    if (item.totalPriceCents != null) return item.totalPriceCents;
-    if (item.unitPriceCents != null && item.quantity != null) {
-      return Math.round(item.unitPriceCents * item.quantity);
-    }
-    return null;
-  }
-
   // Ergebnis von "Abgleich starten" wird beim Klick berechnet und in
   // crossLvMatchesJson je Position gespeichert (siehe updateCrossLvSettings
   // in actions.ts) - hier nur noch aus der Datenbank laden und die
@@ -663,12 +636,7 @@ export async function LvReviewPanel({
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Langtext</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">LV-Menge</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Einheit</th>
-                {hasAnyPrice ? (
-                  <>
-                    <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
-                    <th className="sticky top-0 z-10 bg-gray-50 p-3">GP</th>
-                  </>
-                ) : null}
+                <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
                 <th className="sticky top-0 z-10 w-64 bg-gray-50 p-3">
                   Ähnlich in anderen LVs
                 </th>
@@ -679,370 +647,281 @@ export async function LvReviewPanel({
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                const colCount = hasAnyPrice ? 10 : 8;
-                const rows: React.ReactNode[] = [];
-                // Zwischensumme je Abschnitt (zwischen zwei Titel-Zeilen)
-                // und Endsumme über alle Abschnitte - nur relevant, wenn
-                // die Datei überhaupt Preise mitbringt (hasAnyPrice).
-                let sectionTotalCents = 0;
-                let sectionItemCount = 0;
-                let sectionIndex = 0;
-                let grandTotalCents = 0;
-                const flushSection = () => {
-                  if (!hasAnyPrice || sectionItemCount === 0) return;
-                  rows.push(
-                    <tr
-                      className="border-t-2 border-gray-300 bg-gray-100"
-                      key={`subtotal-${sectionIndex}`}
-                    >
+              {lineItems.map((item) => {
+                if (item.entryType === "TITLE") {
+                  return (
+                    <tr key={item.id}>
                       <td
-                        className="p-3 text-right font-semibold text-gray-700"
-                        colSpan={colCount - 1}
+                        className="bg-gray-900 p-3 font-bold text-white"
+                        colSpan={9}
                       >
-                        Zwischensumme
-                      </td>
-                      <td className="p-3 font-semibold text-gray-900">
-                        {formatCents(sectionTotalCents)}
-                      </td>
-                    </tr>,
-                  );
-                  sectionIndex += 1;
-                };
-
-                for (const item of lineItems) {
-                  if (item.entryType === "TITLE") {
-                    flushSection();
-                    sectionTotalCents = 0;
-                    sectionItemCount = 0;
-                    rows.push(
-                      <tr key={item.id}>
-                        <td
-                          className="bg-gray-900 p-3 font-bold text-white"
-                          colSpan={colCount}
-                        >
-                          {item.rawText}
-                        </td>
-                      </tr>,
-                    );
-                    continue;
-                  }
-
-                  if (item.entryType === "REMARK") {
-                    rows.push(
-                      <tr key={item.id}>
-                        <td
-                          className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950"
-                          colSpan={colCount}
-                        >
-                          <span className="font-bold not-italic">
-                            Vorbemerkung:{" "}
-                          </span>
-                          {item.rawText}
-                        </td>
-                      </tr>,
-                    );
-                    continue;
-                  }
-
-                  const gpCents = hasAnyPrice ? computeGpCents(item) : null;
-                  if (gpCents != null) {
-                    sectionTotalCents += gpCents;
-                    grandTotalCents += gpCents;
-                  }
-                  sectionItemCount += 1;
-
-                  const status =
-                    STATUS_LABELS[item.matchStatus] ?? STATUS_LABELS.PENDING;
-                  rows.push(
-                    <tr
-                      className="border-t border-gray-100 align-top even:bg-gray-50"
-                      key={item.id}
-                    >
-                      <td className="p-3 text-gray-500">
-                        {item.positionNumber ?? "–"}
-                      </td>
-                      <td className="p-3 max-w-xs font-semibold text-gray-900">
-                        {item.shortText ?? "–"}
-                      </td>
-                      <td className="whitespace-pre-line p-3 max-w-sm text-gray-700">
                         {item.rawText}
                       </td>
-                      <td className="p-3 whitespace-nowrap">
-                        {item.quantity ?? "–"}
-                      </td>
-                      <td className="p-3 whitespace-nowrap">
-                        {item.unit ?? "–"}
-                      </td>
-                      {hasAnyPrice ? (
-                        <>
-                          <td className="w-28 max-w-28 p-3">
-                            <span className="whitespace-nowrap">
-                              {formatCents(item.unitPriceCents)}
-                            </span>
-                          </td>
-                          <td className="w-28 max-w-28 p-3">
-                            <span className="whitespace-nowrap">
-                              {formatCents(gpCents)}
-                            </span>
-                          </td>
-                        </>
-                      ) : null}
-                      <td className="w-64 max-w-64 p-3">
-                        {item.positionNumber &&
-                        ownAnsatzStatusByOz.has(item.positionNumber.trim())
-                          ? (() => {
-                              const ansatzStatus = ownAnsatzStatusByOz.get(
-                                item.positionNumber!.trim(),
-                              )!;
-                              return (
-                                <details className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
-                                  <summary className="cursor-pointer font-semibold text-blue-700 underline">
-                                    Übernommenen Ansatz anzeigen
-                                  </summary>
-                                  <p className="mt-1 whitespace-pre-line break-words text-gray-700">
-                                    {ansatzStatus.rawText}
-                                  </p>
-                                </details>
-                              );
-                            })()
-                          : null}
-                        {(crossLvMatchesByLineItem.get(item.id) ?? [])
-                          .length === 0 ? (
-                          <span className="text-gray-400">–</span>
-                        ) : (
-                          <div className="space-y-2">
-                            {(crossLvMatchesByLineItem.get(item.id) ?? []).map(
-                              (match) => {
-                                const cross = match.source;
-                                // Nicht nur prüfen, ob DIESE Treffer-Position selbst aus
-                                // einer Kalkulations-XML stammt (das trifft oft nicht zu,
-                                // siehe Kommentar bei findAnsatzCandidatesViaLvMatch) -
-                                // stattdessen über Projekt+OZ nachschlagen, ob das
-                                // Treffer-Projekt für dieselbe Position überhaupt einen
-                                // Ansatz hinterlegt hat, unabhängig davon, welche Zeile
-                                // hier textlich am ähnlichsten war.
-                                const resolvedAnsatz =
-                                  cross.lvImport.projectNumber &&
-                                  cross.positionNumber
-                                    ? ansatzByProjectAndOz.get(
-                                        `${cross.lvImport.projectNumber}::${cross.positionNumber.trim()}`,
-                                      )
-                                    : undefined;
-                                const isAnsatz = Boolean(resolvedAnsatz);
-                                const diffTokens = diffWords(
-                                  item.rawText,
-                                  cross.rawText,
-                                );
-                                return (
-                                  <div
-                                    className="border-b border-gray-100 pb-2 last:border-0 last:pb-0"
-                                    key={cross.id}
-                                  >
-                                    <div className="break-words font-semibold text-gray-900">
-                                      {cross.shortText ??
-                                        cross.rawText.slice(0, 60)}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      Kurztext{" "}
-                                      {Math.round(match.kurztextScore * 100)}% ·
-                                      Langtext{" "}
-                                      {Math.round(match.langtextScore * 100)}%
-                                      {match.exactMengeMatch
-                                        ? " · Menge gleich"
-                                        : ""}
-                                      {match.exactEinheitMatch
-                                        ? " · Einheit gleich"
-                                        : ""}
-                                    </div>
-                                    <div className="mt-1 text-xs font-semibold text-green-800">
-                                      {isAnsatz
-                                        ? "Kalkulationsansatz"
-                                        : "Kein Ansatz vorhanden"}{" "}
-                                      · {formatLvSource(cross.lvImport)}
-                                      {cross.lvImport.lvDate
-                                        ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
-                                        : ""}
-                                    </div>
-                                    <details className="mt-1">
-                                      <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
-                                        Unterschiede anzeigen
-                                      </summary>
-                                      <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
-                                        {diffTokens.map((token, index) =>
-                                          token.changed ? (
-                                            <strong
-                                              className="text-red-700"
-                                              key={index}
-                                            >
-                                              {token.text}{" "}
-                                            </strong>
-                                          ) : (
-                                            <span key={index}>
-                                              {token.text}{" "}
-                                            </span>
-                                          ),
-                                        )}
-                                      </p>
-                                    </details>
-                                    {isAnsatz && resolvedAnsatz ? (
-                                      <details className="mt-1">
-                                        <summary className="cursor-pointer text-xs font-semibold text-purple-700 underline">
-                                          Ansatz anzeigen
-                                        </summary>
-                                        <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
-                                          {resolvedAnsatz.ansatzSummary}
-                                        </p>
-                                      </details>
-                                    ) : null}
-                                    {isAnsatz && resolvedAnsatz ? (
-                                      <form action={adoptAnsatzFromCandidate}>
-                                        <input
-                                          name="lineItemId"
-                                          type="hidden"
-                                          value={item.id}
-                                        />
-                                        <input
-                                          name="sourceCandidateId"
-                                          type="hidden"
-                                          value={
-                                            resolvedAnsatz.sourceLineItemId
-                                          }
-                                        />
-                                        <button
-                                          className="mt-1 rounded-lg bg-purple-700 px-2 py-1 text-xs font-bold text-white hover:bg-purple-800"
-                                          title="Übernimmt den Kalkulationsansatz dieser Position in die eigene Kalkulation dieses Projekts"
-                                          type="submit"
-                                        >
-                                          Ansatz übernehmen
-                                        </button>
-                                        <p className="mt-0.5 text-[11px] text-gray-500">
-                                          Kopiert den Kalkulationsansatz
-                                          (Bausteine/Kostenarten) oben in die
-                                          eigene Kalkulation dieses Projekts,
-                                          sichtbar in der Kachel
-                                          &quot;Kalkulation (XML)&quot; weiter
-                                          unten.
-                                        </p>
-                                      </form>
-                                    ) : (
-                                      <p className="mt-1 text-xs text-gray-500">
-                                        Für diese Position ist in{" "}
-                                        {formatLvSource(cross.lvImport)} kein
-                                        Kalkulationsansatz hinterlegt.
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              },
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {isKalkulation ? (
-                          <span
-                            className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}
-                          >
-                            {status.label}
-                          </span>
-                        ) : (
-                          (() => {
-                            // Preis-/Katalog-Status gibt es für eine reine
-                            // LV-Zeile nicht mehr (Preiskatalog-Abgleich
-                            // entfernt) - hier zählt nur noch, ob für diese
-                            // Position bereits ein Ansatz übernommen wurde.
-                            const ansatzStatus = item.positionNumber
-                              ? ownAnsatzStatusByOz.get(
-                                  item.positionNumber.trim(),
-                                )
-                              : undefined;
-                            if (!ansatzStatus) {
-                              return (
-                                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                                  Offen
-                                </span>
-                              );
-                            }
-                            const isConfirmed =
-                              ansatzStatus.matchStatus === "CONFIRMED";
-                            return (
-                              <span
-                                className={`rounded-full px-2 py-1 text-xs font-semibold ${isConfirmed ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800"}`}
-                              >
-                                {isConfirmed
-                                  ? "Ansatz übernommen"
-                                  : "Ansatz verworfen"}
-                              </span>
-                            );
-                          })()
-                        )}
-                      </td>
-                      <td className="w-40 max-w-40 p-3">
-                        {isKalkulation ? (
-                          item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
-                            <AnsatzActions
-                              target={{
-                                id: item.id,
-                                ansatzAlternativesJson:
-                                  item.ansatzAlternativesJson,
-                                matchStatus: item.matchStatus,
-                                rawText: item.rawText,
-                              }}
-                            />
-                          ) : (
-                            <span className="text-gray-400">–</span>
-                          )
-                        ) : (
-                          (() => {
-                            const ansatzStatus = item.positionNumber
-                              ? ownAnsatzStatusByOz.get(
-                                  item.positionNumber.trim(),
-                                )
-                              : undefined;
-                            return ansatzStatus ? (
-                              <AnsatzActions target={ansatzStatus} />
-                            ) : (
-                              <span className="text-gray-400">–</span>
-                            );
-                          })()
-                        )}
-                      </td>
-                    </tr>,
+                    </tr>
                   );
                 }
 
-                flushSection();
-                if (hasAnyPrice) {
-                  rows.push(
-                    <tr
-                      className="border-t-2 border-gray-900"
-                      key="grand-total"
-                    >
+                if (item.entryType === "REMARK") {
+                  return (
+                    <tr key={item.id}>
                       <td
-                        className="p-3 text-right font-bold text-gray-900"
-                        colSpan={colCount - 1}
+                        className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950"
+                        colSpan={9}
                       >
-                        Endsumme
+                        <span className="font-bold not-italic">
+                          Vorbemerkung:{" "}
+                        </span>
+                        {item.rawText}
                       </td>
-                      <td className="p-3 font-bold text-gray-900">
-                        {formatCents(grandTotalCents)}
-                      </td>
-                    </tr>,
-                  );
-                  rows.push(
-                    <tr key="grand-total-note">
-                      <td
-                        className="p-3 text-xs italic text-gray-500"
-                        colSpan={colCount}
-                      >
-                        Preis netto inkl. Umlage (geschätzt)
-                      </td>
-                    </tr>,
+                    </tr>
                   );
                 }
-                return rows;
-              })()}
+
+                const status =
+                  STATUS_LABELS[item.matchStatus] ?? STATUS_LABELS.PENDING;
+                return (
+                  <tr
+                    className="border-t border-gray-100 align-top even:bg-gray-50"
+                    key={item.id}
+                  >
+                    <td className="p-3 text-gray-500">
+                      {item.positionNumber ?? "–"}
+                    </td>
+                    <td className="p-3 max-w-xs font-semibold text-gray-900">
+                      {item.shortText ?? "–"}
+                    </td>
+                    <td className="whitespace-pre-line p-3 max-w-sm text-gray-700">
+                      {item.rawText}
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {item.quantity ?? "–"}
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {item.unit ?? "–"}
+                    </td>
+                    <td className="w-28 max-w-28 p-3">
+                      <span className="whitespace-nowrap">
+                        {formatCents(item.unitPriceCents)}
+                      </span>
+                    </td>
+                    <td className="w-64 max-w-64 p-3">
+                      {item.positionNumber &&
+                      ownAnsatzStatusByOz.has(item.positionNumber.trim())
+                        ? (() => {
+                            const ansatzStatus = ownAnsatzStatusByOz.get(
+                              item.positionNumber!.trim(),
+                            )!;
+                            return (
+                              <details className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
+                                <summary className="cursor-pointer font-semibold text-blue-700 underline">
+                                  Übernommenen Ansatz anzeigen
+                                </summary>
+                                <p className="mt-1 whitespace-pre-line break-words text-gray-700">
+                                  {ansatzStatus.rawText}
+                                </p>
+                              </details>
+                            );
+                          })()
+                        : null}
+                      {(crossLvMatchesByLineItem.get(item.id) ?? []).length ===
+                      0 ? (
+                        <span className="text-gray-400">–</span>
+                      ) : (
+                        <div className="space-y-2">
+                          {(crossLvMatchesByLineItem.get(item.id) ?? []).map(
+                            (match) => {
+                              const cross = match.source;
+                              // Nicht nur prüfen, ob DIESE Treffer-Position selbst aus
+                              // einer Kalkulations-XML stammt (das trifft oft nicht zu,
+                              // siehe Kommentar bei findAnsatzCandidatesViaLvMatch) -
+                              // stattdessen über Projekt+OZ nachschlagen, ob das
+                              // Treffer-Projekt für dieselbe Position überhaupt einen
+                              // Ansatz hinterlegt hat, unabhängig davon, welche Zeile
+                              // hier textlich am ähnlichsten war.
+                              const resolvedAnsatz =
+                                cross.lvImport.projectNumber &&
+                                cross.positionNumber
+                                  ? ansatzByProjectAndOz.get(
+                                      `${cross.lvImport.projectNumber}::${cross.positionNumber.trim()}`,
+                                    )
+                                  : undefined;
+                              const isAnsatz = Boolean(resolvedAnsatz);
+                              const diffTokens = diffWords(
+                                item.rawText,
+                                cross.rawText,
+                              );
+                              return (
+                                <div
+                                  className="border-b border-gray-100 pb-2 last:border-0 last:pb-0"
+                                  key={cross.id}
+                                >
+                                  <div className="break-words font-semibold text-gray-900">
+                                    {cross.shortText ??
+                                      cross.rawText.slice(0, 60)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Kurztext{" "}
+                                    {Math.round(match.kurztextScore * 100)}% ·
+                                    Langtext{" "}
+                                    {Math.round(match.langtextScore * 100)}%
+                                    {match.exactMengeMatch
+                                      ? " · Menge gleich"
+                                      : ""}
+                                    {match.exactEinheitMatch
+                                      ? " · Einheit gleich"
+                                      : ""}
+                                  </div>
+                                  <div className="mt-1 text-xs font-semibold text-green-800">
+                                    {isAnsatz
+                                      ? "Kalkulationsansatz"
+                                      : "Kein Ansatz vorhanden"}{" "}
+                                    · {formatLvSource(cross.lvImport)}
+                                    {cross.lvImport.lvDate
+                                      ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
+                                      : ""}
+                                  </div>
+                                  <details className="mt-1">
+                                    <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
+                                      Unterschiede anzeigen
+                                    </summary>
+                                    <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
+                                      {diffTokens.map((token, index) =>
+                                        token.changed ? (
+                                          <strong
+                                            className="text-red-700"
+                                            key={index}
+                                          >
+                                            {token.text}{" "}
+                                          </strong>
+                                        ) : (
+                                          <span key={index}>{token.text} </span>
+                                        ),
+                                      )}
+                                    </p>
+                                  </details>
+                                  {isAnsatz && resolvedAnsatz ? (
+                                    <details className="mt-1">
+                                      <summary className="cursor-pointer text-xs font-semibold text-purple-700 underline">
+                                        Ansatz anzeigen
+                                      </summary>
+                                      <p className="mt-1 whitespace-pre-line break-words text-xs text-gray-700">
+                                        {resolvedAnsatz.ansatzSummary}
+                                      </p>
+                                    </details>
+                                  ) : null}
+                                  {isAnsatz && resolvedAnsatz ? (
+                                    <form action={adoptAnsatzFromCandidate}>
+                                      <input
+                                        name="lineItemId"
+                                        type="hidden"
+                                        value={item.id}
+                                      />
+                                      <input
+                                        name="sourceCandidateId"
+                                        type="hidden"
+                                        value={resolvedAnsatz.sourceLineItemId}
+                                      />
+                                      <button
+                                        className="mt-1 rounded-lg bg-purple-700 px-2 py-1 text-xs font-bold text-white hover:bg-purple-800"
+                                        title="Übernimmt den Kalkulationsansatz dieser Position in die eigene Kalkulation dieses Projekts"
+                                        type="submit"
+                                      >
+                                        Ansatz übernehmen
+                                      </button>
+                                      <p className="mt-0.5 text-[11px] text-gray-500">
+                                        Kopiert den Kalkulationsansatz
+                                        (Bausteine/Kostenarten) oben in die
+                                        eigene Kalkulation dieses Projekts,
+                                        sichtbar in der Kachel &quot;Kalkulation
+                                        (XML)&quot; weiter unten.
+                                      </p>
+                                    </form>
+                                  ) : (
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      Für diese Position ist in{" "}
+                                      {formatLvSource(cross.lvImport)} kein
+                                      Kalkulationsansatz hinterlegt.
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            },
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {isKalkulation ? (
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      ) : (
+                        (() => {
+                          // Preis-/Katalog-Status gibt es für eine reine
+                          // LV-Zeile nicht mehr (Preiskatalog-Abgleich
+                          // entfernt) - hier zählt nur noch, ob für diese
+                          // Position bereits ein Ansatz übernommen wurde.
+                          const ansatzStatus = item.positionNumber
+                            ? ownAnsatzStatusByOz.get(
+                                item.positionNumber.trim(),
+                              )
+                            : undefined;
+                          if (!ansatzStatus) {
+                            return (
+                              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                Offen
+                              </span>
+                            );
+                          }
+                          const isConfirmed =
+                            ansatzStatus.matchStatus === "CONFIRMED";
+                          return (
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs font-semibold ${isConfirmed ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800"}`}
+                            >
+                              {isConfirmed
+                                ? "Ansatz übernommen"
+                                : "Ansatz verworfen"}
+                            </span>
+                          );
+                        })()
+                      )}
+                    </td>
+                    <td className="w-40 max-w-40 p-3">
+                      {isKalkulation ? (
+                        item.matchedVia === "CROSS_PROJECT_ANSATZ" ? (
+                          <AnsatzActions
+                            target={{
+                              id: item.id,
+                              ansatzAlternativesJson:
+                                item.ansatzAlternativesJson,
+                              matchStatus: item.matchStatus,
+                              rawText: item.rawText,
+                            }}
+                          />
+                        ) : (
+                          <span className="text-gray-400">–</span>
+                        )
+                      ) : (
+                        (() => {
+                          const ansatzStatus = item.positionNumber
+                            ? ownAnsatzStatusByOz.get(
+                                item.positionNumber.trim(),
+                              )
+                            : undefined;
+                          return ansatzStatus ? (
+                            <AnsatzActions target={ansatzStatus} />
+                          ) : (
+                            <span className="text-gray-400">–</span>
+                          );
+                        })()
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
