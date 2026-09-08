@@ -35,8 +35,28 @@ function asArray<T>(value: T | T[] | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
+/** fast-xml-parser dekodiert benannte Entities (&amp; &lt; ...), aber keine
+ * numerischen Zeichenreferenzen (&#38; &#x26;) - manche iTWO-Exporte nutzen
+ * genau die, sonst bleibt z.B. "PAK &#x3c; 10 mg/kg" statt "PAK < 10 mg/kg"
+ * stehen. Nur für menschenlesbaren Text (rawText/shortText/ribRawBlock,
+ * NIE ribRawBlockXml - das bleibt das unveränderte Original-Fragment und
+ * braucht die Escapes für gültiges XML beim Reimport). */
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 function textOf(node: unknown): string | null {
-  if (typeof node === "string") return node.trim() || null;
+  if (typeof node === "string") {
+    const trimmed = node.trim();
+    return trimmed ? decodeXmlEntities(trimmed) : null;
+  }
   if (typeof node === "number") return String(node);
   return null;
 }
