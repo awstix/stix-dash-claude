@@ -663,9 +663,11 @@ export async function LvReviewPanel({
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Langtext</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">LV-Menge</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Einheit</th>
-                <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
                 {hasAnyPrice ? (
-                  <th className="sticky top-0 z-10 bg-gray-50 p-3">GP</th>
+                  <>
+                    <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
+                    <th className="sticky top-0 z-10 bg-gray-50 p-3">GP</th>
+                  </>
                 ) : null}
                 <th className="sticky top-0 z-10 w-64 bg-gray-50 p-3">
                   Ähnlich in anderen LVs
@@ -678,7 +680,7 @@ export async function LvReviewPanel({
             </thead>
             <tbody>
               {(() => {
-                const colCount = hasAnyPrice ? 10 : 9;
+                const colCount = hasAnyPrice ? 10 : 8;
                 const rows: React.ReactNode[] = [];
                 // Zwischensumme je Abschnitt (zwischen zwei Titel-Zeilen)
                 // und Endsumme über alle Abschnitte - nur relevant, wenn
@@ -772,17 +774,19 @@ export async function LvReviewPanel({
                       <td className="p-3 whitespace-nowrap">
                         {item.unit ?? "–"}
                       </td>
-                      <td className="w-28 max-w-28 p-3">
-                        <span className="whitespace-nowrap">
-                          {formatCents(item.unitPriceCents)}
-                        </span>
-                      </td>
                       {hasAnyPrice ? (
-                        <td className="w-28 max-w-28 p-3">
-                          <span className="whitespace-nowrap">
-                            {formatCents(gpCents)}
-                          </span>
-                        </td>
+                        <>
+                          <td className="w-28 max-w-28 p-3">
+                            <span className="whitespace-nowrap">
+                              {formatCents(item.unitPriceCents)}
+                            </span>
+                          </td>
+                          <td className="w-28 max-w-28 p-3">
+                            <span className="whitespace-nowrap">
+                              {formatCents(gpCents)}
+                            </span>
+                          </td>
+                        </>
                       ) : null}
                       <td className="w-64 max-w-64 p-3">
                         {item.positionNumber &&
