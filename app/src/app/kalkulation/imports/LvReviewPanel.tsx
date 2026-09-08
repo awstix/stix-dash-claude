@@ -38,6 +38,23 @@ function formatCents(cents: number | null) {
   }).format(cents / 100);
 }
 
+/** Die erste Zeile von rawText beschreibt die Quelle des aktuell
+ * übernommenen Ansatzes ("Übernommen aus Projekt X (Ähnlichkeit Y%):" -
+ * siehe suggestAnsaetzeFromHistory/chooseAnsatzAlternative/
+ * adoptAnsatzFromCandidate in actions.ts, alle drei Schreibstellen
+ * beginnen rawText auf dieselbe Weise) - damit lässt sich sowohl in der
+ * Vorschlagsliste als auch bei "Ähnlich in anderen LVs" anzeigen, welcher
+ * Kandidat es tatsächlich geworden ist, ohne die Quelle zusätzlich
+ * strukturiert zu speichern. Nur bei CONFIRMED aussagekräftig - bei einem
+ * verworfenen Ansatz beschreibt rawText nur noch, was mal drinstand. */
+function parseAdoptedSourceLabel(
+  rawText: string,
+  matchStatus: string,
+): string | undefined {
+  if (matchStatus !== "CONFIRMED") return undefined;
+  return /^Übernommen aus Projekt (.+):/.exec(rawText)?.[1];
+}
+
 /** Übernehmen/Verwerfen/Andere Vorschläge für eine automatisch per Ansatz-
  * Übernahme befüllte Kalkulationszeile - wird sowohl direkt in der
  * Kalkulations-Tabelle als auch (über den verknüpften Kalkulations-
@@ -58,17 +75,10 @@ function AnsatzActions({
   const alternatives: StoredAnsatzAlternative[] = target.ansatzAlternativesJson
     ? JSON.parse(target.ansatzAlternativesJson)
     : [];
-  // Die erste Zeile von rawText beschreibt die Quelle des aktuell
-  // übernommenen Ansatzes ("Übernommen aus Projekt X (Ähnlichkeit Y%):" -
-  // siehe suggestAnsaetzeFromHistory/chooseAnsatzAlternative/
-  // adoptAnsatzFromCandidate in actions.ts, alle drei Schreibstellen
-  // beginnen rawText auf dieselbe Weise) - damit lässt sich der aktuelle
-  // Stand in derselben Liste wie die Alternativen hervorheben, ohne ihn
-  // separat zu speichern.
-  const activeSourceLabel =
-    target.matchStatus === "CONFIRMED"
-      ? /^Übernommen aus Projekt (.+):/.exec(target.rawText)?.[1]
-      : undefined;
+  const activeSourceLabel = parseAdoptedSourceLabel(
+    target.rawText,
+    target.matchStatus,
+  );
   return (
     <div className="flex flex-col gap-2">
       {target.matchStatus !== "CONFIRMED" ? (
@@ -692,6 +702,11 @@ export async function LvReviewPanel({
 
                 const status =
                   STATUS_LABELS[item.matchStatus] ?? STATUS_LABELS.PENDING;
+                // Wird weiter unten beim Rendern der "Ähnlich in anderen
+                // LVs"-Zelle gesetzt (bevor die Kandidatenliste gerendert
+                // wird) und dort direkt danach gelesen, um den bereits
+                // übernommenen Kandidaten zu markieren.
+                let activeSourceLabelForRow: string | undefined;
                 return (
                   <tr
                     className="border-t border-gray-100 align-top even:bg-gray-50"
@@ -720,24 +735,32 @@ export async function LvReviewPanel({
                       </td>
                     ) : null}
                     <td className="w-64 max-w-64 p-3">
-                      {item.positionNumber &&
-                      ownAnsatzStatusByOz.has(item.positionNumber.trim())
-                        ? (() => {
-                            const ansatzStatus = ownAnsatzStatusByOz.get(
-                              item.positionNumber!.trim(),
-                            )!;
-                            return (
-                              <details className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
-                                <summary className="cursor-pointer font-semibold text-blue-700 underline">
-                                  Übernommenen Ansatz anzeigen
-                                </summary>
-                                <p className="mt-1 whitespace-pre-line break-words text-gray-700">
-                                  {ansatzStatus.rawText}
-                                </p>
-                              </details>
-                            );
-                          })()
-                        : null}
+                      {(() => {
+                        const ansatzStatus = item.positionNumber
+                          ? ownAnsatzStatusByOz.get(item.positionNumber.trim())
+                          : undefined;
+                        // Damit sich unten bei den Kandidaten markieren
+                        // lässt, welcher davon der tatsächlich übernommene
+                        // ist (sonst zeigt jeder Ansatz-Kandidat gleich
+                        // aussehend "Ansatz übernehmen" an, obwohl einer
+                        // davon längst der aktuelle Stand ist).
+                        activeSourceLabelForRow = ansatzStatus
+                          ? parseAdoptedSourceLabel(
+                              ansatzStatus.rawText,
+                              ansatzStatus.matchStatus,
+                            )
+                          : undefined;
+                        return ansatzStatus ? (
+                          <details className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs">
+                            <summary className="cursor-pointer font-semibold text-blue-700 underline">
+                              Übernommenen Ansatz anzeigen
+                            </summary>
+                            <p className="mt-1 whitespace-pre-line break-words text-gray-700">
+                              {ansatzStatus.rawText}
+                            </p>
+                          </details>
+                        ) : null;
+                      })()}
                       {(crossLvMatchesByLineItem.get(item.id) ?? []).length ===
                       0 ? (
                         <span className="text-gray-400">–</span>
@@ -761,13 +784,29 @@ export async function LvReviewPanel({
                                     )
                                   : undefined;
                               const isAnsatz = Boolean(resolvedAnsatz);
+                              // Nur ein OZ-Treffer im selben Projekt reicht
+                              // nicht als Vergleich (zwei verschiedene
+                              // Positionen im selben Projekt könnten
+                              // theoretisch beide ähnlich sein) - der
+                              // Projekt-Teil von activeSourceLabelForRow ist
+                              // aber in der Praxis eindeutig genug, um zu
+                              // zeigen, welcher der Kandidaten hier
+                              // tatsächlich übernommen wurde.
+                              const isCurrentlyAdopted = Boolean(
+                                isAnsatz &&
+                                activeSourceLabelForRow &&
+                                cross.lvImport.projectNumber &&
+                                activeSourceLabelForRow.startsWith(
+                                  cross.lvImport.projectNumber,
+                                ),
+                              );
                               const diffTokens = diffWords(
                                 item.rawText,
                                 cross.rawText,
                               );
                               return (
                                 <div
-                                  className="border-b border-gray-100 pb-2 last:border-0 last:pb-0"
+                                  className={`border-b border-gray-100 pb-2 last:border-0 last:pb-0 ${isCurrentlyAdopted ? "-mx-2 rounded-lg border border-purple-300 bg-purple-50 px-2 pt-2" : ""}`}
                                   key={cross.id}
                                 >
                                   <div className="break-words font-semibold text-gray-900">
@@ -786,14 +825,21 @@ export async function LvReviewPanel({
                                       ? " · Einheit gleich"
                                       : ""}
                                   </div>
-                                  <div className="mt-1 text-xs font-semibold text-green-800">
-                                    {isAnsatz
-                                      ? "Kalkulationsansatz"
-                                      : "Kein Ansatz vorhanden"}{" "}
-                                    · {formatLvSource(cross.lvImport)}
-                                    {cross.lvImport.lvDate
-                                      ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
-                                      : ""}
+                                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-green-800">
+                                    <span>
+                                      {isAnsatz
+                                        ? "Kalkulationsansatz"
+                                        : "Kein Ansatz vorhanden"}{" "}
+                                      · {formatLvSource(cross.lvImport)}
+                                      {cross.lvImport.lvDate
+                                        ? ` (${new Intl.DateTimeFormat("de-DE", { month: "2-digit", year: "numeric" }).format(cross.lvImport.lvDate)})`
+                                        : ""}
+                                    </span>
+                                    {isCurrentlyAdopted ? (
+                                      <span className="rounded-full bg-purple-700 px-2 py-0.5 text-[11px] font-bold text-white">
+                                        ✓ Ansatz übernommen
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <details className="mt-1">
                                     <summary className="cursor-pointer text-xs font-semibold text-blue-700 underline">
@@ -824,7 +870,8 @@ export async function LvReviewPanel({
                                       </p>
                                     </details>
                                   ) : null}
-                                  {isAnsatz && resolvedAnsatz ? (
+                                  {isCurrentlyAdopted ? null : isAnsatz &&
+                                    resolvedAnsatz ? (
                                     <form action={adoptAnsatzFromCandidate}>
                                       <input
                                         name="lineItemId"
