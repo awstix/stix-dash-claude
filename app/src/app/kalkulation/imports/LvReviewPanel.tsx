@@ -175,6 +175,17 @@ export async function LvReviewPanel({
 
   const isKalkulation = lvImport.sourceFormat === "RIB_KALKULATION";
 
+  // Preise stehen nur in einer schon gepreist hochgeladenen LV-Datei drin
+  // (GAEB UP bzw. Excel EP, siehe importLv in actions.ts) - beim
+  // tatsächlichen Arbeitsablauf hier (immer eine noch unbepreiste
+  // Ausschreibung) ist das nie der Fall, deshalb bleibt die EP-Spalte dann
+  // ganz weg statt nur "–" in jeder Zeile zu zeigen.
+  const hasAnyPrice =
+    !isKalkulation &&
+    lineItems.some(
+      (item) => item.entryType === "ITEM" && item.unitPriceCents != null,
+    );
+
   // Ergebnis von "Abgleich starten" wird beim Klick berechnet und in
   // crossLvMatchesJson je Position gespeichert (siehe updateCrossLvSettings
   // in actions.ts) - hier nur noch aus der Datenbank laden und die
@@ -636,7 +647,9 @@ export async function LvReviewPanel({
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Langtext</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">LV-Menge</th>
                 <th className="sticky top-0 z-10 bg-gray-50 p-3">Einheit</th>
-                <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
+                {hasAnyPrice ? (
+                  <th className="sticky top-0 z-10 bg-gray-50 p-3">EP</th>
+                ) : null}
                 <th className="sticky top-0 z-10 w-64 bg-gray-50 p-3">
                   Ähnlich in anderen LVs
                 </th>
@@ -653,7 +666,7 @@ export async function LvReviewPanel({
                     <tr key={item.id}>
                       <td
                         className="bg-gray-900 p-3 font-bold text-white"
-                        colSpan={9}
+                        colSpan={hasAnyPrice ? 9 : 8}
                       >
                         {item.rawText}
                       </td>
@@ -666,7 +679,7 @@ export async function LvReviewPanel({
                     <tr key={item.id}>
                       <td
                         className="whitespace-pre-line bg-amber-50 p-3 text-sm italic text-amber-950"
-                        colSpan={9}
+                        colSpan={hasAnyPrice ? 9 : 8}
                       >
                         <span className="font-bold not-italic">
                           Vorbemerkung:{" "}
@@ -699,11 +712,13 @@ export async function LvReviewPanel({
                     <td className="p-3 whitespace-nowrap">
                       {item.unit ?? "–"}
                     </td>
-                    <td className="w-28 max-w-28 p-3">
-                      <span className="whitespace-nowrap">
-                        {formatCents(item.unitPriceCents)}
-                      </span>
-                    </td>
+                    {hasAnyPrice ? (
+                      <td className="w-28 max-w-28 p-3">
+                        <span className="whitespace-nowrap">
+                          {formatCents(item.unitPriceCents)}
+                        </span>
+                      </td>
+                    ) : null}
                     <td className="w-64 max-w-64 p-3">
                       {item.positionNumber &&
                       ownAnsatzStatusByOz.has(item.positionNumber.trim())
