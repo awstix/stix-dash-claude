@@ -15,6 +15,7 @@ import type { StoredCrossLvMatch } from "@/lib/kalkulation-matching";
 import {
   ansatzPoolByProjectAndOz,
   buildAnsatzPool,
+  normalizeOz,
   type AnsatzPoolEntry,
   type StoredAnsatzAlternative,
 } from "@/lib/kalkulation-ansatz-pool";
@@ -357,7 +358,7 @@ export async function LvReviewPanel({
       });
       ownAnsatzStatusByOz = new Map(
         ownAnsatzItems.map((row) => [
-          row.positionNumber!.trim(),
+          normalizeOz(row.positionNumber!),
           {
             id: row.id,
             ansatzAlternativesJson: row.ansatzAlternativesJson,
@@ -754,7 +755,7 @@ export async function LvReviewPanel({
                     <td className="w-64 max-w-64 p-3">
                       {(() => {
                         const ansatzStatus = item.positionNumber
-                          ? ownAnsatzStatusByOz.get(item.positionNumber.trim())
+                          ? ownAnsatzStatusByOz.get(normalizeOz(item.positionNumber))
                           : undefined;
                         // Damit sich unten bei den Kandidaten markieren
                         // lässt, welcher davon der tatsächlich übernommene
@@ -797,7 +798,7 @@ export async function LvReviewPanel({
                                 cross.lvImport.projectNumber &&
                                 cross.positionNumber
                                   ? ansatzByProjectAndOz.get(
-                                      `${cross.lvImport.projectNumber}::${cross.positionNumber.trim()}`,
+                                      `${cross.lvImport.projectNumber}::${normalizeOz(cross.positionNumber)}`,
                                     )
                                   : undefined;
                               const isAnsatz = Boolean(resolvedAnsatz);
@@ -944,7 +945,7 @@ export async function LvReviewPanel({
                           // Position bereits ein Ansatz übernommen wurde.
                           const ansatzStatus = item.positionNumber
                             ? ownAnsatzStatusByOz.get(
-                                item.positionNumber.trim(),
+                                normalizeOz(item.positionNumber),
                               )
                             : undefined;
                           if (!ansatzStatus) {
@@ -987,7 +988,7 @@ export async function LvReviewPanel({
                         (() => {
                           const ansatzStatus = item.positionNumber
                             ? ownAnsatzStatusByOz.get(
-                                item.positionNumber.trim(),
+                                normalizeOz(item.positionNumber),
                               )
                             : undefined;
                           return ansatzStatus ? (

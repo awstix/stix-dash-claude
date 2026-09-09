@@ -14,6 +14,21 @@
 import { prisma } from "@/lib/prisma";
 import { buildLvMatches, type LvMatchInput } from "@/lib/kalkulation-matching";
 
+/** Vereinheitlicht eine OZ-Nummer für den projektübergreifenden Abgleich
+ * zwischen LV (GAEB, oft mit führenden Nullen je Segment, z.B. "01.08.9")
+ * und Kalkulation (RIB, ohne führende Nullen, z.B. "1.8.9") - ohne das
+ * würde derselbe Positions-Schlüssel je nach Quellformat unterschiedlich
+ * aussehen und ein vorhandener Ansatz fälschlich als "nicht vorhanden"
+ * gelten. Führende Nullen werden je durch "." getrenntem Segment entfernt,
+ * nicht am Gesamtstring - sonst würde z.B. "10.1" zu "1.1" verfälscht. */
+export function normalizeOz(positionNumber: string): string {
+  return positionNumber
+    .trim()
+    .split(".")
+    .map((segment) => segment.replace(/^0+(?=\d)/, ""))
+    .join(".");
+}
+
 export type AnsatzPoolEntry = LvMatchInput & {
   sourceLineItemId: string;
   sourceProjectNumber: string;
@@ -78,7 +93,7 @@ export async function buildAnsatzPool(
   for (const item of lvItems) {
     const projectNumber = item.lvImport.projectNumber;
     if (!projectNumber || !item.positionNumber) continue;
-    const key = `${projectNumber}::${item.positionNumber.trim()}`;
+    const key = `${projectNumber}::${normalizeOz(item.positionNumber)}`;
     if (!lvItemByProjectAndOz.has(key)) lvItemByProjectAndOz.set(key, item);
   }
 
@@ -92,7 +107,7 @@ export async function buildAnsatzPool(
     // ansätze") wird für den Textvergleich abgeschnitten, der soll nur den
     // Positionstext selbst vergleichen, nicht die Ansatz-Details.
     const hasOwnText = Boolean(item.shortText) && !item.shortText!.startsWith("Kalkulation OZ ");
-    const sourceLvItem = lvItemByProjectAndOz.get(`${projectNumber}::${item.positionNumber.trim()}`);
+    const sourceLvItem = lvItemByProjectAndOz.get(`${projectNumber}::${normalizeOz(item.positionNumber)}`);
     const shortText = hasOwnText ? item.shortText : (sourceLvItem?.shortText ?? null);
     const rawText = hasOwnText
       ? item.rawText.split("\n\nKalkulationsansätze")[0].trim()
@@ -113,7 +128,7 @@ export async function buildAnsatzPool(
       sourceImportDate: item.lvImport.lvDate ?? item.lvImport.createdAt,
       sourceImportId: item.lvImportId,
       sourceLineItemId: item.id,
-      sourcePositionNumber: item.positionNumber.trim(),
+      sourcePositionNumber: normalizeOz(item.positionNumber),
       sourceProjectNumber: projectNumber,
       unit: sourceLvItem?.unit ?? null,
     });
@@ -192,7 +207,7 @@ export function findAnsatzCandidatesViaLvMatch(
   for (const match of matches) {
     const meta = otherLvMetaById.get(match.candidateId);
     if (!meta?.positionNumber) continue;
-    const ansatz = ansatzByProjectAndOz.get(`${meta.projectNumber}::${meta.positionNumber.trim()}`);
+    const ansatz = ansatzByProjectAndOz.get(`${meta.projectNumber}::${normalizeOz(meta.positionNumber)}`);
     if (!ansatz || seenProjects.has(ansatz.sourceProjectNumber)) continue;
     seenProjects.add(ansatz.sourceProjectNumber);
     collected.push({ ansatz, kurztextScore: match.kurztextScore, langtextScore: match.langtextScore });

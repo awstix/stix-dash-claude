@@ -16,6 +16,7 @@ import {
   ansatzPoolByProjectAndOz,
   buildAnsatzPool,
   findAnsatzCandidatesViaLvMatch,
+  normalizeOz,
   type StoredAnsatzAlternative,
 } from "@/lib/kalkulation-ansatz-pool";
 import { buildLvMatches, normalizeText, type StoredCrossLvMatch } from "@/lib/kalkulation-matching";
@@ -329,7 +330,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   >();
   for (const item of ownLineItems) {
     if (!item.positionNumber) continue;
-    const key = item.positionNumber.trim();
+    const key = normalizeOz(item.positionNumber);
     if (!ownTextByOz.has(key)) {
       ownTextByOz.set(key, { quantity: item.quantity, rawText: item.rawText, shortText: item.shortText, unit: item.unit });
     }
@@ -451,7 +452,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
       const isRealUploadedAnsatz = !ribBlockIsEmpty(item.ribRawBlock) && item.matchedVia !== "CROSS_PROJECT_ANSATZ";
       const isDecided = item.matchStatus === "CONFIRMED" || item.matchStatus === "REJECTED";
       if (isRealUploadedAnsatz || isDecided) continue;
-      const ownText = ownTextByOz.get(item.positionNumber.trim());
+      const ownText = ownTextByOz.get(normalizeOz(item.positionNumber));
       if (!ownText) continue;
       attemptedCount += 1;
       const suggestion = findSuggestion(item.positionNumber, ownText);
