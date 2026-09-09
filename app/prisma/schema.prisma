@@ -3761,6 +3761,12 @@ model KalkulationLvImport {
   // eigenen Formularfelds, damit beide Aktionen konsistent denselben
   // Projekt-Filter verwenden).
   crossLvTargetProjectNumber String?
+  // Blendet Kandidaten aus Projekten vor diesem Jahr komplett aus (LV-Datum
+  // bzw. Kalkulations-Datum, sonst Upload-Datum als Ersatz) - alte Projekte
+  // sollen nicht automatisch als Preis-/Ansatz-Referenz vorgeschlagen
+  // werden. Leer = kein Jahresfilter. Gilt wie crossLvTargetProjectNumber
+  // für "Abgleich starten" und "Ansätze vorschlagen" gleichermaßen.
+  crossLvMinYear           Int?
   crossLvMatchedAt         DateTime? // wann zuletzt "Ähnlich in anderen LVs laden" mit diesen Einstellungen lief
   crossLvMatchedByUserId   String?
   crossLvMatchedByUser     User?     @relation("KalkulationCrossLvMatchedBy", fields: [crossLvMatchedByUserId], references: [id], onDelete: SetNull)

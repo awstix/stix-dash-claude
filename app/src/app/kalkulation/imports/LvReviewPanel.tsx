@@ -540,6 +540,19 @@ export async function LvReviewPanel({
                   ))}
                 </select>
               </label>
+              <label className="mt-3 block text-sm font-semibold text-gray-900">
+                Nur Projekte ab Jahr
+                <input
+                  className="mt-1 w-full max-w-xs rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  defaultValue={lvImport.crossLvMinYear ?? ""}
+                  max={9999}
+                  min={2000}
+                  name="crossLvMinYear"
+                  placeholder="z.B. 2023 - leer lassen für alle Jahre"
+                  title="Gilt für 'Abgleich starten' und 'Ansätze aus anderen Projekten vorschlagen' gleichermaßen - blendet ältere Projekte aus, damit keine veralteten Preise/Ansätze vorgeschlagen werden"
+                  type="number"
+                />
+              </label>
               <button
                 className="mt-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
                 title="Vergleicht jede Position live gegen alle Positionen anderer LVs/Kalkulationen in der Datenbank - dauert je nach Datenmenge einen Moment, deshalb nicht automatisch"
@@ -584,6 +597,10 @@ export async function LvReviewPanel({
                   {lvImport.crossLvTargetProjectNumber
                     ? `Nur Projekt ${lvImport.crossLvTargetProjectNumber}`
                     : "Alle Projekte"}
+                  {" · "}
+                  {lvImport.crossLvMinYear
+                    ? `Ab Jahr ${lvImport.crossLvMinYear}`
+                    : "Alle Jahre"}
                 </p>
               ) : null}
             </ImportForm>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-access";
 import { deleteFile, putFile } from "@/lib/storage";
@@ -316,6 +317,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
   // Derselbe Projekt-Filter wie "Abgleich starten" (im LV selbst
   // eingestellt, siehe updateCrossLvSettings) - leer heißt "alle Projekte".
   const targetProjectNumber = ownLvImportChecked.crossLvTargetProjectNumber ?? undefined;
+  const minYear = ownLvImportChecked.crossLvMinYear ?? undefined;
 
   const ownLineItems = await prisma.kalkulationLvLineItem.findMany({
     orderBy: { rowNumber: "asc" },
@@ -333,7 +335,7 @@ export async function suggestAnsaetzeFromHistory(formData: FormData) {
     }
   }
 
-  const pool = await buildAnsatzPool(projectNumber, targetProjectNumber);
+  const pool = await buildAnsatzPool(projectNumber, targetProjectNumber, minYear);
   if (pool.length === 0) {
     redirect(
       `${returnTo}?importError=${encodeURIComponent("Es gibt noch keine auswertbaren, als final markierten Kalkulationsansätze in anderen Projekten.")}`,
@@ -673,6 +675,11 @@ export async function updateCrossLvSettings(formData: FormData) {
   // Leer = gegen alle anderen Projekte - gilt danach auch für "Ansätze aus
   // anderen Projekten vorschlagen" (liest denselben gespeicherten Wert).
   const targetProjectNumber = text(formData.get("targetProjectNumber")) || null;
+  // Leer = kein Jahresfilter - blendet sonst Kandidaten aus Projekten vor
+  // diesem Jahr aus, gilt ebenfalls für beide Aktionen (siehe crossLvMinYear
+  // in schema.prisma).
+  const minYearRaw = text(formData.get("crossLvMinYear"));
+  const minYear = minYearRaw ? Number.parseInt(minYearRaw, 10) : null;
 
   const updatedImport = await prisma.kalkulationLvImport.update({
     data: {
@@ -684,6 +691,7 @@ export async function updateCrossLvSettings(formData: FormData) {
       crossLvLangtextThreshold: langtextThreshold,
       crossLvMatchedAt: new Date(),
       crossLvMatchedByUserId: session.user.id,
+      crossLvMinYear: minYear,
       crossLvTargetProjectNumber: targetProjectNumber,
     },
     where: { id: importId },
@@ -694,6 +702,20 @@ export async function updateCrossLvSettings(formData: FormData) {
   // rechnen - "Abgleich starten" bleibt der einzige (teure) Auslöser,
   // das Ergebnis bleibt danach aber dauerhaft sichtbar, auch ohne
   // erneuten Klick ("letzter Stand" statt Live-Neuberechnung pro Ansicht).
+  const otherLvImportFilter: Prisma.KalkulationLvImportWhereInput = {};
+  if (targetProjectNumber) {
+    otherLvImportFilter.projectNumber = targetProjectNumber;
+  } else if (updatedImport.projectNumber) {
+    otherLvImportFilter.projectNumber = { not: updatedImport.projectNumber };
+  }
+  if (minYear != null) {
+    const cutoff = new Date(Date.UTC(minYear, 0, 1));
+    otherLvImportFilter.OR = [
+      { lvDate: { gte: cutoff } },
+      { AND: [{ lvDate: null }, { createdAt: { gte: cutoff } }] },
+    ];
+  }
+
   const [ownItems, otherLvItems] = await Promise.all([
     prisma.kalkulationLvLineItem.findMany({ where: { entryType: "ITEM", lvImportId: importId } }),
     prisma.kalkulationLvLineItem.findMany({
@@ -703,11 +725,7 @@ export async function updateCrossLvSettings(formData: FormData) {
         entryType: "ITEM",
         lvImportId: { not: importId },
         NOT: { shortText: { startsWith: "Kalkulation OZ " } },
-        ...(targetProjectNumber
-          ? { lvImport: { projectNumber: targetProjectNumber } }
-          : updatedImport.projectNumber
-            ? { lvImport: { projectNumber: { not: updatedImport.projectNumber } } }
-            : {}),
+        ...(Object.keys(otherLvImportFilter).length > 0 ? { lvImport: otherLvImportFilter } : {}),
       },
     }),
   ]);

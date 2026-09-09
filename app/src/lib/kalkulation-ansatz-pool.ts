@@ -27,10 +27,14 @@ export type AnsatzPoolEntry = LvMatchInput & {
 
 /** `onlyProjectNumber`: gezielter Abgleich gegen genau ein anderes Projekt
  * statt gegen den gesamten Pool (Nutzer-Wunsch: "ich kann auch selbst ein
- * Projekt wählen, mit dem die Kalkulation genauer abgeglichen wird"). */
+ * Projekt wählen, mit dem die Kalkulation genauer abgeglichen wird").
+ * `minYear`: blendet Kalkulationen vor diesem Jahr aus (Kalkulations-Datum,
+ * sonst Upload-Datum als Ersatz - dieselbe Quelle wie sourceImportDate
+ * unten) - alte Projekte sollen nicht automatisch als Referenz einfließen. */
 export async function buildAnsatzPool(
   excludeProjectNumber?: string,
   onlyProjectNumber?: string,
+  minYear?: number,
 ): Promise<AnsatzPoolEntry[]> {
   const kalkulationItems = await prisma.kalkulationLvLineItem.findMany({
     include: { lvImport: true },
@@ -49,6 +53,10 @@ export async function buildAnsatzPool(
   const relevantKalkulationItems = kalkulationItems.filter((item) => {
     if (item.lvImport.projectNumber === excludeProjectNumber) return false;
     if (onlyProjectNumber && item.lvImport.projectNumber !== onlyProjectNumber) return false;
+    if (minYear != null) {
+      const sourceDate = item.lvImport.lvDate ?? item.lvImport.createdAt;
+      if (sourceDate.getFullYear() < minYear) return false;
+    }
     return true;
   });
   if (relevantKalkulationItems.length === 0) return [];
